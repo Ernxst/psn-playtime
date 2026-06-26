@@ -10,6 +10,6 @@
     "seroval-plugins",
     "@vitest/browser",
     "vitest-browser-react",
-    "oxlint-plugin-react-doctor"
-  ]
+    "oxlint-plugin-react-doctor",
+  ],
 }
