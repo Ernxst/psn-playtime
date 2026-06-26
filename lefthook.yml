@@ -1,0 +1,15 @@
+pre-commit:
+  parallel: true
+  commands:
+    format:
+      glob: '*.{js,ts,jsx,tsx,json,css}'
+      run: pnpm exec oxfmt --write {staged_files}
+      stage_fixed: true
+    lint:
+      glob: '*.{js,ts,jsx,tsx}'
+      run: pnpm exec oxlint {staged_files}
+
+pre-push:
+  commands:
+    typecheck:
+      run: pnpm run typecheck
