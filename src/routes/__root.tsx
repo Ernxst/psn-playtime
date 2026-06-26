@@ -1,12 +1,11 @@
+import { TanStackDevtools } from "@tanstack/react-devtools";
+import type { QueryClient } from "@tanstack/react-query";
 import { HeadContent, Scripts, createRootRouteWithContext } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
-import { TanStackDevtools } from "@tanstack/react-devtools";
-
+import { Toaster } from "../components/ui/sonner";
+import { TooltipProvider } from "../components/ui/tooltip";
 import TanStackQueryDevtools from "../integrations/tanstack-query/devtools";
-
 import appCss from "../styles.css?url";
-
-import type { QueryClient } from "@tanstack/react-query";
 
 interface MyRouterContext {
   queryClient: QueryClient;
@@ -23,7 +22,12 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
         content: "width=device-width, initial-scale=1",
       },
       {
-        title: "TanStack Start Starter",
+        title: "PSN Playtime — your PlayStation history, visualised",
+      },
+      {
+        name: "description",
+        content:
+          "Turn your PlayStation play history into clear charts: top games, genres, franchises and more.",
       },
     ],
     links: [
@@ -38,12 +42,13 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className="dark">
       <head>
         <HeadContent />
       </head>
       <body>
-        {children}
+        <TooltipProvider>{children}</TooltipProvider>
+        <Toaster richColors position="top-center" />
         <TanStackDevtools
           config={{
             position: "bottom-right",

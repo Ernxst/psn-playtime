@@ -1,14 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { SignInCard } from "@/components/onboarding/sign-in-card";
 
 export const Route = createFileRoute("/")({ component: Home });
 
 function Home() {
   return (
-    <div className="p-8">
-      <h1 className="text-4xl font-bold">Welcome to TanStack Start</h1>
-      <p className="mt-4 text-lg">
-        Edit <code>src/routes/index.tsx</code> to get started.
-      </p>
-    </div>
+    <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col justify-center gap-8 p-6">
+      <div className="space-y-3 text-center">
+        <h1 className="text-4xl font-bold tracking-tight">PSN Playtime</h1>
+        <p className="text-lg text-muted-foreground">
+          Turn your PlayStation history into a clear picture of how you actually play.
+        </p>
+      </div>
+      <SignInCard />
+    </main>
   );
 }

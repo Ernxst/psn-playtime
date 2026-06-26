@@ -1,3 +1,6 @@
+assert_lefthook_installed: true
+min_version: 2.1.6
+
 commit-msg:
   commands:
     "lint commit message":
@@ -7,14 +10,48 @@ pre-commit:
   parallel: true
   commands:
     format:
-      glob: "*.{js,ts,jsx,tsx,json,css}"
+      priority: 1
+      glob: "*.{js,ts,jsx,tsx,json,css,md}"
       run: pnpm exec oxfmt --write {staged_files}
       stage_fixed: true
+
     lint:
-      glob: "*.{js,ts,jsx,tsx}"
-      run: pnpm exec oxlint {staged_files}
+      priority: 2
+      glob:
+        - "*.{js,ts,jsx,tsx}"
+        - "**/tsconfig*.json"
+        - "package.json"
+        - "pnpm-lock.yaml"
+      run: pnpm exec oxlint --fix {staged_files}
+      stage_fixed: true
+
+    typecheck:
+      glob:
+        - "*.{js,ts,jsx,tsx}"
+        - "**/tsconfig*.json"
+        - "package.json"
+        - "pnpm-lock.yaml"
+      run: pnpm exec typecheck
+
+    knip:
+      glob:
+        - "package.json"
+        - "pnpm-lock.yaml"
+        - "knip.jsonc"
+        - "**/tsconfig*.json"
+        - "**/*.{ts,tsx}"
+      run: pnpm exec knip
+
+    test:
+      glob:
+        - "package.json"
+        - "pnpm-lock.yaml"
+        - "**/*.{ts,tsx}"
+      run: pnpm run test --browser.headless --api.strictPort
 
 pre-push:
+  skip:
+    - rebase
   commands:
-    typecheck:
-      run: pnpm run typecheck
+    build:
+      run: pnpm run build

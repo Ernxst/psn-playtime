@@ -1,6 +1,8 @@
 # Auto detect text files and perform LF normalization
 * text=auto
 
+src/routeTree.gen.ts linguist-generated
+
 # Lockfile — don't diff in code review
 bun.lock linguist-generated
 package-lock.json linguist-generated
