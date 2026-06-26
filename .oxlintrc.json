@@ -14,11 +14,5 @@
     "no-console": "off",
     "react/no-unescaped-entities": "off"
   },
-  "ignorePatterns": [
-    "src/routeTree.gen.ts",
-    ".output",
-    ".nitro",
-    "dist",
-    "node_modules"
-  ]
+  "ignorePatterns": ["src/routeTree.gen.ts", ".output", ".nitro", "dist", "node_modules"]
 }
