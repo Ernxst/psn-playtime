@@ -1,0 +1,7 @@
+{
+  "$schema": "./node_modules/knip/schema-jsonc.json",
+  "ignoreDependencies": ["@commitlint/cli"],
+  "treatConfigHintsAsErrors": true,
+  "ignore": [".claude/**/*"],
+  "entry": ["**/*.d.ts"],
+}
