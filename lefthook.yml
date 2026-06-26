@@ -31,7 +31,7 @@ pre-commit:
         - "**/tsconfig*.json"
         - "package.json"
         - "pnpm-lock.yaml"
-      run: pnpm exec typecheck
+      run: pnpm run typecheck
 
     knip:
       glob:

@@ -1,7 +1,15 @@
 {
   "$schema": "./node_modules/knip/schema-jsonc.json",
-  "ignoreDependencies": ["@commitlint/cli"],
   "treatConfigHintsAsErrors": true,
-  "ignore": [".claude/**/*"],
-  "entry": ["**/*.d.ts"],
+  // Vendored shadcn primitives: keep the full component API even when unused.
+  "ignore": ["src/components/ui/**"],
+  "ignoreDependencies": [
+    // Build-tooling / peers that are used but not import-traceable by knip.
+    "@tanstack/router-plugin",
+    "seroval",
+    "seroval-plugins",
+    "@vitest/browser",
+    "vitest-browser-react",
+    "oxlint-plugin-react-doctor"
+  ]
 }
