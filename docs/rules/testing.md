@@ -5,8 +5,12 @@ You MUST follow existing testing patterns. Test: initial render, user interactio
 ## Definition of Done
 
 - All rules in this file are followed
-- Tests pass: `bun run test`
+- Tests pass: `pnpm test`
 - No forbidden APIs used
+
+> Project note: this app is TanStack Start + Vitest (node + browser/Playwright projects). Tests are
+> **co-located** and shared test infrastructure (MSW handlers, fixtures, a minimal router/query
+> harness) is **allowed** — see File Structure, Mocking Policy, and Setup below.
 
 ---
 
@@ -24,7 +28,7 @@ You MUST follow existing testing patterns. Test: initial render, user interactio
 - `.finally()` for per-test teardown
 - Testing what the TypeScript compiler can catch
 - `vi.resetModules()` / `vi.restoreAllMocks()` outside of `onTestFinished` or `afterEach` — use the appropriate cleanup hook instead
-- Extracted test harnesses, wrapper functions, or fixture helpers to reduce repetition — inline setup only
+- Mocking our own repo code / wrappers (e.g. `@/server/*`) — mock the third-party SDK or the network (MSW) it delegates to instead
 - `mockImplementation` for throwing errors - use `mockThrow` instead
 - `mockImplementation(promise)` for returning a promise - use `mockReturnValue(promise)` instead
 - `expect(await promise).to...` - use `await expect(promise).resolves.to...` or extract the resolved value into a variable
@@ -40,10 +44,11 @@ You MUST follow existing testing patterns. Test: initial render, user interactio
 
 ## File Structure
 
-- Put tests in a `__tests__/` directory next to the file under test
+- **Co-locate** tests next to the file under test: `*.test.ts` / `*.test.tsx` (node project) and `*.browser.test.tsx` (browser project)
 - One behaviour per test; multiple assertions allowed if cohesive
 - Prefer table-driven tests for input permutations
 - Arrange–Act–Assert structure
+- Shared test infrastructure lives in `src/test/` (MSW handlers, fixtures, the router/query harness)
 
 ## Test Framework
 
@@ -66,7 +71,9 @@ You MUST follow existing testing patterns. Test: initial render, user interactio
 
 - **Default**: no mocks, spies, stubs, or test doubles
 - Do not mock anything defined in this repo — if untestable without mocking internal code → refactor
-- Never add test-only helpers to source files — put them in the test file or a co-located test helper
+- **Network is mocked with MSW**, not ad-hoc `fetch`/SDK stubs: intercept the real third-party HTTP (RAWG, psn-api's requests) at the network boundary. Centralise handlers in `src/test/` and override per-test. This is the one sanctioned place to "mock" — it stands in for the real third-party service, never for our own code.
+- Non-network third-party seams with no real test context (e.g. the `@tanstack/react-start/server` cookie helpers) may be module-mocked minimally, or driven via the shared request-context helper.
+- Never add test-only helpers to source files — put them in the test file or under `src/test/`
 - Never refactor source code solely to make it testable via dependency injection — if the real implementation is testable, test it directly
 
 ### Third-party and browser APIs
@@ -153,8 +160,7 @@ expect(onClick).toHaveBeenCalledWith("foo");
 
 ### Setup
 
-- Prefer inline setup — keeps tests self-contained
+- Prefer inline setup for test-specific arrangement — keeps tests self-contained
 - Use `beforeEach` only for expensive setup identical across all tests in the block (e.g. starting a server)
-- Never use `beforeEach` for convenience — repeat setup inline instead
-- Never extract test harnesses or wrapper functions to reduce repetition — prefer explicit inline setup even if duplicated.
-  - Exception: helpers that exercise a code path the public API intentionally prevents (e.g. simulating corrupt state).
+- Never use `beforeEach` for convenience — repeat test-specific setup inline instead
+- **Shared infrastructure is allowed and centralised in `src/test/`**: MSW handlers + server, reusable `DashboardData`/PSN/RAWG **fixtures** and builders, and a minimal **router + query harness** for rendering route/components that need context. Use these instead of duplicating provider/MSW boilerplate in every test; keep per-test data/arrangement inline on top of them.
