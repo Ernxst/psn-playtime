@@ -18,6 +18,7 @@ import type { AuthorizationPayload } from "psn-api";
 import { z } from "zod";
 import { enrichTitle, platformOf } from "@/lib/psn/enrich";
 import { demoDashboard } from "@/lib/psn/mock";
+import { cached, SEVEN_DAYS_MS } from "@/server/edge-cache";
 import type {
   DashboardData,
   DashboardMeta,
@@ -49,6 +50,20 @@ function cookieOptions() {
     path: "/",
     maxAge: COOKIE_MAX_AGE,
   };
+}
+
+/**
+ * A stable, non-secret edge-cache key for the signed-in account. The npsso is
+ * the credential and is 1:1 with the account within a stored session, so its
+ * SHA-256 hash isolates one user's cached dashboard from another's WITHOUT ever
+ * placing the secret (or a reversible form of it) in the cache key. Hashing the
+ * credential also lets us serve a cache hit before any PSN API call — including
+ * the token exchange — which keying by the profile `accountId` (only available
+ * after a profile fetch) could not.
+ */
+async function accountCacheKey(npsso: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(npsso));
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 /** Exchange an npsso token for an access-token authorization payload. */
@@ -479,10 +494,16 @@ interface CookieJar {
 
 export async function getDashboardHandler(cookies: CookieJar): Promise<DashboardData> {
   const npsso = cookies.get(COOKIE_NAME);
+  // Demo (signed-out) data is never cached — it is a static local payload.
   if (!npsso) return demoDashboard;
   try {
-    const auth = await authenticate(npsso);
-    return await buildDashboard(auth);
+    const key = await accountCacheKey(npsso);
+    // Edge-cached per account (~7-day TTL): a hit skips the npsso→token
+    // exchange and every PSN fetch. Outside the worker the producer just runs.
+    return await cached(`dashboard/${key}`, SEVEN_DAYS_MS, async () => {
+      const auth = await authenticate(npsso);
+      return buildDashboard(auth);
+    });
   } catch {
     cookies.remove(COOKIE_NAME, { path: "/" });
     return demoDashboard;
