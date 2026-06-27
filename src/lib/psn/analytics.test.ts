@@ -2,6 +2,7 @@ import { describe, expect, it, onTestFinished, vi } from "vitest";
 import {
   applyFilters,
   bingeVsDipIn,
+  comebacks,
   defaultFilters,
   filterByTimeframe,
   gameRows,
@@ -175,6 +176,82 @@ describe(".lifespans", () => {
       { name: "A", firstPlayed: "2020-01-01", lastPlayed: "2021-01-01", days: 366, hours: 100 },
       { name: "B", firstPlayed: "2019-01-01", lastPlayed: "2019-06-01", days: 151, hours: 50 },
       { name: "C", firstPlayed: "2022-01-01", lastPlayed: "2022-02-01", days: 31, hours: 50 },
+    ]);
+  });
+});
+
+describe(".comebacks", () => {
+  it("ranks dated multi-session games by average gap between sessions", () => {
+    expect(comebacks(sample)).toEqual([
+      {
+        name: "A",
+        firstPlayed: "2020-01-01",
+        lastPlayed: "2021-01-01",
+        sessions: 10,
+        avgGapDays: 40.7,
+      },
+      {
+        name: "B",
+        firstPlayed: "2019-01-01",
+        lastPlayed: "2019-06-01",
+        sessions: 5,
+        avgGapDays: 37.8,
+      },
+      {
+        name: "C",
+        firstPlayed: "2022-01-01",
+        lastPlayed: "2022-02-01",
+        sessions: 25,
+        avgGapDays: 1.3,
+      },
+    ]);
+  });
+
+  it("excludes single-session and undated titles", () => {
+    const data: DashboardData = {
+      ...sample,
+      games: [
+        { ...sample.games[0]!, titleId: "ONE", name: "One", playCount: 1 },
+        {
+          ...sample.games[1]!,
+          titleId: "NO_DATES",
+          name: "Undated",
+          firstPlayed: undefined,
+          lastPlayed: undefined,
+        },
+      ],
+    };
+
+    expect(comebacks(data)).toEqual([]);
+  });
+
+  it("excludes same-day spans that average a zero gap", () => {
+    const data: DashboardData = {
+      ...sample,
+      games: [
+        {
+          ...sample.games[0]!,
+          titleId: "SAME",
+          name: "Same day",
+          firstPlayed: "2021-03-01",
+          lastPlayed: "2021-03-01",
+          playCount: 8,
+        },
+      ],
+    };
+
+    expect(comebacks(data)).toEqual([]);
+  });
+
+  it("caps the ranking to the requested count", () => {
+    expect(comebacks(sample, 1)).toEqual([
+      {
+        name: "A",
+        firstPlayed: "2020-01-01",
+        lastPlayed: "2021-01-01",
+        sessions: 10,
+        avgGapDays: 40.7,
+      },
     ]);
   });
 });

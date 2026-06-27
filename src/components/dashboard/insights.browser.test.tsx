@@ -2,7 +2,7 @@ import { expect, test } from "vitest";
 import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
 import { demoDashboard } from "@/lib/psn/mock";
-import { AppsExcludedNote, LifespansCard, RecencyCard, ValueCard } from "./insights";
+import { AppsExcludedNote, ComebacksCard, LifespansCard, RecencyCard, ValueCard } from "./insights";
 
 const withGames = (games: typeof demoDashboard.games) => ({ ...demoDashboard, games });
 
@@ -32,6 +32,20 @@ test("lifespans card renders nothing when there are no games", async () => {
   await render(<LifespansCard data={withGames([])} />);
 
   expect(page.getByText("Longest in rotation").query()).toBeNull();
+});
+
+test("comebacks card surfaces games returned to after long breaks with an honest proxy caption", async () => {
+  await render(<ComebacksCard data={demoDashboard} />);
+
+  await expect.element(page.getByText("Kept coming back to")).toBeVisible();
+  await expect.element(page.getByText(/proxy/)).toBeVisible();
+  await expect.element(page.getByText(/avg gap/).first()).toBeVisible();
+});
+
+test("comebacks card renders nothing when no game qualifies", async () => {
+  await render(<ComebacksCard data={withGames([])} />);
+
+  expect(page.getByText("Kept coming back to").query()).toBeNull();
 });
 
 test("apps-excluded note lists the streaming hours kept out of the game stats", async () => {
