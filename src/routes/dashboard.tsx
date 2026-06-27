@@ -1,8 +1,9 @@
-import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
+import { useMemo } from "react";
 import { toast } from "sonner";
 import { DashboardView } from "@/components/dashboard/dashboard-view";
-import { dashboardQueryOptions } from "@/components/dashboard/query";
+import { dashboardQueryOptions, rawgGenresQueryOptions } from "@/components/dashboard/query";
 import { DashboardError, DashboardSkeleton } from "@/components/dashboard/states";
 import { signOut } from "@/server/psn";
 
@@ -25,7 +26,19 @@ export const Route = createFileRoute("/dashboard")({
 
 function Dashboard() {
   const { data } = useSuspenseQuery(dashboardQueryOptions);
+  const { data: rawgGenres = [] } = useQuery(rawgGenresQueryOptions(data));
   const queryClient = useQueryClient();
+  const enrichedData = useMemo(() => {
+    if (rawgGenres.length === 0) return data;
+    const byTitleId = new Map(rawgGenres.map((item) => [item.titleId, item.genre]));
+    return {
+      ...data,
+      games: data.games.map((game) => {
+        const genre = byTitleId.get(game.titleId);
+        return genre ? { ...game, genre } : game;
+      }),
+    };
+  }, [data, rawgGenres]);
 
   const signOutMutation = useMutation({
     mutationFn: () => signOut(),
@@ -40,7 +53,7 @@ function Dashboard() {
 
   return (
     <DashboardView
-      data={data}
+      data={enrichedData}
       onSignOut={() => signOutMutation.mutate()}
       signingOut={signOutMutation.isPending}
     />

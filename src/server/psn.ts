@@ -241,7 +241,7 @@ function partitionTitles(
 }
 
 async function prefetchRawgGenres(
-  playedTitles: PlayedTitle[],
+  playedTitles: Array<{ name: string; category?: string }>,
   rawgCache: RawgCache
 ): Promise<RawgGenreMap> {
   const names = new Set<string>();
@@ -293,13 +293,10 @@ async function buildDashboard(auth: AuthorizationPayload): Promise<DashboardData
     fetchTrophyTitles(auth).catch(() => [] as TrophyTitle[]),
   ]);
 
-  const rawgCache = createRawgCache();
-  const rawgGenres = await prefetchRawgGenres(playedTitles, rawgCache);
-
   const { games, appsExcluded } = partitionTitles(
     playedTitles,
     buildTrophyMap(trophyTitles),
-    rawgGenres
+    new Map<string, Genre | undefined>()
   );
 
   return {
@@ -354,6 +351,16 @@ export async function signInWithTokenHandler(
   return dashboard;
 }
 
+const rawgGenreInput = z.object({
+  titles: z.array(
+    z.object({
+      titleId: z.string(),
+      name: z.string(),
+      category: z.string().optional(),
+    })
+  ),
+});
+
 export const signInWithToken = createServerFn({ method: "POST" })
   .validator(signInInput)
   .handler(({ data }) =>
@@ -368,3 +375,13 @@ export function signOutHandler(cookies: CookieJar): { ok: true } {
 export const signOut = createServerFn({ method: "POST" }).handler(() =>
   signOutHandler({ get: getCookie, set: setCookie, remove: deleteCookie })
 );
+
+export const getRawgGenres = createServerFn({ method: "POST" })
+  .validator(rawgGenreInput)
+  .handler(async ({ data }): Promise<Array<{ titleId: string; genre: Genre }>> => {
+    const rawgGenres = await prefetchRawgGenres(data.titles, createRawgCache());
+    return data.titles.flatMap((title) => {
+      const genre = rawgGenres.get(title.name);
+      return genre ? [{ titleId: title.titleId, genre }] : [];
+    });
+  });
