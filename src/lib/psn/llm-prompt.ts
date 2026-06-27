@@ -535,6 +535,18 @@ function priceContextGuidance(
 }
 
 /**
+ * Global caveat placed before the per-metric guidance blocks. It reframes those
+ * blocks as interpretive hints rather than a scoring rubric so no single metric
+ * (hours, trophies, playtime-vs-typical-time, add-ons, price) becomes de facto
+ * truth, while explicitly preserving ranking/scoring for the lead questions that
+ * ask for it.
+ */
+export const METRIC_GUIDANCE_CAVEAT = [
+  "The guidance below gives interpretive hints, NOT a scoring rubric: treat each signal (hours, recency, trophies, playtime-vs-typical-time, add-ons, price) as WEAK evidence on its own, and let no single metric dominate unless several independent signals agree.",
+  "This is not a ban on ranking or scoring — when a question explicitly asks you to rank or score (e.g. top 10 by hours, rank my franchises), do exactly that, but build the ordering from converging signals rather than one metric, and don't invent a rigid points system.",
+].join("\n");
+
+/**
  * Build the full, ready-to-paste prompt: the data summary once, the chosen
  * lead question, then the rest as paste-able follow-ups.
  */
@@ -546,6 +558,7 @@ export function buildPrompt(
   return [
     "You are a gaming analyst. I'm sharing a summary of my PlayStation playtime.",
     "Weigh WHEN I played (recency and trends from each game's last/first played dates), not just total hours — a big total played years ago means something different from a smaller total I'm playing now.",
+    METRIC_GUIDANCE_CAVEAT,
     PLAY_PATTERN_GUIDANCE,
     TROPHY_SIGNAL_GUIDANCE,
     PLAYTIME_SIGNAL_GUIDANCE,
