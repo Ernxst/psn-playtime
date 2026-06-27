@@ -30,6 +30,23 @@ describe(".buildDataSummary", () => {
 
     expect(buildDataSummary(demoDashboard)).toContain(`${top?.name} — ${top?.hours}h`);
   });
+
+  it("lists every game in the library, not just a top slice", () => {
+    const summary = buildDataSummary(demoDashboard);
+
+    const gameLines = summary.split("\n").filter((line) => /^ {2}\d+\. /.test(line));
+
+    expect(gameLines).toHaveLength(demoDashboard.games.length);
+  });
+
+  it("includes every genre bucket, not just a top slice", () => {
+    const summary = buildDataSummary(demoDashboard);
+    const genres = [...new Set(demoDashboard.games.map((g) => g.genre))];
+
+    const present = genres.map((genre) => summary.includes(`- ${genre}:`));
+
+    expect(present).toStrictEqual(genres.map(() => true));
+  });
 });
 
 describe(".buildPrompt", () => {
