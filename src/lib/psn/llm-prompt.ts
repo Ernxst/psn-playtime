@@ -329,6 +329,20 @@ export function buildFollowUps(lead: PromptVariant): string {
 }
 
 /**
+ * Guidance telling the model to read session-length / session-count patterns
+ * RELATIVE to each game's listed genre, since the same raw pattern means
+ * opposite things across genres. Concrete calibration only — the model still
+ * weighs it against the data and reaches its own verdict.
+ */
+export const PLAY_PATTERN_GUIDANCE = [
+  "Interpret session-length and session-count patterns RELATIVE to each game's listed genre/design — the same raw pattern means opposite things across genres, so never read short or repeated sessions as (dis)enjoyment without weighing the genre:",
+  "- Roguelike / soulslike / fighting / sports / arcade: short, repeated sessions ARE the core loop and signal engagement, not frustration (e.g. lots of short runs in a punishing fighter is the design, not dislike).",
+  "- Narrative / RPG / adventure: long contiguous sessions are expected; many tiny sessions may instead indicate bounce-off.",
+  "- Live-service / multiplayer: session cadence reflects habit, not completion or enjoyment.",
+  "Treat this as calibration to weigh against each game's genre, not a fixed per-genre verdict.",
+].join("\n");
+
+/**
  * Build the full, ready-to-paste prompt: the data summary once, the chosen
  * lead question, then the rest as paste-able follow-ups.
  */
@@ -336,6 +350,7 @@ export function buildPrompt(data: DashboardData, lead: PromptVariant): string {
   return [
     "You are a gaming analyst. I'm sharing a summary of my PlayStation playtime.",
     "Weigh WHEN I played (recency and trends from each game's last/first played dates), not just total hours — a big total played years ago means something different from a smaller total I'm playing now.",
+    PLAY_PATTERN_GUIDANCE,
     "",
     buildDataSummary(data),
     "",
