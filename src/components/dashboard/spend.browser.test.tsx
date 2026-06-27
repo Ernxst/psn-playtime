@@ -2,11 +2,11 @@ import { expect, onTestFinished, test } from "vitest";
 import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
 import { demoDashboard } from "@/lib/psn/mock";
-import type { Transaction } from "@/lib/psn/transactions";
+import type { TransactionRow } from "@/lib/psn/transactions";
 import { clearTransactionImport, saveTransactionImport } from "@/lib/transactions-store";
 import { SpendSection } from "./spend";
 
-function seed(transactions: Transaction[]) {
+function seed(transactions: TransactionRow[]) {
   saveTransactionImport({
     transactions,
     importedAt: "2024-01-01T00:00:00.000Z",
@@ -39,11 +39,16 @@ test("links to PlayStation order history in the import instructions", async () =
 test("shows the value leaderboard once transactions are imported", async () => {
   seed([
     {
+      transactionId: "t1",
+      key: "t1",
       date: "2022-05-12",
-      description: "Satisfactory",
-      amount: 33,
-      currency: "£",
+      transactionType: "PRODUCT_PURCHASE",
       kind: "purchase",
+      productName: "Satisfactory",
+      quantity: 1,
+      amountMinor: 3300,
+      currency: "£",
+      displayAmount: "£33.00",
     },
   ]);
 

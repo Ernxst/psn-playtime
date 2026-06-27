@@ -2,6 +2,7 @@ import { describe, expect, onTestFinished, test, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
 import {
+  type ApiTransaction,
   encodeHandoff,
   HANDOFF_COMPLETE_TYPE,
   HANDOFF_MESSAGE_TYPE,
@@ -10,31 +11,57 @@ import {
   HANDOFF_VERSION,
   type HandoffPayload,
   PLAYSTATION_ORIGIN,
-  type RawTransactionRow,
 } from "@/lib/psn/transactions";
 import { clearTransactionImport, useTransactionImport } from "@/lib/transactions-store";
 import { createHarness } from "@/test/harness";
+import { walletFunding } from "@/test/transaction-fixtures";
 import { ImportReceiver, isHandoffComplete, readHandoffMessage } from "./import";
 
-const payload: HandoffPayload = {
-  v: HANDOFF_VERSION,
-  source: "store.playstation.com",
-  scrapedAt: "2024-01-01T00:00:00.000Z",
-  rows: [
-    { date: "12 May 2023", amount: "-£33.00", description: "Satisfactory" },
-    { date: "01/01/2024", amount: "£10.00", description: "PlayStation Store Wallet" },
-  ],
-};
-
-/** A streamed batch carrying the given raw rows. */
-function batch(rows: RawTransactionRow[]): HandoffPayload {
+/** A single-product purchase transaction node. */
+function purchase(
+  id: string,
+  orderItemId: string,
+  productName: string,
+  total: number
+): ApiTransaction {
+  const display = `£${(total / 100).toFixed(2)}`;
   return {
-    v: HANDOFF_VERSION,
-    source: "store.playstation.com",
-    scrapedAt: "2024-01-01T00:00:00.000Z",
-    rows,
+    id,
+    date: "2024-01-01T00:00:00.000Z",
+    transactionType: "PRODUCT_PURCHASE",
+    invoiceType: "PRODUCT_PURCHASE",
+    displayOfTransactionValue: display,
+    purchaseDetails: {
+      productPurchases: [
+        {
+          productName,
+          skuId: `EP0000-PPSA00000_00-SKU${id}`,
+          skuType: "STANDARD",
+          quantity: 1,
+          total,
+          totalFormatted: display,
+          originalPrice: total,
+          discount: 0,
+          orderItemId,
+        },
+      ],
+    },
   };
 }
+
+/** A handoff payload carrying the given raw transaction nodes. */
+function batch(transactions: ApiTransaction[]): HandoffPayload {
+  return {
+    v: HANDOFF_VERSION,
+    source: "www.playstation.com",
+    fetchedAt: "2024-01-01T00:00:00.000Z",
+    transactions,
+  };
+}
+
+const satisfactory = purchase("700000000000010", "oi-sat", "Satisfactory", 3300);
+const hades = purchase("700000000000011", "oi-hades", "Hades", 2000);
+const payload = batch([satisfactory, hades]);
 
 /** Dispatch a PlayStation-origin handoff message of the given envelope type. */
 function dispatchMessage(type: string, body: object): void {
@@ -92,10 +119,7 @@ test("shows the empty state when there is no fragment data", async () => {
 
 test("shows the invalid state when no transactions can be parsed", async () => {
   onTestFinished(cleanUp);
-  window.location.hash = `#${encodeHandoff({
-    ...payload,
-    rows: [{ date: "x", amount: "Free", description: "Demo" }],
-  })}`;
+  window.location.hash = `#${encodeHandoff(batch([]))}`;
 
   const { element } = createHarness(<ImportReceiver />);
   await render(element);
@@ -139,7 +163,7 @@ describe(".readHandoffMessage", () => {
   test("ignores a message whose payload fails validation", () => {
     const event = message({
       origin: PLAYSTATION_ORIGIN,
-      data: { type: HANDOFF_MESSAGE_TYPE, payload: { v: 99, rows: "nope" } },
+      data: { type: HANDOFF_MESSAGE_TYPE, payload: { v: 99, transactions: "nope" } },
     });
 
     expect(readHandoffMessage(event)).toBeNull();
@@ -203,18 +227,6 @@ test("ignores a postMessage from a non-PlayStation origin", async () => {
   expect(openerPost).toHaveBeenCalledExactlyOnceWith({ type: HANDOFF_READY_TYPE }, "*");
 });
 
-const satisfactory: RawTransactionRow = {
-  date: "12 May 2023",
-  amount: "-£33.00",
-  description: "Satisfactory",
-};
-const wallet: RawTransactionRow = {
-  date: "01/01/2024",
-  amount: "£10.00",
-  description: "PlayStation Store Wallet",
-};
-const hades: RawTransactionRow = { date: "02/02/2024", amount: "-£20.00", description: "Hades" };
-
 test("appends streamed batches live and de-dupes by row key", async () => {
   onTestFinished(cleanUp);
 
@@ -226,7 +238,7 @@ test("appends streamed batches live and de-dupes by row key", async () => {
   );
   await render(element);
 
-  dispatchMessage(HANDOFF_MESSAGE_TYPE, { payload: batch([satisfactory, wallet]) });
+  dispatchMessage(HANDOFF_MESSAGE_TYPE, { payload: batch([satisfactory, walletFunding]) });
 
   await expect.element(page.getByText("imported:2")).toBeVisible();
 
@@ -245,7 +257,7 @@ test("shows a running progress count as batches arrive", async () => {
 
   await expect.element(page.getByText("0 transactions imported so far")).toBeVisible();
 
-  dispatchMessage(HANDOFF_MESSAGE_TYPE, { payload: batch([satisfactory, wallet]) });
+  dispatchMessage(HANDOFF_MESSAGE_TYPE, { payload: batch([satisfactory, walletFunding]) });
 
   await expect.element(page.getByText("2 transactions imported so far")).toBeVisible();
 });
@@ -282,7 +294,7 @@ test("ignores a streamed batch whose payload fails schema validation", async () 
 
   await expect.element(page.getByText("imported:0")).toBeVisible();
 
-  dispatchMessage(HANDOFF_MESSAGE_TYPE, { payload: { v: 99, rows: "nope" } });
+  dispatchMessage(HANDOFF_MESSAGE_TYPE, { payload: { v: 99, transactions: "nope" } });
 
   await expect.element(page.getByText("imported:0")).toBeVisible();
 });

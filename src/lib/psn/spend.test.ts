@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { summariseSpend } from "./spend";
-import type { Transaction } from "./transactions";
+import type { TransactionRow } from "./transactions";
 import type { DashboardData, GamePlay } from "./types";
 
 function game(name: string, hours: number, titleId = name): GamePlay {
@@ -39,13 +39,18 @@ function data(games: GamePlay[]): DashboardData {
   };
 }
 
-function tx(overrides: Partial<Transaction>): Transaction {
+function tx(overrides: Partial<TransactionRow>): TransactionRow {
   return {
+    transactionId: "t",
+    key: "k",
     date: "2023-01-01",
-    description: "",
-    amount: 0,
-    currency: "£",
+    transactionType: "PRODUCT_PURCHASE",
     kind: "purchase",
+    productName: "",
+    quantity: 1,
+    amountMinor: 0,
+    currency: "£",
+    displayAmount: "",
     ...overrides,
   };
 }
@@ -57,11 +62,16 @@ describe(".summariseSpend", () => {
     game("Free To Play", 50),
   ]);
 
-  const transactions: Transaction[] = [
-    tx({ description: "Satisfactory", amount: 33, date: "2022-05-12" }),
-    tx({ description: "Pricey Flop Deluxe Edition", amount: 60, date: "2023-11-01" }),
-    tx({ description: "Some DLC nobody played", amount: 12, date: "2023-11-02" }),
-    tx({ description: "PlayStation Store Wallet", amount: 50, kind: "top-up", date: "2022-01-01" }),
+  const transactions: TransactionRow[] = [
+    tx({ productName: "Satisfactory", amountMinor: 3300, date: "2022-05-12" }),
+    tx({ productName: "Pricey Flop Deluxe Edition", amountMinor: 6000, date: "2023-11-01" }),
+    tx({ productName: "Some DLC nobody played", amountMinor: 1200, date: "2023-11-02" }),
+    tx({
+      productName: "PlayStation Store Wallet",
+      amountMinor: 5000,
+      kind: "top-up",
+      date: "2022-01-01",
+    }),
   ];
 
   const summary = summariseSpend(library, transactions);
@@ -103,9 +113,33 @@ describe(".summariseSpend", () => {
     expect(summary.currency).toBe("£");
   });
 
+  it("matches a purchase to a library title by skuId when the name differs", () => {
+    const summary = summariseSpend(data([game("Hades", 10, "PPSA01234_00")]), [
+      tx({
+        productName: "Hades Deluxe Bundle",
+        skuId: "EP4040-PPSA01234_00-HADES00000000000-E001",
+        amountMinor: 1599,
+      }),
+    ]);
+
+    expect(summary.leaderboard).toEqual([
+      { titleId: "PPSA01234_00", name: "Hades", hours: 10, spend: 15.99, perHour: 1.6 },
+    ]);
+  });
+
+  it("excludes free (£0) claims from spend and paid-game counts", () => {
+    const summary = summariseSpend(data([game("Free Claim", 5)]), [
+      tx({ productName: "Free Claim", amountMinor: 0 }),
+    ]);
+
+    expect(summary.totalSpend).toBe(0);
+    expect(summary.paidGames).toBe(0);
+    expect(summary.freeGames).toBe(1);
+  });
+
   it("excludes zero-hour matches from the leaderboard", () => {
     const summary = summariseSpend(data([game("Unplayed", 0)]), [
-      tx({ description: "Unplayed", amount: 40 }),
+      tx({ productName: "Unplayed", amountMinor: 4000 }),
     ]);
 
     expect(summary.leaderboard).toEqual([]);

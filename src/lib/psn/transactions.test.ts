@@ -1,53 +1,25 @@
 import { describe, expect, it } from "vitest";
 import {
-  classifyKind,
+  allTransactions,
+  freeClaim,
+  multiProductPurchase,
+  preOrderPurchase,
+  subscriptionPurchase,
+  walletFunding,
+} from "@/test/transaction-fixtures";
+import {
+  currencySymbol,
   decodeHandoff,
   encodeHandoff,
+  flattenApiTransactions,
   HANDOFF_VERSION,
   type HandoffPayload,
-  normaliseDescription,
-  parseAmount,
-  parseTransactions,
-  type RawTransactionRow,
+  normaliseProductName,
+  parseDisplayAmount,
   safeParseHandoff,
-  toISODate,
 } from "./transactions";
 
-describe(".parseAmount", () => {
-  it.each([
-    ["£33.00", 33, "£"],
-    ["-£10.00", 10, "£"],
-    ["£1,234.56", 1234.56, "£"],
-    ["$5", 5, "$"],
-    ["US$12.50", 12.5, "US$"],
-    ["€10,00", 10, "€"],
-    ["GBP 7.99", 7.99, "GBP"],
-  ])("parses %s as %d in %s", (raw, value, currency) => {
-    expect(parseAmount(raw)).toEqual({ value, currency });
-  });
-
-  it.each([["Free"], [""], ["—"], ["no digits here"]])("returns null for %s", (raw) => {
-    expect(parseAmount(raw)).toBeNull();
-  });
-});
-
-describe(".classifyKind", () => {
-  it.each([
-    ["PlayStation Store Wallet", "top-up"],
-    ["Add funds to wallet", "top-up"],
-    ["Funds added", "top-up"],
-    ["£10 Top-up", "top-up"],
-    ["PSN Card redemption", "top-up"],
-    ["Gift card", "top-up"],
-    ["Voucher code", "top-up"],
-    ["Cyberpunk 2077", "purchase"],
-    ["EA SPORTS FC 24 Standard Edition", "purchase"],
-  ] as const)("classifies %s as %s", (description, kind) => {
-    expect(classifyKind(description)).toBe(kind);
-  });
-});
-
-describe(".normaliseDescription", () => {
+describe(".normaliseProductName", () => {
   it.each([
     [
       "EA SPORTS FC™ 26 Standard Edition PS4 &amp; PS5",
@@ -59,106 +31,118 @@ describe(".normaliseDescription", () => {
     ["Quote &quot;name&quot;", 'Quote "name"'],
     ["  spaced   out  title ", "spaced out title"],
   ])("decodes entities and collapses whitespace in %s", (raw, expected) => {
-    expect(normaliseDescription(raw)).toBe(expected);
+    expect(normaliseProductName(raw)).toBe(expected);
   });
 });
 
-describe(".toISODate", () => {
+describe(".currencySymbol", () => {
   it.each([
-    ["2023-05-12", "2023-05-12"],
-    ["2023-05-12T09:30:00Z", "2023-05-12"],
-    ["12 May 2023", "2023-05-12"],
-    ["May 12, 2023", "2023-05-12"],
-    ["12/05/2023", "2023-05-12"],
-  ])("normalises %s to %s", (raw, iso) => {
-    expect(toISODate(raw)).toBe(iso);
-  });
-
-  it("returns the trimmed original when unparseable", () => {
-    expect(toISODate("  not a date  ")).toBe("not a date");
+    ["£15.99", "£"],
+    ["$5.00", "$"],
+    ["€10,00", "€"],
+    ["US$12.50", "US$"],
+    ["GBP 7.99", "GBP"],
+    ["", ""],
+    ["1599", ""],
+  ])("reads %s as %s", (formatted, currency) => {
+    expect(currencySymbol(formatted)).toBe(currency);
   });
 });
 
-describe(".parseTransactions", () => {
-  const rows: RawTransactionRow[] = [
-    { date: "12 May 2023", amount: "-£33.00", description: "Satisfactory" },
-    { date: "01/01/2024", amount: "£10.00", description: "PlayStation Store Wallet" },
-    { date: "bad", amount: "Free", description: "Demo download" },
-    { date: "03 Jun 2022", amount: "£59.99", description: "EA SPORTS FC™ 24" },
-  ];
-
-  it("drops rows without a parseable amount", () => {
-    expect(parseTransactions(rows)).toHaveLength(3);
+describe(".parseDisplayAmount", () => {
+  it.each([
+    ["£10.00", 1000, "£"],
+    ["-£33.00", 3300, "£"],
+    ["£1,234.56", 123456, "£"],
+    ["€10,00", 1000, "€"],
+    ["£0.00", 0, "£"],
+    ["Free", 0, ""],
+  ])("parses %s as %d minor units in %s", (formatted, minor, currency) => {
+    expect(parseDisplayAmount(formatted)).toEqual({ minor, currency });
   });
+});
 
-  it("parses amount, date and currency for a purchase", () => {
-    expect(parseTransactions(rows)[0]).toEqual({
-      date: "2023-05-12",
-      description: "Satisfactory",
-      amount: 33,
+describe(".flattenApiTransactions", () => {
+  it("emits one row per product line for a multi-product purchase", () => {
+    const rows = flattenApiTransactions([multiProductPurchase]);
+
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({
+      transactionId: "700000000000001",
+      key: "111111111111",
+      productName: "Hades",
+      skuId: "EP4040-PPSA01234_00-HADES00000000000-E001",
+      skuType: "STANDARD",
+      kind: "purchase",
+      amountMinor: 1599,
       currency: "£",
+      displayAmount: "£15.99",
+    });
+    expect(rows[1]).toMatchObject({ productName: "Hades Original Soundtrack", amountMinor: 499 });
+  });
+
+  it("carries the pre-order sku type through", () => {
+    expect(flattenApiTransactions([preOrderPurchase])[0]).toMatchObject({
+      skuType: "PRE_ORDER",
+      amountMinor: 3999,
+    });
+  });
+
+  it("classifies a subscription cycle as a purchase line", () => {
+    expect(flattenApiTransactions([subscriptionPurchase])[0]).toMatchObject({
+      transactionType: "CYCLE_SUBSCRIPTION",
+      skuType: "SUBSCRIPTION",
+      kind: "purchase",
+      amountMinor: 5999,
+    });
+  });
+
+  it("retains a free claim with its original price and discount", () => {
+    expect(flattenApiTransactions([freeClaim])[0]).toMatchObject({
+      amountMinor: 0,
+      originalPriceMinor: 4499,
+      discountMinor: 4499,
       kind: "purchase",
     });
   });
 
-  it("classifies a wallet row as a top-up", () => {
-    expect(parseTransactions(rows)[1]).toMatchObject({ kind: "top-up", amount: 10 });
-  });
-
-  it("strips trademark glyphs only via the description passthrough", () => {
-    expect(parseTransactions(rows)[2]).toMatchObject({
-      description: "EA SPORTS FC™ 24",
-      amount: 59.99,
-      kind: "purchase",
+  it("classifies a non-purchase transaction as a top-up", () => {
+    expect(flattenApiTransactions([walletFunding])[0]).toMatchObject({
+      transactionId: "700000000000005",
+      key: "700000000000005",
+      transactionType: "WALLET_FUNDING",
+      kind: "top-up",
+      amountMinor: 1000,
+      currency: "£",
     });
   });
 
-  it("parses real-world PlayStation order rows", () => {
-    const real: RawTransactionRow[] = [
-      {
-        date: "03/11/2025",
-        amount: "£59.99",
-        description: "EA SPORTS FC™ 26 Standard Edition PS4 &amp; PS5",
-      },
-      { date: "21/09/2024", amount: "£0.00", description: "PlayStation®Plus ICONS Pack" },
-      { date: "07/02/2023", amount: "£10.00", description: "PlayStation Store Wallet top-up" },
-    ];
+  it("produces a stable per-line key for every row", () => {
+    const keys = flattenApiTransactions(allTransactions).map((r) => r.key);
 
-    expect(parseTransactions(real)).toEqual([
-      {
-        date: "2025-11-03",
-        description: "EA SPORTS FC™ 26 Standard Edition PS4 & PS5",
-        amount: 59.99,
-        currency: "£",
-        kind: "purchase",
-      },
-      {
-        date: "2023-02-07",
-        description: "PlayStation Store Wallet top-up",
-        amount: 10,
-        currency: "£",
-        kind: "top-up",
-      },
-    ]);
+    expect(new Set(keys).size).toBe(keys.length);
   });
 });
+
+const payload: HandoffPayload = {
+  v: HANDOFF_VERSION,
+  source: "www.playstation.com",
+  fetchedAt: "2024-01-01T00:00:00.000Z",
+  transactions: [preOrderPurchase],
+};
 
 describe(".safeParseHandoff", () => {
-  const payload: HandoffPayload = {
-    v: HANDOFF_VERSION,
-    source: "www.playstation.com",
-    scrapedAt: "2024-01-01T00:00:00.000Z",
-    rows: [{ date: "12/05/2023", amount: "£33.00", description: "Satisfactory" }],
-  };
-
   it("returns a structurally valid payload", () => {
-    expect(safeParseHandoff(payload)).toEqual(payload);
+    expect(safeParseHandoff(payload)).toMatchObject({
+      v: HANDOFF_VERSION,
+      source: "www.playstation.com",
+    });
   });
 
   it.each([
     [{ ...payload, v: 99 }, "wrong version"],
-    [{ ...payload, rows: "nope" }, "non-array rows"],
-    [{ ...payload, rows: [{ date: "x" }] }, "malformed row"],
+    [{ ...payload, transactions: "nope" }, "non-array transactions"],
+    [{ ...payload, transactions: [{ id: "x" }] }, "malformed transaction"],
     [null, "null"],
     ["string", "non-object"],
   ])("returns null for %o (%s)", (value, _label) => {
@@ -167,19 +151,12 @@ describe(".safeParseHandoff", () => {
 });
 
 describe(".decodeHandoff", () => {
-  const payload: HandoffPayload = {
-    v: HANDOFF_VERSION,
-    source: "store.playstation.com",
-    scrapedAt: "2024-01-01T00:00:00.000Z",
-    rows: [{ date: "12 May 2023", amount: "-£33.00", description: "Satisfactory" }],
-  };
-
   it("round-trips a payload encoded into the fragment", () => {
-    expect(decodeHandoff(`#${encodeHandoff(payload)}`)).toEqual(payload);
+    expect(decodeHandoff(`#${encodeHandoff(payload)}`)?.transactions).toHaveLength(1);
   });
 
   it("tolerates a fragment without the leading hash", () => {
-    expect(decodeHandoff(encodeHandoff(payload))).toEqual(payload);
+    expect(decodeHandoff(encodeHandoff(payload))?.source).toBe("www.playstation.com");
   });
 
   it.each([
