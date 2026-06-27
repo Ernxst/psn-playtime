@@ -46,7 +46,11 @@ export function TopGamesChart({ data }: { data: DashboardData }) {
           tickFormatter={(v: string) => (v.length > 20 ? `${v.slice(0, 19)}…` : v)}
         />
         <ChartTooltip
-          content={<ChartTooltipContent formatter={(v) => `${Number(v).toLocaleString()} hours`} />}
+          content={
+            <ChartTooltipContent
+              formatter={(v) => `${Number(v).toLocaleString()} lifetime hours`}
+            />
+          }
         />
         <Bar dataKey="hours" fill="var(--color-hours)" radius={4}>
           <LabelList
@@ -77,7 +81,7 @@ export function GenreChart({ data }: { data: DashboardData }) {
               nameKey="genre"
               labelKey="genre"
               formatter={(v, _n, item) =>
-                `${Number(v).toLocaleString()} hours · ${item.payload.share}%`
+                `${Number(v).toLocaleString()} lifetime hours · ${item.payload.share}%`
               }
             />
           }
@@ -112,7 +116,7 @@ export function FranchiseChart({ data }: { data: DashboardData }) {
             <ChartTooltipContent
               nameKey="franchise"
               formatter={(v, _n, item) =>
-                `${Number(v).toLocaleString()} hours · ${item.payload.games} games`
+                `${Number(v).toLocaleString()} lifetime hours · ${item.payload.games} games`
               }
             />
           }
@@ -144,7 +148,7 @@ export function YearChart({ data }: { data: DashboardData }) {
             <ChartTooltipContent
               labelFormatter={(l) => `Last played in ${l}`}
               formatter={(v, _n, item) =>
-                `${Number(v).toLocaleString()} hours · ${item.payload.games} games`
+                `${Number(v).toLocaleString()} lifetime hours · ${item.payload.games} games`
               }
             />
           }

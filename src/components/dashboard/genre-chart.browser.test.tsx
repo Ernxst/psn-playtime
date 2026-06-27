@@ -26,4 +26,5 @@ test("genre donut tooltip shows the genre name on hover", async () => {
   sector.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
 
   await expect.element(page.getByText(topGenre)).toBeInTheDocument();
+  await expect.element(page.getByText(/lifetime hours/)).toBeInTheDocument();
 });
