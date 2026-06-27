@@ -18,7 +18,7 @@ import { DashboardHeader } from "./dashboard-header";
 import { DashboardSidebar } from "./dashboard-sidebar";
 import { FilterBar } from "./filter-bar";
 import { GamesTable } from "./games-table";
-import { AppsExcludedNote, LifespansCard, RecencyCard, ValueCard } from "./insights";
+import { AppsExcludedNote, ComebacksCard, LifespansCard, RecencyCard, ValueCard } from "./insights";
 import { KpiCards } from "./kpi-cards";
 import { LlmPromptCard } from "./llm-prompt-card";
 import { SpendSection } from "./spend";
@@ -157,6 +157,7 @@ function InsightsSection({ data }: { data: DashboardData }) {
         <ValueCard data={data} />
         <RecencyCard data={data} />
         <LifespansCard data={data} />
+        <ComebacksCard data={data} />
         <AppsExcludedNote data={data} />
       </div>
     </Section>

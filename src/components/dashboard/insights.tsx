@@ -1,7 +1,13 @@
-import { Activity, CalendarClock, Info } from "lucide-react";
+import { Activity, CalendarClock, Info, Repeat } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { LIFETIME_HOURS_CAVEAT, lifespans, recency, valuePerGame } from "@/lib/psn/analytics";
+import {
+  comebacks,
+  LIFETIME_HOURS_CAVEAT,
+  lifespans,
+  recency,
+  valuePerGame,
+} from "@/lib/psn/analytics";
 import type { DashboardData } from "@/lib/psn/types";
 import { fmtHours, fmtNumber } from "./format";
 
@@ -28,6 +34,38 @@ export function LifespansCard({ data }: { data: DashboardData }) {
           <div key={g.name} className="flex items-center justify-between gap-2">
             <span className="truncate text-muted-foreground">{g.name}</span>
             <span className="shrink-0 tabular-nums">{span(g.days)}</span>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Games you returned to after long breaks, ranked by average gap between sessions. */
+export function ComebacksCard({ data }: { data: DashboardData }) {
+  const top = comebacks(data, 5);
+  if (top.length === 0) return null;
+  const gap = (days: number) =>
+    days >= 365 ? `${(days / 365).toFixed(1)} yrs` : `${Math.round(days)} days`;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Repeat className="size-4" /> Kept coming back to
+        </CardTitle>
+        <CardDescription>
+          Games you returned to after long breaks, ranked by the average gap between sessions. This
+          is a proxy from each game's first play, last play and session count, an average, since PSN
+          doesn't timestamp individual sessions.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-2 text-sm">
+        {top.map((g) => (
+          <div key={g.name} className="flex items-center justify-between gap-2">
+            <span className="truncate text-muted-foreground">{g.name}</span>
+            <span className="shrink-0 tabular-nums" title={`${g.sessions} sessions`}>
+              {gap(g.avgGapDays)} avg gap
+            </span>
           </div>
         ))}
       </CardContent>
