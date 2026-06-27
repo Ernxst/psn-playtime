@@ -1,121 +1,110 @@
 /**
- * Transaction-history domain: parsing the rows scraped from the PlayStation
- * order/transaction-history page, and the one-click handoff payload the
- * bookmarklet hands to the app.
+ * Transaction-history domain: flattening the rows the bookmarklet replays from
+ * the PlayStation `transactionHistoryRetrieve` GraphQL API, and the one-click
+ * handoff payload the bookmarklet hands to the app.
  *
- * PSN has no clean API for spend history, so the data is scraped client-side by
- * a bookmarklet (see `transaction-bookmarklet.ts`) running on the user's own
- * already-authenticated order page. The bookmarklet only scrapes *raw* text
- * rows — all parsing/classification lives here so it is testable in node and the
- * bookmarklet string stays minimal.
+ * PSN has no public spend API, so the data is replayed client-side by a
+ * bookmarklet (see `transaction-bookmarklet.ts`) running on a logged-in
+ * `playstation.com` page (cookie-authenticated). The bookmarklet flattens the
+ * raw GraphQL nodes into compact {@link TransactionRow}s (these helpers are
+ * embedded into the bookmarklet via `toString()`), then hands them to `/import`
+ * inside the opened tab's own URL fragment — no cross-window messaging, so it
+ * survives the app's `Cross-Origin-Opener-Policy: same-origin`.
  *
  * Keep this file dependency-light (zod only) so both the route and the store can
  * import it cheaply.
  */
 import { z } from "zod";
 
-/** A wallet top-up vs an actual purchase/spend. */
-export type TransactionKind = "top-up" | "purchase";
+/** A wallet/balance movement vs an actual product purchase/spend. */
+type TransactionKind = "top-up" | "purchase";
 
-/** A single raw row as scraped from a `.transaction-history-card` (text only). */
-export interface RawTransactionRow {
-  /** Raw date text, e.g. "12 May 2023", "May 12, 2023" or "12/05/2023". */
+/**
+ * One flattened transaction line. Purchases produce one row per product; other
+ * transactions (wallet funding, refunds, adjustments) produce a single row.
+ */
+export interface TransactionRow {
+  /** PSN transaction id (shared by every product line of a purchase). */
+  transactionId: string;
+  /** Stable per-line key for de-duping across re-imports. */
+  key: string;
+  /** ISO timestamp of the transaction. */
   date: string;
-  /** Raw amount text, e.g. "-£33.00" or "£10.00". */
-  amount: string;
-  /** Raw description/title text. */
-  description: string;
-}
-
-/** A parsed, normalised transaction. */
-export interface Transaction {
-  /** `YYYY-MM-DD` when parseable, otherwise the trimmed original date text. */
-  date: string;
-  description: string;
-  /** Absolute value in the major currency unit (always >= 0). */
-  amount: number;
+  /** Raw PSN transaction type, e.g. "PRODUCT_PURCHASE" or "CYCLE_SUBSCRIPTION". */
+  transactionType: string;
+  /** Classification used by the spend view. */
+  kind: TransactionKind;
+  /** Exact product name (purchase), else the transaction type label. */
+  productName: string;
+  /** Stable PSN sku id, e.g. "EP0006-PPSA06092_00-WRC2023PS5GAME00-E004". */
+  skuId?: string;
+  /** "STANDARD" | "PRE_ORDER" | "SUBSCRIPTION" | add-on type, for product lines. */
+  skuType?: string;
+  quantity: number;
+  /** Amount paid for this line, in minor currency units (always >= 0). */
+  amountMinor: number;
   /** Currency symbol or code as it appeared, e.g. "£". */
   currency: string;
-  kind: TransactionKind;
+  /** Formatted amount as PSN rendered it, e.g. "£4.49". */
+  displayAmount: string;
+  /** Pre-discount price in minor units, when known. */
+  originalPriceMinor?: number;
+  /** Discount applied in minor units, when known. */
+  discountMinor?: number;
 }
 
 /** The persisted, parsed import. */
 export interface TransactionImport {
-  transactions: Transaction[];
+  transactions: TransactionRow[];
   /** ISO timestamp the data was imported into the app. */
   importedAt: string;
-  /** Host the data was scraped from, for transparency. */
+  /** Host the data was fetched from, for transparency. */
   source: string;
 }
 
 /** Current handoff payload version. Bump if the wire shape changes. */
-export const HANDOFF_VERSION = 1;
+export const HANDOFF_VERSION = 3;
 
-/**
- * Origin the bookmarklet runs on (the PlayStation order page). The `/import`
- * receiver only accepts a `postMessage` handoff from exactly this origin.
- */
-export const PLAYSTATION_ORIGIN = "https://www.playstation.com";
+/** Fragment key carrying the handoff payload (`#data=...`). */
+export const HANDOFF_FRAGMENT_KEY = "data";
 
-/** `postMessage` envelope type carrying a scraped handoff payload. */
-export const HANDOFF_MESSAGE_TYPE = "psn-transactions";
+/** A single raw `productPurchases[]` entry from the GraphQL response. */
+export interface ApiProductPurchase {
+  /** Null for delisted products (the persisted query declares it non-null). */
+  productName?: string | null;
+  skuId?: string;
+  skuType?: string;
+  quantity?: number;
+  total?: number;
+  totalFormatted?: string;
+  originalPrice?: number;
+  discount?: number;
+  orderItemId?: string;
+}
 
-/** `postMessage` envelope the receiver sends back once it is ready to receive. */
-export const HANDOFF_READY_TYPE = "psn-import-ready";
+/** A single raw `transactions[]` node from `transactionHistoryRetrieve`. */
+export interface ApiTransaction {
+  id: string;
+  date: string;
+  transactionType: string;
+  invoiceType?: string;
+  displayOfTransactionValue?: string;
+  purchaseDetails?: { productPurchases: ApiProductPurchase[] } | null;
+}
 
-/** `postMessage` envelope the receiver sends back once it has persisted a payload. */
-export const HANDOFF_RECEIVED_TYPE = "psn-import-received";
-
-/** `postMessage` envelope the opener sends once every batch has been streamed. */
-export const HANDOFF_COMPLETE_TYPE = "psn-transactions-complete";
-
-/** The payload the bookmarklet hands to `/import` via the URL fragment. */
+/** The compact payload the bookmarklet hands to `/import` via the URL fragment. */
 export interface HandoffPayload {
   v: typeof HANDOFF_VERSION;
-  /** Host the rows were scraped from. */
+  /** Host the transactions were fetched from. */
   source: string;
-  /** ISO timestamp the rows were scraped. */
-  scrapedAt: string;
-  rows: RawTransactionRow[];
+  /** ISO timestamp the transactions were fetched. */
+  fetchedAt: string;
+  /** Already-flattened rows (flattening runs on the bookmarklet side). */
+  transactions: TransactionRow[];
 }
 
-/** Description keywords that mark a row as a wallet top-up rather than a spend. */
-const TOP_UP_PATTERNS: RegExp[] = [
-  /wallet/i,
-  /add(?:ing|ed)?\s+funds/i,
-  /funds?\s+added/i,
-  /top[\s-]?up/i,
-  /voucher/i,
-  /psn\s+card/i,
-  /gift\s+card/i,
-];
-
-/**
- * Parse an amount string into an absolute value + currency symbol.
- * Returns `null` when no monetary value can be found.
- */
-function toNumber(digits: string): number | null {
-  // Strip thousands separators, keep the last separator as the decimal point.
-  const normalised = digits.replace(/,(?=\d{3}\b)/g, "").replace(",", ".");
-  const value = Number.parseFloat(normalised);
-  return Number.isNaN(value) ? null : Math.abs(value);
-}
-
-export function parseAmount(raw: string): { value: number; currency: string } | null {
-  const match = /([£$€]|US\$|[A-Z]{3})?\s*-?\s*([£$€])?\s*([\d.,]+)/.exec(raw.trim());
-  if (!match) return null;
-  const value = toNumber(match[3]!);
-  if (value === null) return null;
-  return { value, currency: match[1] ?? match[2] ?? "" };
-}
-
-/** Classify a row as a top-up or a purchase from its description. */
-export function classifyKind(description: string): TransactionKind {
-  return TOP_UP_PATTERNS.some((pattern) => pattern.test(description)) ? "top-up" : "purchase";
-}
-
-/** The handful of HTML entities PlayStation's order page emits in titles. */
-const HTML_ENTITIES: Record<string, string> = {
+/** The handful of HTML entities PlayStation emits in product names. */
+export const HTML_ENTITIES: Record<string, string> = {
   "&amp;": "&",
   "&lt;": "<",
   "&gt;": ">",
@@ -125,85 +114,144 @@ const HTML_ENTITIES: Record<string, string> = {
 };
 
 /**
- * Normalise a scraped description. PlayStation's order page leaves HTML entities
- * in some titles (e.g. `EA SPORTS FC™ 26 Standard Edition PS4 &amp; PS5`); decode
- * the handful it emits and collapse whitespace. Trademark glyphs (`™ ®`) are
- * intentionally preserved.
+ * Normalise a product name. PlayStation leaves HTML entities in some titles
+ * (e.g. `EA SPORTS FC™ 26 Standard Edition PS4 &amp; PS5`); decode the handful it
+ * emits and collapse whitespace. Trademark glyphs (`™ ®`) are preserved.
+ *
+ * Self-contained (only references {@link HTML_ENTITIES}, also embedded) so it
+ * survives `toString()` embedding into the bookmarklet.
  */
-export function normaliseDescription(raw: string): string {
+export function normaliseProductName(raw: string): string {
   return raw
     .replace(/&(?:amp|lt|gt|quot|apos|#39);/g, (entity) => HTML_ENTITIES[entity] ?? entity)
     .replace(/\s+/g, " ")
     .trim();
 }
 
-const ISO_DATE = /^(\d{4}-\d{2}-\d{2})/;
-const UK_NUMERIC = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
+export const CURRENCY = /US\$|[£$€]|[A-Z]{3}/;
 
-/** Normalise a raw date to `YYYY-MM-DD`, falling back to the trimmed original. */
-export function toISODate(raw: string): string {
-  const text = raw.trim();
+/** Currency symbol/code from a formatted amount, or "" when none is present. */
+export function currencySymbol(formatted: string): string {
+  const match = CURRENCY.exec(formatted);
+  return match ? match[0] : "";
+}
 
-  const iso = ISO_DATE.exec(text);
-  if (iso) return iso[1]!;
-
-  // UK order pages render `DD/MM/YYYY` — parse explicitly to avoid US ambiguity.
-  const uk = UK_NUMERIC.exec(text);
-  if (uk) {
-    const [, day, month, year] = uk;
-    const date = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
-    if (!Number.isNaN(date.getTime())) return date.toISOString().slice(0, 10);
-  }
-
-  // "12 May 2023" / "May 12, 2023" and similar are handled by the Date parser.
-  // These parse to *local* midnight, so format from local parts to avoid a
-  // timezone shifting the calendar day.
-  const parsed = new Date(text);
-  if (!Number.isNaN(parsed.getTime())) {
-    const month = String(parsed.getMonth() + 1).padStart(2, "0");
-    const day = String(parsed.getDate()).padStart(2, "0");
-    return `${parsed.getFullYear()}-${month}-${day}`;
-  }
-
-  return text;
+/** Parse a formatted amount like "£10.00" into absolute minor units + currency. */
+export function parseDisplayAmount(formatted: string): { minor: number; currency: string } {
+  const currency = currencySymbol(formatted);
+  const digits = formatted.replace(/[^\d.,-]/g, "");
+  const normalised = digits.replace(/,(?=\d{3}\b)/g, "").replace(",", ".");
+  const value = Number.parseFloat(normalised);
+  const minor = Number.isNaN(value) ? 0 : Math.round(Math.abs(value) * 100);
+  return { minor, currency };
 }
 
 /**
- * Parse raw scraped rows into normalised transactions. Rows without a parseable
- * monetary amount are dropped (e.g. headers or malformed cards).
+ * Flatten one product line of a purchase into a row. Delisted products can have
+ * a null `productName`; keep the line (we still have skuId/amount) under an
+ * "Unknown item" placeholder so spend totals stay correct.
+ *
+ * Self-contained (references {@link normaliseProductName} and
+ * {@link currencySymbol}, also embedded) so it survives `toString()` embedding.
  */
-export function parseTransactions(rows: RawTransactionRow[]): Transaction[] {
-  const transactions: Transaction[] = [];
-  for (const row of rows) {
-    const parsed = parseAmount(row.amount);
-    if (!parsed || parsed.value === 0) continue;
-    const description = normaliseDescription(row.description);
-    transactions.push({
-      date: toISODate(row.date),
-      description,
-      amount: parsed.value,
-      currency: parsed.currency,
-      kind: classifyKind(description),
-    });
-  }
-  return transactions;
+// oxlint-disable-next-line complexity/complexity -- cohesive field assembly with nullish fallbacks; splitting only fragments one literal
+export function toPurchaseRow(tx: ApiTransaction, p: ApiProductPurchase): TransactionRow {
+  const txDisplay = tx.displayOfTransactionValue ?? "";
+  const lineDisplay = p.totalFormatted ?? "";
+  return {
+    transactionId: tx.id,
+    key: p.orderItemId ?? `${tx.id}|${p.skuId ?? p.productName ?? ""}`,
+    date: tx.date,
+    transactionType: tx.transactionType,
+    kind: "purchase",
+    productName: p.productName ? normaliseProductName(p.productName) : "Unknown item",
+    skuId: p.skuId,
+    skuType: p.skuType,
+    quantity: p.quantity ?? 1,
+    amountMinor: Math.abs(p.total ?? 0),
+    currency: currencySymbol(lineDisplay) || currencySymbol(txDisplay),
+    displayAmount: lineDisplay || txDisplay,
+    originalPriceMinor: p.originalPrice,
+    discountMinor: p.discount,
+  };
 }
 
-const rawRowSchema = z.object({
+/**
+ * Flatten one purchase transaction into a row per product line.
+ *
+ * Self-contained (references {@link toPurchaseRow}, also embedded) so it
+ * survives `toString()` embedding.
+ */
+export function purchaseRows(tx: ApiTransaction): TransactionRow[] {
+  const products = tx.purchaseDetails?.productPurchases ?? [];
+  return products.map((p) => toPurchaseRow(tx, p));
+}
+
+/**
+ * Flatten a non-purchase transaction (wallet funding, refund, adjustment, …).
+ *
+ * Self-contained (references {@link parseDisplayAmount}, also embedded) so it
+ * survives `toString()` embedding.
+ */
+export function nonPurchaseRow(tx: ApiTransaction): TransactionRow {
+  const { minor, currency } = parseDisplayAmount(tx.displayOfTransactionValue ?? "");
+  return {
+    transactionId: tx.id,
+    key: tx.id,
+    date: tx.date,
+    transactionType: tx.transactionType,
+    kind: "top-up",
+    productName: tx.transactionType,
+    quantity: 1,
+    amountMinor: minor,
+    currency,
+    displayAmount: tx.displayOfTransactionValue ?? "",
+  };
+}
+
+/**
+ * Flatten raw GraphQL transaction nodes into per-line rows. Transactions with
+ * product purchases yield one purchase row per product; everything else yields a
+ * single top-up/other row classified from its transaction type.
+ *
+ * Self-contained (references {@link purchaseRows} and {@link nonPurchaseRow},
+ * also embedded) so it survives `toString()` embedding into the bookmarklet,
+ * where it runs over the raw fetched data before the fragment handoff.
+ */
+export function flattenApiTransactions(transactions: ApiTransaction[]): TransactionRow[] {
+  const rows: TransactionRow[] = [];
+  for (const tx of transactions) {
+    const products = tx.purchaseDetails?.productPurchases ?? [];
+    if (products.length > 0) rows.push(...purchaseRows(tx));
+    else rows.push(nonPurchaseRow(tx));
+  }
+  return rows;
+}
+
+/** Schema for a persisted, flattened transaction row. */
+const transactionRowSchema = z.object({
+  transactionId: z.string(),
+  key: z.string(),
   date: z.string(),
-  amount: z.string(),
-  description: z.string(),
+  transactionType: z.string(),
+  kind: z.enum(["top-up", "purchase"]),
+  productName: z.string(),
+  skuId: z.string().optional(),
+  skuType: z.string().optional(),
+  quantity: z.number(),
+  amountMinor: z.number(),
+  currency: z.string(),
+  displayAmount: z.string(),
+  originalPriceMinor: z.number().optional(),
+  discountMinor: z.number().optional(),
 });
 
 const handoffSchema = z.object({
   v: z.literal(HANDOFF_VERSION),
   source: z.string(),
-  scrapedAt: z.string(),
-  rows: z.array(rawRowSchema),
+  fetchedAt: z.string(),
+  transactions: z.array(transactionRowSchema),
 });
-
-/** Fragment key carrying the handoff payload (`#data=...`). */
-export const HANDOFF_FRAGMENT_KEY = "data";
 
 /** Encode a handoff payload into a `data=...` URL-fragment body. */
 export function encodeHandoff(payload: HandoffPayload): string {
@@ -222,11 +270,7 @@ function readFragment(hash: string): string | null {
   return encoded === "" ? null : encoded;
 }
 
-/**
- * Validate an untrusted value as a handoff payload. Used for the `postMessage`
- * handoff, where the data arrives as a structured-clone object rather than a
- * fragment string; the shape is validated exactly as the fragment path.
- */
+/** Validate an untrusted value as a handoff payload, or `null` when invalid. */
 export function safeParseHandoff(value: unknown): HandoffPayload | null {
   const parsed = handoffSchema.safeParse(value);
   return parsed.success ? parsed.data : null;
@@ -241,3 +285,10 @@ export function decodeHandoff(hash: string): HandoffPayload | null {
     return null;
   }
 }
+
+/** Schema for the persisted import envelope (shared with the store). */
+export const transactionImportSchema = z.object({
+  transactions: z.array(transactionRowSchema),
+  importedAt: z.string(),
+  source: z.string(),
+});

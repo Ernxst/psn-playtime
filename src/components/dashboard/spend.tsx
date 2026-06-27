@@ -27,15 +27,14 @@ const STEPS: Array<{ text: ReactNode; href?: string; linkText?: string }> = [
   {
     text: (
       <>
-        Open PlayStation while signed in, click your <strong>profile icon (top right)</strong>, then{" "}
-        <strong>Order History</strong>.
+        Open PlayStation and make sure you are <strong>signed in</strong>.
       </>
     ),
     href: "https://www.playstation.com/en-gb/",
     linkText: "Open PlayStation",
   },
   {
-    text: "On your Order History, click the bookmark — it auto-scrolls to load everything, then sends it back here in one click.",
+    text: "Click the bookmark — it fetches your full purchase history and sends it back here in one click. No navigating or scrolling.",
   },
 ];
 
@@ -247,7 +246,9 @@ function LeaderboardCard({ summary }: { summary: SpendSummary }) {
  */
 export function SpendSection({ data }: { data: DashboardData }) {
   const imported = useTransactionImport();
-  if (!imported || imported.transactions.length === 0) {
+  // Never join the user's real imported spend to the demo library — call the
+  // hook unconditionally, then show the prompt for demo data or no import.
+  if (data.isDemo || !imported || imported.transactions.length === 0) {
     return <ImportSpendCard />;
   }
 

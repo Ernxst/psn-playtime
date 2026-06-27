@@ -1,62 +1,46 @@
-import { describe, expect, onTestFinished, test, vi } from "vitest";
+import { expect, onTestFinished, test } from "vitest";
 import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
 import {
   encodeHandoff,
-  HANDOFF_COMPLETE_TYPE,
-  HANDOFF_MESSAGE_TYPE,
-  HANDOFF_READY_TYPE,
-  HANDOFF_RECEIVED_TYPE,
+  flattenApiTransactions,
   HANDOFF_VERSION,
   type HandoffPayload,
-  PLAYSTATION_ORIGIN,
-  type RawTransactionRow,
+  type TransactionRow,
 } from "@/lib/psn/transactions";
-import { clearTransactionImport, useTransactionImport } from "@/lib/transactions-store";
+import {
+  clearTransactionImport,
+  saveTransactionImport,
+  useTransactionImport,
+} from "@/lib/transactions-store";
 import { createHarness } from "@/test/harness";
-import { ImportReceiver, isHandoffComplete, readHandoffMessage } from "./import";
+import { multiProductPurchase } from "@/test/transaction-fixtures";
+import { ImportReceiver } from "./import";
 
-const payload: HandoffPayload = {
-  v: HANDOFF_VERSION,
-  source: "store.playstation.com",
-  scrapedAt: "2024-01-01T00:00:00.000Z",
-  rows: [
-    { date: "12 May 2023", amount: "-£33.00", description: "Satisfactory" },
-    { date: "01/01/2024", amount: "£10.00", description: "PlayStation Store Wallet" },
-  ],
-};
+/** Two compact rows (base game + add-on) the bookmarklet would hand off. */
+const rows = flattenApiTransactions([multiProductPurchase]);
 
-/** A streamed batch carrying the given raw rows. */
-function batch(rows: RawTransactionRow[]): HandoffPayload {
+function payloadOf(transactions: TransactionRow[]): HandoffPayload {
   return {
     v: HANDOFF_VERSION,
-    source: "store.playstation.com",
-    scrapedAt: "2024-01-01T00:00:00.000Z",
-    rows,
+    source: "www.playstation.com",
+    fetchedAt: "2024-01-01T00:00:00.000Z",
+    transactions,
   };
-}
-
-/** Dispatch a PlayStation-origin handoff message of the given envelope type. */
-function dispatchMessage(type: string, body: object): void {
-  window.dispatchEvent(
-    new MessageEvent("message", { origin: PLAYSTATION_ORIGIN, data: { type, ...body } })
-  );
-}
-
-/** Install a fake `window.opener` exposing a `postMessage` spy for the test. */
-function fakeOpener(postMessage: ReturnType<typeof vi.fn>) {
-  const original = Object.getOwnPropertyDescriptor(window, "opener");
-  Object.defineProperty(window, "opener", { value: { postMessage }, configurable: true });
-  onTestFinished(() => {
-    if (original) Object.defineProperty(window, "opener", original);
-    else Reflect.deleteProperty(window, "opener");
-  });
 }
 
 /** Surfaces the persisted import count so the effect's write can be awaited. */
 function Probe() {
   const imported = useTransactionImport();
   return <div>imported:{imported?.transactions.length ?? 0}</div>;
+}
+
+function seedPrior(transactions: TransactionRow[]) {
+  saveTransactionImport({
+    transactions,
+    importedAt: "2024-01-01T00:00:00.000Z",
+    source: "www.playstation.com",
+  });
 }
 
 function cleanUp() {
@@ -66,7 +50,7 @@ function cleanUp() {
 
 test("persists the transactions handed over in the URL fragment", async () => {
   onTestFinished(cleanUp);
-  window.location.hash = `#${encodeHandoff(payload)}`;
+  window.location.hash = `#${encodeHandoff(payloadOf(rows))}`;
 
   const { element } = createHarness(
     <>
@@ -90,12 +74,9 @@ test("shows the empty state when there is no fragment data", async () => {
   await expect.element(page.getByText(/no import data in the link/)).toBeVisible();
 });
 
-test("shows the invalid state when no transactions can be parsed", async () => {
+test("shows the invalid state when the fragment carries no rows", async () => {
   onTestFinished(cleanUp);
-  window.location.hash = `#${encodeHandoff({
-    ...payload,
-    rows: [{ date: "x", amount: "Free", description: "Demo" }],
-  })}`;
+  window.location.hash = `#${encodeHandoff(payloadOf([]))}`;
 
   const { element } = createHarness(<ImportReceiver />);
   await render(element);
@@ -104,52 +85,10 @@ test("shows the invalid state when no transactions can be parsed", async () => {
   await expect.element(page.getByText(/couldn't read any transactions/)).toBeVisible();
 });
 
-describe(".readHandoffMessage", () => {
-  function message(init: MessageEventInit): MessageEvent {
-    return new MessageEvent("message", init);
-  }
-
-  test("returns the payload for a valid PlayStation message", () => {
-    const event = message({
-      origin: PLAYSTATION_ORIGIN,
-      data: { type: HANDOFF_MESSAGE_TYPE, payload },
-    });
-
-    expect(readHandoffMessage(event)).toEqual(payload);
-  });
-
-  test("ignores a message from a different origin", () => {
-    const event = message({
-      origin: "https://evil.example.com",
-      data: { type: HANDOFF_MESSAGE_TYPE, payload },
-    });
-
-    expect(readHandoffMessage(event)).toBeNull();
-  });
-
-  test("ignores a message with the wrong type", () => {
-    const event = message({
-      origin: PLAYSTATION_ORIGIN,
-      data: { type: "something-else", payload },
-    });
-
-    expect(readHandoffMessage(event)).toBeNull();
-  });
-
-  test("ignores a message whose payload fails validation", () => {
-    const event = message({
-      origin: PLAYSTATION_ORIGIN,
-      data: { type: HANDOFF_MESSAGE_TYPE, payload: { v: 99, rows: "nope" } },
-    });
-
-    expect(readHandoffMessage(event)).toBeNull();
-  });
-});
-
-test("persists transactions handed over via postMessage and acks the opener", async () => {
-  const openerPost = vi.fn();
-  fakeOpener(openerPost);
+test("appends a fragment import onto a prior one, de-duping by row key", async () => {
   onTestFinished(cleanUp);
+  seedPrior([rows[0]!]);
+  window.location.hash = `#${encodeHandoff(payloadOf(rows))}`;
 
   const { element } = createHarness(
     <>
@@ -159,118 +98,13 @@ test("persists transactions handed over via postMessage and acks the opener", as
   );
   await render(element);
 
-  window.dispatchEvent(
-    new MessageEvent("message", {
-      origin: PLAYSTATION_ORIGIN,
-      data: { type: HANDOFF_MESSAGE_TYPE, payload },
-    })
-  );
-
-  await expect.element(page.getByText("imported:2")).toBeVisible();
-
-  expect(openerPost).toHaveBeenCalledTimes(2);
-  expect(openerPost).toHaveBeenNthCalledWith(1, { type: HANDOFF_READY_TYPE }, "*");
-  expect(openerPost).toHaveBeenNthCalledWith(
-    2,
-    { type: HANDOFF_RECEIVED_TYPE },
-    PLAYSTATION_ORIGIN
-  );
-});
-
-test("ignores a postMessage from a non-PlayStation origin", async () => {
-  const openerPost = vi.fn();
-  fakeOpener(openerPost);
-  onTestFinished(cleanUp);
-
-  const { element } = createHarness(
-    <>
-      <ImportReceiver />
-      <Probe />
-    </>
-  );
-  await render(element);
-
-  await expect.element(page.getByText("imported:0")).toBeVisible();
-
-  window.dispatchEvent(
-    new MessageEvent("message", {
-      origin: "https://evil.example.com",
-      data: { type: HANDOFF_MESSAGE_TYPE, payload },
-    })
-  );
-
-  await expect.element(page.getByText("imported:0")).toBeVisible();
-  expect(openerPost).toHaveBeenCalledExactlyOnceWith({ type: HANDOFF_READY_TYPE }, "*");
-});
-
-const satisfactory: RawTransactionRow = {
-  date: "12 May 2023",
-  amount: "-£33.00",
-  description: "Satisfactory",
-};
-const wallet: RawTransactionRow = {
-  date: "01/01/2024",
-  amount: "£10.00",
-  description: "PlayStation Store Wallet",
-};
-const hades: RawTransactionRow = { date: "02/02/2024", amount: "-£20.00", description: "Hades" };
-
-test("appends streamed batches live and de-dupes by row key", async () => {
-  onTestFinished(cleanUp);
-
-  const { element } = createHarness(
-    <>
-      <ImportReceiver />
-      <Probe />
-    </>
-  );
-  await render(element);
-
-  dispatchMessage(HANDOFF_MESSAGE_TYPE, { payload: batch([satisfactory, wallet]) });
-
-  await expect.element(page.getByText("imported:2")).toBeVisible();
-
-  // Second batch repeats Satisfactory and adds Hades — only Hades is appended.
-  dispatchMessage(HANDOFF_MESSAGE_TYPE, { payload: batch([satisfactory, hades]) });
-
-  await expect.element(page.getByText("imported:3")).toBeVisible();
-});
-
-test("shows a running progress count as batches arrive", async () => {
-  fakeOpener(vi.fn());
-  onTestFinished(cleanUp);
-
-  const { element } = createHarness(<ImportReceiver />);
-  await render(element);
-
-  await expect.element(page.getByText("0 transactions imported so far")).toBeVisible();
-
-  dispatchMessage(HANDOFF_MESSAGE_TYPE, { payload: batch([satisfactory, wallet]) });
-
-  await expect.element(page.getByText("2 transactions imported so far")).toBeVisible();
-});
-
-test("re-receiving the same batch does not duplicate rows", async () => {
-  onTestFinished(cleanUp);
-
-  const { element } = createHarness(
-    <>
-      <ImportReceiver />
-      <Probe />
-    </>
-  );
-  await render(element);
-
-  dispatchMessage(HANDOFF_MESSAGE_TYPE, { payload: batch([satisfactory, hades]) });
-  await expect.element(page.getByText("imported:2")).toBeVisible();
-
-  dispatchMessage(HANDOFF_MESSAGE_TYPE, { payload: batch([satisfactory, hades]) });
-
+  // The prior row repeats and only the second row is appended.
   await expect.element(page.getByText("imported:2")).toBeVisible();
 });
 
-test("ignores a streamed batch whose payload fails schema validation", async () => {
+test("ignores a fragment whose payload fails schema validation", async () => {
   onTestFinished(cleanUp);
+  window.location.hash = `#data=${encodeURIComponent(JSON.stringify({ v: 99, transactions: "nope" }))}`;
 
   const { element } = createHarness(
     <>
@@ -280,38 +114,6 @@ test("ignores a streamed batch whose payload fails schema validation", async () 
   );
   await render(element);
 
+  await expect.element(page.getByText("Nothing to import")).toBeVisible();
   await expect.element(page.getByText("imported:0")).toBeVisible();
-
-  dispatchMessage(HANDOFF_MESSAGE_TYPE, { payload: { v: 99, rows: "nope" } });
-
-  await expect.element(page.getByText("imported:0")).toBeVisible();
-});
-
-describe(".isHandoffComplete", () => {
-  test("is true for the complete envelope from PlayStation", () => {
-    const event = new MessageEvent("message", {
-      origin: PLAYSTATION_ORIGIN,
-      data: { type: HANDOFF_COMPLETE_TYPE },
-    });
-
-    expect(isHandoffComplete(event)).toBe(true);
-  });
-
-  test("is false for the complete envelope from a different origin", () => {
-    const event = new MessageEvent("message", {
-      origin: "https://evil.example.com",
-      data: { type: HANDOFF_COMPLETE_TYPE },
-    });
-
-    expect(isHandoffComplete(event)).toBe(false);
-  });
-
-  test("is false for a different envelope type", () => {
-    const event = new MessageEvent("message", {
-      origin: PLAYSTATION_ORIGIN,
-      data: { type: HANDOFF_MESSAGE_TYPE },
-    });
-
-    expect(isHandoffComplete(event)).toBe(false);
-  });
 });

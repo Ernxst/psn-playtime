@@ -3,11 +3,11 @@
  * each game cost me per hour". Pure selectors over `DashboardData` + the parsed
  * `Transaction[]`; nothing here touches the network or React.
  *
- * Caveat: PSN purchase descriptions are matched to library titles by name only,
- * so DLC, bundles and renamed re-releases may not line up perfectly. Anything
- * that fails to match is surfaced as `unmatchedSpend` rather than hidden.
+ * Caveat: PSN purchases are matched to library titles by `skuId` then product
+ * name, so DLC, bundles and renamed re-releases may not line up perfectly.
+ * Anything that fails to match is surfaced as `unmatchedSpend` rather than hidden.
  */
-import type { Transaction } from "./transactions";
+import type { TransactionRow } from "./transactions";
 import type { DashboardData, GamePlay } from "./types";
 
 /** One game with its matched spend and resulting value. */
@@ -76,21 +76,34 @@ function indexByName(games: GamePlay[]): Map<string, GamePlay> {
   return byName;
 }
 
-/** Find the library game a purchase description refers to, if any. */
-function matchGame(
-  description: string,
-  games: GamePlay[],
-  byName: Map<string, GamePlay>
-): GamePlay | undefined {
-  const key = normTitle(description);
-  if (key === "") return undefined;
-  const exact = byName.get(key);
-  if (exact) return exact;
-  // Fall back to a title fully contained in the description (e.g. trailing edition text).
+/** Match by skuId, which embeds the title id (e.g. `EP0006-PPSA06092_00-...`). */
+function matchBySku(skuId: string | undefined, games: GamePlay[]): GamePlay | undefined {
+  if (!skuId) return undefined;
+  return games.find((g) => g.titleId !== "" && skuId.includes(g.titleId));
+}
+
+/** Match a normalised name fully contained in the product name. */
+function matchByName(key: string, games: GamePlay[]): GamePlay | undefined {
   return games.find((g) => {
     const name = normTitle(g.name);
     return name !== "" && key.includes(name);
   });
+}
+
+/**
+ * Find the library game a purchase refers to, if any. Prefers the stable
+ * `skuId`, then falls back to matching the product name.
+ */
+function matchGame(
+  tx: TransactionRow,
+  games: GamePlay[],
+  byName: Map<string, GamePlay>
+): GamePlay | undefined {
+  const bySku = matchBySku(tx.skuId, games);
+  if (bySku) return bySku;
+  const key = normTitle(tx.productName);
+  if (key === "") return undefined;
+  return byName.get(key) ?? matchByName(key, games);
 }
 
 interface Acc {
@@ -124,31 +137,36 @@ function addToYear(acc: Acc, year: number, amount: number): void {
 
 function recordPurchase(
   acc: Acc,
-  tx: Transaction,
+  tx: TransactionRow,
   games: GamePlay[],
   byName: Map<string, GamePlay>
 ): void {
+  const amount = tx.amountMinor / 100;
   acc.purchaseCount += 1;
-  acc.totalSpend += tx.amount;
+  acc.totalSpend += amount;
   const year = yearOf(tx.date);
-  if (year !== undefined) addToYear(acc, year, tx.amount);
-  const game = matchGame(tx.description, games, byName);
+  if (year !== undefined) addToYear(acc, year, amount);
+  const game = matchGame(tx, games, byName);
   if (!game) {
-    acc.unmatchedSpend += tx.amount;
+    acc.unmatchedSpend += amount;
     return;
   }
-  acc.spendByTitle.set(game.titleId, (acc.spendByTitle.get(game.titleId) ?? 0) + tx.amount);
+  acc.spendByTitle.set(game.titleId, (acc.spendByTitle.get(game.titleId) ?? 0) + amount);
 }
 
 function recordTransaction(
   acc: Acc,
-  tx: Transaction,
+  tx: TransactionRow,
   games: GamePlay[],
   byName: Map<string, GamePlay>
 ): void {
   if (acc.currency === "" && tx.currency !== "") acc.currency = tx.currency;
+  // Minor units (integer pennies) → major units for the spend arithmetic.
+  const amount = tx.amountMinor / 100;
+  // Free claims (PS Plus monthly games, 100%-off) are not spend.
+  if (amount === 0) return;
   if (tx.kind === "top-up") {
-    acc.topUpTotal += tx.amount;
+    acc.topUpTotal += amount;
     return;
   }
   recordPurchase(acc, tx, games, byName);
@@ -182,7 +200,7 @@ function buildByYear(byYear: Acc["byYear"]): YearSpend[] {
  * Top-ups are excluded from spend totals (they fund the wallet, they are not a
  * cost per game); only `kind === "purchase"` rows count toward spend.
  */
-export function summariseSpend(data: DashboardData, transactions: Transaction[]): SpendSummary {
+export function summariseSpend(data: DashboardData, transactions: TransactionRow[]): SpendSummary {
   const games = data.games;
   const byName = indexByName(games);
   const acc = emptyAcc();
