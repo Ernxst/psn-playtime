@@ -10,7 +10,7 @@ test("value card surfaces the per-game averages", async () => {
   await render(<ValueCard data={demoDashboard} />);
 
   await expect.element(page.getByText("What a game is worth to you")).toBeVisible();
-  await expect.element(page.getByText("Hours per game")).toBeVisible();
+  await expect.element(page.getByText("Lifetime hours per game")).toBeVisible();
   await expect.element(page.getByText("Sessions per game")).toBeVisible();
 });
 
