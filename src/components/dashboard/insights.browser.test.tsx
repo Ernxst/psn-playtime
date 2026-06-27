@@ -25,13 +25,13 @@ test("recency card splits active versus dormant games", async () => {
 test("lifespans card ranks the games with the longest first-to-last span", async () => {
   await render(<LifespansCard data={demoDashboard} />);
 
-  await expect.element(page.getByText("Kept coming back to")).toBeVisible();
+  await expect.element(page.getByText("Longest in rotation")).toBeVisible();
 });
 
 test("lifespans card renders nothing when there are no games", async () => {
   await render(<LifespansCard data={withGames([])} />);
 
-  expect(page.getByText("Kept coming back to").query()).toBeNull();
+  expect(page.getByText("Longest in rotation").query()).toBeNull();
 });
 
 test("apps-excluded note lists the streaming hours kept out of the game stats", async () => {
