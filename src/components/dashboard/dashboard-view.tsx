@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTab } from "@/components/ui/tabs";
 import {
   applyFilters,
+  currentYear,
   type DashboardFilters,
   defaultFilters,
   type Timeframe,
@@ -55,7 +56,7 @@ const TIMEFRAMES: ReadonlyArray<{ value: Timeframe; label: string }> = [
   { value: "all", label: "All time" },
   { value: "last-12-months", label: "Last 12 months" },
   { value: "last-2-years", label: "Last 2 years" },
-  { value: "this-year", label: "This year" },
+  { value: "this-year", label: `This year (${currentYear()})` },
 ];
 
 function TimeframeControl({
