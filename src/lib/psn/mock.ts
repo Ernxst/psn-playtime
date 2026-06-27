@@ -34,6 +34,13 @@ export const demoDashboard: DashboardData = {
       genre: "Shooter",
       franchise: "Call of Duty",
       isApp: false,
+      trophy: {
+        progress: 68,
+        earned: { platinum: 0, gold: 3, silver: 9, bronze: 29 },
+        total: 41,
+        hasPlatinum: false,
+        lastEarnedAt: "2022-09-15",
+      },
     },
     {
       titleId: "DEMO-1",
@@ -47,6 +54,13 @@ export const demoDashboard: DashboardData = {
       genre: "Sports",
       franchise: "FIFA / EA FC",
       isApp: false,
+      trophy: {
+        progress: 69,
+        earned: { platinum: 0, gold: 3, silver: 9, bronze: 29 },
+        total: 41,
+        hasPlatinum: false,
+        lastEarnedAt: "2018-09-06",
+      },
     },
     {
       titleId: "DEMO-2",
@@ -60,6 +74,13 @@ export const demoDashboard: DashboardData = {
       genre: "Shooter",
       franchise: "Tom Clancy",
       isApp: false,
+      trophy: {
+        progress: 70,
+        earned: { platinum: 0, gold: 4, silver: 9, bronze: 29 },
+        total: 42,
+        hasPlatinum: false,
+        lastEarnedAt: "2026-06-24",
+      },
     },
     {
       titleId: "DEMO-3",
@@ -73,6 +94,13 @@ export const demoDashboard: DashboardData = {
       genre: "Shooter",
       franchise: "Call of Duty",
       isApp: false,
+      trophy: {
+        progress: 71,
+        earned: { platinum: 0, gold: 4, silver: 9, bronze: 30 },
+        total: 43,
+        hasPlatinum: false,
+        lastEarnedAt: "2020-05-11",
+      },
     },
     {
       titleId: "DEMO-4",
@@ -86,6 +114,13 @@ export const demoDashboard: DashboardData = {
       genre: "Sports",
       franchise: "FIFA / EA FC",
       isApp: false,
+      trophy: {
+        progress: 72,
+        earned: { platinum: 0, gold: 4, silver: 9, bronze: 30 },
+        total: 43,
+        hasPlatinum: false,
+        lastEarnedAt: "2022-09-03",
+      },
     },
     {
       titleId: "DEMO-5",
@@ -99,6 +134,13 @@ export const demoDashboard: DashboardData = {
       genre: "Open World",
       franchise: "Grand Theft Auto",
       isApp: false,
+      trophy: {
+        progress: 100,
+        earned: { platinum: 1, gold: 5, silver: 13, bronze: 42 },
+        total: 61,
+        hasPlatinum: true,
+        lastEarnedAt: "2025-05-22",
+      },
     },
     {
       titleId: "DEMO-6",
@@ -112,6 +154,13 @@ export const demoDashboard: DashboardData = {
       genre: "Survival/Craft",
       franchise: "Satisfactory",
       isApp: false,
+      trophy: {
+        progress: 74,
+        earned: { platinum: 0, gold: 4, silver: 10, bronze: 31 },
+        total: 45,
+        hasPlatinum: false,
+        lastEarnedAt: "2026-06-25",
+      },
     },
     {
       titleId: "DEMO-7",
@@ -125,6 +174,13 @@ export const demoDashboard: DashboardData = {
       genre: "Survival/Craft",
       franchise: "Minecraft",
       isApp: false,
+      trophy: {
+        progress: 75,
+        earned: { platinum: 0, gold: 4, silver: 10, bronze: 32 },
+        total: 46,
+        hasPlatinum: false,
+        lastEarnedAt: "2026-02-25",
+      },
     },
     {
       titleId: "DEMO-8",
@@ -138,6 +194,13 @@ export const demoDashboard: DashboardData = {
       genre: "RPG",
       franchise: "Cyberpunk",
       isApp: false,
+      trophy: {
+        progress: 100,
+        earned: { platinum: 1, gold: 5, silver: 13, bronze: 42 },
+        total: 61,
+        hasPlatinum: true,
+        lastEarnedAt: "2025-01-26",
+      },
     },
     {
       titleId: "DEMO-9",
@@ -151,6 +214,13 @@ export const demoDashboard: DashboardData = {
       genre: "Sports",
       franchise: "NBA 2K",
       isApp: false,
+      trophy: {
+        progress: 76,
+        earned: { platinum: 0, gold: 4, silver: 10, bronze: 32 },
+        total: 46,
+        hasPlatinum: false,
+        lastEarnedAt: "2019-08-20",
+      },
     },
     {
       titleId: "DEMO-10",
@@ -164,6 +234,13 @@ export const demoDashboard: DashboardData = {
       genre: "Open World",
       franchise: "Horizon",
       isApp: false,
+      trophy: {
+        progress: 100,
+        earned: { platinum: 1, gold: 5, silver: 13, bronze: 42 },
+        total: 61,
+        hasPlatinum: true,
+        lastEarnedAt: "2025-06-19",
+      },
     },
     {
       titleId: "DEMO-11",
@@ -177,6 +254,13 @@ export const demoDashboard: DashboardData = {
       genre: "Survival/Craft",
       franchise: "No Man's Sky",
       isApp: false,
+      trophy: {
+        progress: 87,
+        earned: { platinum: 0, gold: 4, silver: 11, bronze: 37 },
+        total: 52,
+        hasPlatinum: false,
+        lastEarnedAt: "2025-12-09",
+      },
     },
     {
       titleId: "DEMO-12",
@@ -190,6 +274,13 @@ export const demoDashboard: DashboardData = {
       genre: "Sports",
       franchise: "FIFA / EA FC",
       isApp: false,
+      trophy: {
+        progress: 88,
+        earned: { platinum: 0, gold: 4, silver: 11, bronze: 37 },
+        total: 52,
+        hasPlatinum: false,
+        lastEarnedAt: "2020-09-22",
+      },
     },
     {
       titleId: "DEMO-13",
@@ -203,6 +294,13 @@ export const demoDashboard: DashboardData = {
       genre: "Shooter",
       franchise: "Call of Duty",
       isApp: false,
+      trophy: {
+        progress: 89,
+        earned: { platinum: 0, gold: 4, silver: 12, bronze: 37 },
+        total: 53,
+        hasPlatinum: false,
+        lastEarnedAt: "2026-03-14",
+      },
     },
     {
       titleId: "DEMO-14",
@@ -216,6 +314,13 @@ export const demoDashboard: DashboardData = {
       genre: "Sports",
       franchise: "FIFA / EA FC",
       isApp: false,
+      trophy: {
+        progress: 90,
+        earned: { platinum: 0, gold: 5, silver: 12, bronze: 38 },
+        total: 55,
+        hasPlatinum: false,
+        lastEarnedAt: "2024-09-07",
+      },
     },
     {
       titleId: "DEMO-15",
@@ -229,6 +334,13 @@ export const demoDashboard: DashboardData = {
       genre: "Sports",
       franchise: "NBA 2K",
       isApp: false,
+      trophy: {
+        progress: 45,
+        earned: { platinum: 0, gold: 2, silver: 6, bronze: 19 },
+        total: 27,
+        hasPlatinum: false,
+        lastEarnedAt: "2021-08-08",
+      },
     },
     {
       titleId: "DEMO-16",
@@ -242,6 +354,13 @@ export const demoDashboard: DashboardData = {
       genre: "RPG",
       franchise: "Mass Effect",
       isApp: false,
+      trophy: {
+        progress: 46,
+        earned: { platinum: 0, gold: 2, silver: 6, bronze: 19 },
+        total: 27,
+        hasPlatinum: false,
+        lastEarnedAt: "2026-06-24",
+      },
     },
     {
       titleId: "DEMO-17",
@@ -255,6 +374,13 @@ export const demoDashboard: DashboardData = {
       genre: "Shooter",
       franchise: "Fortnite",
       isApp: false,
+      trophy: {
+        progress: 47,
+        earned: { platinum: 0, gold: 2, silver: 6, bronze: 20 },
+        total: 28,
+        hasPlatinum: false,
+        lastEarnedAt: "2020-02-28",
+      },
     },
     {
       titleId: "DEMO-18",
@@ -268,6 +394,13 @@ export const demoDashboard: DashboardData = {
       genre: "Survival/Craft",
       franchise: "Minecraft",
       isApp: false,
+      trophy: {
+        progress: 48,
+        earned: { platinum: 0, gold: 2, silver: 6, bronze: 20 },
+        total: 28,
+        hasPlatinum: false,
+        lastEarnedAt: "2025-03-25",
+      },
     },
     {
       titleId: "DEMO-19",
@@ -281,6 +414,13 @@ export const demoDashboard: DashboardData = {
       genre: "Sports",
       franchise: "NBA 2K",
       isApp: false,
+      trophy: {
+        progress: 49,
+        earned: { platinum: 0, gold: 2, silver: 6, bronze: 21 },
+        total: 29,
+        hasPlatinum: false,
+        lastEarnedAt: "2023-08-22",
+      },
     },
     {
       titleId: "DEMO-20",
@@ -294,6 +434,13 @@ export const demoDashboard: DashboardData = {
       genre: "Action-Adventure",
       franchise: "Tomb Raider",
       isApp: false,
+      trophy: {
+        progress: 100,
+        earned: { platinum: 1, gold: 5, silver: 13, bronze: 42 },
+        total: 61,
+        hasPlatinum: true,
+        lastEarnedAt: "2024-09-20",
+      },
     },
     {
       titleId: "DEMO-21",
@@ -307,6 +454,13 @@ export const demoDashboard: DashboardData = {
       genre: "Sports",
       franchise: "FIFA / EA FC",
       isApp: false,
+      trophy: {
+        progress: 34,
+        earned: { platinum: 0, gold: 2, silver: 4, bronze: 14 },
+        total: 20,
+        hasPlatinum: false,
+        lastEarnedAt: "2026-01-20",
+      },
     },
     {
       titleId: "DEMO-22",
@@ -320,6 +474,13 @@ export const demoDashboard: DashboardData = {
       genre: "Action-Adventure",
       franchise: "Tomb Raider",
       isApp: false,
+      trophy: {
+        progress: 100,
+        earned: { platinum: 1, gold: 5, silver: 13, bronze: 42 },
+        total: 61,
+        hasPlatinum: true,
+        lastEarnedAt: "2024-08-05",
+      },
     },
     {
       titleId: "DEMO-23",
@@ -333,6 +494,13 @@ export const demoDashboard: DashboardData = {
       genre: "Racing",
       franchise: "Forza",
       isApp: false,
+      trophy: {
+        progress: 36,
+        earned: { platinum: 0, gold: 2, silver: 5, bronze: 15 },
+        total: 22,
+        hasPlatinum: false,
+        lastEarnedAt: "2026-02-25",
+      },
     },
     {
       titleId: "DEMO-24",
@@ -346,6 +514,13 @@ export const demoDashboard: DashboardData = {
       genre: "Survival/Craft",
       franchise: "Subnautica",
       isApp: false,
+      trophy: {
+        progress: 37,
+        earned: { platinum: 0, gold: 2, silver: 5, bronze: 16 },
+        total: 23,
+        hasPlatinum: false,
+        lastEarnedAt: "2023-01-10",
+      },
     },
     {
       titleId: "DEMO-25",
@@ -359,6 +534,13 @@ export const demoDashboard: DashboardData = {
       genre: "Action-Adventure",
       franchise: "Star Wars",
       isApp: false,
+      trophy: {
+        progress: 100,
+        earned: { platinum: 1, gold: 5, silver: 13, bronze: 42 },
+        total: 61,
+        hasPlatinum: true,
+        lastEarnedAt: "2026-06-17",
+      },
     },
     {
       titleId: "DEMO-26",
@@ -372,6 +554,13 @@ export const demoDashboard: DashboardData = {
       genre: "Racing",
       franchise: "F1",
       isApp: false,
+      trophy: {
+        progress: 39,
+        earned: { platinum: 0, gold: 2, silver: 5, bronze: 16 },
+        total: 23,
+        hasPlatinum: false,
+        lastEarnedAt: "2020-07-05",
+      },
     },
     {
       titleId: "DEMO-27",
@@ -385,6 +574,13 @@ export const demoDashboard: DashboardData = {
       genre: "Action-Adventure",
       franchise: "God of War",
       isApp: false,
+      trophy: {
+        progress: 100,
+        earned: { platinum: 1, gold: 5, silver: 13, bronze: 42 },
+        total: 61,
+        hasPlatinum: true,
+        lastEarnedAt: "2023-08-13",
+      },
     },
     {
       titleId: "DEMO-28",
@@ -397,6 +593,13 @@ export const demoDashboard: DashboardData = {
       category: "ps4_game",
       genre: "Shooter",
       isApp: false,
+      trophy: {
+        progress: 41,
+        earned: { platinum: 0, gold: 2, silver: 5, bronze: 17 },
+        total: 24,
+        hasPlatinum: false,
+        lastEarnedAt: "2023-09-15",
+      },
     },
     {
       titleId: "DEMO-29",
@@ -409,6 +612,13 @@ export const demoDashboard: DashboardData = {
       category: "ps4_game",
       genre: "Indie/Casual",
       isApp: false,
+      trophy: {
+        progress: 42,
+        earned: { platinum: 0, gold: 2, silver: 5, bronze: 18 },
+        total: 25,
+        hasPlatinum: false,
+        lastEarnedAt: "2026-05-08",
+      },
     },
     {
       titleId: "DEMO-30",
@@ -422,6 +632,13 @@ export const demoDashboard: DashboardData = {
       genre: "Survival/Craft",
       franchise: "Subnautica",
       isApp: false,
+      trophy: {
+        progress: 64,
+        earned: { platinum: 0, gold: 3, silver: 8, bronze: 27 },
+        total: 38,
+        hasPlatinum: false,
+        lastEarnedAt: "2023-03-08",
+      },
     },
     {
       titleId: "DEMO-31",
@@ -434,6 +651,13 @@ export const demoDashboard: DashboardData = {
       category: "ps4_game",
       genre: "Other",
       isApp: false,
+      trophy: {
+        progress: 100,
+        earned: { platinum: 1, gold: 5, silver: 13, bronze: 42 },
+        total: 61,
+        hasPlatinum: true,
+        lastEarnedAt: "2022-08-16",
+      },
     },
     {
       titleId: "DEMO-32",
@@ -446,6 +670,13 @@ export const demoDashboard: DashboardData = {
       category: "ps4_game",
       genre: "Other",
       isApp: false,
+      trophy: {
+        progress: 66,
+        earned: { platinum: 0, gold: 3, silver: 9, bronze: 28 },
+        total: 40,
+        hasPlatinum: false,
+        lastEarnedAt: "2023-02-27",
+      },
     },
     {
       titleId: "DEMO-33",
@@ -458,6 +689,13 @@ export const demoDashboard: DashboardData = {
       category: "ps4_game",
       genre: "Other",
       isApp: false,
+      trophy: {
+        progress: 67,
+        earned: { platinum: 0, gold: 3, silver: 9, bronze: 28 },
+        total: 40,
+        hasPlatinum: false,
+        lastEarnedAt: "2021-04-18",
+      },
     },
     {
       titleId: "DEMO-34",
@@ -470,6 +708,13 @@ export const demoDashboard: DashboardData = {
       category: "ps5_native_game",
       genre: "Other",
       isApp: false,
+      trophy: {
+        progress: 68,
+        earned: { platinum: 0, gold: 3, silver: 9, bronze: 29 },
+        total: 41,
+        hasPlatinum: false,
+        lastEarnedAt: "2025-08-24",
+      },
     },
     {
       titleId: "DEMO-35",
@@ -483,6 +728,13 @@ export const demoDashboard: DashboardData = {
       genre: "Sports",
       franchise: "NBA 2K",
       isApp: false,
+      trophy: {
+        progress: 69,
+        earned: { platinum: 0, gold: 3, silver: 9, bronze: 29 },
+        total: 41,
+        hasPlatinum: false,
+        lastEarnedAt: "2020-06-11",
+      },
     },
     {
       titleId: "DEMO-36",
@@ -496,6 +748,13 @@ export const demoDashboard: DashboardData = {
       genre: "Action-Adventure",
       franchise: "Star Wars",
       isApp: false,
+      trophy: {
+        progress: 100,
+        earned: { platinum: 1, gold: 5, silver: 13, bronze: 42 },
+        total: 61,
+        hasPlatinum: true,
+        lastEarnedAt: "2026-02-23",
+      },
     },
     {
       titleId: "DEMO-37",
@@ -508,6 +767,13 @@ export const demoDashboard: DashboardData = {
       category: "ps4_game",
       genre: "Shooter",
       isApp: false,
+      trophy: {
+        progress: 30,
+        earned: { platinum: 0, gold: 2, silver: 4, bronze: 13 },
+        total: 19,
+        hasPlatinum: false,
+        lastEarnedAt: "2024-10-26",
+      },
     },
     {
       titleId: "DEMO-38",
@@ -520,6 +786,13 @@ export const demoDashboard: DashboardData = {
       category: "ps4_game",
       genre: "Other",
       isApp: false,
+      trophy: {
+        progress: 31,
+        earned: { platinum: 0, gold: 2, silver: 4, bronze: 13 },
+        total: 19,
+        hasPlatinum: false,
+        lastEarnedAt: "2023-07-09",
+      },
     },
     {
       titleId: "DEMO-39",
@@ -532,6 +805,13 @@ export const demoDashboard: DashboardData = {
       category: "ps4_game",
       genre: "Shooter",
       isApp: false,
+      trophy: {
+        progress: 32,
+        earned: { platinum: 0, gold: 2, silver: 4, bronze: 13 },
+        total: 19,
+        hasPlatinum: false,
+        lastEarnedAt: "2020-08-02",
+      },
     },
     {
       titleId: "DEMO-40",
@@ -545,6 +825,13 @@ export const demoDashboard: DashboardData = {
       genre: "Shooter",
       franchise: "Warhammer 40K",
       isApp: false,
+      trophy: {
+        progress: 54,
+        earned: { platinum: 0, gold: 3, silver: 7, bronze: 23 },
+        total: 33,
+        hasPlatinum: false,
+        lastEarnedAt: "2024-11-15",
+      },
     },
     {
       titleId: "DEMO-41",
@@ -557,6 +844,13 @@ export const demoDashboard: DashboardData = {
       category: "ps4_game",
       genre: "Shooter",
       isApp: false,
+      trophy: {
+        progress: 55,
+        earned: { platinum: 0, gold: 3, silver: 7, bronze: 23 },
+        total: 33,
+        hasPlatinum: false,
+        lastEarnedAt: "2025-03-27",
+      },
     },
     {
       titleId: "DEMO-42",
@@ -570,6 +864,13 @@ export const demoDashboard: DashboardData = {
       genre: "Shooter",
       franchise: "Call of Duty",
       isApp: false,
+      trophy: {
+        progress: 14,
+        earned: { platinum: 0, gold: 1, silver: 2, bronze: 6 },
+        total: 9,
+        hasPlatinum: false,
+        lastEarnedAt: "2017-09-04",
+      },
     },
     {
       titleId: "DEMO-43",
@@ -582,6 +883,13 @@ export const demoDashboard: DashboardData = {
       category: "ps4_game",
       genre: "Shooter",
       isApp: false,
+      trophy: {
+        progress: 15,
+        earned: { platinum: 0, gold: 1, silver: 2, bronze: 6 },
+        total: 9,
+        hasPlatinum: false,
+        lastEarnedAt: "2026-04-09",
+      },
     },
     {
       titleId: "DEMO-44",
@@ -594,6 +902,13 @@ export const demoDashboard: DashboardData = {
       category: "ps5_native_game",
       genre: "Shooter",
       isApp: false,
+      trophy: {
+        progress: 16,
+        earned: { platinum: 0, gold: 1, silver: 2, bronze: 7 },
+        total: 10,
+        hasPlatinum: false,
+        lastEarnedAt: "2024-02-29",
+      },
     },
     {
       titleId: "DEMO-45",
@@ -606,6 +921,13 @@ export const demoDashboard: DashboardData = {
       category: "ps5_native_game",
       genre: "Other",
       isApp: false,
+      trophy: {
+        progress: 17,
+        earned: { platinum: 0, gold: 1, silver: 2, bronze: 7 },
+        total: 10,
+        hasPlatinum: false,
+        lastEarnedAt: "2024-09-05",
+      },
     },
     {
       titleId: "DEMO-46",
@@ -618,6 +940,13 @@ export const demoDashboard: DashboardData = {
       category: "ps4_game",
       genre: "Other",
       isApp: false,
+      trophy: {
+        progress: 18,
+        earned: { platinum: 0, gold: 1, silver: 2, bronze: 8 },
+        total: 11,
+        hasPlatinum: false,
+        lastEarnedAt: "2024-09-10",
+      },
     },
     {
       titleId: "DEMO-47",
@@ -631,6 +960,13 @@ export const demoDashboard: DashboardData = {
       genre: "Open World",
       franchise: "Grand Theft Auto",
       isApp: false,
+      trophy: {
+        progress: 19,
+        earned: { platinum: 0, gold: 1, silver: 2, bronze: 8 },
+        total: 11,
+        hasPlatinum: false,
+        lastEarnedAt: "2025-05-17",
+      },
     },
     {
       titleId: "DEMO-48",
@@ -644,6 +980,13 @@ export const demoDashboard: DashboardData = {
       genre: "Shooter",
       franchise: "Battlefield",
       isApp: false,
+      trophy: {
+        progress: 20,
+        earned: { platinum: 0, gold: 1, silver: 3, bronze: 8 },
+        total: 12,
+        hasPlatinum: false,
+        lastEarnedAt: "2025-11-09",
+      },
     },
     {
       titleId: "DEMO-49",
@@ -668,6 +1011,13 @@ export const demoDashboard: DashboardData = {
       category: "unknown",
       genre: "Other",
       isApp: false,
+      trophy: {
+        progress: 43,
+        earned: { platinum: 0, gold: 2, silver: 6, bronze: 18 },
+        total: 26,
+        hasPlatinum: false,
+        lastEarnedAt: "2021-07-27",
+      },
     },
     {
       titleId: "DEMO-51",
@@ -680,6 +1030,13 @@ export const demoDashboard: DashboardData = {
       category: "ps5_native_game",
       genre: "Other",
       isApp: false,
+      trophy: {
+        progress: 44,
+        earned: { platinum: 0, gold: 2, silver: 6, bronze: 18 },
+        total: 26,
+        hasPlatinum: false,
+        lastEarnedAt: "2022-11-28",
+      },
     },
     {
       titleId: "DEMO-52",
@@ -692,6 +1049,13 @@ export const demoDashboard: DashboardData = {
       category: "ps4_game",
       genre: "Other",
       isApp: false,
+      trophy: {
+        progress: 45,
+        earned: { platinum: 0, gold: 2, silver: 6, bronze: 19 },
+        total: 27,
+        hasPlatinum: false,
+        lastEarnedAt: "2020-08-22",
+      },
     },
     {
       titleId: "DEMO-53",
@@ -705,6 +1069,13 @@ export const demoDashboard: DashboardData = {
       genre: "Shooter",
       franchise: "Tom Clancy",
       isApp: false,
+      trophy: {
+        progress: 46,
+        earned: { platinum: 0, gold: 2, silver: 6, bronze: 19 },
+        total: 27,
+        hasPlatinum: false,
+        lastEarnedAt: "2020-06-13",
+      },
     },
     {
       titleId: "DEMO-54",
@@ -717,6 +1088,13 @@ export const demoDashboard: DashboardData = {
       category: "ps4_game",
       genre: "Shooter",
       isApp: false,
+      trophy: {
+        progress: 47,
+        earned: { platinum: 0, gold: 2, silver: 6, bronze: 20 },
+        total: 28,
+        hasPlatinum: false,
+        lastEarnedAt: "2024-10-08",
+      },
     },
     {
       titleId: "DEMO-55",
@@ -729,6 +1107,13 @@ export const demoDashboard: DashboardData = {
       category: "ps4_game",
       genre: "Other",
       isApp: false,
+      trophy: {
+        progress: 19,
+        earned: { platinum: 0, gold: 1, silver: 2, bronze: 8 },
+        total: 11,
+        hasPlatinum: false,
+        lastEarnedAt: "2018-08-09",
+      },
     },
     {
       titleId: "DEMO-56",
@@ -742,6 +1127,13 @@ export const demoDashboard: DashboardData = {
       genre: "Indie/Casual",
       franchise: "Fall Guys",
       isApp: false,
+      trophy: {
+        progress: 20,
+        earned: { platinum: 0, gold: 1, silver: 3, bronze: 8 },
+        total: 12,
+        hasPlatinum: false,
+        lastEarnedAt: "2020-08-10",
+      },
     },
     {
       titleId: "DEMO-57",
@@ -754,6 +1146,12 @@ export const demoDashboard: DashboardData = {
       category: "ps4_game",
       genre: "Other",
       isApp: false,
+      trophy: {
+        progress: 0,
+        earned: { platinum: 0, gold: 0, silver: 0, bronze: 0 },
+        total: 0,
+        hasPlatinum: false,
+      },
     },
     {
       titleId: "DEMO-58",
@@ -766,6 +1164,13 @@ export const demoDashboard: DashboardData = {
       category: "ps5_native_game",
       genre: "Shooter",
       isApp: false,
+      trophy: {
+        progress: 22,
+        earned: { platinum: 0, gold: 1, silver: 3, bronze: 9 },
+        total: 13,
+        hasPlatinum: false,
+        lastEarnedAt: "2023-10-30",
+      },
     },
     {
       titleId: "DEMO-59",
@@ -778,6 +1183,13 @@ export const demoDashboard: DashboardData = {
       category: "unknown",
       genre: "Other",
       isApp: false,
+      trophy: {
+        progress: 23,
+        earned: { platinum: 0, gold: 1, silver: 3, bronze: 10 },
+        total: 14,
+        hasPlatinum: false,
+        lastEarnedAt: "2021-04-03",
+      },
     },
     {
       titleId: "DEMO-60",
@@ -790,6 +1202,12 @@ export const demoDashboard: DashboardData = {
       category: "unknown",
       genre: "Other",
       isApp: false,
+      trophy: {
+        progress: 0,
+        earned: { platinum: 0, gold: 0, silver: 0, bronze: 0 },
+        total: 0,
+        hasPlatinum: false,
+      },
     },
     {
       titleId: "DEMO-61",
@@ -803,6 +1221,13 @@ export const demoDashboard: DashboardData = {
       genre: "Shooter",
       franchise: "Battlefield",
       isApp: false,
+      trophy: {
+        progress: 17,
+        earned: { platinum: 0, gold: 1, silver: 2, bronze: 7 },
+        total: 10,
+        hasPlatinum: false,
+        lastEarnedAt: "2021-05-14",
+      },
     },
     {
       titleId: "DEMO-62",
@@ -816,6 +1241,13 @@ export const demoDashboard: DashboardData = {
       genre: "Sports",
       franchise: "NBA 2K",
       isApp: false,
+      trophy: {
+        progress: 18,
+        earned: { platinum: 0, gold: 1, silver: 2, bronze: 8 },
+        total: 11,
+        hasPlatinum: false,
+        lastEarnedAt: "2019-08-31",
+      },
     },
     {
       titleId: "DEMO-63",
@@ -829,6 +1261,12 @@ export const demoDashboard: DashboardData = {
       genre: "RPG",
       franchise: "The Witcher",
       isApp: false,
+      trophy: {
+        progress: 0,
+        earned: { platinum: 0, gold: 0, silver: 0, bronze: 0 },
+        total: 0,
+        hasPlatinum: false,
+      },
     },
     {
       titleId: "DEMO-64",
@@ -841,6 +1279,13 @@ export const demoDashboard: DashboardData = {
       category: "ps4_game",
       genre: "Other",
       isApp: false,
+      trophy: {
+        progress: 20,
+        earned: { platinum: 0, gold: 1, silver: 3, bronze: 8 },
+        total: 12,
+        hasPlatinum: false,
+        lastEarnedAt: "2022-10-17",
+      },
     },
     {
       titleId: "DEMO-65",
@@ -854,6 +1299,13 @@ export const demoDashboard: DashboardData = {
       genre: "Shooter",
       franchise: "Gears of War",
       isApp: false,
+      trophy: {
+        progress: 21,
+        earned: { platinum: 0, gold: 1, silver: 3, bronze: 9 },
+        total: 13,
+        hasPlatinum: false,
+        lastEarnedAt: "2025-08-28",
+      },
     },
     {
       titleId: "DEMO-66",
@@ -867,6 +1319,12 @@ export const demoDashboard: DashboardData = {
       genre: "Shooter",
       franchise: "Call of Duty",
       isApp: false,
+      trophy: {
+        progress: 0,
+        earned: { platinum: 0, gold: 0, silver: 0, bronze: 0 },
+        total: 0,
+        hasPlatinum: false,
+      },
     },
     {
       titleId: "DEMO-67",
@@ -879,6 +1337,13 @@ export const demoDashboard: DashboardData = {
       category: "ps4_game",
       genre: "Other",
       isApp: false,
+      trophy: {
+        progress: 23,
+        earned: { platinum: 0, gold: 1, silver: 3, bronze: 10 },
+        total: 14,
+        hasPlatinum: false,
+        lastEarnedAt: "2021-06-24",
+      },
     },
     {
       titleId: "DEMO-68",
@@ -892,6 +1357,13 @@ export const demoDashboard: DashboardData = {
       genre: "Action-Adventure",
       franchise: "Star Wars",
       isApp: false,
+      trophy: {
+        progress: 24,
+        earned: { platinum: 0, gold: 1, silver: 3, bronze: 10 },
+        total: 14,
+        hasPlatinum: false,
+        lastEarnedAt: "2020-06-17",
+      },
     },
     {
       titleId: "DEMO-69",
@@ -905,6 +1377,12 @@ export const demoDashboard: DashboardData = {
       genre: "Sports",
       franchise: "FIFA / EA FC",
       isApp: false,
+      trophy: {
+        progress: 0,
+        earned: { platinum: 0, gold: 0, silver: 0, bronze: 0 },
+        total: 0,
+        hasPlatinum: false,
+      },
     },
     {
       titleId: "DEMO-70",
@@ -918,6 +1396,13 @@ export const demoDashboard: DashboardData = {
       genre: "Sports",
       franchise: "NBA 2K",
       isApp: false,
+      trophy: {
+        progress: 18,
+        earned: { platinum: 0, gold: 1, silver: 2, bronze: 8 },
+        total: 11,
+        hasPlatinum: false,
+        lastEarnedAt: "2018-08-31",
+      },
     },
     {
       titleId: "DEMO-71",
@@ -931,6 +1416,13 @@ export const demoDashboard: DashboardData = {
       genre: "Racing",
       franchise: "Need for Speed",
       isApp: false,
+      trophy: {
+        progress: 19,
+        earned: { platinum: 0, gold: 1, silver: 2, bronze: 8 },
+        total: 11,
+        hasPlatinum: false,
+        lastEarnedAt: "2020-10-08",
+      },
     },
     {
       titleId: "DEMO-72",
@@ -943,6 +1435,12 @@ export const demoDashboard: DashboardData = {
       category: "ps5_native_game",
       genre: "Other",
       isApp: false,
+      trophy: {
+        progress: 0,
+        earned: { platinum: 0, gold: 0, silver: 0, bronze: 0 },
+        total: 0,
+        hasPlatinum: false,
+      },
     },
     {
       titleId: "DEMO-73",
@@ -955,6 +1453,13 @@ export const demoDashboard: DashboardData = {
       category: "ps4_game",
       genre: "Other",
       isApp: false,
+      trophy: {
+        progress: 21,
+        earned: { platinum: 0, gold: 1, silver: 3, bronze: 9 },
+        total: 13,
+        hasPlatinum: false,
+        lastEarnedAt: "2024-10-04",
+      },
     },
     {
       titleId: "DEMO-74",
@@ -967,6 +1472,13 @@ export const demoDashboard: DashboardData = {
       category: "ps5_native_game",
       genre: "Other",
       isApp: false,
+      trophy: {
+        progress: 22,
+        earned: { platinum: 0, gold: 1, silver: 3, bronze: 9 },
+        total: 13,
+        hasPlatinum: false,
+        lastEarnedAt: "2025-06-04",
+      },
     },
     {
       titleId: "DEMO-75",
@@ -979,6 +1491,12 @@ export const demoDashboard: DashboardData = {
       category: "ps4_game",
       genre: "Other",
       isApp: false,
+      trophy: {
+        progress: 0,
+        earned: { platinum: 0, gold: 0, silver: 0, bronze: 0 },
+        total: 0,
+        hasPlatinum: false,
+      },
     },
     {
       titleId: "DEMO-76",
@@ -992,6 +1510,13 @@ export const demoDashboard: DashboardData = {
       genre: "Shooter",
       franchise: "Call of Duty",
       isApp: false,
+      trophy: {
+        progress: 24,
+        earned: { platinum: 0, gold: 1, silver: 3, bronze: 10 },
+        total: 14,
+        hasPlatinum: false,
+        lastEarnedAt: "2019-08-24",
+      },
     },
     {
       titleId: "DEMO-77",
@@ -1005,6 +1530,13 @@ export const demoDashboard: DashboardData = {
       genre: "Shooter",
       franchise: "Call of Duty",
       isApp: false,
+      trophy: {
+        progress: 25,
+        earned: { platinum: 0, gold: 1, silver: 3, bronze: 11 },
+        total: 15,
+        hasPlatinum: false,
+        lastEarnedAt: "2019-09-21",
+      },
     },
     {
       titleId: "DEMO-78",
@@ -1017,6 +1549,12 @@ export const demoDashboard: DashboardData = {
       category: "unknown",
       genre: "Other",
       isApp: false,
+      trophy: {
+        progress: 0,
+        earned: { platinum: 0, gold: 0, silver: 0, bronze: 0 },
+        total: 0,
+        hasPlatinum: false,
+      },
     },
     {
       titleId: "DEMO-79",
@@ -1029,6 +1567,13 @@ export const demoDashboard: DashboardData = {
       category: "ps5_native_game",
       genre: "Other",
       isApp: false,
+      trophy: {
+        progress: 27,
+        earned: { platinum: 0, gold: 1, silver: 4, bronze: 11 },
+        total: 16,
+        hasPlatinum: false,
+        lastEarnedAt: "2026-03-01",
+      },
     },
     {
       titleId: "DEMO-80",
@@ -1042,6 +1587,13 @@ export const demoDashboard: DashboardData = {
       genre: "Shooter",
       franchise: "Call of Duty",
       isApp: false,
+      trophy: {
+        progress: 20,
+        earned: { platinum: 0, gold: 1, silver: 3, bronze: 8 },
+        total: 12,
+        hasPlatinum: false,
+        lastEarnedAt: "2021-08-28",
+      },
     },
     {
       titleId: "DEMO-81",
@@ -1054,6 +1606,12 @@ export const demoDashboard: DashboardData = {
       category: "ps4_game",
       genre: "Shooter",
       isApp: false,
+      trophy: {
+        progress: 0,
+        earned: { platinum: 0, gold: 0, silver: 0, bronze: 0 },
+        total: 0,
+        hasPlatinum: false,
+      },
     },
     {
       titleId: "DEMO-82",
@@ -1067,6 +1625,13 @@ export const demoDashboard: DashboardData = {
       genre: "Racing",
       franchise: "Need for Speed",
       isApp: false,
+      trophy: {
+        progress: 22,
+        earned: { platinum: 0, gold: 1, silver: 3, bronze: 9 },
+        total: 13,
+        hasPlatinum: false,
+        lastEarnedAt: "2026-04-04",
+      },
     },
     {
       titleId: "DEMO-83",
@@ -1079,6 +1644,13 @@ export const demoDashboard: DashboardData = {
       category: "not_found",
       genre: "Other",
       isApp: false,
+      trophy: {
+        progress: 23,
+        earned: { platinum: 0, gold: 1, silver: 3, bronze: 10 },
+        total: 14,
+        hasPlatinum: false,
+        lastEarnedAt: "2017-09-05",
+      },
     },
     {
       titleId: "DEMO-84",
@@ -1092,6 +1664,12 @@ export const demoDashboard: DashboardData = {
       genre: "Open World",
       franchise: "Horizon",
       isApp: false,
+      trophy: {
+        progress: 0,
+        earned: { platinum: 0, gold: 0, silver: 0, bronze: 0 },
+        total: 0,
+        hasPlatinum: false,
+      },
     },
     {
       titleId: "DEMO-85",
@@ -1105,6 +1683,13 @@ export const demoDashboard: DashboardData = {
       genre: "Sports",
       franchise: "FIFA / EA FC",
       isApp: false,
+      trophy: {
+        progress: 25,
+        earned: { platinum: 0, gold: 1, silver: 3, bronze: 11 },
+        total: 15,
+        hasPlatinum: false,
+        lastEarnedAt: "2019-09-25",
+      },
     },
     {
       titleId: "DEMO-86",
@@ -1117,6 +1702,13 @@ export const demoDashboard: DashboardData = {
       category: "ps5_native_game",
       genre: "Indie/Casual",
       isApp: false,
+      trophy: {
+        progress: 26,
+        earned: { platinum: 0, gold: 1, silver: 3, bronze: 11 },
+        total: 15,
+        hasPlatinum: false,
+        lastEarnedAt: "2026-05-08",
+      },
     },
     {
       titleId: "DEMO-87",
@@ -1129,6 +1721,12 @@ export const demoDashboard: DashboardData = {
       category: "ps4_game",
       genre: "Indie/Casual",
       isApp: false,
+      trophy: {
+        progress: 0,
+        earned: { platinum: 0, gold: 0, silver: 0, bronze: 0 },
+        total: 0,
+        hasPlatinum: false,
+      },
     },
     {
       titleId: "DEMO-88",
@@ -1141,6 +1739,13 @@ export const demoDashboard: DashboardData = {
       category: "ps4_game",
       genre: "Other",
       isApp: false,
+      trophy: {
+        progress: 28,
+        earned: { platinum: 0, gold: 1, silver: 4, bronze: 12 },
+        total: 17,
+        hasPlatinum: false,
+        lastEarnedAt: "2017-07-21",
+      },
     },
     {
       titleId: "DEMO-89",
@@ -1166,6 +1771,12 @@ export const demoDashboard: DashboardData = {
       genre: "Survival/Craft",
       franchise: "Subnautica",
       isApp: false,
+      trophy: {
+        progress: 0,
+        earned: { platinum: 0, gold: 0, silver: 0, bronze: 0 },
+        total: 0,
+        hasPlatinum: false,
+      },
     },
     {
       titleId: "DEMO-91",
@@ -1178,6 +1789,13 @@ export const demoDashboard: DashboardData = {
       category: "ps4_game",
       genre: "Other",
       isApp: false,
+      trophy: {
+        progress: 23,
+        earned: { platinum: 0, gold: 1, silver: 3, bronze: 10 },
+        total: 14,
+        hasPlatinum: false,
+        lastEarnedAt: "2017-08-31",
+      },
     },
     {
       titleId: "DEMO-92",
@@ -1190,6 +1808,13 @@ export const demoDashboard: DashboardData = {
       category: "ps5_native_game",
       genre: "Other",
       isApp: false,
+      trophy: {
+        progress: 24,
+        earned: { platinum: 0, gold: 1, silver: 3, bronze: 10 },
+        total: 14,
+        hasPlatinum: false,
+        lastEarnedAt: "2024-06-07",
+      },
     },
     {
       titleId: "DEMO-93",
@@ -1203,6 +1828,12 @@ export const demoDashboard: DashboardData = {
       genre: "Racing",
       franchise: "Need for Speed",
       isApp: false,
+      trophy: {
+        progress: 0,
+        earned: { platinum: 0, gold: 0, silver: 0, bronze: 0 },
+        total: 0,
+        hasPlatinum: false,
+      },
     },
     {
       titleId: "DEMO-94",
@@ -1227,6 +1858,13 @@ export const demoDashboard: DashboardData = {
       category: "ps5_native_game",
       genre: "Other",
       isApp: false,
+      trophy: {
+        progress: 27,
+        earned: { platinum: 0, gold: 1, silver: 4, bronze: 11 },
+        total: 16,
+        hasPlatinum: false,
+        lastEarnedAt: "2025-02-28",
+      },
     },
     {
       titleId: "DEMO-96",
@@ -1240,6 +1878,12 @@ export const demoDashboard: DashboardData = {
       genre: "Shooter",
       franchise: "Gears of War",
       isApp: false,
+      trophy: {
+        progress: 0,
+        earned: { platinum: 0, gold: 0, silver: 0, bronze: 0 },
+        total: 0,
+        hasPlatinum: false,
+      },
     },
     {
       titleId: "DEMO-97",
@@ -1253,6 +1897,13 @@ export const demoDashboard: DashboardData = {
       genre: "Sports",
       franchise: "FIFA / EA FC",
       isApp: false,
+      trophy: {
+        progress: 29,
+        earned: { platinum: 0, gold: 1, silver: 4, bronze: 12 },
+        total: 17,
+        hasPlatinum: false,
+        lastEarnedAt: "2022-05-21",
+      },
     },
   ],
   fetchedAt: "2026-06-27T00:00:00.000Z",
