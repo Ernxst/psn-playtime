@@ -254,6 +254,24 @@ function gameTiming(g: GamePlay): string {
 }
 
 /**
+ * Compact trophy signal for one game: completion %, earned counts and whether a
+ * platinum was earned / is even available. Missing trophy data is surfaced as
+ * UNKNOWN (not zero) so the model never reads a gap as low engagement.
+ */
+function gameTrophy(g: GamePlay): string {
+  const t = g.trophy;
+  if (!t) return ", trophies unknown (no data)";
+  const { platinum, gold, silver, bronze } = t.earned;
+  const counts = `earned P${platinum}/G${gold}/S${silver}/B${bronze}`;
+  const platinumStatus = !t.hasPlatinum
+    ? "no platinum available"
+    : platinum >= 1
+      ? "platinum earned"
+      : "platinum available, not earned";
+  return `, trophies ${t.progress}% complete (${counts}), ${platinumStatus}`;
+}
+
+/**
  * Every game, biggest first, with its hours, genre, franchise and when it was
  * last (and first) played so recency can be weighed against raw hours.
  */
@@ -262,7 +280,7 @@ function listGames(data: DashboardData): string {
     .toSorted((a, b) => b.hours - a.hours)
     .map((g, i) => {
       const franchise = g.franchise ? `, ${g.franchise}` : "";
-      return `  ${i + 1}. ${g.name} — ${Math.round(g.hours)}h (${g.genre}${franchise})${gameTiming(g)}`;
+      return `  ${i + 1}. ${g.name} — ${Math.round(g.hours)}h (${g.genre}${franchise})${gameTiming(g)}${gameTrophy(g)}`;
     })
     .join("\n");
 }
@@ -287,6 +305,25 @@ function listSessionStyle(data: DashboardData): string {
     .join("\n");
 }
 
+/**
+ * The completionist baseline: total platinums earned account-wide plus the rate
+ * at which platinum-eligible games (those with trophy data and a platinum on
+ * offer) were actually platinumed. This gives the model a yardstick for how
+ * much weight a single platinum should carry. Games without trophy data are
+ * excluded from the rate (unknown, not zero), and the rate degrades gracefully
+ * when no game has a platinum available.
+ */
+function completionistBaseline(data: DashboardData): string {
+  const accountPlatinums = data.profile.earned.platinum;
+  const eligible = data.games.filter((g) => g.trophy?.hasPlatinum === true);
+  const platinumed = eligible.filter((g) => (g.trophy?.earned.platinum ?? 0) >= 1);
+  const rate =
+    eligible.length === 0
+      ? "no platinum-eligible games with trophy data, so no rate"
+      : `${Math.round((platinumed.length / eligible.length) * 100)}% platinum rate`;
+  return `- Completionist baseline: ${accountPlatinums} platinums earned account-wide; platinumed ${platinumed.length} of ${eligible.length} platinum-eligible games with trophy data (${rate}).`;
+}
+
 /** The compact, structured data summary embedded once in every prompt. */
 export function buildDataSummary(data: DashboardData): string {
   const totals = headlineTotals(data);
@@ -299,6 +336,7 @@ export function buildDataSummary(data: DashboardData): string {
     `- Totals: ${totals.gamesPlayed} games, ${totals.totalHours}h played, ${totals.sessions} sessions, PSN trophy level ${totals.trophyLevel}.`,
     `- Averages: ${value.avgHoursPerGame}h per game, ${value.avgSessionsPerGame} sessions per game, ${value.avgSessionLength}h per session.`,
     `- Recency (${r.thisYear}): ${r.activeGames} active games (${r.activeHours}h) vs ${r.dormantGames} dormant (${r.dormantHours}h).`,
+    completionistBaseline(data),
     "- All games by hours (with when each was last/first played):",
     listGames(data),
     "- Genres by hours:",
@@ -343,6 +381,23 @@ export const PLAY_PATTERN_GUIDANCE = [
 ].join("\n");
 
 /**
+ * Guidance telling the model to read a platinum / high trophy count as an
+ * enjoyment signal whose STRENGTH is relative to my completionist baseline,
+ * while honouring the data-gap, no-platinum-available and difficulty caveats.
+ * Calibration only — the model still weighs it against the data and decides.
+ */
+export const TROPHY_SIGNAL_GUIDANCE = [
+  "Read platinum and high trophy counts as an enjoyment/commitment signal, but weight each one RELATIVE to my completionist baseline above (how often I platinum games that allow it):",
+  "- A platinum from a low-baseline player (someone who rarely platinums) is a STRONG signal of enjoyment and investment in that title.",
+  "- For a habitual platinum-hunter (high baseline) a platinum is expected and discriminates far less, so weight it down.",
+  "- High trophy counts or completion % short of a platinum are a SOFTER version of the same signal — read them the same baseline-relative way.",
+  "Honour these caveats and never overclaim:",
+  "- 'trophies unknown (no data)' means UNKNOWN, NOT zero — never infer dislike or low engagement from missing trophy data.",
+  "- 'no platinum available' (common for multiplayer/older titles) is NOT a negative signal; the absence of a platinum there says nothing about enjoyment.",
+  "- I have no trophy-difficulty data, so don't assume a platinum was hard or easy; the baseline-relative framing is what gives a platinum its weight.",
+].join("\n");
+
+/**
  * Build the full, ready-to-paste prompt: the data summary once, the chosen
  * lead question, then the rest as paste-able follow-ups.
  */
@@ -351,6 +406,7 @@ export function buildPrompt(data: DashboardData, lead: PromptVariant): string {
     "You are a gaming analyst. I'm sharing a summary of my PlayStation playtime.",
     "Weigh WHEN I played (recency and trends from each game's last/first played dates), not just total hours — a big total played years ago means something different from a smaller total I'm playing now.",
     PLAY_PATTERN_GUIDANCE,
+    TROPHY_SIGNAL_GUIDANCE,
     "",
     buildDataSummary(data),
     "",
