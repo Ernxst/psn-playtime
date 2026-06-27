@@ -30,12 +30,10 @@ const securityHeaders: Record<string, string> = {
     "frame-src 'none'",
     "object-src 'none'",
     "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'",
-    // `fonts.googleapis.com` is allowed because styles.css `@import`s the Google
-    // Fonts stylesheet; without it the enforced CSP blanks the app's webfonts.
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https://*.playstation.net https://*.playstation.com https://*.np.community.playstation.net",
-    // `fonts.gstatic.com` serves the Google Fonts font files referenced above.
-    "font-src 'self' https://fonts.gstatic.com",
+    // Web fonts are self-hosted (see `src/styles.css`), so they load same-origin.
+    "font-src 'self'",
     "connect-src 'self'",
     "worker-src 'self' blob:",
     "media-src 'self'",

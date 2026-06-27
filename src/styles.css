@@ -3,6 +3,10 @@
 
 @import "tw-animate-css";
 
+/* Self-hosted web fonts (served same-origin so no request goes to Google). */
+@import "@fontsource-variable/manrope/index.css";
+@import "@fontsource-variable/fraunces/opsz.css";
+
 @custom-variant dark (&:is(.dark *));
 
 :root {
@@ -91,7 +95,7 @@
 }
 
 @theme inline {
-  --font-sans: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Manrope Variable", ui-sans-serif, system-ui, sans-serif;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
