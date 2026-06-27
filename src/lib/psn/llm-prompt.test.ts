@@ -8,8 +8,10 @@ import {
   PLAY_PATTERN_GUIDANCE,
   PROMPT_GROUPS,
   PROMPT_VARIANTS,
+  TROPHY_SIGNAL_GUIDANCE,
 } from "./llm-prompt";
 import { demoDashboard } from "./mock";
+import type { GamePlay } from "./types";
 
 describe(".PROMPT_VARIANTS", () => {
   it("gives every question a unique id", () => {
@@ -75,6 +77,57 @@ describe(".buildDataSummary", () => {
     const present = genres.map((genre) => summary.includes(`- ${genre}:`));
 
     expect(present).toStrictEqual(genres.map(() => true));
+  });
+
+  it("reports earned trophy counts and platinum status for every game with trophy data", () => {
+    const summary = buildDataSummary(demoDashboard);
+    const withTrophy = demoDashboard.games.filter(
+      (g): g is GamePlay & { trophy: NonNullable<GamePlay["trophy"]> } => Boolean(g.trophy)
+    );
+
+    const present = withTrophy.map((g) => {
+      const t = g.trophy;
+      const status = !t.hasPlatinum
+        ? "no platinum available"
+        : t.earned.platinum >= 1
+          ? "platinum earned"
+          : "platinum available, not earned";
+      return summary.includes(
+        `trophies ${t.progress}% complete (earned P${t.earned.platinum}/G${t.earned.gold}/S${t.earned.silver}/B${t.earned.bronze}), ${status}`
+      );
+    });
+
+    expect(present).toStrictEqual(withTrophy.map(() => true));
+  });
+
+  it("surfaces missing trophy data as unknown rather than zero", () => {
+    const games = demoDashboard.games.map((g) => ({ ...g, trophy: undefined }));
+
+    const summary = buildDataSummary({ ...demoDashboard, games });
+
+    expect(summary).toContain("trophies unknown (no data)");
+  });
+
+  it("includes the completionist baseline with the account platinums and platinum rate", () => {
+    const eligible = demoDashboard.games.filter((g) => g.trophy?.hasPlatinum === true);
+    const platinumed = eligible.filter((g) => (g.trophy?.earned.platinum ?? 0) >= 1);
+    const rate = Math.round((platinumed.length / eligible.length) * 100);
+
+    const summary = buildDataSummary(demoDashboard);
+
+    expect(summary).toContain(
+      `Completionist baseline: ${demoDashboard.profile.earned.platinum} platinums earned account-wide; platinumed ${platinumed.length} of ${eligible.length} platinum-eligible games with trophy data (${rate}% platinum rate)`
+    );
+  });
+
+  it("degrades the platinum rate gracefully when no game has a platinum available", () => {
+    const games = demoDashboard.games.map((g) => ({ ...g, trophy: undefined }));
+
+    const summary = buildDataSummary({ ...demoDashboard, games });
+
+    expect(summary).toContain(
+      "platinumed 0 of 0 platinum-eligible games with trophy data (no platinum-eligible games with trophy data, so no rate)"
+    );
   });
 });
 
@@ -166,5 +219,36 @@ describe(".buildPrompt", () => {
     expect(PLAY_PATTERN_GUIDANCE).toContain(
       "Live-service / multiplayer: session cadence reflects habit, not completion or enjoyment"
     );
+  });
+
+  it.each(PROMPT_VARIANTS)("embeds the baseline-weighted trophy guidance for $id", (variant) => {
+    const prompt = buildPrompt(demoDashboard, variant);
+
+    expect(prompt).toContain(TROPHY_SIGNAL_GUIDANCE);
+  });
+
+  it("weights a platinum relative to the completionist baseline", () => {
+    expect(TROPHY_SIGNAL_GUIDANCE).toContain(
+      "weight each one RELATIVE to my completionist baseline above"
+    );
+    expect(TROPHY_SIGNAL_GUIDANCE).toContain(
+      "A platinum from a low-baseline player (someone who rarely platinums) is a STRONG signal"
+    );
+    expect(TROPHY_SIGNAL_GUIDANCE).toContain(
+      "For a habitual platinum-hunter (high baseline) a platinum is expected and discriminates far less"
+    );
+    expect(TROPHY_SIGNAL_GUIDANCE).toContain(
+      "High trophy counts or completion % short of a platinum are a SOFTER version of the same signal"
+    );
+  });
+
+  it("keeps the missing-data and no-platinum-available caveats", () => {
+    expect(TROPHY_SIGNAL_GUIDANCE).toContain(
+      "'trophies unknown (no data)' means UNKNOWN, NOT zero"
+    );
+    expect(TROPHY_SIGNAL_GUIDANCE).toContain(
+      "'no platinum available' (common for multiplayer/older titles) is NOT a negative signal"
+    );
+    expect(TROPHY_SIGNAL_GUIDANCE).toContain("I have no trophy-difficulty data");
   });
 });
