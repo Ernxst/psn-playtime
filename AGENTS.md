@@ -21,6 +21,7 @@ Follow the [Contribution Guide](./CONTRIBUTING.md)
 - Respect scope boundaries.
 - Do not perform opportunistic refactors, renames, reorganisations, or cleanups unless explicitly requested.
 - Work in small, verifiable steps.
+- Commit after each complete, verified logical change.
 - Prefer built-in platform, language, and framework capabilities over custom abstractions.
 - Avoid abstraction unless it removes duplication.
 
