@@ -1,6 +1,9 @@
 import { Info } from "lucide-react";
+import { useMemo, useState } from "react";
 import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { Tabs, TabsList, TabsTab } from "@/components/ui/tabs";
+import { filterByTimeframe, type Timeframe } from "@/lib/psn/analytics";
 import type { DashboardData } from "@/lib/psn/types";
 import { ChartCard } from "./chart-card";
 import { FranchiseChart, GenreChart, SessionChart, TopGamesChart, YearChart } from "./charts";
@@ -24,6 +27,45 @@ function DemoBanner() {
       <p className="text-muted-foreground">
         You're viewing the <span className="font-medium text-foreground">demo dataset</span>. Sign
         in with your PSN token on the home page to see your own playtime.
+      </p>
+    </div>
+  );
+}
+
+const TIMEFRAMES: ReadonlyArray<{ value: Timeframe; label: string }> = [
+  { value: "all", label: "All time" },
+  { value: "last-12-months", label: "Last 12 months" },
+  { value: "last-2-years", label: "Last 2 years" },
+  { value: "this-year", label: "This year" },
+];
+
+function TimeframeControl({
+  value,
+  onValueChange,
+}: {
+  value: Timeframe;
+  onValueChange: (value: Timeframe) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <Tabs
+        value={value}
+        onValueChange={(next) => {
+          const match = TIMEFRAMES.find((t) => t.value === next);
+          if (match) onValueChange(match.value);
+        }}
+      >
+        <TabsList>
+          {TIMEFRAMES.map((t) => (
+            <TabsTab key={t.value} value={t.value}>
+              {t.label}
+            </TabsTab>
+          ))}
+        </TabsList>
+      </Tabs>
+      <p className="text-xs text-muted-foreground">
+        Windowed by last-played activity, not hours-in-period. PSN only reports lifetime hours per
+        game.
       </p>
     </div>
   );
@@ -116,6 +158,8 @@ function DashboardBody({ data }: { data: DashboardData }) {
 
 export function DashboardView({ data, onSignOut, signingOut }: Props) {
   const { profile } = data;
+  const [timeframe, setTimeframe] = useState<Timeframe>("all");
+  const scoped = useMemo(() => filterByTimeframe(data, timeframe), [data, timeframe]);
   return (
     <SidebarProvider>
       <DashboardSidebar />
@@ -128,7 +172,8 @@ export function DashboardView({ data, onSignOut, signingOut }: Props) {
         <div className="mx-auto w-full max-w-6xl space-y-6 p-4 sm:p-6">
           <DashboardHeader data={data} onSignOut={onSignOut} signingOut={signingOut} />
           {data.isDemo ? <DemoBanner /> : null}
-          <DashboardBody data={data} />
+          <TimeframeControl value={timeframe} onValueChange={setTimeframe} />
+          <DashboardBody data={scoped} />
         </div>
       </SidebarInset>
     </SidebarProvider>
