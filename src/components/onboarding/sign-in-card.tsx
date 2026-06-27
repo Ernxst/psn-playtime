@@ -124,8 +124,9 @@ function EasyPath() {
       <p className="text-sm font-semibold">Easiest way: the bookmarklet</p>
       <p className="text-sm text-muted-foreground">
         Drag <strong className="font-medium text-foreground">Grab my PSN token</strong> to your
-        bookmarks bar, open or log into PlayStation, then click it. Your token is copied. Paste it
-        below.
+        bookmarks bar and log into PlayStation. Open the ssocookie page, then click{" "}
+        <strong className="font-medium text-foreground">Grab my PSN token</strong> on that page to
+        copy your token. Paste it below.
       </p>
       <Bookmarklet />
     </div>
