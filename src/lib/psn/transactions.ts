@@ -66,6 +66,9 @@ export const HANDOFF_READY_TYPE = "psn-import-ready";
 /** `postMessage` envelope the receiver sends back once it has persisted a payload. */
 export const HANDOFF_RECEIVED_TYPE = "psn-import-received";
 
+/** `postMessage` envelope the opener sends once every batch has been streamed. */
+export const HANDOFF_COMPLETE_TYPE = "psn-transactions-complete";
+
 /** The payload the bookmarklet hands to `/import` via the URL fragment. */
 export interface HandoffPayload {
   v: typeof HANDOFF_VERSION;
