@@ -1,7 +1,7 @@
-import { Clock, Gamepad2, Hourglass, Sparkles, Trophy } from "lucide-react";
+import { Clock, Gamepad2, Hourglass, Info, Sparkles, Trophy } from "lucide-react";
 import type { ComponentType } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { headlineTotals } from "@/lib/psn/analytics";
+import { headlineTotals, LIFETIME_HOURS_CAVEAT, LIFETIME_HOURS_NOTE } from "@/lib/psn/analytics";
 import type { DashboardData } from "@/lib/psn/types";
 import { fmtDuration, fmtHours, fmtNumber } from "./format";
 
@@ -10,22 +10,28 @@ interface Kpi {
   value: string;
   sub: string;
   icon: ComponentType<{ className?: string }>;
+  /** Optional caveat surfaced as the value's hover title (used on hour figures). */
+  valueTitle?: string;
 }
 
-function buildKpis(data: DashboardData): Kpi[] {
+function buildKpis(data: DashboardData, timeframePhrase?: string): Kpi[] {
   const t = headlineTotals(data);
   return [
     {
-      label: "Total play time",
+      label: timeframePhrase ? "Lifetime hours (filtered)" : "Lifetime play time",
       value: fmtHours(t.totalHours),
-      sub: `≈ ${fmtDuration(t.totalHours)} non-stop`,
+      sub: timeframePhrase
+        ? `${fmtNumber(t.gamesPlayed)} games last played in ${timeframePhrase}`
+        : `≈ ${fmtDuration(t.totalHours)} non-stop`,
       icon: Clock,
+      valueTitle: LIFETIME_HOURS_CAVEAT,
     },
     {
       label: "That's roughly",
       value: `${fmtNumber(t.days)} days`,
       sub: `or about ${t.years.toLocaleString(undefined, { maximumFractionDigits: 1 })} years`,
       icon: Hourglass,
+      valueTitle: LIFETIME_HOURS_CAVEAT,
     },
     {
       label: "Games played",
@@ -42,7 +48,7 @@ function buildKpis(data: DashboardData): Kpi[] {
     {
       label: "Biggest game",
       value: t.biggestGame?.name ?? "—",
-      sub: t.biggestGame ? `${fmtHours(t.biggestGame.hours)} all-time` : "",
+      sub: t.biggestGame ? `${fmtHours(t.biggestGame.hours)} lifetime` : "",
       icon: Sparkles,
     },
   ];
@@ -56,7 +62,7 @@ function KpiCard({ kpi }: { kpi: Kpi }) {
           <kpi.icon className="size-4" />
           <span className="text-xs font-medium uppercase tracking-wide">{kpi.label}</span>
         </div>
-        <div className="truncate text-2xl font-bold" title={kpi.value}>
+        <div className="truncate text-2xl font-bold" title={kpi.valueTitle ?? kpi.value}>
           {kpi.value}
         </div>
         <div className="truncate text-xs text-muted-foreground">{kpi.sub}</div>
@@ -65,12 +71,24 @@ function KpiCard({ kpi }: { kpi: Kpi }) {
   );
 }
 
-export function KpiCards({ data }: { data: DashboardData }) {
+export function KpiCards({
+  data,
+  timeframePhrase,
+}: {
+  data: DashboardData;
+  timeframePhrase?: string;
+}) {
   return (
-    <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
-      {buildKpis(data).map((k) => (
-        <KpiCard key={k.label} kpi={k} />
-      ))}
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+        {buildKpis(data, timeframePhrase).map((k) => (
+          <KpiCard key={k.label} kpi={k} />
+        ))}
+      </div>
+      <p className="flex items-start gap-2 text-xs text-muted-foreground">
+        <Info className="mt-0.5 size-3.5 shrink-0" />
+        <span>{LIFETIME_HOURS_NOTE}</span>
+      </p>
     </div>
   );
 }

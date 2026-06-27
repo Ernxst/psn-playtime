@@ -19,3 +19,17 @@ test("falls back to a placeholder when the library has no biggest game", async (
   await expect.element(page.getByText("Biggest game")).toBeVisible();
   await expect.element(page.getByText("—")).toBeVisible();
 });
+
+test("labels the headline hours as a lifetime total with a persistent disclaimer", async () => {
+  await render(<KpiCards data={demoDashboard} />);
+
+  await expect.element(page.getByText("Lifetime play time")).toBeVisible();
+  await expect.element(page.getByText(/All playtime is each game's lifetime total/)).toBeVisible();
+});
+
+test("reframes the headline as games-last-played when a timeframe is active", async () => {
+  await render(<KpiCards data={demoDashboard} timeframePhrase="the last 12 months" />);
+
+  await expect.element(page.getByText("Lifetime hours (filtered)")).toBeVisible();
+  await expect.element(page.getByText(/games last played in the last 12 months/)).toBeVisible();
+});
