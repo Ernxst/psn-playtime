@@ -10,3 +10,12 @@ test("surfaces the headline trophy level and biggest game from the data", async 
   await expect.element(page.getByText("220")).toBeInTheDocument();
   await expect.element(page.getByText("Call of Duty®: Modern Warfare®")).toBeInTheDocument();
 });
+
+test("falls back to a placeholder when the library has no biggest game", async () => {
+  const empty = { ...demoDashboard, games: [], meta: { ...demoDashboard.meta, totalGames: 0 } };
+
+  await render(<KpiCards data={empty} />);
+
+  await expect.element(page.getByText("Biggest game")).toBeVisible();
+  await expect.element(page.getByText("—")).toBeVisible();
+});
