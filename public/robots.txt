@@ -3,4 +3,4 @@ User-agent: *
 Allow: /
 Disallow: /dashboard
 
-Sitemap: https://psn-playtime.app/sitemap.xml
+Sitemap: https://psn.ernestbadu.dev/sitemap.xml
