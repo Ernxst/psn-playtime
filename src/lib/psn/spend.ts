@@ -297,6 +297,82 @@ export function summariseAddOns(
   return buildAddOnSummaries(data.games, countAddOns(data.games, transactions));
 }
 
+/** Coarse intent label derived from what was paid vs the original price. */
+type PriceContextLabel = "free" | "deep-sale" | "discounted" | "full-price";
+
+export interface PriceContextSummary {
+  titleId: string;
+  name: string;
+  label: PriceContextLabel;
+  /** Amount actually paid for the base game, in minor units. */
+  paidMinor: number;
+  /** Pre-discount price in minor units, when the import carried it. */
+  originalPriceMinor?: number;
+  currency: string;
+}
+
+// Price-context thresholds, expressed as the share knocked off the original
+// price: >= 50% off is a "deep-sale", any discount >= 5% is "discounted", and
+// less than that (or no discount data) is "full-price". The 5% floor ignores
+// rounding/region noise so a near-full price is not mislabelled as a sale.
+const DEEP_SALE_FRACTION = 0.5;
+const DISCOUNT_FRACTION = 0.05;
+
+/**
+ * Classify a base-game purchase by how much it was discounted. Uses
+ * `originalPriceMinor`/`discountMinor` when present; with neither we only know
+ * free vs paid, so any paid amount falls back to "full-price".
+ */
+function priceContextLabel(tx: TransactionRow): PriceContextLabel {
+  if (tx.amountMinor === 0) return "free";
+  const original =
+    tx.originalPriceMinor ??
+    (tx.discountMinor !== undefined ? tx.amountMinor + tx.discountMinor : undefined);
+  if (original === undefined || original <= 0) return "full-price";
+  const fraction = (original - tx.amountMinor) / original;
+  if (fraction >= DEEP_SALE_FRACTION) return "deep-sale";
+  if (fraction >= DISCOUNT_FRACTION) return "discounted";
+  return "full-price";
+}
+
+/** First base-game (non-add-on) purchase per matched title, keyed by titleId. */
+function priceContextByTitle(
+  games: GamePlay[],
+  transactions: readonly TransactionRow[]
+): Map<string, PriceContextSummary> {
+  const byName = indexByName(games);
+  const contexts = new Map<string, PriceContextSummary>();
+  for (const tx of transactions) {
+    if (tx.kind !== "purchase") continue;
+    const game = matchGame(tx, games, byName);
+    if (!game || isAddOnPurchase(tx, game)) continue;
+    if (contexts.has(game.titleId)) continue;
+    contexts.set(game.titleId, {
+      titleId: game.titleId,
+      name: game.name,
+      label: priceContextLabel(tx),
+      paidMinor: tx.amountMinor,
+      originalPriceMinor: tx.originalPriceMinor,
+      currency: tx.currency,
+    });
+  }
+  return contexts;
+}
+
+/**
+ * Per-game purchase-price context, attributed through the same spend→game
+ * matcher as {@link summariseAddOns}. Unmatched purchases are ignored.
+ */
+export function summarisePriceContext(
+  data: DashboardData,
+  transactions: readonly TransactionRow[]
+): PriceContextSummary[] {
+  const contexts = priceContextByTitle(data.games, transactions);
+  return data.games
+    .map((g) => contexts.get(g.titleId))
+    .filter((c): c is PriceContextSummary => c !== undefined);
+}
+
 /**
  * Join transactions to playtime by title and compute spend value.
  *
