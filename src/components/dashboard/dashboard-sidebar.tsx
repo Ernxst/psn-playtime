@@ -121,7 +121,7 @@ export function DashboardSidebar(): React.ReactElement {
         <Link
           to="/"
           aria-label="PSN Playtime — go to home page"
-          className="flex items-center gap-2 rounded-md px-2 py-1 outline-none transition-colors hover:text-primary focus-visible:ring-2 focus-visible:ring-ring"
+          className="hit-area-1 flex items-center gap-2 rounded-md px-2 py-1 outline-none transition-colors hover:text-primary focus-visible:ring-2 focus-visible:ring-ring"
         >
           <Gamepad2 className="size-5 text-primary" />
           <span className="font-semibold group-data-[collapsible=icon]:hidden">PSN Playtime</span>

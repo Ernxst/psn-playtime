@@ -1,6 +1,13 @@
-import { AlertTriangle, Gamepad2 } from "lucide-react";
+import { AlertTriangle, Gamepad2, SearchX } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export function DashboardSkeleton() {
@@ -46,16 +53,35 @@ export function DashboardError({ message, onRetry }: { message: string; onRetry?
 
 export function DashboardEmpty() {
   return (
-    <Card>
-      <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
-        <Gamepad2 className="size-10 text-muted-foreground" />
-        <div className="space-y-1">
-          <h2 className="font-semibold">No games yet</h2>
-          <p className="text-sm text-muted-foreground">
-            We couldn't find any played titles on this account.
-          </p>
-        </div>
-      </CardContent>
-    </Card>
+    <Empty className="rounded-xl border bg-card">
+      <EmptyHeader>
+        <EmptyMedia variant="icon">
+          <Gamepad2 />
+        </EmptyMedia>
+        <EmptyTitle>No games yet</EmptyTitle>
+        <EmptyDescription>We couldn't find any played titles on this account.</EmptyDescription>
+      </EmptyHeader>
+    </Empty>
+  );
+}
+
+export function DashboardNoMatches({ onClear }: { onClear: () => void }) {
+  return (
+    <Empty className="rounded-xl border bg-card">
+      <EmptyHeader>
+        <EmptyMedia variant="icon">
+          <SearchX />
+        </EmptyMedia>
+        <EmptyTitle>No games match your filters</EmptyTitle>
+        <EmptyDescription>
+          Try widening the timeframe or removing a filter to see more of your library.
+        </EmptyDescription>
+      </EmptyHeader>
+      <EmptyContent>
+        <Button variant="outline" onClick={onClear}>
+          Clear all filters
+        </Button>
+      </EmptyContent>
+    </Empty>
   );
 }

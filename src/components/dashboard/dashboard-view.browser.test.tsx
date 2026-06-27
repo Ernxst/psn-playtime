@@ -96,6 +96,32 @@ test("narrowing the library narrows the AI prompt", async () => {
   expect(countGames()).toBeLessThan(fullCount);
 });
 
+test("renders the empty state when the account has no played games", async () => {
+  const { element } = createHarness(
+    <DashboardView data={{ ...demoDashboard, games: [] }} onSignOut={vi.fn()} signingOut={false} />
+  );
+
+  await render(element);
+
+  await expect.element(page.getByText("No games yet")).toBeVisible();
+});
+
+test("shows the no-matches state and restores the library when filters are cleared", async () => {
+  const { element } = createHarness(
+    <DashboardView data={demoDashboard} onSignOut={vi.fn()} signingOut={false} />
+  );
+
+  await render(element);
+
+  await page.getByRole("searchbox", { name: "Search games by name" }).fill("zzzzzznomatch");
+
+  await expect.element(page.getByText("No games match your filters")).toBeVisible();
+
+  await page.getByRole("button", { name: "Clear all filters" }).click();
+
+  await expect.element(page.getByText(/98 titles in total/)).toBeVisible();
+});
+
 test("searching by name narrows the scoped library", async () => {
   const { element } = createHarness(
     <DashboardView data={demoDashboard} onSignOut={vi.fn()} signingOut={false} />

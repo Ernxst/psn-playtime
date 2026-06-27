@@ -99,7 +99,7 @@ function SortableHeader({ header }: { header: Header<GameRow, unknown> }) {
         type="button"
         aria-label={`Sort by ${meta?.label ?? ""}`}
         onClick={header.column.getToggleSortingHandler()}
-        className={`inline-flex items-center gap-1 hover:text-foreground ${
+        className={`hit-area-y-2 inline-flex items-center gap-1 hover:text-foreground ${
           numeric ? "flex-row-reverse" : ""
         } ${sorted ? "text-foreground" : ""}`}
       >

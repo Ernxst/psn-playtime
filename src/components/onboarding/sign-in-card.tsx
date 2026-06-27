@@ -1,12 +1,13 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { ArrowRight, ExternalLink, Info, Loader2, ShieldAlert } from "lucide-react";
+import { ArrowRight, ExternalLink, Info, ShieldAlert } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Field, FieldControl, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Spinner } from "@/components/ui/spinner";
 import { signInWithToken } from "@/server/psn";
 
 /**
@@ -173,7 +174,7 @@ function SubmitButton({ pending }: { pending: boolean }) {
   if (pending) {
     return (
       <Button type="submit" disabled>
-        <Loader2 className="size-4 animate-spin" /> Signing in…
+        <Spinner className="size-4" /> Signing in…
       </Button>
     );
   }
@@ -199,25 +200,28 @@ function TokenForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-2">
-      <p className="flex items-center gap-2 text-destructive text-xs font-medium">
+    <Field render={<form onSubmit={onSubmit} />} className="gap-2">
+      <FieldDescription className="flex items-center gap-2 text-destructive text-xs font-medium">
         <ShieldAlert className="size-3.5 shrink-0" aria-hidden="true" />
         Treat this token like a password. Never share it or post a screenshot of it.
-      </p>
-      <Label htmlFor="npsso">npsso token</Label>
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <Input
-          id="npsso"
-          value={npsso}
-          onChange={(e) => setNpsso(e.target.value)}
-          placeholder="Paste your 64-character npsso value"
-          autoComplete="off"
-          spellCheck={false}
-          disabled={signIn.isPending}
+      </FieldDescription>
+      <FieldLabel>npsso token</FieldLabel>
+      <div className="flex w-full flex-col gap-2 sm:flex-row">
+        <FieldControl
+          render={
+            <Input
+              value={npsso}
+              onChange={(e) => setNpsso(e.target.value)}
+              placeholder="Paste your 64-character npsso value"
+              autoComplete="off"
+              spellCheck={false}
+              disabled={signIn.isPending}
+            />
+          }
         />
         <SubmitButton pending={signIn.isPending} />
       </div>
-    </form>
+    </Field>
   );
 }
 

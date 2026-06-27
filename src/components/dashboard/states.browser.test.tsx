@@ -1,7 +1,7 @@
 import { expect, test, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
-import { DashboardEmpty, DashboardError, DashboardSkeleton } from "./states";
+import { DashboardEmpty, DashboardError, DashboardNoMatches, DashboardSkeleton } from "./states";
 
 test("skeleton renders placeholder blocks while the dashboard loads", async () => {
   const { container } = await render(<DashboardSkeleton />);
@@ -33,4 +33,16 @@ test("empty state explains that no played titles were found", async () => {
   await render(<DashboardEmpty />);
 
   await expect.element(page.getByText("No games yet")).toBeVisible();
+});
+
+test("no-matches state clears the filters when the button is clicked", async () => {
+  const onClear = vi.fn();
+
+  await render(<DashboardNoMatches onClear={onClear} />);
+
+  await expect.element(page.getByText("No games match your filters")).toBeVisible();
+
+  await page.getByRole("button", { name: "Clear all filters" }).click();
+
+  expect(onClear).toHaveBeenCalledTimes(1);
 });
