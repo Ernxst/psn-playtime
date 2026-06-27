@@ -51,6 +51,30 @@ export function findScrollableAncestor(start: Element | null): HTMLElement | nul
 }
 
 /**
+ * Resolves the element that actually scrolls the Order History list.
+ *
+ * The list lives in a JS side panel whose scroll container is an *outer*
+ * wrapper (`.transaction-history-workstream-wrapper`, or its inner
+ * `.transaction-history-workstream`), NOT an ancestor of
+ * `.transaction-history-screen-cards` — walking up from the cards container
+ * returns nothing on the real DOM. The wrapper only becomes scrollable once
+ * enough rows exist, so the real-overflow check (`scrollHeight > clientHeight`)
+ * is re-evaluated every call and the loop must re-resolve each iteration.
+ * Falls back to walking up from the cards container.
+ *
+ * Self-contained (only references `findScrollableAncestor`, also embedded) so it
+ * survives `toString()` embedding, and unit-testable against a real DOM.
+ */
+export function resolveScrollContainer(root: ParentNode): HTMLElement | null {
+  const selectors = [".transaction-history-workstream-wrapper", ".transaction-history-workstream"];
+  for (const selector of selectors) {
+    const el = root.querySelector(selector);
+    if (el instanceof HTMLElement && el.scrollHeight > el.clientHeight) return el;
+  }
+  return findScrollableAncestor(root.querySelector(".transaction-history-screen-cards"));
+}
+
+/**
  * The "stop loading" decision for the lazy-load scroll loop: the row count has
  * been stable for at least two passes and no batch is currently loading.
  *
@@ -99,14 +123,18 @@ function source(appOrigin: string, importUrl: string): string {
     return !!s && (s.offsetParent !== null || s.getClientRects().length > 0);
   };
   const findScrollableAncestor = ${findScrollableAncestor.toString()};
+  const resolveScrollContainer = ${resolveScrollContainer.toString()};
   const countStabilised = ${countStabilised.toString()};
   const scrollToBottom = () => {
-    const container = document.querySelector('.transaction-history-screen-cards');
-    const scroller = findScrollableAncestor(container);
+    // Re-resolve every pass: the wrapper mounts/becomes scrollable only after
+    // the panel has loaded enough rows, so a once-cached element goes stale.
+    const scroller = resolveScrollContainer(document);
     if (scroller) scroller.scrollTop = scroller.scrollHeight;
+    // Belt-and-braces: scroll the last card into view, which scrolls whatever
+    // ancestor is actually scrollable even when none was resolved above.
     const cards = document.querySelectorAll(SEL);
-    const target = spinnerEl() || cards[cards.length - 1];
-    if (target && target.scrollIntoView) target.scrollIntoView({ block: 'end' });
+    const lastCard = cards[cards.length - 1];
+    if (lastCard && lastCard.scrollIntoView) lastCard.scrollIntoView({ block: 'end' });
     const se = document.scrollingElement || document.documentElement;
     if (se) se.scrollTop = se.scrollHeight;
     window.scrollTo(0, document.body.scrollHeight);
