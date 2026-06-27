@@ -9,10 +9,9 @@ import { defineConfig } from "vite";
 // Security response headers, applied at the server layer (Nitro `routeRules`)
 // so they are emitted on every host (not just Cloudflare Pages `_headers`).
 //
-// CSP is ENFORCED (not report-only): the policy locks the origin down to a
-// strict allow-list. `script-src` keeps `'unsafe-inline'` because TanStack
-// Start injects inline hydration scripts; dropping it requires per-request
-// nonces and is tracked as a deliberate follow-up (#36).
+// Content-Security-Policy is NOT set here: it carries a per-request nonce and is
+// emitted on the SSR document response from `src/server.ts` via `buildCsp`. A
+// static header would duplicate (and weaken) that policy.
 const securityHeaders: Record<string, string> = {
   "Cross-Origin-Resource-Policy": "same-origin",
   "Cross-Origin-Opener-Policy": "same-origin",
@@ -21,23 +20,6 @@ const securityHeaders: Record<string, string> = {
   "X-XSS-Protection": "0",
   "Referrer-Policy": "strict-origin-when-cross-origin",
   "Permissions-Policy": "camera=(), microphone=(), geolocation=(), interest-cohort=()",
-  "Content-Security-Policy": [
-    "upgrade-insecure-requests",
-    "default-src 'none'",
-    "base-uri 'self'",
-    "form-action 'self'",
-    "frame-ancestors 'none'",
-    "frame-src 'none'",
-    "object-src 'none'",
-    "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'",
-    "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob: https://*.playstation.net https://*.playstation.com https://*.np.community.playstation.net",
-    // Web fonts are self-hosted (see `src/styles.css`), so they load same-origin.
-    "font-src 'self'",
-    "connect-src 'self'",
-    "worker-src 'self' blob:",
-    "media-src 'self'",
-  ].join("; "),
   // HSTS is production-only: it must not be sent over plain HTTP in dev.
   ...(process.env.NODE_ENV === "production"
     ? { "Strict-Transport-Security": "max-age=31536000; includeSubDomains; preload" }
