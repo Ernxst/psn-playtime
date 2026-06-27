@@ -6,6 +6,7 @@ import {
   buildFollowUps,
   buildPrompt,
   PLAY_PATTERN_GUIDANCE,
+  PLAYTIME_SIGNAL_GUIDANCE,
   PROMPT_GROUPS,
   PROMPT_VARIANTS,
   TROPHY_SIGNAL_GUIDANCE,
@@ -106,6 +107,30 @@ describe(".buildDataSummary", () => {
     const summary = buildDataSummary({ ...demoDashboard, games });
 
     expect(summary).toContain("trophies unknown (no data)");
+  });
+
+  it("compares lifetime hours against the typical playtime when RAWG has one", () => {
+    const [top] = demoDashboard.games.toSorted((a, b) => b.hours - a.hours);
+    const games = demoDashboard.games.map((g) =>
+      g.titleId === top?.titleId ? { ...g, typicalPlaytime: 25 } : g
+    );
+
+    const line = buildDataSummary({ ...demoDashboard, games })
+      .split("\n")
+      .find((l) => l.includes(`${top?.name} —`));
+
+    const ratio = ((top?.hours ?? 0) / 25).toFixed(1);
+    expect(line).toContain(
+      `you: ${Math.round(top?.hours ?? 0)}h lifetime vs typical ~25h (~${ratio}x)`
+    );
+  });
+
+  it("omits the playtime comparison for games without a typical playtime", () => {
+    const games = demoDashboard.games.map((g) => ({ ...g, typicalPlaytime: undefined }));
+
+    const summary = buildDataSummary({ ...demoDashboard, games });
+
+    expect(summary).not.toContain("vs typical ~");
   });
 
   it("includes the completionist baseline with the account platinums and platinum rate", () => {
@@ -250,5 +275,24 @@ describe(".buildPrompt", () => {
       "'no platinum available' (common for multiplayer/older titles) is NOT a negative signal"
     );
     expect(TROPHY_SIGNAL_GUIDANCE).toContain("I have no trophy-difficulty data");
+  });
+
+  it.each(PROMPT_VARIANTS)(
+    "embeds the lifetime-vs-typical playtime guidance for $id",
+    (variant) => {
+      const prompt = buildPrompt(demoDashboard, variant);
+
+      expect(prompt).toContain(PLAYTIME_SIGNAL_GUIDANCE);
+    }
+  );
+
+  it("frames the playtime ratio as a soft signal, not for live-service games", () => {
+    expect(PLAYTIME_SIGNAL_GUIDANCE).toContain(
+      "read a ratio well above 1 (much longer than typical) as a SOFT enjoyment/engagement signal"
+    );
+    expect(PLAYTIME_SIGNAL_GUIDANCE).toContain("never as a primary metric");
+    expect(PLAYTIME_SIGNAL_GUIDANCE).toContain(
+      "Do NOT overweight it for clearly live-service / multiplayer games"
+    );
   });
 });

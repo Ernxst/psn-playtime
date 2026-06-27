@@ -6,11 +6,19 @@ import {
   deriveFranchise,
   lookupRawgFranchise,
   lookupRawgGenre,
+  lookupRawgPlaytime,
   mapRawgGenres,
 } from "@/server/rawg";
 
 function rawgResponse(genres: string[]): Response {
   return new Response(JSON.stringify({ results: [{ genres: genres.map((name) => ({ name })) }] }), {
+    status: 200,
+  });
+}
+
+function playtimeResponse(result: { genres?: string[]; playtime?: number }): Response {
+  const genres = result.genres?.map((name) => ({ name }));
+  return new Response(JSON.stringify({ results: [{ genres, playtime: result.playtime }] }), {
     status: 200,
   });
 }
@@ -148,6 +156,58 @@ describe(".lookupRawgGenre", () => {
     await expect(lookupRawgGenre("™®©", createRawgCache())).resolves.toBeUndefined();
 
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe(".lookupRawgPlaytime", () => {
+  afterEach(() => {
+    delete process.env.RAWG_API_KEY;
+    vi.restoreAllMocks();
+  });
+
+  it("returns the typical playtime parsed from the search response", async () => {
+    process.env.RAWG_API_KEY = "test-key";
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(playtimeResponse({ playtime: 25 }));
+
+    await expect(lookupRawgPlaytime("Celeste", createRawgCache())).resolves.toBe(25);
+  });
+
+  it("treats a playtime of 0 as no data", async () => {
+    process.env.RAWG_API_KEY = "test-key";
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(playtimeResponse({ playtime: 0 }));
+
+    await expect(lookupRawgPlaytime("Some Game", createRawgCache())).resolves.toBeUndefined();
+  });
+
+  it("returns undefined when the response omits playtime", async () => {
+    process.env.RAWG_API_KEY = "test-key";
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(playtimeResponse({ genres: ["Action"] }));
+
+    await expect(lookupRawgPlaytime("Some Game", createRawgCache())).resolves.toBeUndefined();
+  });
+
+  it("returns undefined and skips the network when no key is set", async () => {
+    delete process.env.RAWG_API_KEY;
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+    await expect(lookupRawgPlaytime("Celeste", createRawgCache())).resolves.toBeUndefined();
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("shares one cached request with the genre lookup for the same title", async () => {
+    process.env.RAWG_API_KEY = "test-key";
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(playtimeResponse({ genres: ["Action"], playtime: 25 }));
+    const cache = createRawgCache();
+
+    const genre = await lookupRawgGenre("Celeste", cache);
+    const playtime = await lookupRawgPlaytime("Celeste", cache);
+
+    expect(genre).toBe("Action-Adventure");
+    expect(playtime).toBe(25);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 });
 

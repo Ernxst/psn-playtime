@@ -272,6 +272,17 @@ function gameTrophy(g: GamePlay): string {
 }
 
 /**
+ * Compact comparison of my lifetime hours against RAWG's typical time-to-complete,
+ * surfaced only when RAWG reports a usable average (it is frequently 0/absent).
+ * A ratio well above 1 is a SOFT enjoyment signal — see `PLAYTIME_SIGNAL_GUIDANCE`.
+ */
+function gamePlaytime(g: GamePlay): string {
+  if (g.typicalPlaytime === undefined) return "";
+  const ratio = (g.hours / g.typicalPlaytime).toFixed(1);
+  return `, you: ${Math.round(g.hours)}h lifetime vs typical ~${g.typicalPlaytime}h (~${ratio}x)`;
+}
+
+/**
  * Every game, biggest first, with its hours, genre, franchise and when it was
  * last (and first) played so recency can be weighed against raw hours.
  */
@@ -280,7 +291,7 @@ function listGames(data: DashboardData): string {
     .toSorted((a, b) => b.hours - a.hours)
     .map((g, i) => {
       const franchise = g.franchise ? `, ${g.franchise}` : "";
-      return `  ${i + 1}. ${g.name} — ${Math.round(g.hours)}h (${g.genre}${franchise})${gameTiming(g)}${gameTrophy(g)}`;
+      return `  ${i + 1}. ${g.name} — ${Math.round(g.hours)}h (${g.genre}${franchise})${gameTiming(g)}${gamePlaytime(g)}${gameTrophy(g)}`;
     })
     .join("\n");
 }
@@ -398,6 +409,20 @@ export const TROPHY_SIGNAL_GUIDANCE = [
 ].join("\n");
 
 /**
+ * Guidance telling the model to read a "you: Xh lifetime vs typical ~Yh (~Nx)"
+ * line as a SOFT enjoyment signal — spending far longer than typical suggests
+ * engagement — while honouring that RAWG's average is rough and that lifetime
+ * totals make the ratio meaningless for live-service / multiplayer games.
+ */
+export const PLAYTIME_SIGNAL_GUIDANCE = [
+  "When a game's line shows 'you: Xh lifetime vs typical ~Yh (~Nx)', read a ratio well above 1 (much longer than typical) as a SOFT enjoyment/engagement signal, weighed ALONGSIDE hours, recency and trophies — never as a primary metric:",
+  "- 'typical' is RAWG's rough community-average time-to-complete, so treat the ratio as a loose hint, not a precise measure.",
+  "- My hours are LIFETIME totals, so the ratio is most meaningful for completion-style games (narrative / RPG / adventure) where there's an end to reach.",
+  "- Do NOT overweight it for clearly live-service / multiplayer games (e.g. FIFA / EA FC, Apex, Fortnite, Destiny) — they have no 'completion', so a huge ratio there reflects an ongoing habit, not finishing-and-loving a game.",
+  "- The comparison is shown only for games where a typical time exists; its absence on a game says nothing — do not infer anything from a missing comparison.",
+].join("\n");
+
+/**
  * Build the full, ready-to-paste prompt: the data summary once, the chosen
  * lead question, then the rest as paste-able follow-ups.
  */
@@ -407,6 +432,7 @@ export function buildPrompt(data: DashboardData, lead: PromptVariant): string {
     "Weigh WHEN I played (recency and trends from each game's last/first played dates), not just total hours — a big total played years ago means something different from a smaller total I'm playing now.",
     PLAY_PATTERN_GUIDANCE,
     TROPHY_SIGNAL_GUIDANCE,
+    PLAYTIME_SIGNAL_GUIDANCE,
     "",
     buildDataSummary(data),
     "",
