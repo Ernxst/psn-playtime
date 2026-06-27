@@ -11,24 +11,26 @@
  *     scroll → wait → repeat rather than stop the moment the spinner is absent);
  *  3. scrapes each row's raw date/amount/description text (with the card's rich
  *     `aria-label` as a fallback); then
- *  4. hands the rows to this app's `/import` route.
+ *  4. streams the rows to this app's `/import` route, a batch at a time.
  *
- * Handoff: the primary mechanism is `window.open` + `postMessage` (no URL-length
- * limit, so it scales to complete histories). A small handshake waits for the
- * receiver's "ready" ping, posts the payload, and retries until acknowledged.
- * If the popup is blocked — or the handshake times out — it falls back to a
- * same-tab redirect carrying the payload in the URL **fragment** (`#data=...`),
- * which never reaches any server.
+ * Handoff: the primary mechanism opens `/import` once via `window.open`, waits
+ * for the receiver's "ready" ping, then `postMessage`s each freshly lazy-loaded
+ * batch as the scroll loop discovers it (no URL-length limit, so it scales to
+ * complete histories, and rows appear progressively rather than in one big
+ * payload). A final "complete" message tells the receiver the stream is done.
+ * If the popup is blocked — or the receiver never readies — it falls back to a
+ * same-tab redirect carrying the whole scrape in the URL **fragment**
+ * (`#data=...`), which never reaches any server.
  *
  * Parsing/classification stays in the app (`transactions.ts`) so the bookmarklet
  * string stays minimal and node-testable. The DOM selectors mirror Sony's order
  * page and will break if Sony restructures it; the heuristics are forgiving.
  */
 import {
+  HANDOFF_COMPLETE_TYPE,
   HANDOFF_FRAGMENT_KEY,
   HANDOFF_MESSAGE_TYPE,
   HANDOFF_READY_TYPE,
-  HANDOFF_RECEIVED_TYPE,
   HANDOFF_VERSION,
 } from "./transactions";
 
@@ -111,10 +113,10 @@ function source(appOrigin: string, importUrl: string): string {
     for (let i = 0; i < 30 && !onHistory(); i++) await sleep(300);
   }
 
-  // 2. Load every transaction. The list lazy-loads on scroll: the spinner only
-  //    shows while a batch is loading (and stays in the DOM hidden between
-  //    batches), so we scroll → wait → repeat until the row count stops growing
-  //    rather than stopping the instant the spinner is absent.
+  // 2. Set up the lazy-load scroll machinery. The list lazy-loads on scroll: the
+  //    spinner only shows while a batch is loading (and stays in the DOM hidden
+  //    between batches), so we scroll → wait → repeat until the row count stops
+  //    growing rather than stopping the instant the spinner is absent.
   const SEL = '.transaction-history-card';
   const spinnerEl = () => document.querySelector('.transaction-history__loading-spinner')
     || document.querySelector('[data-testid="loading-circle"]');
@@ -143,23 +145,12 @@ function source(appOrigin: string, importUrl: string): string {
     for (let i = 0; i < 8 && !spinnerVisible(); i++) await sleep(150);
     for (let i = 0; i < 40 && spinnerVisible(); i++) await sleep(300);
   };
-  let last = -1, stable = 0;
-  const deadline = Date.now() + 180000;
-  while (Date.now() < deadline) {
-    const count = document.querySelectorAll(SEL).length;
-    if (count === last) {
-      stable++;
-      if (countStabilised(stable, spinnerVisible())) break;
-    } else { stable = 0; last = count; }
-    scrollToBottom();
-    await settle();
-  }
 
-  // 3. Scrape each card. Per-card element ids are duplicated/invalid, so query by
-  //    class/structure within each card. The rich aria-label is a fallback.
+  // Scrape a single card. Per-card element ids are duplicated/invalid, so query
+  // by class/structure within each card. The rich aria-label is a fallback.
   const AMOUNT = /-?\\s*(?:[£$€]|US\\$)\\s?\\d[\\d,]*(?:\\.\\d{1,2})?/;
   const DATE = /\\b\\d{1,2}\\/\\d{1,2}\\/\\d{4}\\b/;
-  const rows = [...document.querySelectorAll(SEL)].map((card) => {
+  const scrapeCard = (card) => {
     let description = text(card.querySelector('.transaction-history-card-content-description .transaction-history-card-details-field'));
     let date = '';
     const details = card.querySelector('.transaction-history-card-content-details');
@@ -180,29 +171,75 @@ function source(appOrigin: string, importUrl: string): string {
     if (!date && label) date = (label.match(DATE) || [''])[0];
     if (!amount && label) amount = (label.match(AMOUNT) || [''])[0];
     return { date: date.trim(), amount: amount.trim(), description: description.trim() };
-  });
-
-  // 4. Hand off. Prefer window.open + postMessage; fall back to a fragment redirect.
-  const payload = { v: ${HANDOFF_VERSION}, source: location.host, scrapedAt: new Date().toISOString(), rows };
-  const fragmentRedirect = () => {
-    location.href = IMPORT_URL + '#${HANDOFF_FRAGMENT_KEY}=' + encodeURIComponent(JSON.stringify(payload));
   };
+  const makePayload = (rows) => ({ v: ${HANDOFF_VERSION}, source: location.host, scrapedAt: new Date().toISOString(), rows });
+
+  // 3. Hand off. Prefer window.open + streamed postMessage batches; fall back to
+  //    a one-shot fragment redirect (popup blocked, or receiver never readies).
+  const fragmentRedirect = () => {
+    const rows = [...document.querySelectorAll(SEL)].map(scrapeCard);
+    location.href = IMPORT_URL + '#${HANDOFF_FRAGMENT_KEY}=' + encodeURIComponent(JSON.stringify(makePayload(rows)));
+  };
+  // Scroll the whole list to the bottom, loading every lazy batch. Used only by
+  // the fragment fallback, which scrapes once at the end.
+  const loadAll = async () => {
+    let last = -1, stable = 0;
+    const deadline = Date.now() + 180000;
+    while (Date.now() < deadline) {
+      const count = document.querySelectorAll(SEL).length;
+      if (count === last) {
+        stable++;
+        if (countStabilised(stable, spinnerVisible())) break;
+      } else { stable = 0; last = count; }
+      scrollToBottom();
+      await settle();
+    }
+  };
+
   const w = window.open(IMPORT_URL);
-  if (!w) { fragmentRedirect(); return; }
-  let ready = false, acked = false;
+  if (!w) { await loadAll(); fragmentRedirect(); return; }
+
+  let ready = false;
   const onMessage = (e) => {
     if (e.origin !== APP_ORIGIN || !e.data) return;
     if (e.data.type === ${JSON.stringify(HANDOFF_READY_TYPE)}) ready = true;
-    if (e.data.type === ${JSON.stringify(HANDOFF_RECEIVED_TYPE)}) acked = true;
   };
   window.addEventListener('message', onMessage);
-  const message = { type: ${JSON.stringify(HANDOFF_MESSAGE_TYPE)}, payload };
-  for (let i = 0; i < 60 && !acked; i++) {
-    if (ready) { try { w.postMessage(message, APP_ORIGIN); } catch (err) {} }
-    await sleep(250);
+  // Wait for the receiver to signal it is listening before streaming.
+  for (let i = 0; i < 60 && !ready; i++) await sleep(250);
+  if (!ready) {
+    window.removeEventListener('message', onMessage);
+    await loadAll();
+    fragmentRedirect();
+    return;
   }
+
+  // Stream each freshly lazy-loaded batch as the scroll loop discovers it. We
+  // post only the rows beyond what we have already sent; the receiver de-dupes,
+  // so a re-sent row is harmless.
+  let sent = 0;
+  const flush = () => {
+    const cards = [...document.querySelectorAll(SEL)];
+    if (cards.length <= sent) return;
+    const batch = cards.slice(sent).map(scrapeCard);
+    sent = cards.length;
+    try { w.postMessage({ type: ${JSON.stringify(HANDOFF_MESSAGE_TYPE)}, payload: makePayload(batch) }, APP_ORIGIN); } catch (err) {}
+  };
+  let last = -1, stable = 0;
+  const deadline = Date.now() + 180000;
+  while (Date.now() < deadline) {
+    const count = document.querySelectorAll(SEL).length;
+    if (count === last) {
+      stable++;
+      if (countStabilised(stable, spinnerVisible())) break;
+    } else { stable = 0; last = count; }
+    flush();
+    scrollToBottom();
+    await settle();
+  }
+  flush();
+  try { w.postMessage({ type: ${JSON.stringify(HANDOFF_COMPLETE_TYPE)} }, APP_ORIGIN); } catch (err) {}
   window.removeEventListener('message', onMessage);
-  if (!acked) fragmentRedirect();
 })();`;
 }
 

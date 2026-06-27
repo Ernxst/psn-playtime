@@ -45,7 +45,7 @@ function parse(raw: string): TransactionImport | null {
 }
 
 /** Read the persisted import, or `null` when absent/corrupt/unavailable. */
-function loadTransactionImport(): TransactionImport | null {
+export function loadTransactionImport(): TransactionImport | null {
   if (typeof window === "undefined") return null;
   const raw = window.localStorage.getItem(TRANSACTIONS_STORAGE_KEY);
   if (raw === cachedRaw) return cachedValue;
