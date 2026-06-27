@@ -5,6 +5,7 @@ import {
   buildDataSummary,
   buildFollowUps,
   buildPrompt,
+  PLAY_PATTERN_GUIDANCE,
   PROMPT_GROUPS,
   PROMPT_VARIANTS,
 } from "./llm-prompt";
@@ -130,5 +131,40 @@ describe(".buildPrompt", () => {
     const prompts = PROMPT_VARIANTS.map((v) => buildPrompt(demoDashboard, v));
 
     expect(new Set(prompts).size).toBe(PROMPT_VARIANTS.length);
+  });
+
+  it.each(PROMPT_VARIANTS)("includes the genre on every game's line for $id", (variant) => {
+    const prompt = buildPrompt(demoDashboard, variant);
+
+    const present = demoDashboard.games.map((g) => {
+      const line = prompt.split("\n").find((l) => l.includes(`${g.name} —`));
+      return line?.includes(`(${g.genre}`);
+    });
+
+    expect(present).toStrictEqual(demoDashboard.games.map(() => true));
+  });
+
+  it.each(PROMPT_VARIANTS)(
+    "embeds the genre-calibrated play-pattern guidance for $id",
+    (variant) => {
+      const prompt = buildPrompt(demoDashboard, variant);
+
+      expect(prompt).toContain(PLAY_PATTERN_GUIDANCE);
+    }
+  );
+
+  it("calibrates session patterns by genre with concrete examples", () => {
+    expect(PLAY_PATTERN_GUIDANCE).toContain(
+      "Interpret session-length and session-count patterns RELATIVE to each game's listed genre"
+    );
+    expect(PLAY_PATTERN_GUIDANCE).toContain(
+      "Roguelike / soulslike / fighting / sports / arcade: short, repeated sessions ARE the core loop and signal engagement, not frustration"
+    );
+    expect(PLAY_PATTERN_GUIDANCE).toContain(
+      "Narrative / RPG / adventure: long contiguous sessions are expected; many tiny sessions may instead indicate bounce-off"
+    );
+    expect(PLAY_PATTERN_GUIDANCE).toContain(
+      "Live-service / multiplayer: session cadence reflects habit, not completion or enjoyment"
+    );
   });
 });
