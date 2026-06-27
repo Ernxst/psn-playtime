@@ -6,6 +6,7 @@ import {
   Lightbulb,
   type LucideIcon,
   PieChart,
+  Sparkles,
   Trophy,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -35,6 +36,7 @@ const DASHBOARD_SECTIONS: readonly Section[] = [
   { icon: PieChart, id: "genres-franchises", label: "Genres & franchises" },
   { icon: CalendarRange, id: "timeline", label: "Timeline" },
   { icon: Lightbulb, id: "insights", label: "Insights" },
+  { icon: Sparkles, id: "ask-ai", label: "Ask an AI" },
   { icon: Gamepad2, id: "all-games", label: "All games" },
 ];
 
