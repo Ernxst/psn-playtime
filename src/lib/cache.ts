@@ -58,28 +58,39 @@ function isEntry(value: unknown): value is Entry<unknown> {
   );
 }
 
-/** Read a cached value, or `null` when absent, malformed, or past its TTL. */
-export function readCache<T>(key: CacheKey, options: CacheOptions = {}): T | null {
+function readRaw(key: CacheKey): string | null {
   const store = storage();
   if (!store) return null;
+  try {
+    return store.getItem(storageKey(key));
+  } catch {
+    return null;
+  }
+}
+
+function parseEntry(raw: string): Entry<unknown> | null {
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return isEntry(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function isFresh(entry: Entry<unknown>, options: CacheOptions): boolean {
   const now = options.now ?? Date.now;
   const ttlMs = options.ttlMs ?? DEFAULT_TTL_MS;
-  let raw: string | null;
-  try {
-    raw = store.getItem(storageKey(key));
-  } catch {
-    return null;
-  }
+  return now() - entry.cachedAt <= ttlMs;
+}
+
+/** Read a cached value, or `null` when absent, malformed, or past its TTL. */
+export function readCache<T>(key: CacheKey, options: CacheOptions = {}): T | null {
+  const raw = readRaw(key);
   if (raw === null) return null;
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return null;
-  }
-  if (!isEntry(parsed)) return null;
-  if (now() - parsed.cachedAt > ttlMs) return null;
-  return parsed.value as T;
+  const entry = parseEntry(raw);
+  if (entry === null || !isFresh(entry, options)) return null;
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the caller asserts the stored shape
+  return entry.value as T;
 }
 
 /** Stamp and persist a value. Quota/serialisation errors are swallowed. */

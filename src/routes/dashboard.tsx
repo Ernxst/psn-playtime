@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { toast } from "sonner";
 import { DashboardView } from "@/components/dashboard/dashboard-view";
 import {
+  clearDashboardCache,
   dashboardQueryOptions,
   rawgFranchisesQueryOptions,
   rawgGenresQueryOptions,
@@ -79,6 +80,7 @@ function Dashboard() {
   const signOutMutation = useMutation({
     mutationFn: () => signOut(),
     onSuccess: () => {
+      clearDashboardCache();
       void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       toast.success("Signed out — showing demo data.");
     },

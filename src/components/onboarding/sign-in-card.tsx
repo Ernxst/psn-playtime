@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { primeDashboardCache } from "@/components/dashboard/query";
 import { Label } from "@/components/ui/label";
 import { signInWithToken } from "@/server/psn";
 
@@ -159,6 +160,7 @@ function useSignIn() {
   return useMutation({
     mutationFn: (token: string) => signInWithToken({ data: { npsso: token } }),
     onSuccess: (data) => {
+      primeDashboardCache(data);
       queryClient.setQueryData(["dashboard"], data);
       void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       void navigate({ to: "/dashboard" });
