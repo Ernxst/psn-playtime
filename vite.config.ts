@@ -44,8 +44,18 @@ const securityHeaders: Record<string, string> = {
     : {}),
 };
 
+// Self-hosted `@fontsource-variable/*` fonts ship split into many small
+// per-unicode-range woff2 files. Vite inlines any asset under
+// `build.assetsInlineLimit` (default 4 KB) as a `data:` URI, which the strict
+// `font-src 'self'` CSP blocks. Force every font to be emitted as a
+// same-origin asset file; defer to Vite's default for all other assets.
+const FONT_EXTENSIONS = /\.(woff2?|ttf|otf|eot)$/i;
+
 export default defineConfig({
   resolve: { tsconfigPaths: true },
+  build: {
+    assetsInlineLimit: (filePath) => (FONT_EXTENSIONS.test(filePath) ? false : undefined),
+  },
   plugins: [
     devtools(),
     nitro({
