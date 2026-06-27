@@ -1,3 +1,6 @@
 # https://www.robotstxt.org/robotstxt.html
 User-agent: *
-Disallow:
+Allow: /
+Disallow: /dashboard
+
+Sitemap: https://psn-playtime.app/sitemap.xml

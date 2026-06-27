@@ -8,6 +8,14 @@ import { signOut } from "@/server/psn";
 
 export const Route = createFileRoute("/dashboard")({
   loader: ({ context }) => context.queryClient.ensureQueryData(dashboardQueryOptions),
+  head: () => ({
+    meta: [
+      {
+        name: "robots",
+        content: "noindex, nofollow",
+      },
+    ],
+  }),
   component: Dashboard,
   pendingComponent: DashboardSkeleton,
   errorComponent: ({ error }) => (

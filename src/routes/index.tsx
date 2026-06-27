@@ -1,8 +1,47 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { SecurityCallout } from "@/components/onboarding/security-callout";
 import { SignInCard } from "@/components/onboarding/sign-in-card";
+import { SITE_NAME, SITE_URL } from "@/lib/seo";
 
-export const Route = createFileRoute("/")({ component: Home });
+const TITLE = "PSN Playtime — PlayStation Playtime Tracker & PSN Hours Visualizer";
+const DESCRIPTION =
+  "Free PlayStation playtime tracker. Visualise your PSN hours and see your top games, genres and franchises from your real play history — no spreadsheets required.";
+const OG_IMAGE = `${SITE_URL}/og-image.png`;
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  name: SITE_NAME,
+  url: SITE_URL,
+  description: DESCRIPTION,
+  applicationCategory: "GameApplication",
+  operatingSystem: "Web",
+  image: OG_IMAGE,
+  offers: {
+    "@type": "Offer",
+    price: "0",
+    priceCurrency: "USD",
+  },
+};
+
+export const Route = createFileRoute("/")({
+  head: () => ({
+    meta: [
+      { title: TITLE },
+      { name: "description", content: DESCRIPTION },
+      { property: "og:title", content: TITLE },
+      { property: "og:description", content: DESCRIPTION },
+      { property: "og:url", content: SITE_URL },
+      { property: "og:image", content: OG_IMAGE },
+      { name: "twitter:title", content: TITLE },
+      { name: "twitter:description", content: DESCRIPTION },
+      { name: "twitter:image", content: OG_IMAGE },
+      { "script:ld+json": jsonLd },
+    ],
+    links: [{ rel: "canonical", href: SITE_URL }],
+  }),
+  component: Home,
+});
 
 function Home() {
   return (
