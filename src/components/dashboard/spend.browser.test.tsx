@@ -6,6 +6,9 @@ import type { TransactionRow } from "@/lib/psn/transactions";
 import { clearTransactionImport, saveTransactionImport } from "@/lib/transactions-store";
 import { SpendSection } from "./spend";
 
+/** The demo library as it would arrive for a real, signed-in account. */
+const realDashboard = { ...demoDashboard, isDemo: false };
+
 function seed(transactions: TransactionRow[]) {
   saveTransactionImport({
     transactions,
@@ -52,9 +55,31 @@ test("shows the value leaderboard once transactions are imported", async () => {
     },
   ]);
 
-  await render(<SpendSection data={demoDashboard} />);
+  await render(<SpendSection data={realDashboard} />);
 
   await expect.element(page.getByText("Best value per hour")).toBeVisible();
   await expect.element(page.getByText("What you've spent")).toBeVisible();
   await expect.element(page.getByText("Satisfactory")).toBeVisible();
+});
+
+test("shows the import prompt on the demo dashboard even when an import exists", async () => {
+  seed([
+    {
+      transactionId: "t1",
+      key: "t1",
+      date: "2022-05-12",
+      transactionType: "PRODUCT_PURCHASE",
+      kind: "purchase",
+      productName: "Satisfactory",
+      quantity: 1,
+      amountMinor: 3300,
+      currency: "£",
+      displayAmount: "£33.00",
+    },
+  ]);
+
+  await render(<SpendSection data={demoDashboard} />);
+
+  await expect.element(page.getByText("Add your spend")).toBeVisible();
+  await expect.element(page.getByText("Best value per hour")).not.toBeInTheDocument();
 });

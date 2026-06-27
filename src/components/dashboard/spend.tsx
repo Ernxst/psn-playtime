@@ -246,7 +246,9 @@ function LeaderboardCard({ summary }: { summary: SpendSummary }) {
  */
 export function SpendSection({ data }: { data: DashboardData }) {
   const imported = useTransactionImport();
-  if (!imported || imported.transactions.length === 0) {
+  // Never join the user's real imported spend to the demo library — call the
+  // hook unconditionally, then show the prompt for demo data or no import.
+  if (data.isDemo || !imported || imported.transactions.length === 0) {
     return <ImportSpendCard />;
   }
 
