@@ -254,6 +254,24 @@ function gameTiming(g: GamePlay): string {
 }
 
 /**
+ * Compact trophy signal for one game: completion %, earned counts and whether a
+ * platinum was earned / is even available. Missing trophy data is surfaced as
+ * UNKNOWN (not zero) so the model never reads a gap as low engagement.
+ */
+function gameTrophy(g: GamePlay): string {
+  const t = g.trophy;
+  if (!t) return ", trophies unknown (no data)";
+  const { platinum, gold, silver, bronze } = t.earned;
+  const counts = `earned P${platinum}/G${gold}/S${silver}/B${bronze}`;
+  const platinumStatus = !t.hasPlatinum
+    ? "no platinum available"
+    : platinum >= 1
+      ? "platinum earned"
+      : "platinum available, not earned";
+  return `, trophies ${t.progress}% complete (${counts}), ${platinumStatus}`;
+}
+
+/**
  * Every game, biggest first, with its hours, genre, franchise and when it was
  * last (and first) played so recency can be weighed against raw hours.
  */
@@ -262,7 +280,7 @@ function listGames(data: DashboardData): string {
     .toSorted((a, b) => b.hours - a.hours)
     .map((g, i) => {
       const franchise = g.franchise ? `, ${g.franchise}` : "";
-      return `  ${i + 1}. ${g.name} — ${Math.round(g.hours)}h (${g.genre}${franchise})${gameTiming(g)}`;
+      return `  ${i + 1}. ${g.name} — ${Math.round(g.hours)}h (${g.genre}${franchise})${gameTiming(g)}${gameTrophy(g)}`;
     })
     .join("\n");
 }
