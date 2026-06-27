@@ -84,6 +84,10 @@ function SortIcon({ direction }: { direction: false | "asc" | "desc" }) {
 }
 
 function SortableHeader({ header }: { header: Header<GameRow, unknown> }) {
+  // TanStack Table returns a stable instance and mutates it in place, so the
+  // React Compiler would memoise this away and freeze the sort UI. Opt out so
+  // header state (sort direction/icon) re-renders when the user sorts.
+  "use no memo";
   const meta = header.column.columnDef.meta;
   const numeric = meta?.numeric;
   const sorted = header.column.getIsSorted();
@@ -105,6 +109,9 @@ function SortableHeader({ header }: { header: Header<GameRow, unknown> }) {
 }
 
 function GamesTableContent({ table }: { table: TableInstance<GameRow> }) {
+  // See SortableHeader: the table instance is stable+mutable, so opt this
+  // subtree out of the React Compiler or sorted rows never re-render.
+  "use no memo";
   return (
     <Table className="text-sm">
       <TableHeader className="sticky top-0 z-10 bg-card">

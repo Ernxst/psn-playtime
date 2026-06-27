@@ -2,6 +2,7 @@ import { expect, test } from "vitest";
 import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
 import { demoDashboard } from "@/lib/psn/mock";
+import type { GamePlay } from "@/lib/psn/types";
 import { GamesTable } from "./games-table";
 
 test("lists played game names from the data", async () => {
@@ -10,4 +11,42 @@ test("lists played game names from the data", async () => {
   await expect.element(page.getByText("Every game you've played")).toBeInTheDocument();
   await expect.element(page.getByText("Forza Horizon 5")).toBeInTheDocument();
   await expect.element(page.getByText("Satisfactory")).toBeInTheDocument();
+});
+
+test("renders trophy progress as a percentage and a dash when absent", async () => {
+  const trophy: NonNullable<GamePlay["trophy"]> = {
+    progress: 80,
+    earned: { platinum: 1, gold: 2, silver: 3, bronze: 4 },
+    total: 10,
+    hasPlatinum: true,
+    lastEarnedAt: "2024-01-01",
+  };
+  const data = {
+    ...demoDashboard,
+    games: demoDashboard.games.map((g, i) => (i === 0 ? { ...g, trophy } : g)),
+  };
+
+  await render(<GamesTable data={data} />);
+
+  await expect.element(page.getByText("80%")).toBeVisible();
+  await expect.element(page.getByText("—").first()).toBeVisible();
+});
+
+test("clicking a column header re-sorts the rows in both directions", async () => {
+  const { container } = await render(<GamesTable data={demoDashboard} />);
+
+  // Default sort is hours-descending: the biggest game leads.
+  await expect.element(page.getByText("Every game you've played")).toBeInTheDocument();
+  const topByHours = container.querySelector("tbody tr")?.textContent;
+
+  // First click sorts by last-played descending — the most recent game leads.
+  await page.getByRole("button", { name: "Sort by Last played" }).click();
+
+  await expect.poll(() => container.querySelector("tbody tr")?.textContent).not.toBe(topByHours);
+  const topByRecent = container.querySelector("tbody tr")?.textContent;
+
+  // Second click flips to ascending — the oldest game leads instead.
+  await page.getByRole("button", { name: "Sort by Last played" }).click();
+
+  await expect.poll(() => container.querySelector("tbody tr")?.textContent).not.toBe(topByRecent);
 });

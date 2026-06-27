@@ -1,4 +1,4 @@
-import { expect, test, vi } from "vitest";
+import { expect, test } from "vitest";
 import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
 import { genreBreakdown } from "@/lib/psn/analytics";
@@ -18,11 +18,9 @@ test("genre donut tooltip shows the genre name on hover", async () => {
   const topGenre = topSlice.genre;
   const { container } = await render(<GenreChart data={demoDashboard} />);
 
-  const sector = await vi.waitFor(() => {
-    const el = container.querySelector(".recharts-sector");
-    if (!el) throw new Error("expected a pie sector to render");
-    return el;
-  });
+  await expect.poll(() => container.querySelector(".recharts-sector")).not.toBeNull();
+  const sector = container.querySelector(".recharts-sector");
+  if (!sector) throw new Error("expected a pie sector to render");
   // Recharts wires the tooltip to the sector's mouse-enter handler; dispatch it
   // directly to avoid fighting the slice's entrance animation.
   sector.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
