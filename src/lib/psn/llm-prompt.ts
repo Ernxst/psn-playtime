@@ -19,7 +19,7 @@ import {
   topFranchises,
   valuePerGame,
 } from "./analytics";
-import { summariseAddOns } from "./spend";
+import { summariseAddOns, summarisePriceContext, type PriceContextSummary } from "./spend";
 import type { TransactionRow } from "./transactions";
 import type { DashboardData, GamePlay } from "./types";
 
@@ -289,16 +289,44 @@ function gameAddOns(g: GamePlay, addOnCounts: ReadonlyMap<string, number>): stri
   return count === 0 ? "" : `, add-ons purchased: ${count}`;
 }
 
+/** Format a minor-unit amount with its currency symbol, e.g. "£3.74". */
+function fmtMoney(minor: number, currency: string): string {
+  return `${currency}${(minor / 100).toFixed(2)}`;
+}
+
+/**
+ * Compact per-game purchase-price context (e.g. ", bought: deep-sale (£3.74 of
+ * £44.99)"), surfaced only when imported spend matched the base game. The
+ * original price is shown when known; otherwise just the amount paid. A SUPPORTING
+ * intent signal — see `PRICE_CONTEXT_GUIDANCE`.
+ */
+function gamePriceContext(
+  g: GamePlay,
+  priceContexts: ReadonlyMap<string, PriceContextSummary>
+): string {
+  const ctx = priceContexts.get(g.titleId);
+  if (!ctx) return "";
+  const paid = fmtMoney(ctx.paidMinor, ctx.currency);
+  if (ctx.originalPriceMinor !== undefined && ctx.originalPriceMinor > ctx.paidMinor) {
+    return `, bought: ${ctx.label} (${paid} of ${fmtMoney(ctx.originalPriceMinor, ctx.currency)})`;
+  }
+  return `, bought: ${ctx.label} (${paid})`;
+}
+
 /**
  * Every game, biggest first, with its hours, genre, franchise and when it was
  * last (and first) played so recency can be weighed against raw hours.
  */
-function listGames(data: DashboardData, addOnCounts: ReadonlyMap<string, number>): string {
+function listGames(
+  data: DashboardData,
+  addOnCounts: ReadonlyMap<string, number>,
+  priceContexts: ReadonlyMap<string, PriceContextSummary>
+): string {
   return data.games
     .toSorted((a, b) => b.hours - a.hours)
     .map((g, i) => {
       const franchise = g.franchise ? `, ${g.franchise}` : "";
-      return `  ${i + 1}. ${g.name} — ${Math.round(g.hours)}h (${g.genre}${franchise})${gameTiming(g)}${gamePlaytime(g)}${gameTrophy(g)}${gameAddOns(g, addOnCounts)}`;
+      return `  ${i + 1}. ${g.name} — ${Math.round(g.hours)}h (${g.genre}${franchise})${gameTiming(g)}${gamePlaytime(g)}${gameTrophy(g)}${gameAddOns(g, addOnCounts)}${gamePriceContext(g, priceContexts)}`;
     })
     .join("\n");
 }
@@ -344,11 +372,18 @@ function completionistBaseline(data: DashboardData): string {
 
 function transactionLines(data: DashboardData, transactions?: readonly TransactionRow[]): string[] {
   if (!transactions || transactions.length === 0) return [];
-  const addOns = summariseAddOns(data, transactions);
-  if (addOns.length === 0) return [];
-  return [
-    "- Imported transaction signal: matched add-on purchases are listed per game as 'add-ons purchased'.",
-  ];
+  const lines: string[] = [];
+  if (summariseAddOns(data, transactions).length > 0) {
+    lines.push(
+      "- Imported transaction signal: matched add-on purchases are listed per game as 'add-ons purchased'."
+    );
+  }
+  if (summarisePriceContext(data, transactions).length > 0) {
+    lines.push(
+      "- Imported transaction signal: matched purchase price/discount is listed per game as 'bought: <context>'."
+    );
+  }
+  return lines;
 }
 
 /** The compact, structured data summary embedded once in every prompt. */
@@ -364,6 +399,11 @@ export function buildDataSummary(
       ? summariseAddOns(data, transactions).map((g) => [g.titleId, g.addOnCount])
       : []
   );
+  const priceContexts = new Map<string, PriceContextSummary>(
+    transactions?.length
+      ? summarisePriceContext(data, transactions).map((c) => [c.titleId, c])
+      : []
+  );
 
   return [
     "DATA (my PlayStation playtime, lifetime totals):",
@@ -373,7 +413,7 @@ export function buildDataSummary(
     `- Recency (${r.thisYear}): ${r.activeGames} active games (${r.activeHours}h) vs ${r.dormantGames} dormant (${r.dormantHours}h).`,
     completionistBaseline(data),
     "- All games by hours (with when each was last/first played):",
-    listGames(data, addOnCounts),
+    listGames(data, addOnCounts, priceContexts),
     "- Genres by hours:",
     listGenres(data),
     "- Franchises by hours:",
@@ -476,6 +516,24 @@ function addOnGuidance(data: DashboardData, transactions?: readonly TransactionR
   return summariseAddOns(data, transactions).length === 0 ? [] : [ADD_ON_SIGNAL_GUIDANCE];
 }
 
+export const PRICE_CONTEXT_GUIDANCE = [
+  "When a game's line shows 'bought: <free|deep-sale|discounted|full-price>', read the price I paid versus the original price as a SUPPORTING context signal about my intent, patience, hype and value-sensitivity — NOT an enjoyment verdict, and never a value computed in code:",
+  "- Paying full price or buying early can suggest hype or low price-sensitivity; waiting for a deep sale can suggest patience or caution — weigh this only alongside hours, recency, trophies and playtime-vs-typical-time, never on its own.",
+  "Honour these caveats and never overclaim:",
+  "- A sale or deep-sale purchase does NOT imply lower enjoyment.",
+  "- A full-price purchase does NOT imply higher enjoyment by itself.",
+  "- Missing spend data is UNKNOWN, not neutral or negative — most games have no imported price, and that absence says nothing about enjoyment or intent.",
+  "- Attribution depends on transaction import quality; unmatched purchases are ignored gracefully, not misattributed.",
+].join("\n");
+
+function priceContextGuidance(
+  data: DashboardData,
+  transactions?: readonly TransactionRow[]
+): string[] {
+  if (!transactions || transactions.length === 0) return [];
+  return summarisePriceContext(data, transactions).length === 0 ? [] : [PRICE_CONTEXT_GUIDANCE];
+}
+
 /**
  * Build the full, ready-to-paste prompt: the data summary once, the chosen
  * lead question, then the rest as paste-able follow-ups.
@@ -493,6 +551,7 @@ export function buildPrompt(
     PLAYTIME_SIGNAL_GUIDANCE,
     COMPLETION_INTERPRETATION_GUIDANCE,
     ...addOnGuidance(data, transactions),
+    ...priceContextGuidance(data, transactions),
     "",
     buildDataSummary(data, transactions),
     "",
