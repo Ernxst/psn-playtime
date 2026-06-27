@@ -499,7 +499,7 @@ export const COMPLETION_INTERPRETATION_GUIDANCE = [
   "Do NOT treat moderate or low trophy completion, or a game I 'stopped playing', as inherent dislike or abandonment — finishing the main story and skipping grindy endgame, DLC or multiplayer trophies is satisfied completion, not a bounce-off, especially for campaign and live-service titles:",
   "- Use the playtime-vs-typical-time line ('you: Xh lifetime vs typical ~Yh (~Nx)') to tell them apart: if my lifetime hours are roughly the typical completion time and then play stopped, that MAY indicate satisfied completion, even when trophy completion looks low.",
   "- Use genre/type the same way: 'campaign + live-service endgame' titles expect low post-campaign engagement, with a large share of trophies sitting behind grind, multiplayer or DLC that an engaged story-player legitimately skips — so low completion there is expected, not dislike.",
-  "Do NOT flip the error the other way: a game with few hours, well SHORT of its typical completion time, and low trophies is still a genuine abandonment/bounce-off — use playtime-vs-typical-time plus genre to TELL satisfied completion apart from abandonment, never to assume every incomplete game was finished and loved.",
+  "Do NOT flip the error the other way: a game with few hours, well SHORT of its typical completion time, and low trophies is still a genuine abandonment/bounce-off — use genre to TELL satisfied completion apart from abandonment, never to assume every incomplete game was finished and loved.",
   "- 'trophies unknown (no data)' stays UNKNOWN, not dislike — never read a satisfied-completion or abandonment verdict off missing trophy data.",
 ].join("\n");
 
@@ -518,7 +518,7 @@ function addOnGuidance(data: DashboardData, transactions?: readonly TransactionR
 
 export const PRICE_CONTEXT_GUIDANCE = [
   "When a game's line shows 'bought: <free|deep-sale|discounted|full-price>', read the price I paid versus the original price as a SUPPORTING context signal about my intent, patience, hype and value-sensitivity — NOT an enjoyment verdict, and never a value computed in code:",
-  "- Paying full price or buying early can suggest hype or low price-sensitivity; waiting for a deep sale can suggest patience or caution — weigh this only alongside hours, recency, trophies and playtime-vs-typical-time, never on its own.",
+  "- Paying full price or buying early can suggest hype or low price-sensitivity; waiting for a deep sale can suggest patience or caution — weigh this only alongside hours, recency and trophies, never on its own.",
   "Honour these caveats and never overclaim:",
   "- A sale or deep-sale purchase does NOT imply lower enjoyment.",
   "- A full-price purchase does NOT imply higher enjoyment by itself.",
