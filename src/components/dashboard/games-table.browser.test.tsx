@@ -32,6 +32,41 @@ test("renders trophy progress as a percentage and a dash when absent", async () 
   await expect.element(page.getByText("—").first()).toBeVisible();
 });
 
+test("keeps games without trophy data at the bottom when sorting trophies both ways", async () => {
+  const trophy: NonNullable<GamePlay["trophy"]> = {
+    progress: 80,
+    earned: { platinum: 1, gold: 2, silver: 3, bronze: 4 },
+    total: 10,
+    hasPlatinum: true,
+    lastEarnedAt: "2024-01-01",
+  };
+  const data = {
+    ...demoDashboard,
+    games: demoDashboard.games.map((g, i) =>
+      i === 0 ? { ...g, trophy } : i === 1 ? { ...g, trophy: { ...trophy, progress: 10 } } : g
+    ),
+  };
+
+  const { container } = await render(<GamesTable data={data} />);
+
+  const lastTrophyCell = () =>
+    container.querySelector("tbody tr:last-child td:last-child")?.textContent;
+  const firstTrophyCell = () =>
+    container.querySelector("tbody tr:first-child td:last-child")?.textContent;
+
+  // First click sorts trophies descending: highest % leads, "—" rows sink.
+  await page.getByRole("button", { name: "Sort by Trophies" }).click();
+
+  await expect.poll(firstTrophyCell).toBe("80%");
+  expect(lastTrophyCell()).toBe("—");
+
+  // Second click flips to ascending: "—" rows must still stay at the bottom.
+  await page.getByRole("button", { name: "Sort by Trophies" }).click();
+
+  await expect.poll(firstTrophyCell).toBe("10%");
+  expect(lastTrophyCell()).toBe("—");
+});
+
 test("clicking a column header re-sorts the rows in both directions", async () => {
   const { container } = await render(<GamesTable data={demoDashboard} />);
 

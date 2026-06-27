@@ -72,6 +72,8 @@ const columns: Array<ColumnDef<GameRow>> = [
   {
     accessorKey: "trophyProgress",
     header: "Trophies",
+    // Keep "—" (no trophy data) rows at the bottom in both sort directions.
+    sortUndefined: "last",
     cell: ({ row }) =>
       row.original.trophyProgress === undefined ? "—" : `${row.original.trophyProgress}%`,
     meta: { numeric: true, label: "Trophies" },
