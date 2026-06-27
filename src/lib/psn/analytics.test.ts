@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   bingeVsDipIn,
+  filterByTimeframe,
   genreBreakdown,
   headlineTotals,
   hoursByYear,
@@ -183,6 +184,67 @@ describe(".recency", () => {
       activeHours: 50,
       dormantHours: 150,
       thisYear: 2022,
+    });
+  });
+});
+
+describe(".filterByTimeframe", () => {
+  it("returns the same data unchanged for the all-time window", () => {
+    expect(filterByTimeframe(sample, "all")).toBe(sample);
+  });
+
+  it("keeps only games last played within the last two years and recomputes meta totals", () => {
+    const scoped = filterByTimeframe(sample, "last-2-years");
+
+    expect(scoped.games.map((g) => g.titleId)).toEqual(["A", "C"]);
+    expect(scoped.meta).toEqual({
+      ...sample.meta,
+      totalGames: 2,
+      totalHours: 150,
+      totalSessions: 35,
+      firstEverPlayed: "2020-01-01",
+      span: { from: "2020-01-01", to: "2022-02-01" },
+    });
+    expect(scoped.profile).toBe(sample.profile);
+  });
+
+  it("scopes to the current calendar year by last-played date", () => {
+    expect(filterByTimeframe(sample, "this-year").games.map((g) => g.titleId)).toEqual(["C"]);
+  });
+
+  it("includes a game last played exactly on the window's lower bound", () => {
+    const onBoundary: DashboardData = {
+      ...sample,
+      games: [
+        {
+          titleId: "X",
+          name: "X",
+          platform: "PS5",
+          hours: 10,
+          playCount: 1,
+          genre: "Other",
+          isApp: false,
+          lastPlayed: "2022-01-01T00:00:00.000Z",
+        },
+      ],
+    };
+
+    expect(filterByTimeframe(onBoundary, "this-year").games.map((g) => g.titleId)).toEqual(["X"]);
+  });
+
+  it("yields an empty library with zeroed totals when no game falls in the window", () => {
+    const future: DashboardData = { ...sample, fetchedAt: "2030-06-01T00:00:00.000Z" };
+
+    const scoped = filterByTimeframe(future, "this-year");
+
+    expect(scoped.games).toEqual([]);
+    expect(scoped.meta).toEqual({
+      ...sample.meta,
+      totalGames: 0,
+      totalHours: 0,
+      totalSessions: 0,
+      firstEverPlayed: undefined,
+      span: { from: undefined, to: undefined },
     });
   });
 });

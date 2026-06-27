@@ -20,6 +20,81 @@ function lastPlayedYear(game: GamePlay): number | undefined {
   return Number.isNaN(year) ? undefined : year;
 }
 
+/**
+ * Window to scope the dashboard to. PSN only gives lifetime hours per game, so
+ * these windows filter by a game's *last-played* date, not hours-in-period.
+ */
+export type Timeframe = "all" | "last-12-months" | "last-2-years" | "this-year";
+
+/** Inclusive lower bound (UTC) for a timeframe, relative to a reference date. */
+function timeframeStart(reference: Date, range: Exclude<Timeframe, "all">): number {
+  if (range === "this-year") {
+    return Date.UTC(reference.getUTCFullYear(), 0, 1);
+  }
+  const months = range === "last-12-months" ? 12 : 24;
+  const start = new Date(reference);
+  start.setUTCMonth(start.getUTCMonth() - months);
+  return start.getTime();
+}
+
+/**
+ * Return a NEW `DashboardData` scoped to games whose `lastPlayed` falls in the
+ * selected window (measured back from `data.fetchedAt`). `meta` totals are
+ * recomputed for the subset; `profile` is left untouched.
+ *
+ * Honest caveat: psn-api exposes lifetime hours only, so this windows by
+ * *last-played activity*, not hours-played-in-period.
+ */
+export function filterByTimeframe(data: DashboardData, range: Timeframe): DashboardData {
+  if (range === "all") return data;
+
+  const from = timeframeStart(new Date(data.fetchedAt), range);
+  const games = data.games.filter((g) => inWindow(g.lastPlayed, from));
+
+  const { firsts, lasts } = splitPlayDates(games);
+  const firstEverPlayed = earliest(firsts);
+
+  return {
+    ...data,
+    games,
+    meta: {
+      ...data.meta,
+      totalGames: games.length,
+      totalHours: round(
+        games.reduce((sum, g) => sum + g.hours, 0),
+        2
+      ),
+      totalSessions: games.reduce((sum, g) => sum + g.playCount, 0),
+      firstEverPlayed,
+      span: { from: firstEverPlayed, to: latest(lasts) },
+    },
+  };
+}
+
+function inWindow(lastPlayed: string | undefined, from: number): boolean {
+  if (!lastPlayed) return false;
+  const t = new Date(lastPlayed).getTime();
+  return !Number.isNaN(t) && t >= from;
+}
+
+function splitPlayDates(games: GamePlay[]): { firsts: string[]; lasts: string[] } {
+  const firsts: string[] = [];
+  const lasts: string[] = [];
+  for (const g of games) {
+    if (g.firstPlayed) firsts.push(g.firstPlayed);
+    if (g.lastPlayed) lasts.push(g.lastPlayed);
+  }
+  return { firsts, lasts };
+}
+
+function earliest(dates: string[]): string | undefined {
+  return dates.length === 0 ? undefined : dates.reduce((a, b) => (b < a ? b : a));
+}
+
+function latest(dates: string[]): string | undefined {
+  return dates.length === 0 ? undefined : dates.reduce((a, b) => (b > a ? b : a));
+}
+
 export interface HeadlineTotals {
   totalHours: number;
   days: number;
