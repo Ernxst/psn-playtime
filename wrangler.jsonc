@@ -1,0 +1,23 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // Cloudflare Workers config for the `cloudflare_module` Nitro build (`pnpm build:cf`).
+  //
+  // Nitro's cloudflare_module preset READS this file and regenerates a deploy-ready
+  // copy at `.output/server/wrangler.json`, plus a `.wrangler/deploy/config.json`
+  // redirect that points `wrangler`/Cloudflare Workers Builds at it. The preset
+  // rewrites `main` to `index.mjs` and `assets.directory` to `../public` (paths
+  // relative to `.output/server`) and carries `name`, `compatibility_date`, and
+  // `compatibility_flags` over from here — so the deployed worker is named
+  // `psn-playtime`. The root-relative `main`/`assets` paths below are the
+  // human-readable source of truth (and let `wrangler deploy` work standalone);
+  // expect a benign "overridden and will be ignored" log for them during the build.
+  "name": "psn-playtime",
+  "main": ".output/server/index.mjs",
+  "compatibility_date": "2026-06-03",
+  // psn-api / its deps reach for node:crypto and node:buffer on the Workers runtime.
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": ".output/public",
+    "binding": "ASSETS",
+  },
+}

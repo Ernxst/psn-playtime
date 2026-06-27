@@ -42,6 +42,37 @@ pnpm format       # oxfmt --write
 pnpm test         # vitest (node + browser projects)
 ```
 
+## Deploy (Cloudflare Workers)
+
+The default `pnpm build` produces a Nitro **node-server** bundle (`node .output/server/index.mjs`).
+Cloudflare is a separate, opt-in build:
+
+```bash
+pnpm build:cf     # NITRO_PRESET=cloudflare_module vite build
+```
+
+This emits a Workers entry at `.output/server/index.mjs`, static assets at
+`.output/public`, and — by reading the root [`wrangler.jsonc`](./wrangler.jsonc) —
+a deploy-ready `.output/server/wrangler.json` (plus a `.wrangler/deploy/config.json`
+redirect that points `wrangler` at it).
+
+Deployment is wired through the **Cloudflare Workers Builds** GitHub integration —
+no GitHub Action. In the Cloudflare dashboard the owner connects the repo and sets:
+
+| Setting           | Value                                |
+| ----------------- | ------------------------------------ |
+| Build command     | `pnpm build:cf`                      |
+| Deploy command    | `npx wrangler deploy` (default)      |
+| Production branch | `main`                               |
+| Custom domain     | `psn.ernestbadu.dev`                 |
+| Secret            | `RAWG_API_KEY` (optional, see below) |
+
+`wrangler.jsonc` sets `name: psn-playtime`, `compatibility_date: 2026-06-03`, and
+`compatibility_flags: ["nodejs_compat"]` (psn-api reaches for `node:crypto`/`node:buffer`),
+with the static assets bound as `ASSETS`. `RAWG_API_KEY` is set as a Cloudflare
+**secret** (Settings → Variables), not committed. Validate the bundle locally without
+deploying via `pnpm build:cf && npx wrangler deploy --dry-run`.
+
 ## Genre classification
 
 Each title is tagged with a coarse genre. Fast keyword rules (`enrich.ts`) run
