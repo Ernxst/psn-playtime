@@ -9,27 +9,32 @@
  * clicked it:
  *  1. fetches the transaction history page-by-page (cookie-authenticated),
  *     following the `hasMore`/`nextEndDate` cursor until exhausted, de-duping by
- *     transaction id with a safety cap on iterations;
- *  2. hands the raw `transactions[]` nodes to this app's `/import` route.
+ *     transaction id, tolerating partial GraphQL errors (a delisted product can
+ *     null `productName` and trip the persisted query's strict schema — we use
+ *     the data when it is present and only hard-fail when a page has none);
+ *  2. flattens the raw nodes into compact {@link TransactionRow}s on this side
+ *     (dropping cover art and other unused fields to keep the payload small);
+ *  3. opens `/import` with the compact rows in the opened tab's own URL
+ *     **fragment** (`#data=...`). The receiver reads its own hash — no
+ *     cross-window messaging, so it survives the app's
+ *     `Cross-Origin-Opener-Policy: same-origin`. If the popup is blocked it
+ *     falls back to a same-tab redirect carrying the same fragment.
  *
- * Handoff: the primary mechanism opens `/import` via `window.open`, waits for the
- * receiver's "ready" ping, then `postMessage`s the whole batch (structured
- * clone, no URL-length limit) followed by a "complete" message. If the popup is
- * blocked — or the receiver never readies — it falls back to a same-tab redirect
- * carrying the payload in the URL **fragment** (`#data=...`), which never reaches
- * any server.
- *
- * Flattening/classification stays in the app (`transactions.ts`) so the
- * bookmarklet string stays minimal and node-testable. The persisted-query
- * `sha256Hash` may rotate (`PersistedQueryNotFound`); the bookmarklet surfaces a
- * clear error if Sony changes it.
+ * The flatten helpers live in `transactions.ts` (node-tested) and are embedded
+ * here via `toString()` so the bookmarklet stays a single self-contained string.
  */
 import {
-  HANDOFF_COMPLETE_TYPE,
+  CURRENCY,
+  currencySymbol,
+  flattenApiTransactions,
   HANDOFF_FRAGMENT_KEY,
-  HANDOFF_MESSAGE_TYPE,
-  HANDOFF_READY_TYPE,
   HANDOFF_VERSION,
+  HTML_ENTITIES,
+  nonPurchaseRow,
+  normaliseProductName,
+  parseDisplayAmount,
+  purchaseRows,
+  toPurchaseRow,
 } from "./transactions";
 
 /** The GraphQL endpoint the checkout app calls for transaction history. */
@@ -92,13 +97,26 @@ function source(appOrigin: string, importUrl: string): string {
   const LIMIT = 100;
   const START_DATE = '1994-01-01T00:00:00.000Z';
   const MAX_PAGES = 200;
+  const MAX_FRAGMENT = 1500000;
   const log = (...a) => console.log('[psn-import]', ...a);
   const warn = (...a) => console.warn('[psn-import]', ...a);
-  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const buildTransactionHistoryUrl = ${buildTransactionHistoryUrl.toString()};
   const dedupeTransactions = ${dedupeTransactions.toString()};
+  // Flatten helpers, embedded from transactions.ts so the bookmarklet matches
+  // the app's parser exactly. Defined in dependency order.
+  const HTML_ENTITIES = ${JSON.stringify(HTML_ENTITIES)};
+  const CURRENCY = ${CURRENCY.toString()};
+  const normaliseProductName = ${normaliseProductName.toString()};
+  const currencySymbol = ${currencySymbol.toString()};
+  const parseDisplayAmount = ${parseDisplayAmount.toString()};
+  const toPurchaseRow = ${toPurchaseRow.toString()};
+  const purchaseRows = ${purchaseRows.toString()};
+  const nonPurchaseRow = ${nonPurchaseRow.toString()};
+  const flattenApiTransactions = ${flattenApiTransactions.toString()};
 
   // 1. Replay the GraphQL request the checkout iframe uses, cookie-authenticated.
+  //    Returns the data node when usable (even if the response also has errors,
+  //    e.g. a strict-schema null productName); throws only when no data.
   const fetchPage = async (endDate) => {
     const url = buildTransactionHistoryUrl(ENDPOINT, { startDate: START_DATE, endDate, limit: LIMIT }, HASH);
     const requestId = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()) + Math.random();
@@ -114,21 +132,31 @@ function source(appOrigin: string, importUrl: string): string {
       },
     });
     const json = await res.json().catch(() => null);
-    if (json && json.errors && json.errors.length) {
-      throw new Error(json.errors.map((e) => (e && (e.message || (e.extensions && e.extensions.code))) || 'error').join('; '));
+    const data = json && json.data && json.data.transactionHistoryRetrieve;
+    const errs = json && json.errors && json.errors.length
+      ? json.errors.map((e) => (e && (e.message || (e.extensions && e.extensions.code))) || 'error').join('; ')
+      : '';
+    if (data && data.transactions) {
+      if (errs) warn('page returned errors but usable data — continuing: ' + errs);
+      return data;
     }
-    if (!res.ok || !json || !json.data || !json.data.transactionHistoryRetrieve) {
-      throw new Error('unexpected response (HTTP ' + res.status + ') — are you signed in to PlayStation?');
-    }
-    return json.data.transactionHistoryRetrieve;
+    throw new Error(errs || ('unexpected response (HTTP ' + res.status + ') — are you signed in to PlayStation?'));
   };
 
   // Follow the hasMore/nextEndDate cursor, accumulating and de-duping rows.
+  // A page failure aborts only when nothing has been collected yet (first-page
+  // auth error / PersistedQueryNotFound); otherwise we keep what we have.
   const collect = async () => {
     const all = [];
     let endDate = new Date().toISOString();
     for (let page = 0; page < MAX_PAGES; page++) {
-      const data = await fetchPage(endDate);
+      let data;
+      try { data = await fetchPage(endDate); }
+      catch (err) {
+        if (all.length === 0) throw err;
+        warn('page ' + (page + 1) + ' failed — stopping with ' + all.length + ' collected: ' + (err && err.message));
+        break;
+      }
       const txs = data.transactions || [];
       for (const t of txs) all.push(t);
       log('page ' + (page + 1) + ': ' + txs.length + ' transactions (running total ' + all.length + ')');
@@ -138,52 +166,29 @@ function source(appOrigin: string, importUrl: string): string {
     return dedupeTransactions(all);
   };
 
-  let transactions;
+  let rows;
   try {
-    transactions = await collect();
+    const transactions = await collect();
+    rows = flattenApiTransactions(transactions);
   } catch (err) {
     warn('fetch failed: ' + (err && err.message));
     alert('PSN Import failed: ' + (err && err.message ? err.message : 'could not fetch your transactions.') + '\\n\\nMake sure you are signed in to PlayStation and try again.');
     return;
   }
-  log('collected ' + transactions.length + ' transactions');
-  if (transactions.length === 0) warn('no transactions returned — nothing to import');
+  log('flattened ' + rows.length + ' rows');
+  if (rows.length === 0) warn('no transactions returned — nothing to import');
 
-  const makePayload = (rows) => ({ v: ${HANDOFF_VERSION}, source: location.host, fetchedAt: new Date().toISOString(), transactions: rows });
-
-  // 2. Hand off. Prefer window.open + postMessage; fall back to a fragment redirect.
-  const fragmentRedirect = () => {
-    location.href = IMPORT_URL + '#${HANDOFF_FRAGMENT_KEY}=' + encodeURIComponent(JSON.stringify(makePayload(transactions)));
-  };
-
-  const w = window.open(IMPORT_URL);
-  if (!w) { warn('popup blocked by window.open — falling back to fragment redirect'); fragmentRedirect(); return; }
-  log('popup opened — awaiting receiver ready ping (<=15000ms)');
-
-  let ready = false;
-  const onMessage = (e) => {
-    if (e.origin !== APP_ORIGIN || !e.data) return;
-    if (e.data.type === ${JSON.stringify(HANDOFF_READY_TYPE)}) ready = true;
-  };
-  window.addEventListener('message', onMessage);
-  const readyStart = Date.now();
-  for (let i = 0; i < 60 && !ready; i++) await sleep(250);
-  window.removeEventListener('message', onMessage);
-  if (!ready) {
-    warn('receiver ready ping NOT received within ' + (Date.now() - readyStart) + 'ms — falling back to fragment redirect');
-    fragmentRedirect();
-    return;
-  }
-  log('receiver ready after ' + (Date.now() - readyStart) + 'ms — posting ' + transactions.length + ' transactions');
-
-  try {
-    w.postMessage({ type: ${JSON.stringify(HANDOFF_MESSAGE_TYPE)}, payload: makePayload(transactions) }, APP_ORIGIN);
-    w.postMessage({ type: ${JSON.stringify(HANDOFF_COMPLETE_TYPE)} }, APP_ORIGIN);
-    log('handoff complete');
-  } catch (err) {
-    warn('postMessage failed: ' + (err && err.message) + ' — falling back to fragment redirect');
-    fragmentRedirect();
-  }
+  // 2. Hand off via the opened tab's own URL fragment (#data=...). Same-origin
+  //    COOP severs window.opener, so we never message — the receiver reads its
+  //    own hash. Fall back to a same-tab redirect when the popup is blocked.
+  const payload = { v: ${HANDOFF_VERSION}, source: location.host, fetchedAt: new Date().toISOString(), transactions: rows };
+  const encoded = encodeURIComponent(JSON.stringify(payload));
+  log('payload: ' + rows.length + ' rows, ' + encoded.length + ' encoded bytes');
+  if (encoded.length > MAX_FRAGMENT) warn('payload exceeds ~1.5MB encoded — the fragment handoff may be truncated by the browser');
+  const target = IMPORT_URL + '#${HANDOFF_FRAGMENT_KEY}=' + encoded;
+  const w = window.open(target);
+  if (!w) { warn('popup blocked by window.open — same-tab redirect to ' + APP_ORIGIN); location.href = target; }
+  else log('handoff opened at ' + APP_ORIGIN + '/import');
 })();`;
 }
 
