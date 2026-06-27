@@ -1,132 +1,155 @@
+import {
+  type ColumnDef,
+  flexRender,
+  getCoreRowModel,
+  getSortedRowModel,
+  type Header,
+  type SortingState,
+  type Table as TableInstance,
+  useReactTable,
+} from "@tanstack/react-table";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { gameRows } from "@/lib/psn/analytics";
 import type { GameRow } from "@/lib/psn/analytics";
 import type { DashboardData } from "@/lib/psn/types";
 import { fmtDate, fmtHours, fmtNumber } from "./format";
 
-type SortKey = "name" | "hours" | "playCount" | "lastPlayed" | "trophyProgress";
+declare module "@tanstack/react-table" {
+  interface ColumnMeta<TData extends unknown, TValue> {
+    numeric?: boolean;
+    label?: string;
+  }
+}
 
-const columns: Array<{ key: SortKey; label: string; numeric: boolean }> = [
-  { key: "name", label: "Game", numeric: false },
-  { key: "hours", label: "Hours", numeric: true },
-  { key: "playCount", label: "Sessions", numeric: true },
-  { key: "lastPlayed", label: "Last played", numeric: true },
-  { key: "trophyProgress", label: "Trophies", numeric: true },
+const columns: Array<ColumnDef<GameRow>> = [
+  {
+    accessorKey: "name",
+    header: "Game",
+    meta: { label: "Game" },
+    cell: ({ row }) => (
+      <div className="flex items-center gap-2">
+        <Badge variant="outline" className="shrink-0">
+          {row.original.platform}
+        </Badge>
+        <span className="truncate" title={row.original.name}>
+          {row.original.name}
+        </span>
+      </div>
+    ),
+  },
+  {
+    accessorKey: "hours",
+    header: "Hours",
+    cell: ({ row }) => fmtHours(row.original.hours),
+    meta: { numeric: true, label: "Hours" },
+  },
+  {
+    accessorKey: "playCount",
+    header: "Sessions",
+    cell: ({ row }) => fmtNumber(row.original.playCount),
+    meta: { numeric: true, label: "Sessions" },
+  },
+  {
+    accessorKey: "lastPlayed",
+    header: "Last played",
+    cell: ({ row }) => (
+      <span className="text-muted-foreground">{fmtDate(row.original.lastPlayed)}</span>
+    ),
+    meta: { numeric: true, label: "Last played" },
+  },
+  {
+    accessorKey: "trophyProgress",
+    header: "Trophies",
+    cell: ({ row }) =>
+      row.original.trophyProgress === undefined ? "—" : `${row.original.trophyProgress}%`,
+    meta: { numeric: true, label: "Trophies" },
+  },
 ];
 
-function SortIcon({ active, asc }: { active: boolean; asc: boolean }) {
-  if (!active) return null;
-  return asc ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />;
+function SortIcon({ direction }: { direction: false | "asc" | "desc" }) {
+  if (!direction) return null;
+  return direction === "asc" ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />;
 }
 
-interface HeaderCellProps {
-  column: (typeof columns)[number];
-  active: boolean;
-  asc: boolean;
-  onSort: (key: SortKey) => void;
-}
-
-function HeaderCell({ column, active, asc, onSort }: HeaderCellProps) {
+function SortableHeader({ header }: { header: Header<GameRow, unknown> }) {
+  const meta = header.column.columnDef.meta;
+  const numeric = meta?.numeric;
+  const sorted = header.column.getIsSorted();
   return (
-    <th className={`py-2 font-medium ${column.numeric ? "text-right" : "text-left"}`}>
+    <TableHead className={numeric ? "text-right" : "text-left"}>
       <button
         type="button"
-        aria-label={`Sort by ${column.label}`}
-        onClick={() => onSort(column.key)}
+        aria-label={`Sort by ${meta?.label ?? ""}`}
+        onClick={header.column.getToggleSortingHandler()}
         className={`inline-flex items-center gap-1 hover:text-foreground ${
-          column.numeric ? "flex-row-reverse" : ""
-        } ${active ? "text-foreground" : ""}`}
+          numeric ? "flex-row-reverse" : ""
+        } ${sorted ? "text-foreground" : ""}`}
       >
-        {column.label}
-        <SortIcon active={active} asc={asc} />
+        {flexRender(header.column.columnDef.header, header.getContext())}
+        <SortIcon direction={sorted} />
       </button>
-    </th>
+    </TableHead>
   );
 }
 
-function compare(a: GameRow, b: GameRow, key: SortKey): number {
-  const av = a[key];
-  const bv = b[key];
-  if (av === undefined) return 1;
-  if (bv === undefined) return -1;
-  if (typeof av === "number" && typeof bv === "number") return av - bv;
-  return String(av).localeCompare(String(bv));
-}
-
-function GameRowItem({ row }: { row: GameRow }) {
+function GamesTableContent({ table }: { table: TableInstance<GameRow> }) {
   return (
-    <tr className="border-b border-border/50 last:border-0">
-      <td className="py-2 pr-2">
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className="shrink-0">
-            {row.platform}
-          </Badge>
-          <span className="truncate" title={row.name}>
-            {row.name}
-          </span>
-        </div>
-      </td>
-      <td className="py-2 text-right tabular-nums">{fmtHours(row.hours)}</td>
-      <td className="py-2 text-right tabular-nums">{fmtNumber(row.playCount)}</td>
-      <td className="py-2 text-right tabular-nums text-muted-foreground">
-        {fmtDate(row.lastPlayed)}
-      </td>
-      <td className="py-2 text-right tabular-nums">
-        {row.trophyProgress === undefined ? "—" : `${row.trophyProgress}%`}
-      </td>
-    </tr>
-  );
-}
-
-interface TableViewProps {
-  rows: GameRow[];
-  sortKey: SortKey;
-  asc: boolean;
-  onSort: (key: SortKey) => void;
-}
-
-function GamesTableView({ rows, sortKey, asc, onSort }: TableViewProps) {
-  return (
-    <table className="w-full text-sm">
-      <thead className="sticky top-0 z-10 bg-card">
-        <tr className="border-b text-muted-foreground">
-          {columns.map((c) => (
-            <HeaderCell
-              key={c.key}
-              column={c}
-              active={sortKey === c.key}
-              asc={asc}
-              onSort={onSort}
-            />
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((r) => (
-          <GameRowItem key={r.titleId} row={r} />
+    <Table className="text-sm">
+      <TableHeader className="sticky top-0 z-10 bg-card">
+        {table.getHeaderGroups().map((headerGroup) => (
+          <TableRow key={headerGroup.id} className="text-muted-foreground">
+            {headerGroup.headers.map((header) => (
+              <SortableHeader key={header.id} header={header} />
+            ))}
+          </TableRow>
         ))}
-      </tbody>
-    </table>
+      </TableHeader>
+      <TableBody>
+        {table.getRowModel().rows.map((row) => (
+          <TableRow key={row.id}>
+            {row.getVisibleCells().map((cell) => (
+              <TableCell
+                key={cell.id}
+                className={cell.column.columnDef.meta?.numeric ? "text-right tabular-nums" : ""}
+              >
+                {flexRender(cell.column.columnDef.cell, cell.getContext())}
+              </TableCell>
+            ))}
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
   );
 }
 
 export function GamesTable({ data }: { data: DashboardData }) {
-  const [sortKey, setSortKey] = useState<SortKey>("hours");
-  const [asc, setAsc] = useState(false);
+  const [sorting, setSorting] = useState<SortingState>([{ id: "hours", desc: true }]);
 
-  const rows = useMemo(() => {
-    const sorted = gameRows(data).sort((a, b) => compare(a, b, sortKey));
-    return asc ? sorted : sorted.reverse();
-  }, [data, sortKey, asc]);
+  const rows = useMemo(() => gameRows(data), [data]);
 
-  function toggle(key: SortKey) {
-    setSortKey(key);
-    setAsc((prev) => (key === sortKey ? !prev : false));
-  }
+  const table = useReactTable({
+    data: rows,
+    columns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    sortDescFirst: true,
+    enableSortingRemoval: false,
+    getRowId: (row) => row.titleId,
+  });
 
   return (
     <Card>
@@ -138,7 +161,7 @@ export function GamesTable({ data }: { data: DashboardData }) {
       </CardHeader>
       <CardContent>
         <ScrollArea className="h-[420px]">
-          <GamesTableView rows={rows} sortKey={sortKey} asc={asc} onSort={toggle} />
+          <GamesTableContent table={table} />
         </ScrollArea>
       </CardContent>
     </Card>
