@@ -5,8 +5,10 @@
  * order/transaction-history page (same-origin with the data). When clicked it:
  *  1. navigates to the Order History screen if not already there (clicking the
  *     profile toggler then the Order History menu item);
- *  2. scrolls to the bottom in a loop until the loading spinner is gone and no
- *     new `.transaction-history-card` rows appear;
+ *  2. loads every transaction by scrolling to the bottom in a loop until the
+ *     `.transaction-history-card` row count stops growing (the list lazy-loads
+ *     on scroll; the spinner only shows while a batch is loading, so we must
+ *     scroll → wait → repeat rather than stop the moment the spinner is absent);
  *  3. scrapes each row's raw date/amount/description text (with the card's rich
  *     `aria-label` as a fallback); then
  *  4. hands the rows to this app's `/import` route.
@@ -30,6 +32,35 @@ import {
   HANDOFF_VERSION,
 } from "./transactions";
 
+/**
+ * Walks up from `start` and returns the first ancestor that is actually
+ * scrollable: `overflow-y` of `auto`/`scroll` and real overflow
+ * (`scrollHeight > clientHeight`). Returns `null` when none qualifies.
+ *
+ * Self-contained (no other module references) so it survives being embedded
+ * into the bookmarklet via `toString()`, and unit-testable against a real DOM.
+ */
+export function findScrollableAncestor(start: Element | null): HTMLElement | null {
+  let node = start ? start.parentElement : null;
+  while (node) {
+    const canScroll = /^(?:auto|scroll)$/.test(getComputedStyle(node).overflowY);
+    if (canScroll && node.scrollHeight > node.clientHeight) return node;
+    node = node.parentElement;
+  }
+  return null;
+}
+
+/**
+ * The "stop loading" decision for the lazy-load scroll loop: the row count has
+ * been stable for at least two passes and no batch is currently loading.
+ *
+ * Extracted (and embedded into the bookmarklet via `toString()`) so the
+ * termination condition can be unit-tested in isolation.
+ */
+export function countStabilised(stableRounds: number, spinnerVisible: boolean): boolean {
+  return stableRounds >= 2 && !spinnerVisible;
+}
+
 /** The IIFE body, parameterised by the app's origin and import URL. */
 // oxlint-disable-next-line eslint/max-lines-per-function -- a single self-contained bookmarklet IIFE string; splitting it would only fragment one literal
 function source(appOrigin: string, importUrl: string): string {
@@ -38,11 +69,6 @@ function source(appOrigin: string, importUrl: string): string {
   const IMPORT_URL = ${JSON.stringify(importUrl)};
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const text = (el) => (el && el.textContent ? el.textContent.trim() : '');
-  const visible = (el) => {
-    if (!el) return false;
-    const cs = getComputedStyle(el);
-    return cs.display !== 'none' && cs.visibility !== 'hidden' && el.offsetParent !== null;
-  };
   const onHistory = () => !!document.querySelector('.transaction-history-screen');
   const manual = () => alert('PSN Import: open your profile menu and click Order History, then run the bookmark again.');
 
@@ -61,20 +87,44 @@ function source(appOrigin: string, importUrl: string): string {
     for (let i = 0; i < 30 && !onHistory(); i++) await sleep(300);
   }
 
-  // 2. Scroll to the bottom until everything is loaded: stop once the spinner is
-  //    gone AND no new cards appeared on the last pass.
+  // 2. Load every transaction. The list lazy-loads on scroll: the spinner only
+  //    shows while a batch is loading (and stays in the DOM hidden between
+  //    batches), so we scroll → wait → repeat until the row count stops growing
+  //    rather than stopping the instant the spinner is absent.
   const SEL = '.transaction-history-card';
-  const spinning = () => visible(document.querySelector('.transaction-history__loading-spinner'))
-    || visible(document.querySelector('[data-testid="loading-circle"]'))
-    || visible(document.querySelector('.processing-payment__loading-circle'));
-  let stable = 0;
-  for (let i = 0; i < 600 && stable < 2; i++) {
-    const before = document.querySelectorAll(SEL).length;
+  const spinnerEl = () => document.querySelector('.transaction-history__loading-spinner')
+    || document.querySelector('[data-testid="loading-circle"]');
+  const spinnerVisible = () => {
+    const s = spinnerEl();
+    return !!s && (s.offsetParent !== null || s.getClientRects().length > 0);
+  };
+  const findScrollableAncestor = ${findScrollableAncestor.toString()};
+  const countStabilised = ${countStabilised.toString()};
+  const scrollToBottom = () => {
+    const container = document.querySelector('.transaction-history-screen-cards');
+    const scroller = findScrollableAncestor(container);
+    if (scroller) scroller.scrollTop = scroller.scrollHeight;
+    const cards = document.querySelectorAll(SEL);
+    const target = spinnerEl() || cards[cards.length - 1];
+    if (target && target.scrollIntoView) target.scrollIntoView({ block: 'end' });
+    const se = document.scrollingElement || document.documentElement;
+    if (se) se.scrollTop = se.scrollHeight;
     window.scrollTo(0, document.body.scrollHeight);
-    await sleep(500);
-    for (let j = 0; j < 40 && spinning(); j++) await sleep(400);
-    const after = document.querySelectorAll(SEL).length;
-    stable = (after === before && !spinning()) ? stable + 1 : 0;
+  };
+  const settle = async () => {
+    for (let i = 0; i < 8 && !spinnerVisible(); i++) await sleep(150);
+    for (let i = 0; i < 40 && spinnerVisible(); i++) await sleep(300);
+  };
+  let last = -1, stable = 0;
+  const deadline = Date.now() + 180000;
+  while (Date.now() < deadline) {
+    const count = document.querySelectorAll(SEL).length;
+    if (count === last) {
+      stable++;
+      if (countStabilised(stable, spinnerVisible())) break;
+    } else { stable = 0; last = count; }
+    scrollToBottom();
+    await settle();
   }
 
   // 3. Scrape each card. Per-card element ids are duplicated/invalid, so query by
