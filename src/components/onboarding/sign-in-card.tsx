@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { ArrowRight, ExternalLink, Loader2 } from "lucide-react";
+import { ArrowRight, ExternalLink, Loader2, ShieldAlert } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -96,6 +96,10 @@ function TokenForm() {
 
   return (
     <form onSubmit={onSubmit} className="space-y-2">
+      <p className="flex items-center gap-2 text-destructive text-xs font-medium">
+        <ShieldAlert className="size-3.5 shrink-0" aria-hidden="true" />
+        Treat this token like a password. Never share it or post a screenshot of it.
+      </p>
       <Label htmlFor="npsso">npsso token</Label>
       <div className="flex flex-col gap-2 sm:flex-row">
         <Input
