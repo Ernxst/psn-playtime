@@ -9,6 +9,7 @@ import {
   parseAmount,
   parseTransactions,
   type RawTransactionRow,
+  safeParseHandoff,
   toISODate,
 } from "./transactions";
 
@@ -139,6 +140,29 @@ describe(".parseTransactions", () => {
         kind: "top-up",
       },
     ]);
+  });
+});
+
+describe(".safeParseHandoff", () => {
+  const payload: HandoffPayload = {
+    v: HANDOFF_VERSION,
+    source: "www.playstation.com",
+    scrapedAt: "2024-01-01T00:00:00.000Z",
+    rows: [{ date: "12/05/2023", amount: "£33.00", description: "Satisfactory" }],
+  };
+
+  it("returns a structurally valid payload", () => {
+    expect(safeParseHandoff(payload)).toEqual(payload);
+  });
+
+  it.each([
+    [{ ...payload, v: 99 }, "wrong version"],
+    [{ ...payload, rows: "nope" }, "non-array rows"],
+    [{ ...payload, rows: [{ date: "x" }] }, "malformed row"],
+    [null, "null"],
+    ["string", "non-object"],
+  ])("returns null for %o (%s)", (value, _label) => {
+    expect(safeParseHandoff(value)).toBeNull();
   });
 });
 
