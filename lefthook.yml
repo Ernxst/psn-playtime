@@ -17,11 +17,10 @@ pre-commit:
 
     lint:
       priority: 2
-      glob:
-        - "*.{js,ts,jsx,tsx}"
-        - "**/tsconfig*.json"
-        - "package.json"
-        - "pnpm-lock.yaml"
+      # oxlint only lints JS/TS; passing it package.json/tsconfig (the only
+      # staged file in a config-only commit) makes it exit 1 ("No files found
+      # to lint"). Scope the trigger to code files so config-only commits skip.
+      glob: "*.{js,ts,jsx,tsx}"
       run: pnpm exec oxlint --fix {staged_files}
       stage_fixed: true
 
