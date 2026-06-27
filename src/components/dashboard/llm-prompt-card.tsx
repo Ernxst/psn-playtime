@@ -14,6 +14,7 @@ import {
   PROMPT_VARIANTS,
 } from "@/lib/psn/llm-prompt";
 import type { DashboardData } from "@/lib/psn/types";
+import { useTransactionImport } from "@/lib/transactions-store";
 import { CopyButton } from "./copy-button";
 
 interface VariantGroup {
@@ -120,9 +121,13 @@ function QuestionPicker({
  */
 export function LlmPromptCard({ data }: { data: DashboardData }) {
   const [selectedId, setSelectedId] = useState<string>(PROMPT_VARIANTS[0].id);
+  const imported = useTransactionImport();
 
   const variant = PROMPT_VARIANTS.find((v) => v.id === selectedId) ?? PROMPT_VARIANTS[0];
-  const prompt = useMemo(() => buildPrompt(data, variant), [data, variant]);
+  const prompt = useMemo(
+    () => buildPrompt(data, variant, imported?.transactions),
+    [data, imported, variant]
+  );
 
   return (
     <Card>

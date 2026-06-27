@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { summariseSpend } from "./spend";
+import { isAddOnPurchase, summariseAddOns, summariseSpend } from "./spend";
 import type { TransactionRow } from "./transactions";
 import type { DashboardData, GamePlay } from "./types";
 
@@ -144,5 +144,50 @@ describe(".summariseSpend", () => {
 
     expect(summary.leaderboard).toEqual([]);
     expect(summary.paidGames).toBe(1);
+  });
+});
+
+describe(".isAddOnPurchase", () => {
+  it.each([
+    tx({ productName: "Known Game", skuType: "ADD_ON" }),
+    tx({ productName: "Known Game Season Pass" }),
+    tx({ productName: "Known Game DLC" }),
+    tx({ productName: "Known Game Expansion" }),
+    tx({ productName: "Known Game Deluxe Upgrade" }),
+    tx({ productName: "Known Game Add-On" }),
+    tx({ productName: "Known Game Pack" }),
+  ])("detects add-ons from skuType and product names", (row) => {
+    expect(isAddOnPurchase(row, game("Known Game", 10))).toBe(true);
+  });
+
+  it.each([
+    tx({ productName: "Known Game Deluxe Edition" }),
+    tx({ productName: "Known Game Ultimate Edition" }),
+    tx({ productName: "Known Game Bundle" }),
+  ])("does not count base-game editions or bundles as add-ons", (row) => {
+    expect(isAddOnPurchase(row, game("Known Game", 10))).toBe(false);
+  });
+});
+
+describe(".summariseAddOns", () => {
+  it("attributes add-ons to base games through the spend matcher", () => {
+    const summary = summariseAddOns(data([game("Hades", 10, "PPSA01234_00")]), [
+      tx({
+        productName: "Hades Deluxe Upgrade",
+        skuId: "EP4040-PPSA01234_00-HADESUPGRADE0000-E001",
+        amountMinor: 499,
+      }),
+      tx({ productName: "Hades - Original Soundtrack", amountMinor: 999 }),
+    ]);
+
+    expect(summary).toEqual([{ titleId: "PPSA01234_00", name: "Hades", addOnCount: 2 }]);
+  });
+
+  it("ignores unmatched add-ons", () => {
+    const summary = summariseAddOns(data([game("Hades", 10)]), [
+      tx({ productName: "Unknown Game Season Pass", amountMinor: 999 }),
+    ]);
+
+    expect(summary).toEqual([]);
   });
 });
