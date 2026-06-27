@@ -72,6 +72,30 @@ test("choosing a timeframe recomputes the scoped library", async () => {
   await expect.element(page.getByText(/titles in total/)).toBeVisible();
 });
 
+test("narrowing the library narrows the AI prompt", async () => {
+  const { element } = createHarness(
+    <DashboardView data={demoDashboard} onSignOut={vi.fn()} signingOut={false} />
+  );
+
+  await render(element);
+
+  await expect.element(page.getByRole("textbox", { name: "Prompt preview" })).toBeVisible();
+
+  const countGames = () =>
+    (document.querySelector<HTMLTextAreaElement>('[aria-label="Prompt preview"]')?.value ?? "")
+      .split("\n")
+      .filter((line) => /^ {2}\d+\. /.test(line)).length;
+
+  const fullCount = countGames();
+
+  await page.getByRole("searchbox", { name: "Search games by name" }).fill("Forza");
+
+  await expect.element(page.getByText(/98 titles in total/)).not.toBeInTheDocument();
+
+  expect(fullCount).toBe(demoDashboard.games.length);
+  expect(countGames()).toBeLessThan(fullCount);
+});
+
 test("searching by name narrows the scoped library", async () => {
   const { element } = createHarness(
     <DashboardView data={demoDashboard} onSignOut={vi.fn()} signingOut={false} />

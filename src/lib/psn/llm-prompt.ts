@@ -2,7 +2,7 @@
  * Build ready-to-paste LLM prompts from a `DashboardData`.
  *
  * Each prompt embeds the SAME compact, structured summary of the player's
- * library (totals, top games, genres, franchises, recency, session style) and
+ * library (totals, every game, genres, franchises, recency, session style) and
  * pairs it with a different analysis instruction so the user can ask an LLM a
  * specific question about their playtime.
  *
@@ -15,7 +15,6 @@ import {
   headlineTotals,
   recency,
   topFranchises,
-  topGamesByHours,
   valuePerGame,
 } from "./analytics";
 import type { DashboardData } from "./types";
@@ -80,21 +79,25 @@ export const PROMPT_VARIANTS = [
   },
 ] as const satisfies readonly PromptVariant[];
 
+/** Every game, biggest first, with its hours, genre and franchise. */
 function listGames(data: DashboardData): string {
-  return topGamesByHours(data, 10)
-    .map((g, i) => `  ${i + 1}. ${g.name} — ${g.hours}h (${g.platform})`)
+  return data.games
+    .toSorted((a, b) => b.hours - a.hours)
+    .map((g, i) => {
+      const franchise = g.franchise ? `, ${g.franchise}` : "";
+      return `  ${i + 1}. ${g.name} — ${Math.round(g.hours)}h (${g.genre}${franchise})`;
+    })
     .join("\n");
 }
 
 function listGenres(data: DashboardData): string {
   return genreBreakdown(data)
-    .slice(0, 8)
     .map((g) => `  - ${g.genre}: ${g.hours}h across ${g.games} games (${g.share}%)`)
     .join("\n");
 }
 
 function listFranchises(data: DashboardData): string {
-  const franchises = topFranchises(data, 8);
+  const franchises = topFranchises(data, data.games.length);
   if (franchises.length === 0) return "  (none detected)";
   return franchises
     .map((f) => `  - ${f.franchise}: ${f.hours}h across ${f.games} games`)
@@ -102,7 +105,7 @@ function listFranchises(data: DashboardData): string {
 }
 
 function listSessionStyle(data: DashboardData): string {
-  return bingeVsDipIn(data, 8)
+  return bingeVsDipIn(data, data.games.length)
     .map((s) => `  - ${s.name}: ${s.hoursPerSession}h/session over ${s.playCount} sessions`)
     .join("\n");
 }
@@ -118,7 +121,7 @@ export function buildDataSummary(data: DashboardData): string {
     `- Totals: ${totals.gamesPlayed} games, ${totals.totalHours}h played, ${totals.sessions} sessions, PSN trophy level ${totals.trophyLevel}.`,
     `- Averages: ${value.avgHoursPerGame}h per game, ${value.avgSessionsPerGame} sessions per game, ${value.avgSessionLength}h per session.`,
     `- Recency (${r.thisYear}): ${r.activeGames} active games (${r.activeHours}h) vs ${r.dormantGames} dormant (${r.dormantHours}h).`,
-    "- Top games by hours:",
+    "- All games by hours:",
     listGames(data),
     "- Genres by hours:",
     listGenres(data),
