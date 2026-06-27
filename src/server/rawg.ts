@@ -69,10 +69,67 @@ function normalizeForSearch(name: string): string {
     .trim();
 }
 
-/** A build-scoped lookup cache, keyed by normalized query. */
+/** The RAWG search slice we rely on to locate a game's id for series lookups. */
+const rawgSearchSchema = z.object({
+  results: z.array(z.object({ id: z.number(), name: z.string() })).optional(),
+});
+
+/** The slice of a RAWG `/games/{id}/game-series` payload we rely on. */
+const rawgSeriesSchema = z.object({
+  results: z.array(z.object({ name: z.string() })).optional(),
+});
+
+/** Strip trademark glyphs and collapse whitespace for franchise comparison. */
+function cleanName(name: string): string {
+  return name
+    .replace(/[™®©]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Derive a franchise/series label as the longest leading run of words shared by
+ * every supplied game name (the matched game plus its RAWG series). Requires at
+ * least two names so a lone title isn't mistaken for a franchise, and returns
+ * `undefined` when the names share no common leading word — collapsing variants
+ * in the process ("God of War", "God of War Ragnarök" → "God of War").
+ */
+function commonPrefixWords(wordLists: string[][]): string[] {
+  const [first, ...rest] = wordLists;
+  const prefix: string[] = [];
+  for (const word of first!) {
+    const index = prefix.length;
+    if (!rest.every((words) => words[index]?.toLowerCase() === word.toLowerCase())) break;
+    prefix.push(word);
+  }
+  return prefix;
+}
+
+export function deriveFranchise(names: string[]): string | undefined {
+  const wordLists = names.flatMap((name) => {
+    const cleaned = cleanName(name);
+    return cleaned ? [cleaned.split(" ")] : [];
+  });
+  if (wordLists.length < 2) return undefined;
+
+  const franchise = commonPrefixWords(wordLists)
+    .join(" ")
+    .replace(/[:\-–—]+$/, "")
+    .trim();
+  return franchise || undefined;
+}
+
+/** A build-scoped genre lookup cache, keyed by normalized query. */
 export type RawgCache = Map<string, Genre | undefined>;
 
 export function createRawgCache(): RawgCache {
+  return new Map();
+}
+
+/** A build-scoped franchise lookup cache, keyed by normalized query. */
+export type RawgFranchiseCache = Map<string, string | undefined>;
+
+export function createRawgFranchiseCache(): RawgFranchiseCache {
   return new Map();
 }
 
@@ -107,6 +164,68 @@ export async function lookupRawgGenre(name: string, cache: RawgCache): Promise<G
   if (cache.has(key)) return cache.get(key);
 
   const result = await searchRawgGenre(query, apiKey);
+  cache.set(key, result);
+  return result;
+}
+
+/** Find the best-matching RAWG game's id and name for a query, if any. */
+async function searchRawgGame(
+  query: string,
+  apiKey: string
+): Promise<{ id: number; name: string } | undefined> {
+  const url = `${RAWG_ENDPOINT}?search=${encodeURIComponent(query)}&key=${apiKey}&page_size=1`;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return undefined;
+    const parsed = rawgSearchSchema.safeParse(await res.json());
+    if (!parsed.success) return undefined;
+    return parsed.data.results?.[0];
+  } catch {
+    return undefined;
+  }
+}
+
+/** Fetch the names of the games RAWG groups into the same series as `id`. */
+async function fetchRawgSeriesNames(id: number, apiKey: string): Promise<string[]> {
+  const url = `${RAWG_ENDPOINT}/${id}/game-series?key=${apiKey}`;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return [];
+    const parsed = rawgSeriesSchema.safeParse(await res.json());
+    if (!parsed.success) return [];
+    return parsed.data.results?.map((g) => g.name) ?? [];
+  } catch {
+    return [];
+  }
+}
+
+/** Match a query to a RAWG game, then derive its franchise from the series. */
+async function searchRawgFranchise(query: string, apiKey: string): Promise<string | undefined> {
+  const game = await searchRawgGame(query, apiKey);
+  if (!game) return undefined;
+  const seriesNames = await fetchRawgSeriesNames(game.id, apiKey);
+  return deriveFranchise([game.name, ...seriesNames]);
+}
+
+/**
+ * Look up a title's franchise/series via RAWG. Resolves to `undefined` when no
+ * key is set, the search has no usable match, the title belongs to no series,
+ * or a request errors — in every such case the caller keeps its keyword result.
+ */
+export async function lookupRawgFranchise(
+  name: string,
+  cache: RawgFranchiseCache
+): Promise<string | undefined> {
+  const apiKey = process.env.RAWG_API_KEY;
+  if (!apiKey) return undefined;
+
+  const query = normalizeForSearch(name);
+  if (!query) return undefined;
+
+  const key = query.toLowerCase();
+  if (cache.has(key)) return cache.get(key);
+
+  const result = await searchRawgFranchise(query, apiKey);
   cache.set(key, result);
   return result;
 }
