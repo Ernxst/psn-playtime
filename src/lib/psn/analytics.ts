@@ -477,6 +477,52 @@ export function lifespans(data: DashboardData, n = 10): Lifespan[] {
     });
 }
 
+export interface Comeback {
+  name: string;
+  firstPlayed: string;
+  lastPlayed: string;
+  sessions: number;
+  /** Average days between sessions: span(first→last) ÷ (sessions − 1). */
+  avgGapDays: number;
+}
+
+/**
+ * "Kept coming back to" — games returned to after long breaks, ranked by the
+ * average gap between sessions: `span(firstPlayed→lastPlayed) ÷ (sessions − 1)`.
+ * A high value means few sessions spread over a long time.
+ *
+ * This is a PROXY, not real per-session gaps: PSN exposes only first/last play
+ * dates and a session count, never per-session timestamps, so the gap is the
+ * *mean* across the game's lifetime. Single-session and undated titles are
+ * excluded (no span, and `sessions − 1 == 0` would divide by zero); so are
+ * same-day spans (a 0-day average is not a comeback).
+ */
+/** A single game's comeback row, or `undefined` when it can't be a comeback. */
+function toComeback(g: GamePlay): Comeback | undefined {
+  if (!g.firstPlayed || !g.lastPlayed || g.playCount < 2) return undefined;
+  const from = new Date(g.firstPlayed).getTime();
+  const to = new Date(g.lastPlayed).getTime();
+  const days = Math.max(0, Math.round((to - from) / MS_PER_DAY));
+  const avgGapDays = round(days / (g.playCount - 1), 1);
+  if (avgGapDays <= 0) return undefined;
+  return {
+    name: g.name,
+    firstPlayed: g.firstPlayed,
+    lastPlayed: g.lastPlayed,
+    sessions: g.playCount,
+    avgGapDays,
+  };
+}
+
+export function comebacks(data: DashboardData, n = 10): Comeback[] {
+  const out: Comeback[] = [];
+  for (const g of data.games) {
+    const c = toComeback(g);
+    if (c) out.push(c);
+  }
+  return out.sort((a, b) => b.avgGapDays - a.avgGapDays).slice(0, n);
+}
+
 export interface Recency {
   activeGames: number;
   dormantGames: number;
