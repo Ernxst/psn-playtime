@@ -1,5 +1,7 @@
-import { Info } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { Home, Info } from "lucide-react";
 import { useMemo, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { Tabs, TabsList, TabsTab } from "@/components/ui/tabs";
@@ -168,6 +170,16 @@ export function DashboardView({ data, onSignOut, signingOut }: Props) {
           <SidebarTrigger />
           <Separator orientation="vertical" className="mr-1 h-5" />
           <span className="truncate font-semibold">{profile.onlineId}</span>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="ml-auto"
+            render={
+              <Link to="/" aria-label="Go to home page">
+                <Home />
+              </Link>
+            }
+          />
         </header>
         <div className="mx-auto w-full max-w-6xl space-y-6 p-4 sm:p-6">
           <DashboardHeader data={data} onSignOut={onSignOut} signingOut={signingOut} />
