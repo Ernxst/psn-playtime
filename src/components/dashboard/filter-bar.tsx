@@ -1,7 +1,7 @@
 import { SlidersHorizontal, X } from "lucide-react";
 import { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, type ButtonProps } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -309,9 +309,10 @@ function FilterControls({
   );
 }
 
-function FilterTrigger({ count }: { count: number }) {
+/** Spreads Base UI's injected trigger props (onClick, ref, aria-*) onto the Button. */
+function FilterTrigger({ count, ...props }: { count: number } & ButtonProps) {
   return (
-    <Button variant="outline">
+    <Button variant="outline" {...props}>
       <SlidersHorizontal className="size-4" />
       Filters
       {count > 0 ? (
