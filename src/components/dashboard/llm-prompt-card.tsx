@@ -1,8 +1,8 @@
 import { Sparkles } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTab } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import { buildPrompt, PROMPT_VARIANTS } from "@/lib/psn/llm-prompt";
 import type { DashboardData } from "@/lib/psn/types";
 import { CopyButton } from "./copy-button";
@@ -38,9 +38,10 @@ export function LlmPromptCard({ data }: { data: DashboardData }) {
           </TabsList>
         </Tabs>
         <p className="text-sm text-muted-foreground">{variant.description}</p>
-        <div className="flex items-center gap-2">
-          <Input
+        <div className="flex items-start gap-2">
+          <Textarea
             readOnly
+            rows={8}
             value={prompt}
             aria-label="Prompt preview"
             className="font-mono text-xs"
