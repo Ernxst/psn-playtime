@@ -1,3 +1,4 @@
+import vm from "node:vm";
 import { describe, expect, it } from "vitest";
 import {
   bookmarkletHref,
@@ -5,7 +6,6 @@ import {
   dedupeTransactions,
   TRANSACTION_HISTORY_ENDPOINT,
 } from "./transaction-bookmarklet";
-import { HANDOFF_COMPLETE_TYPE, HANDOFF_MESSAGE_TYPE } from "./transactions";
 
 function bookmarkletBody(origin: string): string {
   return decodeURIComponent(bookmarkletHref(origin).replace(/^javascript:/, ""));
@@ -63,24 +63,39 @@ describe(".bookmarkletHref", () => {
     expect(body).toContain("nextEndDate");
   });
 
-  it("hands off via window.open postMessage and signals completion", () => {
+  it("embeds the app's flatten helpers so rows are compacted before handoff", () => {
+    const body = bookmarkletBody("https://psn.example.dev");
+
+    expect(body).toContain("flattenApiTransactions");
+    expect(body).toContain("toPurchaseRow");
+    expect(body).toContain("nonPurchaseRow");
+  });
+
+  it("hands off the compact rows via the opened tab's own URL fragment", () => {
     const body = bookmarkletBody("https://psn.example.dev");
 
     expect(body).toContain("window.open");
-    expect(body).toContain(JSON.stringify(HANDOFF_MESSAGE_TYPE));
-    expect(body).toContain(JSON.stringify(HANDOFF_COMPLETE_TYPE));
+    expect(body).toContain("#data=");
+    expect(body).toContain("location.href");
   });
 
-  it("retains the fragment redirect as the popup-blocked fallback", () => {
+  it("does not stream via postMessage (COOP severs the opener)", () => {
     const body = bookmarkletBody("https://psn.example.dev");
 
-    expect(body).toContain("fragmentRedirect");
-    expect(body).toContain("#data=");
+    expect(body).not.toContain("postMessage");
   });
 
   it("embeds the prefixed console logging", () => {
     const body = bookmarkletBody("https://psn.example.dev");
 
     expect(body).toContain("[psn-import]");
+  });
+
+  it("produces a syntactically valid script body once helpers are embedded", () => {
+    const body = bookmarkletBody("https://psn.example.dev");
+
+    // Compile-only (vm.Script parses without running): guards that the
+    // toString()-embedded helpers concatenate into valid JS.
+    expect(() => new vm.Script(body)).not.toThrow();
   });
 });

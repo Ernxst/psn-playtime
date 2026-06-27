@@ -112,6 +112,33 @@ export const freeClaim: ApiTransaction = {
   },
 };
 
+/**
+ * A purchase whose product was delisted: `productName` comes back null and trips
+ * the persisted query's strict schema. The line is still usable (skuId/amount).
+ */
+export const nullNamePurchase: ApiTransaction = {
+  id: "700000000000006",
+  date: "2025-07-01T10:00:00.000Z",
+  transactionType: "PRODUCT_PURCHASE",
+  invoiceType: "PRODUCT_PURCHASE",
+  displayOfTransactionValue: "£7.99",
+  purchaseDetails: {
+    productPurchases: [
+      {
+        productName: null,
+        skuId: "EP1234-PPSA09999_00-DELISTED00000000-E001",
+        skuType: "STANDARD",
+        quantity: 1,
+        total: 799,
+        totalFormatted: "£7.99",
+        originalPrice: 799,
+        discount: 0,
+        orderItemId: "555555555551",
+      },
+    ],
+  },
+};
+
 /** A non-purchase transaction: funding the wallet. */
 export const walletFunding: ApiTransaction = {
   id: "700000000000005",
@@ -128,5 +155,6 @@ export const allTransactions: ApiTransaction[] = [
   preOrderPurchase,
   subscriptionPurchase,
   freeClaim,
+  nullNamePurchase,
   walletFunding,
 ];

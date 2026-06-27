@@ -3,6 +3,7 @@ import {
   allTransactions,
   freeClaim,
   multiProductPurchase,
+  nullNamePurchase,
   preOrderPurchase,
   subscriptionPurchase,
   walletFunding,
@@ -117,10 +118,57 @@ describe(".flattenApiTransactions", () => {
     });
   });
 
+  it("keeps a delisted (null-name) product line under a placeholder", () => {
+    expect(flattenApiTransactions([nullNamePurchase])[0]).toMatchObject({
+      productName: "Unknown item",
+      skuId: "EP1234-PPSA09999_00-DELISTED00000000-E001",
+      amountMinor: 799,
+      kind: "purchase",
+    });
+  });
+
   it("produces a stable per-line key for every row", () => {
     const keys = flattenApiTransactions(allTransactions).map((r) => r.key);
 
     expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  it("emits compact rows carrying only the persisted fields", () => {
+    const allowed = new Set([
+      "transactionId",
+      "key",
+      "date",
+      "transactionType",
+      "kind",
+      "productName",
+      "skuId",
+      "skuType",
+      "quantity",
+      "amountMinor",
+      "currency",
+      "displayAmount",
+      "originalPriceMinor",
+      "discountMinor",
+    ]);
+
+    const extras = flattenApiTransactions(allTransactions).flatMap((row) =>
+      Object.keys(row).filter((key) => !allowed.has(key))
+    );
+
+    expect(extras).toEqual([]);
+  });
+
+  it("flattens hundreds of transactions into a fragment-sized payload", () => {
+    const many = Array.from({ length: 300 }, (_, i) => ({
+      ...multiProductPurchase,
+      id: `tx-${i}`,
+    }));
+
+    const rows = flattenApiTransactions(many);
+    const encoded = encodeURIComponent(JSON.stringify({ transactions: rows }));
+
+    expect(rows).toHaveLength(600);
+    expect(encoded.length).toBeLessThan(1_500_000);
   });
 });
 
@@ -128,7 +176,7 @@ const payload: HandoffPayload = {
   v: HANDOFF_VERSION,
   source: "www.playstation.com",
   fetchedAt: "2024-01-01T00:00:00.000Z",
-  transactions: [preOrderPurchase],
+  transactions: flattenApiTransactions([preOrderPurchase]),
 };
 
 describe(".safeParseHandoff", () => {
