@@ -31,6 +31,7 @@ import { createRawgCache, lookupRawgGenre, type RawgCache } from "@/server/rawg"
 
 const COOKIE_NAME = "psn_npsso";
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 50; // ~50 days
+const RAWG_LOOKUP_CONCURRENCY = 8;
 
 function cookieOptions() {
   return {
@@ -205,22 +206,23 @@ interface Partitioned {
  * keeps API calls minimal. A missing key, no match, or an error all keep the
  * keyword result.
  */
-async function resolveGenre(
+type RawgGenreMap = Map<string, Genre | undefined>;
+
+function resolveGenre(
   name: string,
   enriched: ReturnType<typeof enrichTitle>,
-  rawgCache: RawgCache
-): Promise<Genre> {
+  rawgGenres: RawgGenreMap
+): Genre {
   if (enriched.genre !== "Other") return enriched.genre;
-  const rawgGenre = await lookupRawgGenre(name, rawgCache);
+  const rawgGenre = rawgGenres.get(name);
   return rawgGenre ?? enriched.genre;
 }
 
-/** Split played titles into games (sorted by hours) and excluded apps. */
-async function partitionTitles(
+function partitionTitles(
   playedTitles: PlayedTitle[],
   trophyMap: Map<string, TrophyTitle>,
-  rawgCache: RawgCache
-): Promise<Partitioned> {
+  rawgGenres: RawgGenreMap
+): Partitioned {
   const games: GamePlay[] = [];
   const appsExcluded: Partitioned["appsExcluded"] = [];
   for (const title of playedTitles) {
@@ -230,15 +232,38 @@ async function partitionTitles(
       appsExcluded.push({ name: title.name, hours });
       continue;
     }
-    // Sequential by design: RAWG is hit only for unclassified titles, one at a
-    // time, to stay within its rate limits.
-    // oxlint-disable-next-line react-doctor/async-await-in-loop
-    const genre = await resolveGenre(title.name, enriched, rawgCache);
+    const genre = resolveGenre(title.name, enriched, rawgGenres);
     games.push(toGamePlay(title, hours, { ...enriched, genre }, trophyMap));
   }
   games.sort((a, b) => b.hours - a.hours);
   appsExcluded.sort((a, b) => b.hours - a.hours);
   return { games, appsExcluded };
+}
+
+async function prefetchRawgGenres(
+  playedTitles: PlayedTitle[],
+  rawgCache: RawgCache
+): Promise<RawgGenreMap> {
+  const names = new Set<string>();
+  const rawgGenres: RawgGenreMap = new Map();
+
+  for (const title of playedTitles) {
+    const enriched = enrichTitle(title.name, title.category);
+    if (!enriched.isApp && enriched.genre === "Other") names.add(title.name);
+  }
+
+  const uniqueNames = Array.from(names);
+  for (let i = 0; i < uniqueNames.length; i += RAWG_LOOKUP_CONCURRENCY) {
+    const batch = uniqueNames.slice(i, i + RAWG_LOOKUP_CONCURRENCY);
+    // oxlint-disable-next-line react-doctor/async-await-in-loop
+    await Promise.all(
+      batch.map(async (name) => {
+        rawgGenres.set(name, await lookupRawgGenre(name, rawgCache));
+      })
+    );
+  }
+
+  return rawgGenres;
 }
 
 function computeMeta(games: GamePlay[], appsExcluded: Partitioned["appsExcluded"]): DashboardMeta {
@@ -268,10 +293,13 @@ async function buildDashboard(auth: AuthorizationPayload): Promise<DashboardData
     fetchTrophyTitles(auth).catch(() => [] as TrophyTitle[]),
   ]);
 
-  const { games, appsExcluded } = await partitionTitles(
+  const rawgCache = createRawgCache();
+  const rawgGenres = await prefetchRawgGenres(playedTitles, rawgCache);
+
+  const { games, appsExcluded } = partitionTitles(
     playedTitles,
     buildTrophyMap(trophyTitles),
-    createRawgCache()
+    rawgGenres
   );
 
   return {
