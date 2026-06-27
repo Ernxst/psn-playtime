@@ -130,8 +130,8 @@ export function SignInCard() {
         </ol>
         <TokenForm />
         <div className="flex items-center justify-center pt-1">
-          <Button asChild variant="ghost" size="sm">
-            <Link to="/dashboard">Or explore the demo instead</Link>
+          <Button render={<Link to="/dashboard" />} variant="ghost" size="sm">
+            Or explore the demo instead
           </Button>
         </div>
       </CardContent>
