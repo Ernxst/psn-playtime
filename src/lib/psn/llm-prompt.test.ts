@@ -5,6 +5,7 @@ import {
   buildDataSummary,
   buildFollowUps,
   buildPrompt,
+  COMPLETION_INTERPRETATION_GUIDANCE,
   PLAY_PATTERN_GUIDANCE,
   PLAYTIME_SIGNAL_GUIDANCE,
   PROMPT_GROUPS,
@@ -293,6 +294,42 @@ describe(".buildPrompt", () => {
     expect(PLAYTIME_SIGNAL_GUIDANCE).toContain("never as a primary metric");
     expect(PLAYTIME_SIGNAL_GUIDANCE).toContain(
       "Do NOT overweight it for clearly live-service / multiplayer games"
+    );
+  });
+
+  it.each(PROMPT_VARIANTS)(
+    "embeds the satisfied-completion vs abandonment guidance for $id",
+    (variant) => {
+      const prompt = buildPrompt(demoDashboard, variant);
+
+      expect(prompt).toContain(COMPLETION_INTERPRETATION_GUIDANCE);
+    }
+  );
+
+  it("tells the model not to read low completion or stopping as inherent dislike", () => {
+    expect(COMPLETION_INTERPRETATION_GUIDANCE).toContain(
+      "Do NOT treat moderate or low trophy completion, or a game I 'stopped playing', as inherent dislike or abandonment"
+    );
+    expect(COMPLETION_INTERPRETATION_GUIDANCE).toContain(
+      "finishing the main story and skipping grindy endgame, DLC or multiplayer trophies is satisfied completion"
+    );
+  });
+
+  it("uses playtime-vs-typical-time and genre to tell satisfied completion apart from abandonment", () => {
+    expect(COMPLETION_INTERPRETATION_GUIDANCE).toContain(
+      "Use the playtime-vs-typical-time line ('you: Xh lifetime vs typical ~Yh (~Nx)') to tell them apart"
+    );
+    expect(COMPLETION_INTERPRETATION_GUIDANCE).toContain(
+      "Use genre/type the same way: 'campaign + live-service endgame' titles expect low post-campaign engagement"
+    );
+  });
+
+  it("keeps the caveat against flipping the error and the missing-data caveat", () => {
+    expect(COMPLETION_INTERPRETATION_GUIDANCE).toContain(
+      "Do NOT flip the error the other way: a game with few hours, well SHORT of its typical completion time, and low trophies is still a genuine abandonment/bounce-off"
+    );
+    expect(COMPLETION_INTERPRETATION_GUIDANCE).toContain(
+      "'trophies unknown (no data)' stays UNKNOWN, not dislike"
     );
   });
 });

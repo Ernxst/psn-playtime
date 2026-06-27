@@ -423,6 +423,22 @@ export const PLAYTIME_SIGNAL_GUIDANCE = [
 ].join("\n");
 
 /**
+ * Guidance telling the model NOT to read moderate/low trophy completion or a
+ * "stopped playing" game as inherent dislike, and to use the signals already in
+ * the prompt — playtime-vs-typical-time (#93) and genre/type (#94) — to tell
+ * satisfied main-story completion apart from genuine abandonment. Calibration
+ * only, with an explicit caveat against flipping the error the other way; the
+ * model still weighs it against the data and reaches its own verdict.
+ */
+export const COMPLETION_INTERPRETATION_GUIDANCE = [
+  "Do NOT treat moderate or low trophy completion, or a game I 'stopped playing', as inherent dislike or abandonment — finishing the main story and skipping grindy endgame, DLC or multiplayer trophies is satisfied completion, not a bounce-off, especially for campaign and live-service titles:",
+  "- Use the playtime-vs-typical-time line ('you: Xh lifetime vs typical ~Yh (~Nx)') to tell them apart: if my lifetime hours are roughly the typical completion time and then play stopped, I most likely finished what I came for (satisfied), even when trophy completion looks low.",
+  "- Use genre/type the same way: 'campaign + live-service endgame' titles expect low post-campaign engagement, with a large share of trophies sitting behind grind, multiplayer or DLC that an engaged story-player legitimately skips — so low completion there is expected, not dislike.",
+  "Do NOT flip the error the other way: a game with few hours, well SHORT of its typical completion time, and low trophies is still a genuine abandonment/bounce-off — use playtime-vs-typical-time plus genre to TELL satisfied completion apart from abandonment, never to assume every incomplete game was finished and loved.",
+  "- 'trophies unknown (no data)' stays UNKNOWN, not dislike — never read a satisfied-completion or abandonment verdict off missing trophy data.",
+].join("\n");
+
+/**
  * Build the full, ready-to-paste prompt: the data summary once, the chosen
  * lead question, then the rest as paste-able follow-ups.
  */
@@ -433,6 +449,7 @@ export function buildPrompt(data: DashboardData, lead: PromptVariant): string {
     PLAY_PATTERN_GUIDANCE,
     TROPHY_SIGNAL_GUIDANCE,
     PLAYTIME_SIGNAL_GUIDANCE,
+    COMPLETION_INTERPRETATION_GUIDANCE,
     "",
     buildDataSummary(data),
     "",
