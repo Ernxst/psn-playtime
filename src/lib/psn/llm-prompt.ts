@@ -19,6 +19,8 @@ import {
   topFranchises,
   valuePerGame,
 } from "./analytics";
+import { summariseAddOns } from "./spend";
+import type { TransactionRow } from "./transactions";
 import type { DashboardData, GamePlay } from "./types";
 
 /** The category a question belongs to, used to group the selector and follow-ups. */
@@ -282,16 +284,21 @@ function gamePlaytime(g: GamePlay): string {
   return `, you: ${Math.round(g.hours)}h lifetime vs typical ~${g.typicalPlaytime}h (~${ratio}x)`;
 }
 
+function gameAddOns(g: GamePlay, addOnCounts: ReadonlyMap<string, number>): string {
+  const count = addOnCounts.get(g.titleId) ?? 0;
+  return count === 0 ? "" : `, add-ons purchased: ${count}`;
+}
+
 /**
  * Every game, biggest first, with its hours, genre, franchise and when it was
  * last (and first) played so recency can be weighed against raw hours.
  */
-function listGames(data: DashboardData): string {
+function listGames(data: DashboardData, addOnCounts: ReadonlyMap<string, number>): string {
   return data.games
     .toSorted((a, b) => b.hours - a.hours)
     .map((g, i) => {
       const franchise = g.franchise ? `, ${g.franchise}` : "";
-      return `  ${i + 1}. ${g.name} — ${Math.round(g.hours)}h (${g.genre}${franchise})${gameTiming(g)}${gamePlaytime(g)}${gameTrophy(g)}`;
+      return `  ${i + 1}. ${g.name} — ${Math.round(g.hours)}h (${g.genre}${franchise})${gameTiming(g)}${gamePlaytime(g)}${gameTrophy(g)}${gameAddOns(g, addOnCounts)}`;
     })
     .join("\n");
 }
@@ -335,11 +342,28 @@ function completionistBaseline(data: DashboardData): string {
   return `- Completionist baseline: ${accountPlatinums} platinums earned account-wide; platinumed ${platinumed.length} of ${eligible.length} platinum-eligible games with trophy data (${rate}).`;
 }
 
+function transactionLines(data: DashboardData, transactions?: readonly TransactionRow[]): string[] {
+  if (!transactions || transactions.length === 0) return [];
+  const addOns = summariseAddOns(data, transactions);
+  if (addOns.length === 0) return [];
+  return [
+    "- Imported transaction signal: matched add-on purchases are listed per game as 'add-ons purchased'.",
+  ];
+}
+
 /** The compact, structured data summary embedded once in every prompt. */
-export function buildDataSummary(data: DashboardData): string {
+export function buildDataSummary(
+  data: DashboardData,
+  transactions?: readonly TransactionRow[]
+): string {
   const totals = headlineTotals(data);
   const value = valuePerGame(data);
   const r = recency(data);
+  const addOnCounts = new Map(
+    transactions?.length
+      ? summariseAddOns(data, transactions).map((g) => [g.titleId, g.addOnCount])
+      : []
+  );
 
   return [
     "DATA (my PlayStation playtime, lifetime totals):",
@@ -349,13 +373,14 @@ export function buildDataSummary(data: DashboardData): string {
     `- Recency (${r.thisYear}): ${r.activeGames} active games (${r.activeHours}h) vs ${r.dormantGames} dormant (${r.dormantHours}h).`,
     completionistBaseline(data),
     "- All games by hours (with when each was last/first played):",
-    listGames(data),
+    listGames(data, addOnCounts),
     "- Genres by hours:",
     listGenres(data),
     "- Franchises by hours:",
     listFranchises(data),
     "- Session style (hours per session):",
     listSessionStyle(data),
+    ...transactionLines(data, transactions),
   ].join("\n");
 }
 
@@ -438,11 +463,28 @@ export const COMPLETION_INTERPRETATION_GUIDANCE = [
   "- 'trophies unknown (no data)' stays UNKNOWN, not dislike — never read a satisfied-completion or abandonment verdict off missing trophy data.",
 ].join("\n");
 
+export const ADD_ON_SIGNAL_GUIDANCE = [
+  "When a game's line shows 'add-ons purchased: N', read buying DLC/add-ons as a STRONG commitment/enjoyment signal to weigh alongside hours, recency, trophies and playtime-vs-typical-time, not as a verdict computed in code.",
+  "Honour these caveats:",
+  "- This signal exists only when I imported transaction history; absence of add-on purchases is NOT a negative signal.",
+  "- DLC, bundle and re-release names do not always line up with the base title; unmatched add-ons are ignored gracefully, not misattributed.",
+  "- Do not double-count bundles or base-game-with-DLC editions as add-ons.",
+].join("\n");
+
+function addOnGuidance(data: DashboardData, transactions?: readonly TransactionRow[]): string[] {
+  if (!transactions || transactions.length === 0) return [];
+  return summariseAddOns(data, transactions).length === 0 ? [] : [ADD_ON_SIGNAL_GUIDANCE];
+}
+
 /**
  * Build the full, ready-to-paste prompt: the data summary once, the chosen
  * lead question, then the rest as paste-able follow-ups.
  */
-export function buildPrompt(data: DashboardData, lead: PromptVariant): string {
+export function buildPrompt(
+  data: DashboardData,
+  lead: PromptVariant,
+  transactions?: readonly TransactionRow[]
+): string {
   return [
     "You are a gaming analyst. I'm sharing a summary of my PlayStation playtime.",
     "Weigh WHEN I played (recency and trends from each game's last/first played dates), not just total hours — a big total played years ago means something different from a smaller total I'm playing now.",
@@ -450,8 +492,9 @@ export function buildPrompt(data: DashboardData, lead: PromptVariant): string {
     TROPHY_SIGNAL_GUIDANCE,
     PLAYTIME_SIGNAL_GUIDANCE,
     COMPLETION_INTERPRETATION_GUIDANCE,
+    ...addOnGuidance(data, transactions),
     "",
-    buildDataSummary(data),
+    buildDataSummary(data, transactions),
     "",
     `TASK: ${lead.instruction}`,
     "",

@@ -45,6 +45,12 @@ export interface SpendSummary {
   leaderboard: SpendLeader[];
 }
 
+export interface AddOnSummary {
+  titleId: string;
+  name: string;
+  addOnCount: number;
+}
+
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
@@ -104,6 +110,65 @@ function matchGame(
   const key = normTitle(tx.productName);
   if (key === "") return undefined;
   return byName.get(key) ?? matchByName(key, games);
+}
+
+const ADD_ON_SKU_TYPES = [
+  "ADD_ON",
+  "ADD-ON",
+  "ADDON",
+  "DLC",
+  "EXPANSION",
+  "SEASON_PASS",
+  "SEASON PASS",
+];
+
+const ADD_ON_NAME_TERMS = [
+  "season pass",
+  "dlc",
+  "expansion",
+  "add on",
+  "add-on",
+  "deluxe upgrade",
+  "ultimate upgrade",
+  "upgrade",
+  "pack",
+];
+
+const BASE_GAME_NAME_TERMS = [
+  "standard edition",
+  "deluxe edition",
+  "ultimate edition",
+  "complete edition",
+  "definitive edition",
+  "gold edition",
+  "game of the year",
+  "bundle",
+  "collection",
+];
+
+function isAddOnSkuType(skuType: string | undefined): boolean {
+  if (!skuType) return false;
+  const normalised = skuType.toUpperCase().replace(/[_-]+/g, " ");
+  return ADD_ON_SKU_TYPES.some((type) => normalised.includes(type.replace(/[_-]+/g, " ")));
+}
+
+function isBaseGameEdition(name: string): boolean {
+  return BASE_GAME_NAME_TERMS.some((term) => name.includes(term));
+}
+
+function isNamedAddOn(productName: string, game: GamePlay | undefined): boolean {
+  const name = normTitle(productName);
+  if (name === "" || isBaseGameEdition(name)) return false;
+  if (ADD_ON_NAME_TERMS.some((term) => name.includes(term))) return true;
+  if (!game) return false;
+  const gameName = normTitle(game.name);
+  return gameName !== "" && name.startsWith(`${gameName} `) && productName.includes(" - ");
+}
+
+export function isAddOnPurchase(tx: TransactionRow, game?: GamePlay): boolean {
+  if (tx.kind !== "purchase") return false;
+  if (isAddOnSkuType(tx.skuType)) return true;
+  return isNamedAddOn(tx.productName, game);
 }
 
 interface Acc {
@@ -192,6 +257,44 @@ function buildByYear(byYear: Acc["byYear"]): YearSpend[] {
   return [...byYear.entries()]
     .map(([year, v]) => ({ year, spend: round2(v.spend), purchases: v.purchases }))
     .sort((a, b) => a.year - b.year);
+}
+
+function countAddOns(
+  games: GamePlay[],
+  transactions: readonly TransactionRow[]
+): Map<string, number> {
+  const byName = indexByName(games);
+  const counts = new Map<string, number>();
+  for (const tx of transactions) {
+    const game = matchGame(tx, games, byName);
+    if (!game || !isAddOnPurchase(tx, game)) continue;
+    counts.set(game.titleId, (counts.get(game.titleId) ?? 0) + 1);
+  }
+  return counts;
+}
+
+function buildAddOnSummaries(
+  games: GamePlay[],
+  counts: ReadonlyMap<string, number>
+): AddOnSummary[] {
+  const summaries: AddOnSummary[] = [];
+  for (const game of games) {
+    const addOnCount = counts.get(game.titleId);
+    if (addOnCount === undefined) continue;
+    summaries.push({
+      titleId: game.titleId,
+      name: game.name,
+      addOnCount,
+    });
+  }
+  return summaries;
+}
+
+export function summariseAddOns(
+  data: DashboardData,
+  transactions: readonly TransactionRow[]
+): AddOnSummary[] {
+  return buildAddOnSummaries(data.games, countAddOns(data.games, transactions));
 }
 
 /**

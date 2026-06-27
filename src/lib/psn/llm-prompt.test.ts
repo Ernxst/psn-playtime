@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { fmtDate } from "@/components/dashboard/format";
 import { topGamesByHours } from "./analytics";
 import {
+  ADD_ON_SIGNAL_GUIDANCE,
   buildDataSummary,
   buildFollowUps,
   buildPrompt,
@@ -13,7 +14,24 @@ import {
   TROPHY_SIGNAL_GUIDANCE,
 } from "./llm-prompt";
 import { demoDashboard } from "./mock";
+import type { TransactionRow } from "./transactions";
 import type { GamePlay } from "./types";
+
+function tx(overrides: Partial<TransactionRow>): TransactionRow {
+  return {
+    transactionId: "t",
+    key: "k",
+    date: "2023-01-01",
+    transactionType: "PRODUCT_PURCHASE",
+    kind: "purchase",
+    productName: "",
+    quantity: 1,
+    amountMinor: 0,
+    currency: "£",
+    displayAmount: "",
+    ...overrides,
+  };
+}
 
 describe(".PROMPT_VARIANTS", () => {
   it("gives every question a unique id", () => {
@@ -154,6 +172,23 @@ describe(".buildDataSummary", () => {
     expect(summary).toContain(
       "platinumed 0 of 0 platinum-eligible games with trophy data (no platinum-eligible games with trophy data, so no rate)"
     );
+  });
+
+  it("includes matched per-game add-on counts from imported transactions", () => {
+    const [game] = demoDashboard.games;
+    const summary = buildDataSummary(demoDashboard, [
+      tx({ productName: `${game?.name} Season Pass`, skuId: game?.titleId }),
+    ]);
+
+    expect(summary).toContain(`${game?.name} —`);
+    expect(summary).toContain("add-ons purchased: 1");
+  });
+
+  it("omits add-on transaction lines when no transactions are imported", () => {
+    const summary = buildDataSummary(demoDashboard);
+
+    expect(summary).not.toContain("add-ons purchased");
+    expect(summary).not.toContain("Imported transaction signal");
   });
 });
 
@@ -331,5 +366,24 @@ describe(".buildPrompt", () => {
     expect(COMPLETION_INTERPRETATION_GUIDANCE).toContain(
       "'trophies unknown (no data)' stays UNKNOWN, not dislike"
     );
+  });
+
+  it("embeds add-on guidance when imported transactions match add-ons", () => {
+    const [game] = demoDashboard.games;
+    const [variant] = PROMPT_VARIANTS;
+    const prompt = buildPrompt(demoDashboard, variant, [
+      tx({ productName: `${game?.name} Season Pass`, skuId: game?.titleId }),
+    ]);
+
+    expect(prompt).toContain(ADD_ON_SIGNAL_GUIDANCE);
+    expect(prompt).toContain("add-ons purchased: 1");
+  });
+
+  it("omits add-on guidance when no transactions are imported", () => {
+    const [variant] = PROMPT_VARIANTS;
+    const prompt = buildPrompt(demoDashboard, variant);
+
+    expect(prompt).not.toContain(ADD_ON_SIGNAL_GUIDANCE);
+    expect(prompt).not.toContain("add-ons purchased");
   });
 });
