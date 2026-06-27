@@ -17,3 +17,7 @@ todos.json
 
 # Coverage reports
 coverage/
+
+# Local PSN API capture (PII, do not commit)
+transactions.json
+ORCHESTRATION_PLAN.md
