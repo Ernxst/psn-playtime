@@ -1,4 +1,5 @@
-import { Coins, Trophy, Wallet } from "lucide-react";
+import { Coins, ExternalLink, Trophy, Wallet } from "lucide-react";
+import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,11 +20,49 @@ function perHour(currency: string, value: number): string {
   return `${money(currency, value)}/hr`;
 }
 
-const STEPS = [
-  "Drag the button below onto your bookmarks bar (or copy it and make a new bookmark).",
-  "Open your PlayStation order/transaction history while signed in.",
-  "Click the bookmark — it scrolls to load everything, then sends the data back here in one click.",
+const STEPS: Array<{ text: ReactNode; href?: string; linkText?: string }> = [
+  {
+    text: "Drag the button below onto your bookmarks bar (or copy it and make a new bookmark).",
+  },
+  {
+    text: (
+      <>
+        Open PlayStation while signed in, click your <strong>profile icon (top right)</strong>, then{" "}
+        <strong>Order History</strong>.
+      </>
+    ),
+    href: "https://www.playstation.com/en-gb/",
+    linkText: "Open PlayStation",
+  },
+  {
+    text: "On your Order History, click the bookmark — it auto-scrolls to load everything, then sends it back here in one click.",
+  },
 ];
+
+/** A numbered instruction step, mirroring the onboarding sign-in card. */
+function Step({ index, text, href, linkText }: (typeof STEPS)[number] & { index: number }) {
+  return (
+    <li className="flex gap-3">
+      <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+        {index + 1}
+      </span>
+      <div className="space-y-1">
+        <p>{text}</p>
+        {href ? (
+          <a
+            href={href}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 text-primary underline-offset-4 hover:underline"
+          >
+            {linkText}
+            <ExternalLink className="size-3" />
+          </a>
+        ) : null}
+      </div>
+    </li>
+  );
+}
 
 /** The draggable bookmarklet link plus a copy fallback. */
 function BookmarkletActions() {
@@ -75,9 +114,9 @@ function ImportSpendCard() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4 text-sm">
-        <ol className="list-decimal space-y-2 pl-5 text-muted-foreground">
-          {STEPS.map((step) => (
-            <li key={step}>{step}</li>
+        <ol className="space-y-3 text-muted-foreground">
+          {STEPS.map((step, i) => (
+            <Step key={step.linkText ?? i} index={i} {...step} />
           ))}
         </ol>
         <BookmarkletActions />
