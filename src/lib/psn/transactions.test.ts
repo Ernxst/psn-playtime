@@ -5,9 +5,11 @@ import {
   encodeHandoff,
   HANDOFF_VERSION,
   type HandoffPayload,
+  normaliseDescription,
   parseAmount,
   parseTransactions,
   type RawTransactionRow,
+  safeParseHandoff,
   toISODate,
 } from "./transactions";
 
@@ -42,6 +44,22 @@ describe(".classifyKind", () => {
     ["EA SPORTS FC 24 Standard Edition", "purchase"],
   ] as const)("classifies %s as %s", (description, kind) => {
     expect(classifyKind(description)).toBe(kind);
+  });
+});
+
+describe(".normaliseDescription", () => {
+  it.each([
+    [
+      "EA SPORTS FC™ 26 Standard Edition PS4 &amp; PS5",
+      "EA SPORTS FC™ 26 Standard Edition PS4 & PS5",
+    ],
+    ["PlayStation®Plus ICONS Pack", "PlayStation®Plus ICONS Pack"],
+    ["Marvel&apos;s Spider-Man 2", "Marvel's Spider-Man 2"],
+    ["Ratchet &amp; Clank: Rift Apart", "Ratchet & Clank: Rift Apart"],
+    ["Quote &quot;name&quot;", 'Quote "name"'],
+    ["  spaced   out  title ", "spaced out title"],
+  ])("decodes entities and collapses whitespace in %s", (raw, expected) => {
+    expect(normaliseDescription(raw)).toBe(expected);
   });
 });
 
@@ -93,6 +111,58 @@ describe(".parseTransactions", () => {
       amount: 59.99,
       kind: "purchase",
     });
+  });
+
+  it("parses real-world PlayStation order rows", () => {
+    const real: RawTransactionRow[] = [
+      {
+        date: "03/11/2025",
+        amount: "£59.99",
+        description: "EA SPORTS FC™ 26 Standard Edition PS4 &amp; PS5",
+      },
+      { date: "21/09/2024", amount: "£0.00", description: "PlayStation®Plus ICONS Pack" },
+      { date: "07/02/2023", amount: "£10.00", description: "PlayStation Store Wallet top-up" },
+    ];
+
+    expect(parseTransactions(real)).toEqual([
+      {
+        date: "2025-11-03",
+        description: "EA SPORTS FC™ 26 Standard Edition PS4 & PS5",
+        amount: 59.99,
+        currency: "£",
+        kind: "purchase",
+      },
+      {
+        date: "2023-02-07",
+        description: "PlayStation Store Wallet top-up",
+        amount: 10,
+        currency: "£",
+        kind: "top-up",
+      },
+    ]);
+  });
+});
+
+describe(".safeParseHandoff", () => {
+  const payload: HandoffPayload = {
+    v: HANDOFF_VERSION,
+    source: "www.playstation.com",
+    scrapedAt: "2024-01-01T00:00:00.000Z",
+    rows: [{ date: "12/05/2023", amount: "£33.00", description: "Satisfactory" }],
+  };
+
+  it("returns a structurally valid payload", () => {
+    expect(safeParseHandoff(payload)).toEqual(payload);
+  });
+
+  it.each([
+    [{ ...payload, v: 99 }, "wrong version"],
+    [{ ...payload, rows: "nope" }, "non-array rows"],
+    [{ ...payload, rows: [{ date: "x" }] }, "malformed row"],
+    [null, "null"],
+    ["string", "non-object"],
+  ])("returns null for %o (%s)", (value, _label) => {
+    expect(safeParseHandoff(value)).toBeNull();
   });
 });
 

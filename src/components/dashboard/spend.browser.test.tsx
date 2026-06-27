@@ -24,6 +24,18 @@ test("prompts for an import when no transactions are present", async () => {
   await expect.element(page.getByText("Import PSN spend")).toBeVisible();
 });
 
+test("links to PlayStation order history in the import instructions", async () => {
+  onTestFinished(clearTransactionImport);
+
+  await render(<SpendSection data={demoDashboard} />);
+
+  const link = page.getByRole("link", { name: "Open PlayStation" });
+
+  await expect.element(link).toHaveAttribute("href", "https://www.playstation.com/en-gb/");
+  await expect.element(link).toHaveAttribute("target", "_blank");
+  await expect.element(link).toHaveAttribute("rel", "noreferrer");
+});
+
 test("shows the value leaderboard once transactions are imported", async () => {
   seed([
     {

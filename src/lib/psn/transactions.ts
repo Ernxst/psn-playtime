@@ -51,6 +51,21 @@ export interface TransactionImport {
 /** Current handoff payload version. Bump if the wire shape changes. */
 export const HANDOFF_VERSION = 1;
 
+/**
+ * Origin the bookmarklet runs on (the PlayStation order page). The `/import`
+ * receiver only accepts a `postMessage` handoff from exactly this origin.
+ */
+export const PLAYSTATION_ORIGIN = "https://www.playstation.com";
+
+/** `postMessage` envelope type carrying a scraped handoff payload. */
+export const HANDOFF_MESSAGE_TYPE = "psn-transactions";
+
+/** `postMessage` envelope the receiver sends back once it is ready to receive. */
+export const HANDOFF_READY_TYPE = "psn-import-ready";
+
+/** `postMessage` envelope the receiver sends back once it has persisted a payload. */
+export const HANDOFF_RECEIVED_TYPE = "psn-import-received";
+
 /** The payload the bookmarklet hands to `/import` via the URL fragment. */
 export interface HandoffPayload {
   v: typeof HANDOFF_VERSION;
@@ -96,6 +111,29 @@ export function classifyKind(description: string): TransactionKind {
   return TOP_UP_PATTERNS.some((pattern) => pattern.test(description)) ? "top-up" : "purchase";
 }
 
+/** The handful of HTML entities PlayStation's order page emits in titles. */
+const HTML_ENTITIES: Record<string, string> = {
+  "&amp;": "&",
+  "&lt;": "<",
+  "&gt;": ">",
+  "&quot;": '"',
+  "&apos;": "'",
+  "&#39;": "'",
+};
+
+/**
+ * Normalise a scraped description. PlayStation's order page leaves HTML entities
+ * in some titles (e.g. `EA SPORTS FC™ 26 Standard Edition PS4 &amp; PS5`); decode
+ * the handful it emits and collapse whitespace. Trademark glyphs (`™ ®`) are
+ * intentionally preserved.
+ */
+export function normaliseDescription(raw: string): string {
+  return raw
+    .replace(/&(?:amp|lt|gt|quot|apos|#39);/g, (entity) => HTML_ENTITIES[entity] ?? entity)
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 const ISO_DATE = /^(\d{4}-\d{2}-\d{2})/;
 const UK_NUMERIC = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
 
@@ -136,7 +174,7 @@ export function parseTransactions(rows: RawTransactionRow[]): Transaction[] {
   for (const row of rows) {
     const parsed = parseAmount(row.amount);
     if (!parsed || parsed.value === 0) continue;
-    const description = row.description.trim();
+    const description = normaliseDescription(row.description);
     transactions.push({
       date: toISODate(row.date),
       description,
@@ -181,12 +219,21 @@ function readFragment(hash: string): string | null {
   return encoded === "" ? null : encoded;
 }
 
+/**
+ * Validate an untrusted value as a handoff payload. Used for the `postMessage`
+ * handoff, where the data arrives as a structured-clone object rather than a
+ * fragment string; the shape is validated exactly as the fragment path.
+ */
+export function safeParseHandoff(value: unknown): HandoffPayload | null {
+  const parsed = handoffSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
+
 export function decodeHandoff(hash: string): HandoffPayload | null {
   const encoded = readFragment(hash);
   if (encoded === null) return null;
   try {
-    const parsed = handoffSchema.safeParse(JSON.parse(decodeURIComponent(encoded)));
-    return parsed.success ? parsed.data : null;
+    return safeParseHandoff(JSON.parse(decodeURIComponent(encoded)));
   } catch {
     return null;
   }

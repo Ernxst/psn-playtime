@@ -3,7 +3,16 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
-import { decodeHandoff, parseTransactions } from "@/lib/psn/transactions";
+import {
+  decodeHandoff,
+  HANDOFF_MESSAGE_TYPE,
+  HANDOFF_READY_TYPE,
+  HANDOFF_RECEIVED_TYPE,
+  type HandoffPayload,
+  parseTransactions,
+  PLAYSTATION_ORIGIN,
+  safeParseHandoff,
+} from "@/lib/psn/transactions";
 import { saveTransactionImport } from "@/lib/transactions-store";
 
 export const Route = createFileRoute("/import")({
@@ -16,14 +25,11 @@ export const Route = createFileRoute("/import")({
 type Status = "reading" | "empty" | "invalid";
 
 /**
- * Read the handoff from the URL fragment and persist it. The fragment is
- * client-side only, so the scraped rows never reach the server. Returns
- * `"reading"` on success (caller routes onward) or the failure status.
+ * Parse and persist a handoff payload (from either the URL fragment or a
+ * `postMessage`). The payload is already shape-validated; the rows are still
+ * untrusted text. Returns `"reading"` on success or the failure status.
  */
-function persistImport(): Status {
-  const payload = decodeHandoff(window.location.hash);
-  if (!payload) return "empty";
-
+function persistPayload(payload: HandoffPayload): Status {
   const transactions = parseTransactions(payload.rows);
   if (transactions.length === 0) return "invalid";
 
@@ -39,21 +45,70 @@ function persistImport(): Status {
 }
 
 /**
- * Receives the bookmarklet handoff. Valid imports are persisted to localStorage
- * and the user is sent to the dashboard; failures explain how to retry.
+ * Validate an untrusted `message` event as a handoff. Accepts only the exact
+ * PlayStation origin and message type, then re-validates the payload shape
+ * through the shared parser. Returns the payload, or `null` to ignore the event.
  */
-export function ImportReceiver() {
+export function readHandoffMessage(event: MessageEvent): HandoffPayload | null {
+  if (event.origin !== PLAYSTATION_ORIGIN) return null;
+  const data: unknown = event.data;
+  if (typeof data !== "object" || data === null) return null;
+  if ((data as { type?: unknown }).type !== HANDOFF_MESSAGE_TYPE) return null;
+  return safeParseHandoff((data as { payload?: unknown }).payload);
+}
+
+/** Drive the handoff: fragment fallback, otherwise the postMessage handshake. */
+function useHandoffReceiver(): Status {
   const navigate = useNavigate();
   const [status, setStatus] = useState<Status>("reading");
   const handled = useRef(false);
 
   useEffect(() => {
-    if (handled.current) return;
-    handled.current = true;
-    const next = persistImport();
-    setStatus(next);
-    if (next === "reading") void navigate({ to: "/dashboard" });
+    const finish = (next: Status) => {
+      handled.current = true;
+      setStatus(next);
+      if (next === "reading") void navigate({ to: "/dashboard" });
+    };
+
+    const onMessage = (event: MessageEvent) => {
+      if (handled.current) return;
+      const payload = readHandoffMessage(event);
+      if (!payload) return;
+      const next = persistPayload(payload);
+      // Acknowledge so the opener stops retrying / falling back.
+      if (next === "reading" && window.opener) {
+        window.opener.postMessage({ type: HANDOFF_RECEIVED_TYPE }, event.origin);
+      }
+      finish(next);
+    };
+
+    window.addEventListener("message", onMessage);
+
+    const fragmentPayload = decodeHandoff(window.location.hash);
+    if (fragmentPayload) {
+      finish(persistPayload(fragmentPayload));
+    } else if (window.opener) {
+      // Tell the opener we are ready to receive its postMessage handoff.
+      window.opener.postMessage({ type: HANDOFF_READY_TYPE }, "*");
+    } else {
+      finish("empty");
+    }
+
+    return () => window.removeEventListener("message", onMessage);
   }, [navigate]);
+
+  return status;
+}
+
+/**
+ * Receives the bookmarklet handoff. The primary path is a `postMessage` from the
+ * opener (the PlayStation order page) — accepted only from {@link PLAYSTATION_ORIGIN}
+ * and re-validated through the shared parser. The URL-fragment path is the
+ * fallback for when popups are blocked. Both persist to localStorage and route to
+ * the dashboard; failures explain how to retry.
+ */
+export function ImportReceiver() {
+  const status = useHandoffReceiver();
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center p-6">
