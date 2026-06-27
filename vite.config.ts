@@ -9,28 +9,40 @@ import { defineConfig } from "vite";
 // Security response headers, applied at the server layer (Nitro `routeRules`)
 // so they are emitted on every host (not just Cloudflare Pages `_headers`).
 //
-// CSP is intentionally REPORT-ONLY for now: TanStack Start injects inline
-// hydration scripts, so an enforcing `script-src` would break hydration.
-// Report-only lets us observe violations first. Enforcing CSP (dropping
-// `'unsafe-inline'` for scripts via nonces/hashes) is a deliberate follow-up.
+// CSP is ENFORCED (not report-only): the policy locks the origin down to a
+// strict allow-list. `script-src` keeps `'unsafe-inline'` because TanStack
+// Start injects inline hydration scripts; dropping it requires per-request
+// nonces and is tracked as a deliberate follow-up (#36).
 const securityHeaders: Record<string, string> = {
+  "Cross-Origin-Resource-Policy": "same-origin",
+  "Cross-Origin-Opener-Policy": "same-origin",
   "X-Frame-Options": "DENY",
   "X-Content-Type-Options": "nosniff",
+  "X-XSS-Protection": "0",
   "Referrer-Policy": "strict-origin-when-cross-origin",
-  "Cross-Origin-Opener-Policy": "same-origin",
   "Permissions-Policy": "camera=(), microphone=(), geolocation=(), interest-cohort=()",
-  "Content-Security-Policy-Report-Only": [
-    "default-src 'self'",
-    "img-src 'self' data: https:",
-    "style-src 'self' 'unsafe-inline'",
-    "script-src 'self' 'unsafe-inline'",
-    "connect-src 'self'",
-    "frame-ancestors 'none'",
+  "Content-Security-Policy": [
+    "upgrade-insecure-requests",
+    "default-src 'none'",
     "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+    "frame-src 'none'",
+    "object-src 'none'",
+    "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'",
+    // `fonts.googleapis.com` is allowed because styles.css `@import`s the Google
+    // Fonts stylesheet; without it the enforced CSP blanks the app's webfonts.
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "img-src 'self' data: blob: https://*.playstation.net https://*.playstation.com https://*.np.community.playstation.net",
+    // `fonts.gstatic.com` serves the Google Fonts font files referenced above.
+    "font-src 'self' https://fonts.gstatic.com",
+    "connect-src 'self'",
+    "worker-src 'self' blob:",
+    "media-src 'self'",
   ].join("; "),
   // HSTS is production-only: it must not be sent over plain HTTP in dev.
   ...(process.env.NODE_ENV === "production"
-    ? { "Strict-Transport-Security": "max-age=63072000; includeSubDomains" }
+    ? { "Strict-Transport-Security": "max-age=31536000; includeSubDomains; preload" }
     : {}),
 };
 
