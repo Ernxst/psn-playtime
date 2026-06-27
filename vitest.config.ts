@@ -16,6 +16,11 @@ export default defineConfig({
         "src/main.ts",
         "src/test/**",
         "src/vite-env.d.ts",
+        // Vendored / generated / scaffold — not our code to cover (mirrors lint/knip ignores).
+        "src/components/ui/**",
+        "src/routeTree.gen.ts",
+        "src/router.tsx",
+        "src/integrations/**",
       ],
     },
     projects: [
