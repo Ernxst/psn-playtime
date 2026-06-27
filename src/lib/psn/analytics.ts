@@ -8,7 +8,7 @@
  * Anything time-bucketed (see `hoursByYear`) uses a game's most-recent-play year
  * as a proxy and is labelled honestly in the UI as "by most-recent year".
  */
-import type { DashboardData, GamePlay, Genre } from "./types";
+import type { DashboardData, GamePlay, Genre, Platform } from "./types";
 
 const HOURS_PER_DAY = 24;
 const DAYS_PER_YEAR = 365;
@@ -49,8 +49,17 @@ export function filterByTimeframe(data: DashboardData, range: Timeframe): Dashbo
   if (range === "all") return data;
 
   const from = timeframeStart(new Date(data.fetchedAt), range);
-  const games = data.games.filter((g) => inWindow(g.lastPlayed, from));
+  return recompute(
+    data,
+    data.games.filter((g) => inWindow(g.lastPlayed, from))
+  );
+}
 
+/**
+ * Return a NEW `DashboardData` containing `games` with `meta` totals recomputed
+ * for that subset. `profile` is left untouched.
+ */
+function recompute(data: DashboardData, games: GamePlay[]): DashboardData {
   const { firsts, lasts } = splitPlayDates(games);
   const firstEverPlayed = earliest(firsts);
 
@@ -69,6 +78,192 @@ export function filterByTimeframe(data: DashboardData, range: Timeframe): Dashbo
       span: { from: firstEverPlayed, to: latest(lasts) },
     },
   };
+}
+
+/** Activity bucket for a game relative to the data's most-recent activity year. */
+export type Activity = "all" | "active" | "dormant";
+
+/**
+ * The page-level filter state. Defaults (see `defaultFilters`) are a no-op so
+ * SSR output matches the first client render before the user touches anything.
+ *
+ * Date story: the `timeframe` preset and the explicit `lastPlayedFrom`/`To`
+ * range are one coherent window — the preset is a quick-pick lower bound and the
+ * custom range layers on top (the *later* lower bound and `lastPlayedTo` win).
+ */
+export interface DashboardFilters {
+  timeframe: Timeframe;
+  /** Case-insensitive substring match on the game name. */
+  search: string;
+  genres: Genre[];
+  franchises: string[];
+  platforms: Platform[];
+  /** Inclusive `lastPlayed` lower bound, as a `yyyy-mm-dd` calendar day (UTC). */
+  lastPlayedFrom?: string;
+  /** Inclusive `lastPlayed` upper bound, as a `yyyy-mm-dd` calendar day (UTC). */
+  lastPlayedTo?: string;
+  minHours?: number;
+  maxHours?: number;
+  minSessions?: number;
+  /** Keep only titles with a platinum trophy. */
+  hasPlatinum: boolean;
+  /** Keep only titles whose trophy `progress` is at least this percent. */
+  minTrophyProgress?: number;
+  activity: Activity;
+}
+
+export const defaultFilters: DashboardFilters = {
+  timeframe: "all",
+  search: "",
+  genres: [],
+  franchises: [],
+  platforms: [],
+  hasPlatinum: false,
+  activity: "all",
+};
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+/** Combined inclusive lower bound (ms) from the timeframe preset + custom from. */
+function dateFloor(data: DashboardData, filters: DashboardFilters): number | undefined {
+  const bounds: number[] = [];
+  if (filters.timeframe !== "all") {
+    bounds.push(timeframeStart(new Date(data.fetchedAt), filters.timeframe));
+  }
+  if (filters.lastPlayedFrom) {
+    const t = Date.parse(filters.lastPlayedFrom);
+    if (!Number.isNaN(t)) bounds.push(t);
+  }
+  return bounds.length === 0 ? undefined : Math.max(...bounds);
+}
+
+/** Inclusive upper bound (ms) covering the whole `lastPlayedTo` calendar day. */
+function dateCeil(to: string | undefined): number | undefined {
+  if (!to) return undefined;
+  const t = Date.parse(to);
+  return Number.isNaN(t) ? undefined : t + MS_PER_DAY - 1;
+}
+
+interface MatchContext {
+  floor: number | undefined;
+  ceil: number | undefined;
+  search: string;
+  mostRecentYear: number;
+}
+
+/**
+ * A facet predicate: returns whether `g` survives this facet. Each facet is kept
+ * tiny and tested only when its filter is active (see `activePredicates`), so the
+ * overall match stays a flat `every` rather than one branchy mega-function.
+ */
+type Facet = (g: GamePlay, f: DashboardFilters, ctx: MatchContext) => boolean;
+
+function matchSearch(g: GamePlay, _f: DashboardFilters, ctx: MatchContext): boolean {
+  return g.name.toLowerCase().includes(ctx.search);
+}
+
+function matchGenre(g: GamePlay, f: DashboardFilters): boolean {
+  return f.genres.includes(g.genre);
+}
+
+function matchFranchise(g: GamePlay, f: DashboardFilters): boolean {
+  return g.franchise !== undefined && f.franchises.includes(g.franchise);
+}
+
+function matchPlatform(g: GamePlay, f: DashboardFilters): boolean {
+  return f.platforms.includes(g.platform);
+}
+
+function matchFloor(g: GamePlay, _f: DashboardFilters, ctx: MatchContext): boolean {
+  const t = playedAt(g);
+  return t !== undefined && ctx.floor !== undefined && t >= ctx.floor;
+}
+
+function matchCeil(g: GamePlay, _f: DashboardFilters, ctx: MatchContext): boolean {
+  const t = playedAt(g);
+  return t !== undefined && ctx.ceil !== undefined && t <= ctx.ceil;
+}
+
+function matchMinHours(g: GamePlay, f: DashboardFilters): boolean {
+  return f.minHours !== undefined && g.hours >= f.minHours;
+}
+
+function matchMaxHours(g: GamePlay, f: DashboardFilters): boolean {
+  return f.maxHours !== undefined && g.hours <= f.maxHours;
+}
+
+function matchMinSessions(g: GamePlay, f: DashboardFilters): boolean {
+  return f.minSessions !== undefined && g.playCount >= f.minSessions;
+}
+
+function matchPlatinum(g: GamePlay): boolean {
+  return g.trophy?.hasPlatinum === true;
+}
+
+function matchTrophyProgress(g: GamePlay, f: DashboardFilters): boolean {
+  return (
+    f.minTrophyProgress !== undefined &&
+    g.trophy !== undefined &&
+    g.trophy.progress >= f.minTrophyProgress
+  );
+}
+
+function matchActivity(g: GamePlay, f: DashboardFilters, ctx: MatchContext): boolean {
+  const active = lastPlayedYear(g) === ctx.mostRecentYear;
+  return f.activity === "active" ? active : !active;
+}
+
+/** Parsed `lastPlayed` epoch ms, or `undefined` when absent/unparseable. */
+function playedAt(g: GamePlay): number | undefined {
+  if (!g.lastPlayed) return undefined;
+  const t = Date.parse(g.lastPlayed);
+  return Number.isNaN(t) ? undefined : t;
+}
+
+/** The facet predicates whose filter is actually engaged in `filters`/`ctx`. */
+function activePredicates(f: DashboardFilters, ctx: MatchContext): Facet[] {
+  const preds: Facet[] = [];
+  const add = (active: boolean, facet: Facet) => {
+    if (active) preds.push(facet);
+  };
+  add(ctx.search !== "", matchSearch);
+  add(f.genres.length > 0, matchGenre);
+  add(f.franchises.length > 0, matchFranchise);
+  add(f.platforms.length > 0, matchPlatform);
+  add(ctx.floor !== undefined, matchFloor);
+  add(ctx.ceil !== undefined, matchCeil);
+  add(f.minHours !== undefined, matchMinHours);
+  add(f.maxHours !== undefined, matchMaxHours);
+  add(f.minSessions !== undefined, matchMinSessions);
+  add(f.hasPlatinum, matchPlatinum);
+  add(f.minTrophyProgress !== undefined, matchTrophyProgress);
+  add(f.activity !== "all", matchActivity);
+  return preds;
+}
+
+/**
+ * Return a NEW `DashboardData` scoped to the games matching every active facet
+ * in `filters`, with `meta` totals recomputed for the subset. `profile` is left
+ * untouched. Timeframe preset + facets are applied together in a single pass, so
+ * `meta` is recomputed exactly once.
+ *
+ * When no facet is active the original `data` is returned unchanged, keeping SSR
+ * output identical to the first client render.
+ */
+export function applyFilters(data: DashboardData, filters: DashboardFilters): DashboardData {
+  const ctx: MatchContext = {
+    floor: dateFloor(data, filters),
+    ceil: dateCeil(filters.lastPlayedTo),
+    search: filters.search.trim().toLowerCase(),
+    mostRecentYear: new Date(data.fetchedAt).getUTCFullYear(),
+  };
+
+  const preds = activePredicates(filters, ctx);
+  if (preds.length === 0) return data;
+
+  const games = data.games.filter((g) => preds.every((p) => p(g, filters, ctx)));
+  if (games.length === data.games.length) return data;
+  return recompute(data, games);
 }
 
 function inWindow(lastPlayed: string | undefined, from: number): boolean {
