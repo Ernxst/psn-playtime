@@ -1,6 +1,6 @@
-import { page } from "@vitest/browser/context";
 import { expect, test, vi } from "vitest";
 import { render } from "vitest-browser-react";
+import { page } from "vitest/browser";
 import { Bookmarklet } from "./bookmarklet";
 
 test("copies the npsso token to the clipboard when run on the ssocookie page", async () => {

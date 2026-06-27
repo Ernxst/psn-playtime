@@ -1,6 +1,6 @@
-import { page } from "@vitest/browser/context";
 import { expect, test, vi } from "vitest";
 import { render } from "vitest-browser-react";
+import { page } from "vitest/browser";
 import { genreBreakdown } from "@/lib/psn/analytics";
 import { demoDashboard } from "@/lib/psn/mock";
 import { GenreChart } from "./charts";

@@ -1,6 +1,6 @@
-import { page } from "@vitest/browser/context";
 import { expect, test } from "vitest";
 import { render } from "vitest-browser-react";
+import { page } from "vitest/browser";
 import { defaultFilters } from "@/lib/psn/analytics";
 import { demoDashboard } from "@/lib/psn/mock";
 import { FilterBar } from "./filter-bar";
