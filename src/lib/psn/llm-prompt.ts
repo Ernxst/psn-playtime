@@ -381,6 +381,23 @@ export const PLAY_PATTERN_GUIDANCE = [
 ].join("\n");
 
 /**
+ * Guidance telling the model to read a platinum / high trophy count as an
+ * enjoyment signal whose STRENGTH is relative to my completionist baseline,
+ * while honouring the data-gap, no-platinum-available and difficulty caveats.
+ * Calibration only — the model still weighs it against the data and decides.
+ */
+export const TROPHY_SIGNAL_GUIDANCE = [
+  "Read platinum and high trophy counts as an enjoyment/commitment signal, but weight each one RELATIVE to my completionist baseline above (how often I platinum games that allow it):",
+  "- A platinum from a low-baseline player (someone who rarely platinums) is a STRONG signal of enjoyment and investment in that title.",
+  "- For a habitual platinum-hunter (high baseline) a platinum is expected and discriminates far less, so weight it down.",
+  "- High trophy counts or completion % short of a platinum are a SOFTER version of the same signal — read them the same baseline-relative way.",
+  "Honour these caveats and never overclaim:",
+  "- 'trophies unknown (no data)' means UNKNOWN, NOT zero — never infer dislike or low engagement from missing trophy data.",
+  "- 'no platinum available' (common for multiplayer/older titles) is NOT a negative signal; the absence of a platinum there says nothing about enjoyment.",
+  "- I have no trophy-difficulty data, so don't assume a platinum was hard or easy; the baseline-relative framing is what gives a platinum its weight.",
+].join("\n");
+
+/**
  * Build the full, ready-to-paste prompt: the data summary once, the chosen
  * lead question, then the rest as paste-able follow-ups.
  */
@@ -389,6 +406,7 @@ export function buildPrompt(data: DashboardData, lead: PromptVariant): string {
     "You are a gaming analyst. I'm sharing a summary of my PlayStation playtime.",
     "Weigh WHEN I played (recency and trends from each game's last/first played dates), not just total hours — a big total played years ago means something different from a smaller total I'm playing now.",
     PLAY_PATTERN_GUIDANCE,
+    TROPHY_SIGNAL_GUIDANCE,
     "",
     buildDataSummary(data),
     "",
