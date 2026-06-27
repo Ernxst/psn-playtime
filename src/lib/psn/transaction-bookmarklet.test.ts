@@ -1,4 +1,6 @@
+import { fileURLToPath } from "node:url";
 import vm from "node:vm";
+import { build } from "esbuild";
 import { describe, expect, it } from "vitest";
 import {
   bookmarkletHref,
@@ -9,6 +11,51 @@ import {
 
 function bookmarkletBody(origin: string): string {
   return decodeURIComponent(bookmarkletHref(origin).replace(/^javascript:/, ""));
+}
+
+/**
+ * Generate the bookmarklet from a *minified* build of this module, exactly as
+ * the shipped app does. The app bundle (rolldown/esbuild) renames the embedded
+ * helpers' module bindings, so `fn.toString()` captures bodies that reference
+ * those minified names; the bookmarklet must declare each helper under a
+ * matching name (and carry no free module-scope data references) or it throws a
+ * `ReferenceError` at runtime. An unminified `bookmarkletBody()` can never catch
+ * that — only re-minifying the source can.
+ */
+async function minifiedBookmarkletBody(origin: string): Promise<string> {
+  const { outputFiles } = await build({
+    entryPoints: [fileURLToPath(new URL("./transaction-bookmarklet.ts", import.meta.url))],
+    bundle: true,
+    format: "esm",
+    minify: true,
+    write: false,
+    platform: "node",
+  });
+  // Import the minified bundle as a real module (zod is bundled in, so a self
+  // contained `data:` URL needs no resolution and bypasses Vite's transform) and
+  // generate from it, so `bookmarkletHref` embeds the renamed helper bindings.
+  const [output] = outputFiles ?? [];
+  const url = `data:text/javascript;base64,${Buffer.from(output?.text ?? "").toString("base64")}`;
+  // oxlint-disable-next-line typescript/no-unsafe-assignment -- dynamic import of a freshly built artifact; its type is external to the project
+  const mod: { bookmarkletHref(o: string): string } = await import(url);
+
+  return decodeURIComponent(mod.bookmarkletHref(origin).replace(/^javascript:/, ""));
+}
+
+/**
+ * Run the embedded flatten chain lifted out of a generated bookmarklet body
+ * against `transactions`. The helper `const`s are declared under their minified
+ * names, so the last-declared one (`flattenApiTransactions`) is invoked by the
+ * name it was actually given.
+ */
+function runEmbeddedFlatten(body: string, transactions: unknown[]): unknown {
+  const helpers = body.slice(body.indexOf("// Flatten helpers"), body.indexOf("// 1. Replay"));
+  const names = [...helpers.matchAll(/const (\w+) =/g)].map((m) => m[1]);
+  const flattenName = names.at(-1);
+  const script = `(() => { ${helpers}\nreturn ${flattenName}(${JSON.stringify(transactions)}); })()`;
+  const rows: unknown = vm.runInNewContext(script);
+
+  return rows;
 }
 
 describe(".buildTransactionHistoryUrl", () => {
@@ -97,5 +144,47 @@ describe(".bookmarkletHref", () => {
     // Compile-only (vm.Script parses without running): guards that the
     // toString()-embedded helpers concatenate into valid JS.
     expect(() => new vm.Script(body)).not.toThrow();
+  });
+
+  it("flattens transactions when the embedded helpers are minified by the app build", async () => {
+    const body = await minifiedBookmarkletBody("https://psn.example.dev");
+    const purchase = {
+      id: "txn-1",
+      date: "2024-05-01T00:00:00.000Z",
+      transactionType: "PRODUCT_PURCHASE",
+      purchaseDetails: {
+        productPurchases: [
+          {
+            productName: "EA SPORTS FC™ 26 Standard Edition PS4 &amp; PS5",
+            skuId: "SKU-1",
+            skuType: "STANDARD",
+            quantity: 1,
+            total: 6999,
+            totalFormatted: "£69.99",
+          },
+        ],
+      },
+    };
+
+    // `runEmbeddedFlatten` builds rows in a separate vm realm, so assert with
+    // `toEqual` (cross-realm prototypes differ; the values are what matter).
+    const rows = runEmbeddedFlatten(body, [purchase]);
+
+    expect(rows).toEqual([
+      {
+        transactionId: "txn-1",
+        key: "txn-1|SKU-1",
+        date: "2024-05-01T00:00:00.000Z",
+        transactionType: "PRODUCT_PURCHASE",
+        kind: "purchase",
+        productName: "EA SPORTS FC™ 26 Standard Edition PS4 & PS5",
+        skuId: "SKU-1",
+        skuType: "STANDARD",
+        quantity: 1,
+        amountMinor: 6999,
+        currency: "£",
+        displayAmount: "£69.99",
+      },
+    ]);
   });
 });
