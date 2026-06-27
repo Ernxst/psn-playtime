@@ -156,8 +156,13 @@ describe(".deriveFranchise", () => {
     [["Forza Horizon 5", "Forza Horizon 4", "Forza Motorsport 7"], "Forza"],
     [["God of War", "God of War Ragnarök"], "God of War"],
     [["The Witcher 3", "The Witcher 2"], "The Witcher"],
+    [["Dragon Age: Origins", "Dragon Age: Inquisition"], "Dragon Age"],
   ])("derives the shared leading words of %j as %s", (names, expected) => {
     expect(deriveFranchise(names)).toBe(expected);
+  });
+
+  it("does not fabricate a one-word franchise from distinct same-letter series", () => {
+    expect(deriveFranchise(["Dragon Age: Origins", "Dragon's Dogma"])).toBeUndefined();
   });
 
   it("compares words case-insensitively while preserving the first name's casing", () => {

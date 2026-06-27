@@ -38,6 +38,7 @@ const FRANCHISE_RULES: FranchiseRule[] = [
   { test: /mass effect/i, genre: "RPG", franchise: "Mass Effect" },
   { test: /cyberpunk/i, genre: "RPG", franchise: "Cyberpunk" },
   { test: /witcher/i, genre: "RPG", franchise: "The Witcher" },
+  { test: /dragon age/i, genre: "RPG", franchise: "Dragon Age" },
   { test: /minecraft/i, genre: "Survival/Craft", franchise: "Minecraft" },
   { test: /satisfactory/i, genre: "Survival/Craft", franchise: "Satisfactory" },
   { test: /no man'?s sky/i, genre: "Survival/Craft", franchise: "No Man's Sky" },

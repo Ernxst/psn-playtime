@@ -11,6 +11,7 @@ describe(".enrichTitle", () => {
     ["NBA 2K19", "Sports", "NBA 2K"],
     ["Grand Theft Auto V", "Open World", "Grand Theft Auto"],
     ["The Witcher 3: Wild Hunt", "RPG", "The Witcher"],
+    ["Dragon Age: Inquisition", "RPG", "Dragon Age"],
     ["F1® 2019", "Racing", "F1"],
   ])("classifies %s by its franchise rule", (name, genre, franchise) => {
     expect(enrichTitle(name)).toEqual({ genre, franchise, isApp: false });
@@ -33,18 +34,12 @@ describe(".enrichTitle", () => {
     });
   });
 
-  it.each([
-    "YouTube",
-    "Netflix",
-    "Spotify",
-    "Disney+",
-    "BBC iPlayer",
-    "NOW",
-    "HBO Max",
-    "Max",
-  ])("flags %s as a streaming app", (name) => {
-    expect(enrichTitle(name)).toEqual({ genre: "Other", isApp: true });
-  });
+  it.each(["YouTube", "Netflix", "Spotify", "Disney+", "BBC iPlayer", "NOW", "HBO Max", "Max"])(
+    "flags %s as a streaming app",
+    (name) => {
+      expect(enrichTitle(name)).toEqual({ genre: "Other", isApp: true });
+    }
+  );
 
   it("classifies Mad Max as a game, not the Max streaming app", () => {
     expect(enrichTitle("Mad Max")).toEqual({
