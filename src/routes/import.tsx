@@ -5,15 +5,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Spinner } from "@/components/ui/spinner";
 import {
   decodeHandoff,
+  flattenApiTransactions,
   HANDOFF_COMPLETE_TYPE,
   HANDOFF_MESSAGE_TYPE,
   HANDOFF_READY_TYPE,
   HANDOFF_RECEIVED_TYPE,
   type HandoffPayload,
-  parseTransactions,
   PLAYSTATION_ORIGIN,
   safeParseHandoff,
-  type Transaction,
+  type TransactionRow,
 } from "@/lib/psn/transactions";
 import { loadTransactionImport, saveTransactionImport } from "@/lib/transactions-store";
 
@@ -27,27 +27,17 @@ export const Route = createFileRoute("/import")({
 type Status = "reading" | "empty" | "invalid";
 type SetCount = (count: number) => void;
 
-/**
- * Stable identity for a parsed transaction, used to de-dupe across streamed
- * batches so re-receiving a row (or re-running the bookmarklet) never doubles
- * it. PSN exposes no per-row id, so the natural key is the row's own fields.
- */
-function rowKey(tx: Transaction): string {
-  return `${tx.date}|${tx.amount}|${tx.currency}|${tx.kind}|${tx.description}`;
-}
-
 /** A running, de-duped accumulation of imported transactions. */
 interface Accumulator {
   seen: Set<string>;
-  transactions: Transaction[];
+  transactions: TransactionRow[];
   source: string;
 }
 
-/** Add a transaction unless its {@link rowKey} was already seen. */
-function mergeRow(acc: Accumulator, tx: Transaction): boolean {
-  const key = rowKey(tx);
-  if (acc.seen.has(key)) return false;
-  acc.seen.add(key);
+/** Add a transaction unless its stable {@link TransactionRow.key} was seen. */
+function mergeRow(acc: Accumulator, tx: TransactionRow): boolean {
+  if (acc.seen.has(tx.key)) return false;
+  acc.seen.add(tx.key);
   acc.transactions.push(tx);
   return true;
 }
@@ -69,7 +59,7 @@ function seedAccumulator(): Accumulator {
  */
 function appendBatch(acc: Accumulator, payload: HandoffPayload): number {
   let added = 0;
-  for (const tx of parseTransactions(payload.rows)) if (mergeRow(acc, tx)) added += 1;
+  for (const tx of flattenApiTransactions(payload.transactions)) if (mergeRow(acc, tx)) added += 1;
   if (acc.source === "") acc.source = payload.source;
   if (added > 0) {
     saveTransactionImport({
@@ -122,7 +112,7 @@ function createMessageHandler(acc: Accumulator, setCount: SetCount, onComplete: 
 
 /** Persist the one-shot fragment fallback payload. */
 function persistFragment(acc: Accumulator, payload: HandoffPayload, setCount: SetCount): Status {
-  if (parseTransactions(payload.rows).length === 0) return "invalid";
+  if (flattenApiTransactions(payload.transactions).length === 0) return "invalid";
   appendBatch(acc, payload);
   setCount(acc.transactions.length);
   // Clear the (potentially large) fragment from the address bar.
@@ -217,10 +207,10 @@ export function ImportReceiver() {
 
 function description(status: Status): string {
   if (status === "empty") {
-    return "Open this page by running the transaction-history bookmarklet on your PlayStation order page. There was no import data in the link.";
+    return "Open this page by running the transaction-history bookmarklet while signed in to PlayStation. There was no import data in the link.";
   }
   if (status === "invalid") {
-    return "We couldn't read any transactions from that link. Re-run the bookmarklet on your PlayStation order history and try again.";
+    return "We couldn't read any transactions from that link. Re-run the bookmarklet while signed in to PlayStation and try again.";
   }
-  return "Reading the transactions handed over from your PlayStation order page. Rows appear here as they load.";
+  return "Reading the transactions handed over from PlayStation. Rows appear here as they load.";
 }

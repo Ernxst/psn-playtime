@@ -8,27 +8,14 @@
  * `useSyncExternalStore` hook so the dashboard re-renders when an import lands.
  */
 import { useSyncExternalStore } from "react";
-import { z } from "zod";
-import type { TransactionImport } from "./psn/transactions";
+import { type TransactionImport, transactionImportSchema } from "./psn/transactions";
 
 const TRANSACTIONS_STORAGE_KEY = "psn-playtime:transactions";
 
 /** Fired on the same tab after a write (the `storage` event only fires cross-tab). */
 const TRANSACTIONS_EVENT = "psn-playtime:transactions-changed";
 
-const transactionSchema = z.object({
-  date: z.string(),
-  description: z.string(),
-  amount: z.number(),
-  currency: z.string(),
-  kind: z.enum(["top-up", "purchase"]),
-});
-
-const importSchema = z.object({
-  transactions: z.array(transactionSchema),
-  importedAt: z.string(),
-  source: z.string(),
-});
+const importSchema = transactionImportSchema;
 
 // Cache the parsed snapshot keyed on the raw string so `getSnapshot` returns a
 // stable reference between renders (required by `useSyncExternalStore`).
