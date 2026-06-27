@@ -504,7 +504,7 @@ export const COMPLETION_INTERPRETATION_GUIDANCE = [
 ].join("\n");
 
 export const ADD_ON_SIGNAL_GUIDANCE = [
-  "When a game's line shows 'add-ons purchased: N', read buying DLC/add-ons as a STRONG commitment/enjoyment signal to weigh alongside hours, recency, trophies and playtime-vs-typical-time, not as a verdict computed in code.",
+  "When a game's line shows 'add-ons purchased: N', read buying DLC/add-ons as a SUPPORTING commitment/intent signal — NOT an enjoyment verdict on its own, and never a value computed in code; infer enjoyment only when it is corroborated by playtime, recency or trophies.",
   "Honour these caveats:",
   "- This signal exists only when I imported transaction history; absence of add-on purchases is NOT a negative signal.",
   "- DLC, bundle and re-release names do not always line up with the base title; unmatched add-ons are ignored gracefully, not misattributed.",
