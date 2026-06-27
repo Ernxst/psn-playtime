@@ -2,24 +2,29 @@ import { Bookmark } from "lucide-react";
 import type React from "react";
 import { useEffect, useRef } from "react";
 
-// Bookmarklet payload. When clicked while the user is on a logged-in
-// PlayStation/Sony page it reads the npsso cookie via Sony's own API
-// (same-origin) and copies it to the clipboard. Clipboard-only by design:
-// auto sign-in would need CORS + SameSite=None on Sony's side (future option,
-// out of scope here). Defensive try/catch so a logged-out click just explains.
+// Bookmarklet payload. The ssocookie page renders exactly {"npsso":"..."}, so
+// when clicked on that page it reads the token straight from the rendered DOM
+// (no fetch — that endpoint sends no CORS headers, so a cross-origin fetch from
+// our app fails with "failed to fetch") and copies it to the clipboard. Clicked
+// anywhere else it just navigates to the ssocookie page so the user can click
+// again there. Defensive try/catch so a stray click never throws.
 const BOOKMARKLET_CODE = `javascript:(async () => {
   try {
-    const res = await fetch("https://ca.account.sony.com/api/v1/ssocookie");
-    const { npsso } = await res.json();
-    if (!npsso) throw new Error("No npsso found. Log in to PlayStation first.");
+    let data = null;
+    try { data = JSON.parse(document.body.innerText); } catch { data = null; }
+    const npsso = data && data.npsso;
+    if (!npsso) {
+      location.href = "https://ca.account.sony.com/api/v1/ssocookie";
+      return;
+    }
     try {
       await navigator.clipboard.writeText(npsso);
       alert("PSN token copied. Paste it into PSN Playtime.");
     } catch {
-      prompt("Copy your PSN token:", npsso);
+      prompt("Copy your PSN token, then paste it into PSN Playtime:", npsso);
     }
   } catch (err) {
-    alert("Couldn't grab your token. Make sure you're logged in to PlayStation, then click again.\\n\\n" + err);
+    alert("Couldn't grab your token. Open the ssocookie page, then click again.\\n\\n" + err);
   }
 })();`;
 
