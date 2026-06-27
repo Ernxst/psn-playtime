@@ -5,12 +5,18 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { Tabs, TabsList, TabsTab } from "@/components/ui/tabs";
-import { filterByTimeframe, type Timeframe } from "@/lib/psn/analytics";
+import {
+  applyFilters,
+  type DashboardFilters,
+  defaultFilters,
+  type Timeframe,
+} from "@/lib/psn/analytics";
 import type { DashboardData } from "@/lib/psn/types";
 import { ChartCard } from "./chart-card";
 import { FranchiseChart, GenreChart, SessionChart, TopGamesChart, YearChart } from "./charts";
 import { DashboardHeader } from "./dashboard-header";
 import { DashboardSidebar } from "./dashboard-sidebar";
+import { FilterBar } from "./filter-bar";
 import { GamesTable } from "./games-table";
 import { AppsExcludedNote, LifespansCard, RecencyCard, ValueCard } from "./insights";
 import { KpiCards } from "./kpi-cards";
@@ -160,8 +166,8 @@ function DashboardBody({ data }: { data: DashboardData }) {
 
 export function DashboardView({ data, onSignOut, signingOut }: Props) {
   const { profile } = data;
-  const [timeframe, setTimeframe] = useState<Timeframe>("all");
-  const scoped = useMemo(() => filterByTimeframe(data, timeframe), [data, timeframe]);
+  const [filters, setFilters] = useState<DashboardFilters>(defaultFilters);
+  const scoped = useMemo(() => applyFilters(data, filters), [data, filters]);
   return (
     <SidebarProvider>
       <DashboardSidebar />
@@ -184,7 +190,13 @@ export function DashboardView({ data, onSignOut, signingOut }: Props) {
         <div className="mx-auto w-full max-w-6xl space-y-6 p-4 sm:p-6">
           <DashboardHeader data={data} onSignOut={onSignOut} signingOut={signingOut} />
           {data.isDemo ? <DemoBanner /> : null}
-          <TimeframeControl value={timeframe} onValueChange={setTimeframe} />
+          <div className="space-y-3">
+            <TimeframeControl
+              value={filters.timeframe}
+              onValueChange={(timeframe) => setFilters((prev) => ({ ...prev, timeframe }))}
+            />
+            <FilterBar data={data} filters={filters} onChange={setFilters} />
+          </div>
           <DashboardBody data={scoped} />
         </div>
       </SidebarInset>
