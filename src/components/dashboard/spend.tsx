@@ -99,7 +99,7 @@ function BookmarkletActions() {
       <a
         ref={ref}
         href="/import"
-        className="inline-flex h-9 cursor-grab items-center rounded-md border border-border bg-primary px-4 font-medium text-primary-foreground"
+        className="hit-area-y-2 inline-flex h-9 cursor-grab items-center rounded-md border border-border bg-primary px-4 font-medium text-primary-foreground"
         onClick={(e) => e.preventDefault()}
       >
         Import PSN spend
