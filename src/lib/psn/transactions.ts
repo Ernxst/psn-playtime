@@ -96,6 +96,29 @@ export function classifyKind(description: string): TransactionKind {
   return TOP_UP_PATTERNS.some((pattern) => pattern.test(description)) ? "top-up" : "purchase";
 }
 
+/** The handful of HTML entities PlayStation's order page emits in titles. */
+const HTML_ENTITIES: Record<string, string> = {
+  "&amp;": "&",
+  "&lt;": "<",
+  "&gt;": ">",
+  "&quot;": '"',
+  "&apos;": "'",
+  "&#39;": "'",
+};
+
+/**
+ * Normalise a scraped description. PlayStation's order page leaves HTML entities
+ * in some titles (e.g. `EA SPORTS FC™ 26 Standard Edition PS4 &amp; PS5`); decode
+ * the handful it emits and collapse whitespace. Trademark glyphs (`™ ®`) are
+ * intentionally preserved.
+ */
+export function normaliseDescription(raw: string): string {
+  return raw
+    .replace(/&(?:amp|lt|gt|quot|apos|#39);/g, (entity) => HTML_ENTITIES[entity] ?? entity)
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 const ISO_DATE = /^(\d{4}-\d{2}-\d{2})/;
 const UK_NUMERIC = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
 
@@ -136,7 +159,7 @@ export function parseTransactions(rows: RawTransactionRow[]): Transaction[] {
   for (const row of rows) {
     const parsed = parseAmount(row.amount);
     if (!parsed || parsed.value === 0) continue;
-    const description = row.description.trim();
+    const description = normaliseDescription(row.description);
     transactions.push({
       date: toISODate(row.date),
       description,
