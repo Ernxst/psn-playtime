@@ -1,10 +1,11 @@
 /**
- * Build ready-to-paste LLM prompts from a `DashboardData`.
+ * Build a ready-to-paste LLM prompt from a `DashboardData`.
  *
- * Each prompt embeds the SAME compact, structured summary of the player's
- * library (totals, every game, genres, franchises, recency, session style) and
- * pairs it with a different analysis instruction so the user can ask an LLM a
- * specific question about their playtime.
+ * The prompt embeds the SAME compact, structured summary of the player's
+ * library (totals, every game, genres, franchises, recency, session style)
+ * exactly ONCE, leads with one strong analysis instruction, and ends with a
+ * curated menu of the remaining questions as paste-able follow-ups. The model
+ * already has the data in context, so a follow-up never has to re-send it.
  *
  * The summary is derived entirely from the existing `analytics.ts` selectors —
  * nothing here recomputes or duplicates that logic.
@@ -20,63 +21,227 @@ import {
 } from "./analytics";
 import type { DashboardData, GamePlay } from "./types";
 
-/** A selectable question the user can copy a prompt for. */
+/** The category a question belongs to, used to group the selector and follow-ups. */
+export type PromptGroup =
+  | "Engagement & enjoyment"
+  | "Completion & habits"
+  | "Taste & preferences"
+  | "Recommendations"
+  | "Profile & personality"
+  | "More";
+
+/** Display order for the groups in both the selector and the follow-up menu. */
+export const PROMPT_GROUPS = [
+  "Engagement & enjoyment",
+  "Completion & habits",
+  "Taste & preferences",
+  "Recommendations",
+  "Profile & personality",
+  "More",
+] as const satisfies readonly PromptGroup[];
+
+/** A selectable question the user can lead their prompt with. */
 export interface PromptVariant {
   id: string;
-  /** Short label for the selector control. */
-  label: string;
-  /** One-line description of what the LLM is asked to do. */
-  description: string;
-  /** The analysis instruction embedded after the data summary. */
+  /** Category used to group the selector and the follow-up menu. */
+  group: PromptGroup;
+  /** The natural-language question, shown in the selector and pasted as a follow-up. */
+  question: string;
+  /** The strong opening analysis instruction embedded after the data summary. */
   instruction: string;
 }
 
 /**
- * The questions on offer. Each shares the data summary but asks the LLM
- * something different. Ordered most-to-least common intent.
+ * Every question on offer, all grounded in data we actually have (lifetime
+ * hours, sessions, first/last played, genre, franchise, trophy completion %,
+ * session-length signal). Each shares the one embedded data summary; whichever
+ * is selected leads the prompt and the rest become paste-able follow-ups.
  */
 export const PROMPT_VARIANTS = [
   {
-    id: "most-played",
-    label: "What do I play the most?",
-    description: "Top games, genres and franchises by hours.",
+    id: "enjoyment-vs-time",
+    group: "Engagement & enjoyment",
+    question: "Which games gave me the most enjoyment relative to time played?",
     instruction:
-      "Tell me what I play the most. Rank my biggest games, genres and franchises by hours, and describe the clear patterns in where my time goes.",
+      "Work out which games gave me the most enjoyment relative to the time I put in. Weigh hours, number of sessions and how recently I kept coming back, and call out the titles that clearly punched above their playtime.",
   },
   {
-    id: "recently",
-    label: "What am I into recently?",
-    description: "Recency and how my taste is trending.",
+    id: "engaging-genres",
+    group: "Engagement & enjoyment",
+    question: "Which genres keep me engaged the longest?",
     instruction:
-      "Tell me what I'm into recently. Compare my still-active games against the dormant ones, and describe how my tastes seem to be trending lately versus my all-time habits.",
+      "Tell me which genres keep me engaged the longest. Use my hours, session counts and how long each genre stays in rotation to rank them, and explain what keeps me hooked.",
   },
   {
-    id: "next",
-    label: "What should I play next?",
-    description: "Recommendations from my taste and backlog signals.",
+    id: "lost-interest-fastest",
+    group: "Engagement & enjoyment",
+    question: "Which games lost my interest the fastest?",
     instruction:
-      "Recommend what I should play next. Base it on my favourite genres and franchises, the kinds of games I sink the most hours into, and which series I seem to have drifted away from. Suggest specific titles and say why each fits.",
+      "Identify the games that lost my interest the fastest. Look for titles with few sessions, low hours and a short gap between first and last played, and describe what they have in common.",
   },
   {
-    id: "profile",
-    label: "What kind of gamer am I?",
-    description: "Overall profile: trends, value-for-money, binge vs dip-in.",
+    id: "session-balance",
+    group: "Engagement & enjoyment",
+    question: "Which games have the healthiest balance of session length and consistency?",
     instruction:
-      "Describe what kind of gamer I am. Cover my overall trends, how much value I get out of each game, and whether I'm more of a binge player (long sessions) or a dip-in player (many short launches). Give me a short, vivid player profile.",
+      "Find the games with the healthiest balance of session length and consistency. Use my hours-per-session and how steadily I returned to them, and explain why that balance is healthy.",
   },
   {
-    id: "hidden-gems",
-    label: "Hidden gems I under-played",
-    description: "Good-fit games I barely touched.",
+    id: "mechanics-return",
+    group: "Engagement & enjoyment",
+    question: "Which mechanics seem to keep me coming back?",
     instruction:
-      "Find the hidden gems I under-played. Point out games I barely put hours into that look like a strong match for my favourite genres and franchises, and suggest which ones are worth returning to.",
+      "Infer which game mechanics seem to keep me coming back. Reason from the genres, franchises and the titles I sink repeated sessions into, and name the recurring mechanics.",
   },
   {
-    id: "session-style",
-    label: "Am I a binger or a dipper?",
-    description: "Session length: marathons vs quick launches.",
+    id: "finish-vs-abandon",
+    group: "Completion & habits",
+    question: "What patterns separate the games I finish from the ones I abandon?",
     instruction:
-      "Tell me whether I'm a binge player or a dip-in player. Use my hours-per-session figures to separate the games I marathon from the ones I only dip into, and describe my overall session style.",
+      "Work out what patterns separate the games I finish from the ones I abandon. Compare trophy completion against hours, session counts and recency, and describe the difference.",
+  },
+  {
+    id: "typical-completion",
+    group: "Completion & habits",
+    question: "What completion rate is typical for games I truly enjoy?",
+    instruction:
+      "Estimate what trophy completion rate is typical for the games I truly enjoy. Use my highest-engagement titles as the sample and report the pattern you see.",
+  },
+  {
+    id: "time-no-progress",
+    group: "Completion & habits",
+    question: "Which games did I spend a lot of time in without making much progress?",
+    instruction:
+      "Point out the games where I spent a lot of hours without making much trophy progress. List them and suggest why the time didn't convert into completion.",
+  },
+  {
+    id: "finishing-blockers",
+    group: "Completion & habits",
+    question: "What habits are preventing me from finishing more games?",
+    instruction:
+      "Diagnose the habits that are stopping me from finishing more games. Use my session style, abandonment patterns and how spread my hours are, and give concrete, honest observations.",
+  },
+  {
+    id: "hidden-preferences",
+    group: "Taste & preferences",
+    question: "What hidden preferences can you infer from my play history?",
+    instruction:
+      "Infer the hidden preferences in my play history — the patterns I might not notice myself. Back each inference with specific games, genres or franchises from the data.",
+  },
+  {
+    id: "taste-over-time",
+    group: "Taste & preferences",
+    question: "How has my taste in games changed over time?",
+    instruction:
+      "Describe how my taste in games has changed over time. Compare my older last-played titles against my recent ones and trace the shift in genres and franchises.",
+  },
+  {
+    id: "consistent-franchises",
+    group: "Taste & preferences",
+    question: "Which franchises consistently match my preferences?",
+    instruction:
+      "Tell me which franchises consistently match my preferences. Rank them by hours, number of titles and how reliably I return, and explain the consistency.",
+  },
+  {
+    id: "outliers",
+    group: "Taste & preferences",
+    question: "Which games were outliers compared to the rest of my library?",
+    instruction:
+      "Find the games that were outliers compared to the rest of my library. Flag titles that break my usual genre, franchise, hours or session patterns and say what makes each unusual.",
+  },
+  {
+    id: "another-chance",
+    group: "Recommendations",
+    question: "Which games deserve another chance based on my past behaviour?",
+    instruction:
+      "Recommend which games in my library deserve another chance based on my past behaviour. Favour good-fit titles I under-played or drifted away from, and justify each pick.",
+  },
+  {
+    id: "one-backlog-pick",
+    group: "Recommendations",
+    question: "If you had to recommend one game from my backlog, which would it be and why?",
+    instruction:
+      "If you had to recommend exactly one game from my backlog (low-hours titles that fit my taste), pick one and explain in detail why it's the best next play for me.",
+  },
+  {
+    id: "personality-traits",
+    group: "Profile & personality",
+    question: "What personality traits can you infer from my gaming habits?",
+    instruction:
+      "Infer the personality traits suggested by my gaming habits. Tie each trait to concrete evidence in my genres, franchises, session style and completion patterns.",
+  },
+  {
+    id: "profile-paragraph",
+    group: "Profile & personality",
+    question: "How would you describe my gaming profile in one paragraph?",
+    instruction:
+      "Describe my gaming profile in one vivid paragraph, grounded in my biggest games, favourite genres, session style and recency.",
+  },
+  {
+    id: "someone-else",
+    group: "Profile & personality",
+    question: "If my play history belonged to someone else, what would stand out most?",
+    instruction:
+      "Imagine my play history belonged to a stranger. Tell me what would stand out most about them, citing the specific games and patterns that jump out.",
+  },
+  {
+    id: "binge-vs-steady",
+    group: "More",
+    question: "Which games did I binge in a short burst vs play steadily over a long time?",
+    instruction:
+      "Separate the games I binged in a short burst from the ones I played steadily over a long time. Use hours-per-session, session counts and the gap between first and last played.",
+  },
+  {
+    id: "revivals",
+    group: "More",
+    question:
+      "Which older games have I returned to recently (revivals), and which have I clearly moved on from?",
+    instruction:
+      "Identify my revivals — older games I've returned to recently — versus the ones I've clearly moved on from. Use each game's first and last played dates against its hours.",
+  },
+  {
+    id: "under-explored-genre",
+    group: "More",
+    question:
+      "Based on my genres and franchises, which genre have I under-explored that I'd probably enjoy?",
+    instruction:
+      "Based on my genres and franchises, name a genre I've under-explored that I'd probably enjoy, and suggest specific titles to start with.",
+  },
+  {
+    id: "efficient-completionist",
+    group: "More",
+    question:
+      "Which games have the best trophy completion relative to hours (efficient completionist)?",
+    instruction:
+      "Rank the games where I earned the best trophy completion relative to hours played — my most efficient completions — and describe what that says about how I play them.",
+  },
+  {
+    id: "signature-genre",
+    group: "More",
+    question: "What's my signature genre, and how dominant is it versus everything else?",
+    instruction:
+      "Tell me my signature genre and how dominant it is versus everything else. Use the genre share of hours and games, and quantify the gap to the runner-up.",
+  },
+  {
+    id: "last-12-months",
+    group: "More",
+    question: "Summarise my last ~12 months of gaming versus the year before.",
+    instruction:
+      "Summarise my last ~12 months of gaming versus the year before, using each game's last-played date. Call out what changed in genres, franchises and intensity.",
+  },
+  {
+    id: "comfort-vs-one-and-done",
+    group: "More",
+    question: 'Which games are "comfort" titles I keep returning to versus one-and-done?',
+    instruction:
+      "Separate my comfort titles — the ones I keep returning to over a long span — from the one-and-done games. Use session counts and the first-to-last-played span.",
+  },
+  {
+    id: "top-10-ranking",
+    group: "More",
+    question: "Rank my top 10 by hours and tell me what that ranking reveals about me.",
+    instruction:
+      "Rank my top 10 games by hours and tell me what that ranking reveals about me — the genres, franchises and play style it points to.",
   },
 ] as const satisfies readonly PromptVariant[];
 
@@ -122,7 +287,7 @@ function listSessionStyle(data: DashboardData): string {
     .join("\n");
 }
 
-/** The compact, structured data summary shared by every prompt. */
+/** The compact, structured data summary embedded once in every prompt. */
 export function buildDataSummary(data: DashboardData): string {
   const totals = headlineTotals(data);
   const value = valuePerGame(data);
@@ -144,14 +309,37 @@ export function buildDataSummary(data: DashboardData): string {
   ].join("\n");
 }
 
-/** Build the full, ready-to-paste prompt for a variant from the dashboard data. */
-export function buildPrompt(data: DashboardData, variant: PromptVariant): string {
+/**
+ * The curated follow-up menu: every question EXCEPT the lead, grouped by
+ * category, phrased so the user can paste any of them straight into the ongoing
+ * chat without re-sending the data.
+ */
+export function buildFollowUps(lead: PromptVariant): string {
+  const lines = [
+    "FOLLOW-UP QUESTIONS — paste any of these into this chat afterwards; you already have my data above, so don't ask me to resend it:",
+  ];
+  for (const group of PROMPT_GROUPS) {
+    const questions = PROMPT_VARIANTS.filter((v) => v.group === group && v.id !== lead.id);
+    if (questions.length === 0) continue;
+    lines.push(`${group}:`);
+    for (const v of questions) lines.push(`- ${v.question}`);
+  }
+  return lines.join("\n");
+}
+
+/**
+ * Build the full, ready-to-paste prompt: the data summary once, the chosen
+ * lead question, then the rest as paste-able follow-ups.
+ */
+export function buildPrompt(data: DashboardData, lead: PromptVariant): string {
   return [
     "You are a gaming analyst. I'm sharing a summary of my PlayStation playtime.",
     "Weigh WHEN I played (recency and trends from each game's last/first played dates), not just total hours — a big total played years ago means something different from a smaller total I'm playing now.",
     "",
     buildDataSummary(data),
     "",
-    `TASK: ${variant.instruction}`,
+    `TASK: ${lead.instruction}`,
+    "",
+    buildFollowUps(lead),
   ].join("\n");
 }
