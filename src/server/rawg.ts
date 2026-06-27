@@ -34,7 +34,13 @@ const GENRE_MAP: Record<string, Genre> = {
 /** The slice of the RAWG `/games` search payload we rely on. */
 const rawgResponseSchema = z.object({
   results: z
-    .array(z.object({ genres: z.array(z.object({ name: z.string() })).optional() }))
+    .array(
+      z.object({
+        genres: z.array(z.object({ name: z.string() })).optional(),
+        /** RAWG's rough community-average hours to complete; often 0 or absent. */
+        playtime: z.number().optional(),
+      })
+    )
     .optional(),
 });
 
@@ -119,8 +125,19 @@ export function deriveFranchise(names: string[]): string | undefined {
   return franchise || undefined;
 }
 
-/** A build-scoped genre lookup cache, keyed by normalized query. */
-export type RawgCache = Map<string, Genre | undefined>;
+/**
+ * The slice of a RAWG game we derive from a single `/games` search response:
+ * its coarse `genre` and its typical hours-to-complete (`playtime`). Both ride
+ * the SAME request, so a genre lookup also yields a playtime for free.
+ */
+interface RawgGameInfo {
+  genre?: Genre;
+  /** RAWG community-average hours to complete, omitted when absent or 0. */
+  playtime?: number;
+}
+
+/** A build-scoped game-info lookup cache, keyed by normalized query. */
+export type RawgCache = Map<string, RawgGameInfo>;
 
 export function createRawgCache(): RawgCache {
   return new Map();
@@ -133,19 +150,46 @@ export function createRawgFranchiseCache(): RawgFranchiseCache {
   return new Map();
 }
 
-/** Run a single RAWG search, returning the mapped genre or `undefined`. */
-async function searchRawgGenre(query: string, apiKey: string): Promise<Genre | undefined> {
+/** Normalise RAWG's `playtime`: treat 0/absent as "no data" (`undefined`). */
+function normalizePlaytime(playtime: number | undefined): number | undefined {
+  return playtime && playtime > 0 ? playtime : undefined;
+}
+
+/** Run a single RAWG search, extracting the genre and typical playtime. */
+async function searchRawgGameInfo(query: string, apiKey: string): Promise<RawgGameInfo> {
   const url = `${RAWG_ENDPOINT}?search=${encodeURIComponent(query)}&key=${apiKey}&page_size=1`;
   try {
     const res = await fetch(url);
-    if (!res.ok) return undefined;
+    if (!res.ok) return {};
     const parsed = rawgResponseSchema.safeParse(await res.json());
-    if (!parsed.success) return undefined;
-    const genres = parsed.data.results?.[0]?.genres?.map((g) => g.name) ?? [];
-    return mapRawgGenres(genres);
+    if (!parsed.success) return {};
+    const first = parsed.data.results?.[0];
+    const genres = first?.genres?.map((g) => g.name) ?? [];
+    return { genre: mapRawgGenres(genres), playtime: normalizePlaytime(first?.playtime) };
   } catch {
-    return undefined;
+    return {};
   }
+}
+
+/**
+ * Look up a title's genre + typical playtime via RAWG in one cached request.
+ * Resolves to an empty `RawgGameInfo` when no key is set, the search has no
+ * usable match, or the request errors — callers fall back to their defaults.
+ */
+async function lookupRawgGameInfo(name: string, cache: RawgCache): Promise<RawgGameInfo> {
+  const apiKey = process.env.RAWG_API_KEY;
+  if (!apiKey) return {};
+
+  const query = normalizeForSearch(name);
+  if (!query) return {};
+
+  const key = query.toLowerCase();
+  const cached = cache.get(key);
+  if (cached) return cached;
+
+  const result = await searchRawgGameInfo(query, apiKey);
+  cache.set(key, result);
+  return result;
 }
 
 /**
@@ -154,18 +198,19 @@ async function searchRawgGenre(query: string, apiKey: string): Promise<Genre | u
  * the caller falls back to its keyword result.
  */
 export async function lookupRawgGenre(name: string, cache: RawgCache): Promise<Genre | undefined> {
-  const apiKey = process.env.RAWG_API_KEY;
-  if (!apiKey) return undefined;
+  return (await lookupRawgGameInfo(name, cache)).genre;
+}
 
-  const query = normalizeForSearch(name);
-  if (!query) return undefined;
-
-  const key = query.toLowerCase();
-  if (cache.has(key)) return cache.get(key);
-
-  const result = await searchRawgGenre(query, apiKey);
-  cache.set(key, result);
-  return result;
+/**
+ * Look up a title's typical hours-to-complete via RAWG, riding the same cached
+ * request as the genre lookup (no extra call). Resolves to `undefined` when no
+ * key is set, RAWG has no usable average (often 0/absent), or the request errors.
+ */
+export async function lookupRawgPlaytime(
+  name: string,
+  cache: RawgCache
+): Promise<number | undefined> {
+  return (await lookupRawgGameInfo(name, cache)).playtime;
 }
 
 /** Find the best-matching RAWG game's id and name for a query, if any. */

@@ -76,6 +76,8 @@ export interface GamePlay {
   genre: Genre;
   /** Derived: franchise/series name (e.g. "Call of Duty", "FIFA / EA FC"). */
   franchise?: string;
+  /** RAWG community-average hours to complete this game, when available. */
+  typicalPlaytime?: number;
   /** True when this title is a non-game app (YouTube, Netflix…) that should be excluded from play stats. */
   isApp: boolean;
   trophy?: GameTrophy;
