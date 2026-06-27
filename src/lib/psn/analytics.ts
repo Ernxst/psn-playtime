@@ -26,10 +26,18 @@ function lastPlayedYear(game: GamePlay): number | undefined {
  */
 export type Timeframe = "all" | "last-12-months" | "last-2-years" | "this-year";
 
+/**
+ * The actual current calendar year (UTC). The "this year" timeframe anchors to
+ * this — real "now" — not to `data.fetchedAt`, which drifts when data is stale.
+ */
+export function currentYear(): number {
+  return new Date().getUTCFullYear();
+}
+
 /** Inclusive lower bound (UTC) for a timeframe, relative to a reference date. */
 function timeframeStart(reference: Date, range: Exclude<Timeframe, "all">): number {
   if (range === "this-year") {
-    return Date.UTC(reference.getUTCFullYear(), 0, 1);
+    return Date.UTC(currentYear(), 0, 1);
   }
   const months = range === "last-12-months" ? 12 : 24;
   const start = new Date(reference);
@@ -39,8 +47,9 @@ function timeframeStart(reference: Date, range: Exclude<Timeframe, "all">): numb
 
 /**
  * Return a NEW `DashboardData` scoped to games whose `lastPlayed` falls in the
- * selected window (measured back from `data.fetchedAt`). `meta` totals are
- * recomputed for the subset; `profile` is left untouched.
+ * selected window. Rolling windows measure back from `data.fetchedAt`; the
+ * "this year" window anchors to the actual current calendar year. `meta` totals
+ * are recomputed for the subset; `profile` is left untouched.
  *
  * Honest caveat: psn-api exposes lifetime hours only, so this windows by
  * *last-played activity*, not hours-played-in-period.

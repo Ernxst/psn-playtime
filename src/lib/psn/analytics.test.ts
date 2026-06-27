@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import {
   applyFilters,
   bingeVsDipIn,
@@ -211,11 +211,35 @@ describe(".filterByTimeframe", () => {
     expect(scoped.profile).toBe(sample.profile);
   });
 
-  it("scopes to the current calendar year by last-played date", () => {
+  it("scopes the this-year window to the actual current calendar year by last-played date", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2022-06-01T00:00:00.000Z"));
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+
     expect(filterByTimeframe(sample, "this-year").games.map((g) => g.titleId)).toEqual(["C"]);
   });
 
-  it("includes a game last played exactly on the window's lower bound", () => {
+  it("anchors the this-year window to real now, not data.fetchedAt", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2021-12-31T00:00:00.000Z"));
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+
+    // fetchedAt's year (2022) would start the window at 2022-01-01 and keep only C.
+    // Anchoring to "now" (2021) starts it at 2021-01-01, so A is kept too.
+    expect(filterByTimeframe(sample, "this-year").games.map((g) => g.titleId)).toEqual(["A", "C"]);
+  });
+
+  it("includes a game last played exactly on the current year's 1 January lower bound", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2022-06-01T00:00:00.000Z"));
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+
     const onBoundary: DashboardData = {
       ...sample,
       games: [
@@ -235,10 +259,58 @@ describe(".filterByTimeframe", () => {
     expect(filterByTimeframe(onBoundary, "this-year").games.map((g) => g.titleId)).toEqual(["X"]);
   });
 
-  it("yields an empty library with zeroed totals when no game falls in the window", () => {
-    const future: DashboardData = { ...sample, fetchedAt: "2030-06-01T00:00:00.000Z" };
+  it("keeps the this-year calendar window tighter than the rolling last-12-months window", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2022-06-01T00:00:00.000Z"));
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
 
-    const scoped = filterByTimeframe(future, "this-year");
+    const lib: DashboardData = {
+      ...sample,
+      fetchedAt: "2022-06-01T00:00:00.000Z",
+      games: [
+        {
+          titleId: "L",
+          name: "L",
+          platform: "PS5",
+          hours: 10,
+          playCount: 1,
+          genre: "Other",
+          isApp: false,
+          lastPlayed: "2021-09-01T00:00:00.000Z",
+        },
+        {
+          titleId: "Y",
+          name: "Y",
+          platform: "PS5",
+          hours: 10,
+          playCount: 1,
+          genre: "Other",
+          isApp: false,
+          lastPlayed: "2022-03-01T00:00:00.000Z",
+        },
+      ],
+    };
+
+    // Last 12 months reaches back to 2021-06-01 (from fetchedAt), so it keeps both.
+    expect(filterByTimeframe(lib, "last-12-months").games.map((g) => g.titleId)).toEqual([
+      "L",
+      "Y",
+    ]);
+
+    // This year starts at 2022-01-01, so the 2021 title drops.
+    expect(filterByTimeframe(lib, "this-year").games.map((g) => g.titleId)).toEqual(["Y"]);
+  });
+
+  it("yields an empty library with zeroed totals when no game falls in the current year", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2030-06-01T00:00:00.000Z"));
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+
+    const scoped = filterByTimeframe(sample, "this-year");
 
     expect(scoped.games).toEqual([]);
     expect(scoped.meta).toEqual({
