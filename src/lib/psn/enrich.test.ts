@@ -33,12 +33,26 @@ describe(".enrichTitle", () => {
     });
   });
 
-  it.each(["YouTube", "Netflix", "Spotify", "Disney+", "BBC iPlayer", "NOW"])(
-    "flags %s as a streaming app",
-    (name) => {
-      expect(enrichTitle(name)).toEqual({ genre: "Other", isApp: true });
-    }
-  );
+  it.each([
+    "YouTube",
+    "Netflix",
+    "Spotify",
+    "Disney+",
+    "BBC iPlayer",
+    "NOW",
+    "HBO Max",
+    "Max",
+  ])("flags %s as a streaming app", (name) => {
+    expect(enrichTitle(name)).toEqual({ genre: "Other", isApp: true });
+  });
+
+  it("classifies Mad Max as a game, not the Max streaming app", () => {
+    expect(enrichTitle("Mad Max")).toEqual({
+      genre: "Other",
+      franchise: undefined,
+      isApp: false,
+    });
+  });
 
   it("flags a title as an app from its psn-api media category", () => {
     expect(enrichTitle("Mystery Player", "ps5_native_media_app")).toEqual({
