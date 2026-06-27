@@ -318,6 +318,19 @@ export interface PriceContextSummary {
 const DEEP_SALE_FRACTION = 0.5;
 const DISCOUNT_FRACTION = 0.05;
 
+/** Pre-discount price in minor units: explicit original, else paid + discount. */
+function originalPrice(tx: TransactionRow): number | undefined {
+  if (tx.originalPriceMinor !== undefined) return tx.originalPriceMinor;
+  if (tx.discountMinor !== undefined) return tx.amountMinor + tx.discountMinor;
+  return undefined;
+}
+
+function labelForFraction(fraction: number): PriceContextLabel {
+  if (fraction >= DEEP_SALE_FRACTION) return "deep-sale";
+  if (fraction >= DISCOUNT_FRACTION) return "discounted";
+  return "full-price";
+}
+
 /**
  * Classify a base-game purchase by how much it was discounted. Uses
  * `originalPriceMinor`/`discountMinor` when present; with neither we only know
@@ -325,14 +338,14 @@ const DISCOUNT_FRACTION = 0.05;
  */
 function priceContextLabel(tx: TransactionRow): PriceContextLabel {
   if (tx.amountMinor === 0) return "free";
-  const original =
-    tx.originalPriceMinor ??
-    (tx.discountMinor !== undefined ? tx.amountMinor + tx.discountMinor : undefined);
+  const original = originalPrice(tx);
   if (original === undefined || original <= 0) return "full-price";
-  const fraction = (original - tx.amountMinor) / original;
-  if (fraction >= DEEP_SALE_FRACTION) return "deep-sale";
-  if (fraction >= DISCOUNT_FRACTION) return "discounted";
-  return "full-price";
+  return labelForFraction((original - tx.amountMinor) / original);
+}
+
+/** A purchase of the base game itself (not an add-on) that matched a title. */
+function isBaseGamePurchase(tx: TransactionRow, game: GamePlay | undefined): game is GamePlay {
+  return tx.kind === "purchase" && game !== undefined && !isAddOnPurchase(tx, game);
 }
 
 /** First base-game (non-add-on) purchase per matched title, keyed by titleId. */
@@ -343,9 +356,8 @@ function priceContextByTitle(
   const byName = indexByName(games);
   const contexts = new Map<string, PriceContextSummary>();
   for (const tx of transactions) {
-    if (tx.kind !== "purchase") continue;
     const game = matchGame(tx, games, byName);
-    if (!game || isAddOnPurchase(tx, game)) continue;
+    if (!isBaseGamePurchase(tx, game)) continue;
     if (contexts.has(game.titleId)) continue;
     contexts.set(game.titleId, {
       titleId: game.titleId,
