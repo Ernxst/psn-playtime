@@ -42,6 +42,26 @@ pnpm format       # oxfmt --write
 pnpm test         # vitest (node + browser projects)
 ```
 
+## Genre classification
+
+Each title is tagged with a coarse genre. Fast keyword rules (`enrich.ts`) run
+first; any title they can't place (it falls back to `"Other"`) is looked up in
+the [RAWG](https://rawg.io/apidocs) games database server-side and its genres
+mapped onto our buckets. Lookups are cached per build to respect RAWG's rate
+limits.
+
+This is **opt-in**: set `RAWG_API_KEY` to enable it. With no key — including in
+CI — RAWG is skipped and classification uses the keyword rules alone, so
+behaviour is unchanged. Copy `.env.example` to `.env` and add your free key:
+
+```bash
+cp .env.example .env   # then set RAWG_API_KEY
+```
+
+| Env var        | Required | Purpose                                                 |
+| -------------- | -------- | ------------------------------------------------------- |
+| `RAWG_API_KEY` | No       | Enables RAWG genre lookups for otherwise-`Other` titles |
+
 ## Stack
 
 - **TanStack Start** (SSR) + **TanStack Query**
@@ -56,7 +76,8 @@ pnpm test         # vitest (node + browser projects)
 | --------------------------- | ----------------------------------------------------------- |
 | `src/lib/psn/types.ts`      | The `DashboardData` contract (server produces, UI consumes) |
 | `src/server/psn.ts`         | Server functions: token exchange + fetch + normalise        |
-| `src/lib/psn/enrich.ts`     | Genre/franchise/app classification                          |
+| `src/lib/psn/enrich.ts`     | Genre/franchise/app classification (keyword rules)          |
+| `src/server/rawg.ts`        | RAWG genre lookup + mapping (fallback for `"Other"` titles) |
 | `src/lib/psn/analytics.ts`  | Pure selectors → chart-ready series                         |
 | `src/lib/psn/mock.ts`       | Bundled demo dataset                                        |
 | `src/routes/`               | `/` onboarding, `/dashboard`                                |

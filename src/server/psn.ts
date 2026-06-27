@@ -23,9 +23,11 @@ import type {
   DashboardMeta,
   GamePlay,
   GameTrophy,
+  Genre,
   ProfileSummary,
   TrophyCounts,
 } from "@/lib/psn/types";
+import { createRawgCache, lookupRawgGenre, type RawgCache } from "@/server/rawg";
 
 const COOKIE_NAME = "psn_npsso";
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 50; // ~50 days
@@ -197,18 +199,42 @@ interface Partitioned {
   appsExcluded: Array<{ name: string; hours: number }>;
 }
 
+/**
+ * Hybrid genre: keyword rules are the fast path. Only titles they leave as
+ * "Other" (which also means no franchise) fall through to a RAWG lookup, which
+ * keeps API calls minimal. A missing key, no match, or an error all keep the
+ * keyword result.
+ */
+async function resolveGenre(
+  name: string,
+  enriched: ReturnType<typeof enrichTitle>,
+  rawgCache: RawgCache
+): Promise<Genre> {
+  if (enriched.genre !== "Other") return enriched.genre;
+  const rawgGenre = await lookupRawgGenre(name, rawgCache);
+  return rawgGenre ?? enriched.genre;
+}
+
 /** Split played titles into games (sorted by hours) and excluded apps. */
-function partitionTitles(
+async function partitionTitles(
   playedTitles: PlayedTitle[],
-  trophyMap: Map<string, TrophyTitle>
-): Partitioned {
+  trophyMap: Map<string, TrophyTitle>,
+  rawgCache: RawgCache
+): Promise<Partitioned> {
   const games: GamePlay[] = [];
   const appsExcluded: Partitioned["appsExcluded"] = [];
   for (const title of playedTitles) {
     const hours = round2(hoursFromDuration(title.playDuration));
     const enriched = enrichTitle(title.name, title.category);
-    if (enriched.isApp) appsExcluded.push({ name: title.name, hours });
-    else games.push(toGamePlay(title, hours, enriched, trophyMap));
+    if (enriched.isApp) {
+      appsExcluded.push({ name: title.name, hours });
+      continue;
+    }
+    // Sequential by design: RAWG is hit only for unclassified titles, one at a
+    // time, to stay within its rate limits.
+    // oxlint-disable-next-line react-doctor/async-await-in-loop
+    const genre = await resolveGenre(title.name, enriched, rawgCache);
+    games.push(toGamePlay(title, hours, { ...enriched, genre }, trophyMap));
   }
   games.sort((a, b) => b.hours - a.hours);
   appsExcluded.sort((a, b) => b.hours - a.hours);
@@ -242,7 +268,11 @@ async function buildDashboard(auth: AuthorizationPayload): Promise<DashboardData
     fetchTrophyTitles(auth).catch(() => [] as TrophyTitle[]),
   ]);
 
-  const { games, appsExcluded } = partitionTitles(playedTitles, buildTrophyMap(trophyTitles));
+  const { games, appsExcluded } = await partitionTitles(
+    playedTitles,
+    buildTrophyMap(trophyTitles),
+    createRawgCache()
+  );
 
   return {
     profile,
