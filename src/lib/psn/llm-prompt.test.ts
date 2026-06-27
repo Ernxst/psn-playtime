@@ -35,6 +35,15 @@ function tx(overrides: Partial<TransactionRow>): TransactionRow {
   };
 }
 
+/** Soft groups whose lead drops the metric rubric (keeping caveat + genre). */
+const SOFT_LEADS = PROMPT_VARIANTS.filter(
+  (v) => v.group === "Taste & preferences" || v.group === "Profile & personality"
+);
+/** Groups whose lead keeps the full metric calibration rubric. */
+const METRIC_RUBRIC_LEADS = PROMPT_VARIANTS.filter(
+  (v) => v.group !== "Taste & preferences" && v.group !== "Profile & personality"
+);
+
 describe(".PROMPT_VARIANTS", () => {
   it("gives every question a unique id", () => {
     const ids = PROMPT_VARIANTS.map((v) => v.id);
@@ -324,11 +333,14 @@ describe(".buildPrompt", () => {
     );
   });
 
-  it.each(PROMPT_VARIANTS)("embeds the baseline-weighted trophy guidance for $id", (variant) => {
-    const prompt = buildPrompt(demoDashboard, variant);
+  it.each(METRIC_RUBRIC_LEADS)(
+    "embeds the baseline-weighted trophy guidance for $id",
+    (variant) => {
+      const prompt = buildPrompt(demoDashboard, variant);
 
-    expect(prompt).toContain(TROPHY_SIGNAL_GUIDANCE);
-  });
+      expect(prompt).toContain(TROPHY_SIGNAL_GUIDANCE);
+    }
+  );
 
   it("weights a platinum relative to the completionist baseline", () => {
     expect(TROPHY_SIGNAL_GUIDANCE).toContain(
@@ -355,7 +367,7 @@ describe(".buildPrompt", () => {
     expect(TROPHY_SIGNAL_GUIDANCE).toContain("I have no trophy-difficulty data");
   });
 
-  it.each(PROMPT_VARIANTS)(
+  it.each(METRIC_RUBRIC_LEADS)(
     "embeds the lifetime-vs-typical playtime guidance for $id",
     (variant) => {
       const prompt = buildPrompt(demoDashboard, variant);
@@ -374,7 +386,7 @@ describe(".buildPrompt", () => {
     );
   });
 
-  it.each(PROMPT_VARIANTS)(
+  it.each(METRIC_RUBRIC_LEADS)(
     "embeds the satisfied-completion vs abandonment guidance for $id",
     (variant) => {
       const prompt = buildPrompt(demoDashboard, variant);
@@ -475,4 +487,52 @@ describe(".buildPrompt", () => {
     );
     expect(PRICE_CONTEXT_GUIDANCE).toContain("Missing spend data is UNKNOWN, not neutral or negative");
   });
+
+  it.each(SOFT_LEADS)("drops the metric rubric blocks for the soft lead $id", (variant) => {
+    const prompt = buildPrompt(demoDashboard, variant);
+
+    expect(prompt).not.toContain(TROPHY_SIGNAL_GUIDANCE);
+    expect(prompt).not.toContain(PLAYTIME_SIGNAL_GUIDANCE);
+    expect(prompt).not.toContain(COMPLETION_INTERPRETATION_GUIDANCE);
+  });
+
+  it.each(SOFT_LEADS)(
+    "keeps the global caveat and genre play-pattern for the soft lead $id",
+    (variant) => {
+      const prompt = buildPrompt(demoDashboard, variant);
+
+      expect(prompt).toContain(METRIC_GUIDANCE_CAVEAT);
+      expect(prompt).toContain(PLAY_PATTERN_GUIDANCE);
+    }
+  );
+
+  it.each(SOFT_LEADS)(
+    "gates add-on and price guidance off for the soft lead $id even with matching transactions",
+    (variant) => {
+      const [game] = demoDashboard.games;
+
+      const prompt = buildPrompt(demoDashboard, variant, [
+        tx({ productName: `${game?.name} Season Pass`, skuId: game?.titleId }),
+        tx({
+          productName: game?.name ?? "",
+          skuId: game?.titleId,
+          amountMinor: 374,
+          originalPriceMinor: 4499,
+          discountMinor: 4125,
+        }),
+      ]);
+
+      expect(prompt).not.toContain(ADD_ON_SIGNAL_GUIDANCE);
+      expect(prompt).not.toContain(PRICE_CONTEXT_GUIDANCE);
+      expect(prompt).toContain("add-ons purchased: 1");
+      expect(prompt).toContain("bought: deep-sale (£3.74 of £44.99)");
+    }
+  );
+
+  it.each(METRIC_RUBRIC_LEADS)(
+    "leaves the no-transactions prompt byte-identical for the metric lead $id",
+    (variant) => {
+      expect(buildPrompt(demoDashboard, variant, [])).toBe(buildPrompt(demoDashboard, variant));
+    }
+  );
 });
