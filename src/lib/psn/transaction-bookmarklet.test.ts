@@ -48,4 +48,12 @@ describe(".bookmarkletHref", () => {
     expect(body).toContain("loadAll");
     expect(body).toContain("#data=");
   });
+
+  it("embeds the prefixed scroll-diagnostic tracing", () => {
+    const body = bookmarkletBody("https://psn.example.dev");
+
+    expect(body).toContain("[psn-import]");
+    expect(body).toContain("dumpScrollDiagnostics");
+    expect(body).toContain("doScrollPass");
+  });
 });

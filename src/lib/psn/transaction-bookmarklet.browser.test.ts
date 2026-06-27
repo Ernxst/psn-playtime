@@ -1,5 +1,9 @@
-import { describe, expect, it, onTestFinished } from "vitest";
-import { findScrollableAncestor, resolveScrollContainer } from "./transaction-bookmarklet";
+import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
+import {
+  dumpScrollDiagnostics,
+  findScrollableAncestor,
+  resolveScrollContainer,
+} from "./transaction-bookmarklet";
 
 describe(".findScrollableAncestor", () => {
   it("returns the nearest ancestor whose overflow-y scrolls real overflow", () => {
@@ -49,6 +53,10 @@ describe(".findScrollableAncestor", () => {
 });
 
 describe(".resolveScrollContainer", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   const buildPanel = (wrapperClass: string) => {
     const wrapper = document.createElement("div");
     wrapper.className = wrapperClass;
@@ -116,5 +124,44 @@ describe(".resolveScrollContainer", () => {
     onTestFinished(() => wrapper.remove());
 
     expect(resolveScrollContainer(document)).toBeNull();
+  });
+
+  it("warns when no scrollable container is found", () => {
+    const warn = vi.spyOn(console, "warn").mockReturnValue();
+    const wrapper = document.createElement("div");
+    const cards = document.createElement("div");
+    cards.className = "transaction-history-screen-cards";
+    wrapper.append(cards);
+    document.body.append(wrapper);
+    onTestFinished(() => wrapper.remove());
+
+    resolveScrollContainer(document);
+
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining("[psn-import] no scrollable container found")
+    );
+  });
+});
+
+describe(".dumpScrollDiagnostics", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("warns with a candidate dump covering each selector and the document scrollers", () => {
+    const warn = vi.spyOn(console, "warn").mockReturnValue();
+    const cards = document.createElement("div");
+    cards.className = "transaction-history-screen-cards";
+    document.body.append(cards);
+    onTestFinished(() => cards.remove());
+
+    dumpScrollDiagnostics(document);
+
+    expect(warn).toHaveBeenCalledWith("[psn-import] scroll diagnostics — candidate dump:");
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining(".transaction-history-workstream-wrapper")
+    );
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("document.scrollingElement"));
   });
 });
