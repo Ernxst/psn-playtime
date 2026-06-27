@@ -13,13 +13,12 @@ vi.mock("@/server/psn", () => ({
   signOut: vi.fn(),
 }));
 
-test("renders the connect-account card with the bookmarklet and manual steps", async () => {
+test("renders the connect-account card with the manual steps", async () => {
   const { element } = createHarness(<SignInCard />);
 
   await render(element);
 
   await expect.element(page.getByText("Connect your account")).toBeVisible();
-  await expect.element(page.getByRole("link", { name: /grab my psn token/i })).toBeVisible();
   await expect.element(page.getByRole("link", { name: /open the ssocookie page/i })).toBeVisible();
   await expect.element(page.getByRole("link", { name: /explore the demo/i })).toBeVisible();
 });

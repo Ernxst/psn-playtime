@@ -8,7 +8,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { signInWithToken } from "@/server/psn";
-import { Bookmarklet } from "./bookmarklet";
 
 const STEPS: Array<{ text: string; href?: string; linkText?: string }> = [
   {
@@ -118,21 +117,6 @@ function TokenForm() {
   );
 }
 
-function EasyPath() {
-  return (
-    <div className="space-y-3 rounded-lg border border-dashed border-primary/50 bg-primary/5 p-4">
-      <p className="text-sm font-semibold">Easiest way: the bookmarklet</p>
-      <p className="text-sm text-muted-foreground">
-        Drag <strong className="font-medium text-foreground">Grab my PSN token</strong> to your
-        bookmarks bar and log into PlayStation. Open the ssocookie page, then click{" "}
-        <strong className="font-medium text-foreground">Grab my PSN token</strong> on that page to
-        copy your token. Paste it below.
-      </p>
-      <Bookmarklet />
-    </div>
-  );
-}
-
 export function SignInCard() {
   return (
     <Card>
@@ -143,9 +127,8 @@ export function SignInCard() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
-        <EasyPath />
         <div className="space-y-3">
-          <p className="text-sm font-medium text-muted-foreground">Or grab it manually:</p>
+          <p className="text-sm font-medium text-muted-foreground">How to get your token:</p>
           <ol className="space-y-3 text-sm">
             {STEPS.map((step, i) => (
               <Step key={step.text} index={i} {...step} />
