@@ -167,15 +167,38 @@ async function fetchAllPlayedGames(auth: AuthorizationPayload): Promise<PlayedTi
 
 type TrophyTitle = Awaited<ReturnType<typeof getUserTitles>>["trophyTitles"][number];
 
+/**
+ * Diagnostic aid for #74. The trophy fetch already pages through the full list
+ * (`getUserTitles` caps at 800 per call and the loop offsets until
+ * `totalItemCount`), so a game stuck on "—" is either absent from
+ * `getUserTitles` for this account or present under a name our matcher misses.
+ * Telling those apart needs the real account, which can't run here — so when
+ * `PSN_DEBUG_TROPHIES` is set this dumps each fetched trophy title (raw name,
+ * the key it matches under, platform, progress) plus fetched-vs-expected
+ * counts. Off by default; never runs in normal use.
+ */
+function logTrophyTitlesDebug(titles: TrophyTitle[], totalItemCount: number | undefined): void {
+  if (!process.env.PSN_DEBUG_TROPHIES) return;
+  console.log(`[psn] getUserTitles fetched ${titles.length} of ${totalItemCount ?? "unknown"}`);
+  for (const t of titles) {
+    const name = JSON.stringify(t.trophyTitleName);
+    const key = JSON.stringify(matchKey(t.trophyTitleName));
+    console.log(`[psn] ${name} key=${key} platform=${t.npServiceName} progress=${t.progress}`);
+  }
+}
+
 async function fetchTrophyTitles(auth: AuthorizationPayload): Promise<TrophyTitle[]> {
   const all: TrophyTitle[] = [];
   let offset = 0;
+  let totalItemCount: number | undefined;
   for (;;) {
     const res = await getUserTitles(auth, "me", { limit: 800, offset });
     all.push(...res.trophyTitles);
     offset += res.trophyTitles.length;
+    totalItemCount = res.totalItemCount;
     if (res.trophyTitles.length === 0 || all.length >= (res.totalItemCount ?? all.length)) break;
   }
+  logTrophyTitlesDebug(all, totalItemCount);
   return all;
 }
 
