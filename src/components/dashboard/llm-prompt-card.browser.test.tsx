@@ -23,8 +23,9 @@ test("copies the prompt for the selected question to the clipboard", async () =>
 
   await page.getByRole("button", { name: "Copy prompt" }).click();
 
-  expect(writeText).toHaveBeenCalledTimes(1);
-  expect(writeText).toHaveBeenCalledWith(expect.stringContaining("Tell me what I play the most"));
+  expect(writeText).toHaveBeenCalledExactlyOnceWith(
+    expect.stringContaining("Tell me what I play the most")
+  );
 });
 
 test("changing the selected question changes the copied prompt", async () => {
@@ -35,8 +36,7 @@ test("changing the selected question changes the copied prompt", async () => {
   await page.getByRole("tab", { name: "What should I play next?" }).click();
   await page.getByRole("button", { name: "Copy prompt" }).click();
 
-  expect(writeText).toHaveBeenCalledTimes(1);
-  expect(writeText).toHaveBeenCalledWith(
+  expect(writeText).toHaveBeenCalledExactlyOnceWith(
     expect.stringContaining("Recommend what I should play next")
   );
 });
