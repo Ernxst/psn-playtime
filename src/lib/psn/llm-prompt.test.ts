@@ -41,6 +41,13 @@ describe(".buildDataSummary", () => {
     expect(buildDataSummary(demoDashboard)).toContain(`${top?.name} — ${top?.hours}h`);
   });
 
+  it("states the hours are lifetime totals with no per-period playtime", () => {
+    const summary = buildDataSummary(demoDashboard);
+
+    expect(summary).toContain("every hour below is a per-game LIFETIME total");
+    expect(summary).toContain("PSN reports no per-period or per-session playtime");
+  });
+
   it("includes each game's last and first played dates on its line", () => {
     const [top] = demoDashboard.games.toSorted((a, b) => b.hours - a.hours);
 
