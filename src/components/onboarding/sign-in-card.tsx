@@ -9,7 +9,29 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { signInWithToken } from "@/server/psn";
 
-const STEPS: Array<{ text: string; href?: string; linkText?: string }> = [
+/**
+ * Reduce a pasted npsso value to the bare token.
+ *
+ * Tolerates the three real-world paste shapes:
+ * - the full JSON the ssocookie page renders: `{"npsso":"<token>"}`
+ * - the value with its surrounding quotes: `"<token>"`
+ * - the bare token: `<token>`
+ */
+export function normalizeNpsso(input: string): string {
+  const trimmed = input.trim();
+  const jsonMatch = trimmed.match(/"?npsso"?\s*:\s*"([^"]+)"/);
+  if (jsonMatch?.[1]) {
+    return jsonMatch[1].trim();
+  }
+  return trimmed.replace(/^[{}"\s]+|[{}"\s]+$/g, "").trim();
+}
+
+const STEPS: Array<{
+  text: string;
+  href?: string;
+  linkText?: string;
+  example?: React.ReactNode;
+}> = [
   {
     text: "Log in to your account at playstation.com (in the browser you're using now).",
     href: "https://www.playstation.com",
@@ -21,11 +43,30 @@ const STEPS: Array<{ text: string; href?: string; linkText?: string }> = [
     linkText: "Open the ssocookie page",
   },
   {
-    text: 'Copy the 64-character value of "npsso" from that page and paste it below.',
+    text: "Copy the 64-character npsso token from that page and paste it below.",
+    example: (
+      <div className="space-y-1 rounded-md border bg-muted/50 p-2 font-mono text-xs break-all">
+        <p>
+          <span className="text-muted-foreground">{'{"npsso":"'}</span>
+          <span className="font-semibold text-foreground">abcd…(64 characters)…wxyz</span>
+          <span className="text-muted-foreground">{'"}'}</span>
+        </p>
+        <p className="font-sans text-muted-foreground">
+          Copy <span className="font-semibold text-foreground">only</span> the highlighted token,
+          not the quotes, braces, or <code className="font-mono">npsso:</code>.
+        </p>
+      </div>
+    ),
   },
 ];
 
-function Step({ index, text, href, linkText }: (typeof STEPS)[number] & { index: number }) {
+function Step({
+  index,
+  text,
+  href,
+  linkText,
+  example,
+}: (typeof STEPS)[number] & { index: number }) {
   return (
     <li className="flex gap-3">
       <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
@@ -44,6 +85,7 @@ function Step({ index, text, href, linkText }: (typeof STEPS)[number] & { index:
             <ExternalLink className="size-3" />
           </a>
         ) : null}
+        {example}
       </div>
     </li>
   );
@@ -86,7 +128,7 @@ function TokenForm() {
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const token = npsso.trim();
+    const token = normalizeNpsso(npsso);
     if (token) {
       signIn.mutate(token);
     } else {
