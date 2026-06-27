@@ -9,6 +9,7 @@
  * The summary is derived entirely from the existing `analytics.ts` selectors —
  * nothing here recomputes or duplicates that logic.
  */
+import { fmtDate } from "@/components/dashboard/format";
 import {
   bingeVsDipIn,
   genreBreakdown,
@@ -17,7 +18,7 @@ import {
   topFranchises,
   valuePerGame,
 } from "./analytics";
-import type { DashboardData } from "./types";
+import type { DashboardData, GamePlay } from "./types";
 
 /** A selectable question the user can copy a prompt for. */
 export interface PromptVariant {
@@ -79,13 +80,24 @@ export const PROMPT_VARIANTS = [
   },
 ] as const satisfies readonly PromptVariant[];
 
-/** Every game, biggest first, with its hours, genre and franchise. */
+/** Compact "last/first played" timing, omitting dates that are unknown. */
+function gameTiming(g: GamePlay): string {
+  const parts: string[] = [];
+  if (g.lastPlayed) parts.push(`last played ${fmtDate(g.lastPlayed)}`);
+  if (g.firstPlayed) parts.push(`first played ${fmtDate(g.firstPlayed)}`);
+  return parts.length === 0 ? ", timing unknown" : `, ${parts.join(", ")}`;
+}
+
+/**
+ * Every game, biggest first, with its hours, genre, franchise and when it was
+ * last (and first) played so recency can be weighed against raw hours.
+ */
 function listGames(data: DashboardData): string {
   return data.games
     .toSorted((a, b) => b.hours - a.hours)
     .map((g, i) => {
       const franchise = g.franchise ? `, ${g.franchise}` : "";
-      return `  ${i + 1}. ${g.name} — ${Math.round(g.hours)}h (${g.genre}${franchise})`;
+      return `  ${i + 1}. ${g.name} — ${Math.round(g.hours)}h (${g.genre}${franchise})${gameTiming(g)}`;
     })
     .join("\n");
 }
@@ -121,7 +133,7 @@ export function buildDataSummary(data: DashboardData): string {
     `- Totals: ${totals.gamesPlayed} games, ${totals.totalHours}h played, ${totals.sessions} sessions, PSN trophy level ${totals.trophyLevel}.`,
     `- Averages: ${value.avgHoursPerGame}h per game, ${value.avgSessionsPerGame} sessions per game, ${value.avgSessionLength}h per session.`,
     `- Recency (${r.thisYear}): ${r.activeGames} active games (${r.activeHours}h) vs ${r.dormantGames} dormant (${r.dormantHours}h).`,
-    "- All games by hours:",
+    "- All games by hours (with when each was last/first played):",
     listGames(data),
     "- Genres by hours:",
     listGenres(data),
@@ -136,6 +148,7 @@ export function buildDataSummary(data: DashboardData): string {
 export function buildPrompt(data: DashboardData, variant: PromptVariant): string {
   return [
     "You are a gaming analyst. I'm sharing a summary of my PlayStation playtime.",
+    "Weigh WHEN I played (recency and trends from each game's last/first played dates), not just total hours — a big total played years ago means something different from a smaller total I'm playing now.",
     "",
     buildDataSummary(data),
     "",
