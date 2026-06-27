@@ -20,6 +20,7 @@ import { GamesTable } from "./games-table";
 import { AppsExcludedNote, LifespansCard, RecencyCard, ValueCard } from "./insights";
 import { KpiCards } from "./kpi-cards";
 import { LlmPromptCard } from "./llm-prompt-card";
+import { SpendSection } from "./spend";
 import { DashboardEmpty } from "./states";
 
 const LazyTopGamesSection = lazy(() =>
@@ -172,6 +173,9 @@ function DashboardBody({ data }: { data: DashboardData }) {
       <InsightsSection data={data} />
       <Section id="ask-ai">
         <LlmPromptCard data={data} />
+      </Section>
+      <Section id="spend">
+        <SpendSection data={data} />
       </Section>
       <Section id="all-games">
         <GamesTable data={data} />

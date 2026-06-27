@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import {
   CalendarRange,
+  Coins,
   Gamepad2,
   LayoutDashboard,
   Lightbulb,
@@ -37,6 +38,7 @@ const DASHBOARD_SECTIONS: readonly Section[] = [
   { icon: CalendarRange, id: "timeline", label: "Timeline" },
   { icon: Lightbulb, id: "insights", label: "Insights" },
   { icon: Sparkles, id: "ask-ai", label: "Ask an AI" },
+  { icon: Coins, id: "spend", label: "Spend" },
   { icon: Gamepad2, id: "all-games", label: "All games" },
 ];
 
