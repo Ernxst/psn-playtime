@@ -496,6 +496,16 @@ describe(".gameRows", () => {
       },
     ]);
   });
+
+  it("surfaces trophy progress for tracked demo titles while leaving untracked ones blank", () => {
+    const rows = gameRows(demoDashboard);
+
+    const tracked = rows.filter((r) => r.trophyProgress !== undefined);
+    const untracked = rows.filter((r) => r.trophyProgress === undefined);
+
+    expect(tracked).toHaveLength(95);
+    expect(untracked).toHaveLength(3);
+  });
 });
 
 describe("analytics edge branches", () => {
