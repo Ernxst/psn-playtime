@@ -24,6 +24,7 @@ describe(".bookmarkletHref", () => {
     );
 
     expect(body).toContain("findScrollableAncestor");
+    expect(body).toContain("resolveScrollContainer");
     expect(body).toContain("countStabilised");
     expect(body).toContain("scrollToBottom");
   });

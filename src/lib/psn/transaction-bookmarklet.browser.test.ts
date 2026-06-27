@@ -1,5 +1,5 @@
 import { describe, expect, it, onTestFinished } from "vitest";
-import { findScrollableAncestor } from "./transaction-bookmarklet";
+import { findScrollableAncestor, resolveScrollContainer } from "./transaction-bookmarklet";
 
 describe(".findScrollableAncestor", () => {
   it("returns the nearest ancestor whose overflow-y scrolls real overflow", () => {
@@ -45,5 +45,76 @@ describe(".findScrollableAncestor", () => {
 
   it("returns null when given no element", () => {
     expect(findScrollableAncestor(null)).toBeNull();
+  });
+});
+
+describe(".resolveScrollContainer", () => {
+  const buildPanel = (wrapperClass: string) => {
+    const wrapper = document.createElement("div");
+    wrapper.className = wrapperClass;
+    wrapper.style.cssText = "height:50px;overflow-y:auto";
+    const tall = document.createElement("div");
+    tall.style.height = "500px";
+    const screen = document.createElement("div");
+    screen.className = "transaction-history-screen";
+    const cards = document.createElement("div");
+    cards.className = "transaction-history-screen-cards";
+    screen.append(cards);
+    tall.append(screen);
+    wrapper.append(tall);
+    document.body.append(wrapper);
+    onTestFinished(() => wrapper.remove());
+    return { wrapper, cards };
+  };
+
+  it("resolves the outer workstream wrapper when it scrolls real overflow", () => {
+    const { wrapper } = buildPanel("transaction-history-workstream-wrapper");
+
+    expect(resolveScrollContainer(document)).toBe(wrapper);
+  });
+
+  it("resolves the inner workstream when the wrapper is absent", () => {
+    const { wrapper } = buildPanel("transaction-history-workstream");
+
+    expect(resolveScrollContainer(document)).toBe(wrapper);
+  });
+
+  it("falls back to a scrollable ancestor of the cards container when no workstream scrolls", () => {
+    const scroller = document.createElement("div");
+    scroller.style.cssText = "height:50px;overflow-y:auto";
+    const tall = document.createElement("div");
+    tall.style.height = "500px";
+    const cards = document.createElement("div");
+    cards.className = "transaction-history-screen-cards";
+    tall.append(cards);
+    scroller.append(tall);
+    document.body.append(scroller);
+    onTestFinished(() => scroller.remove());
+
+    expect(resolveScrollContainer(document)).toBe(scroller);
+  });
+
+  it("ignores a workstream wrapper that has no real overflow", () => {
+    const wrapper = document.createElement("div");
+    wrapper.className = "transaction-history-workstream-wrapper";
+    wrapper.style.cssText = "height:500px;overflow-y:auto";
+    const cards = document.createElement("div");
+    cards.className = "transaction-history-screen-cards";
+    wrapper.append(cards);
+    document.body.append(wrapper);
+    onTestFinished(() => wrapper.remove());
+
+    expect(resolveScrollContainer(document)).toBeNull();
+  });
+
+  it("returns null when nothing scrolls", () => {
+    const wrapper = document.createElement("div");
+    const cards = document.createElement("div");
+    cards.className = "transaction-history-screen-cards";
+    wrapper.append(cards);
+    document.body.append(wrapper);
+    onTestFinished(() => wrapper.remove());
+
+    expect(resolveScrollContainer(document)).toBeNull();
   });
 });
