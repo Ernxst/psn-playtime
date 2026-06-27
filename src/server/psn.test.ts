@@ -457,6 +457,44 @@ describe("getDashboard", () => {
     expect(div2.trophy).toBeUndefined();
   });
 
+  it.each([
+    { playedName: "God of War", trophyTitleName: "God of War Ragnarök" },
+    { playedName: "Persona 5", trophyTitleName: "Persona 5 Royal" },
+    { playedName: "Grand Theft Auto V", trophyTitleName: "Grand Theft Auto V: The Story" },
+    { playedName: "LEGO Star Wars", trophyTitleName: "LEGO Star Wars: The Skywalker Saga" },
+    { playedName: "Call of Duty", trophyTitleName: "Call of Duty: Modern Warfare" },
+  ])(
+    'does not attach the more-specific "$trophyTitleName" to the broader played "$playedName"',
+    async ({ playedName, trophyTitleName }) => {
+      cookies.get.mockReturnValue("npsso-token");
+      mockExchangeNpsso.mockResolvedValue("access-code");
+      mockExchangeTokens.mockResolvedValue(authTokens);
+      mockGetProfile.mockResolvedValue(profile());
+      mockGetPlayed.mockResolvedValue(
+        playedPage(
+          [
+            played({
+              titleId: "seq",
+              name: playedName,
+              category: "ps5_native_game",
+              concept: { ...basePlayed.concept, name: playedName },
+              playDuration: "PT40H",
+              playCount: 5,
+            }),
+          ],
+          1
+        )
+      );
+      mockGetTitles.mockResolvedValue(trophyPage([trophy({ trophyTitleName, progress: 60 })], 1));
+
+      const result = await getDashboardHandler(cookies);
+
+      const game = result.games.find((g) => g.titleId === "seq")!;
+
+      expect(game.trophy).toBeUndefined();
+    }
+  );
+
   it("matches a played title that carries a trailing platform suffix the trophy list omits", async () => {
     cookies.get.mockReturnValue("npsso-token");
     mockExchangeNpsso.mockResolvedValue("access-code");

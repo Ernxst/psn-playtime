@@ -107,10 +107,16 @@ function matchKey(name: string): string {
   return normName(name).replace(TRAILING_PLATFORM, "").trim();
 }
 
-/** Whether `needle`'s tokens appear as a contiguous run within `haystack`'s. */
-function isContiguousSubset(needle: string[], haystack: string[]): boolean {
+/**
+ * Whether `needle`'s tokens are the trailing run of `haystack`'s — i.e. only a
+ * LEADING prefix may differ. This allows a brand prefix on one side ("the
+ * division 2" is the suffix of "tom clancy s the division 2") but rejects a
+ * sequel/edition appended at the end ("god of war" is a prefix, not a suffix,
+ * of "god of war ragnar k"), which would otherwise attach the wrong list.
+ */
+function isTokenSuffix(needle: string[], haystack: string[]): boolean {
   if (needle.length === 0 || needle.length > haystack.length) return false;
-  return ` ${haystack.join(" ")} `.includes(` ${needle.join(" ")} `);
+  return haystack.slice(haystack.length - needle.length).join(" ") === needle.join(" ");
 }
 
 function pickAvatar(urls: Array<{ size: string; avatarUrl: string }>): string | undefined {
@@ -208,9 +214,10 @@ function findTrophyTitle(map: Map<string, TrophyTitle>, names: string[]): Trophy
  * play/trophy name split, so exact equality misses even after normalization:
  * the trophy "Tom Clancy's The Division®2" → "tom clancy s the division 2"
  * never equals a played "the division 2". Fall back to a guarded token-subset
- * match — the shorter name's tokens must appear as a contiguous run within the
- * longer's, with enough tokens to be specific (`MIN_SUBSET_TOKENS`) and a
- * single unambiguous trophy list, so an unrelated set is never attached.
+ * match — the shorter name's tokens must be the TRAILING run of the longer's
+ * (only a leading prefix may differ), with enough tokens to be specific
+ * (`MIN_SUBSET_TOKENS`) and a single unambiguous trophy list, so a sequel,
+ * edition, or unrelated set is never attached.
  */
 const MIN_SUBSET_TOKENS = 2;
 
@@ -219,7 +226,7 @@ function subsetMatch(playedKey: string, trophyKey: string): boolean {
   const b = trophyKey.split(" ");
   const [shorter, longer] = a.length <= b.length ? [a, b] : [b, a];
   if (shorter.length < MIN_SUBSET_TOKENS) return false;
-  return isContiguousSubset(shorter, longer);
+  return isTokenSuffix(shorter, longer);
 }
 
 function uniqueSubsetMatch(map: Map<string, TrophyTitle>, key: string): TrophyTitle | undefined {
