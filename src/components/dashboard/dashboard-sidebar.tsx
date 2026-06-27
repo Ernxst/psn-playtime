@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import {
   CalendarRange,
   Gamepad2,
@@ -106,10 +107,14 @@ export function DashboardSidebar(): React.ReactElement {
   return (
     <Sidebar collapsible="offcanvas">
       <SidebarHeader>
-        <div className="flex items-center gap-2 px-2 py-1">
+        <Link
+          to="/"
+          aria-label="PSN Playtime — go to home page"
+          className="flex items-center gap-2 rounded-md px-2 py-1 outline-none transition-colors hover:text-primary focus-visible:ring-2 focus-visible:ring-ring"
+        >
           <Gamepad2 className="size-5 text-primary" />
           <span className="font-semibold group-data-[collapsible=icon]:hidden">PSN Playtime</span>
-        </div>
+        </Link>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
