@@ -305,6 +305,25 @@ function listSessionStyle(data: DashboardData): string {
     .join("\n");
 }
 
+/**
+ * The completionist baseline: total platinums earned account-wide plus the rate
+ * at which platinum-eligible games (those with trophy data and a platinum on
+ * offer) were actually platinumed. This gives the model a yardstick for how
+ * much weight a single platinum should carry. Games without trophy data are
+ * excluded from the rate (unknown, not zero), and the rate degrades gracefully
+ * when no game has a platinum available.
+ */
+function completionistBaseline(data: DashboardData): string {
+  const accountPlatinums = data.profile.earned.platinum;
+  const eligible = data.games.filter((g) => g.trophy?.hasPlatinum === true);
+  const platinumed = eligible.filter((g) => (g.trophy?.earned.platinum ?? 0) >= 1);
+  const rate =
+    eligible.length === 0
+      ? "no platinum-eligible games with trophy data, so no rate"
+      : `${Math.round((platinumed.length / eligible.length) * 100)}% platinum rate`;
+  return `- Completionist baseline: ${accountPlatinums} platinums earned account-wide; platinumed ${platinumed.length} of ${eligible.length} platinum-eligible games with trophy data (${rate}).`;
+}
+
 /** The compact, structured data summary embedded once in every prompt. */
 export function buildDataSummary(data: DashboardData): string {
   const totals = headlineTotals(data);
@@ -317,6 +336,7 @@ export function buildDataSummary(data: DashboardData): string {
     `- Totals: ${totals.gamesPlayed} games, ${totals.totalHours}h played, ${totals.sessions} sessions, PSN trophy level ${totals.trophyLevel}.`,
     `- Averages: ${value.avgHoursPerGame}h per game, ${value.avgSessionsPerGame} sessions per game, ${value.avgSessionLength}h per session.`,
     `- Recency (${r.thisYear}): ${r.activeGames} active games (${r.activeHours}h) vs ${r.dormantGames} dormant (${r.dormantHours}h).`,
+    completionistBaseline(data),
     "- All games by hours (with when each was last/first played):",
     listGames(data),
     "- Genres by hours:",
