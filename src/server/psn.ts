@@ -27,7 +27,14 @@ import type {
   ProfileSummary,
   TrophyCounts,
 } from "@/lib/psn/types";
-import { createRawgCache, lookupRawgGenre, type RawgCache } from "@/server/rawg";
+import {
+  createRawgCache,
+  createRawgFranchiseCache,
+  lookupRawgFranchise,
+  lookupRawgGenre,
+  type RawgCache,
+  type RawgFranchiseCache,
+} from "@/server/rawg";
 
 const COOKIE_NAME = "psn_npsso";
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 50; // ~50 days
@@ -266,6 +273,39 @@ async function prefetchRawgGenres(
   return rawgGenres;
 }
 
+/**
+ * Franchise/series, keyed by title name. Keyword `FRANCHISE_RULES` are the
+ * high-confidence fast path; only titles they leave without a franchise fall
+ * through to a RAWG lookup, matching the genre prefetch's minimal-call shape.
+ */
+type RawgFranchiseMap = Map<string, string | undefined>;
+
+async function prefetchRawgFranchises(
+  playedTitles: Array<{ name: string; category?: string }>,
+  rawgCache: RawgFranchiseCache
+): Promise<RawgFranchiseMap> {
+  const names = new Set<string>();
+  const rawgFranchises: RawgFranchiseMap = new Map();
+
+  for (const title of playedTitles) {
+    const enriched = enrichTitle(title.name, title.category);
+    if (!enriched.isApp && enriched.franchise === undefined) names.add(title.name);
+  }
+
+  const uniqueNames = Array.from(names);
+  for (let i = 0; i < uniqueNames.length; i += RAWG_LOOKUP_CONCURRENCY) {
+    const batch = uniqueNames.slice(i, i + RAWG_LOOKUP_CONCURRENCY);
+    // oxlint-disable-next-line react-doctor/async-await-in-loop
+    await Promise.all(
+      batch.map(async (name) => {
+        rawgFranchises.set(name, await lookupRawgFranchise(name, rawgCache));
+      })
+    );
+  }
+
+  return rawgFranchises;
+}
+
 function computeMeta(games: GamePlay[], appsExcluded: Partitioned["appsExcluded"]): DashboardMeta {
   const firstDates = games
     .map((g) => g.firstPlayed)
@@ -383,5 +423,15 @@ export const getRawgGenres = createServerFn({ method: "POST" })
     return data.titles.flatMap((title) => {
       const genre = rawgGenres.get(title.name);
       return genre ? [{ titleId: title.titleId, genre }] : [];
+    });
+  });
+
+export const getRawgFranchises = createServerFn({ method: "POST" })
+  .validator(rawgGenreInput)
+  .handler(async ({ data }): Promise<Array<{ titleId: string; franchise: string }>> => {
+    const rawgFranchises = await prefetchRawgFranchises(data.titles, createRawgFranchiseCache());
+    return data.titles.flatMap((title) => {
+      const franchise = rawgFranchises.get(title.name);
+      return franchise ? [{ titleId: title.titleId, franchise }] : [];
     });
   });
