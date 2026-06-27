@@ -311,43 +311,60 @@ async function buildDashboard(auth: AuthorizationPayload): Promise<DashboardData
   };
 }
 
-export const getDashboard = createServerFn({ method: "GET" }).handler(
-  async (): Promise<DashboardData> => {
-    const npsso = getCookie(COOKIE_NAME);
-    if (!npsso) return demoDashboard;
-    try {
-      const auth = await authenticate(npsso);
-      return await buildDashboard(auth);
-    } catch {
-      deleteCookie(COOKIE_NAME, { path: "/" });
-      return demoDashboard;
-    }
+interface CookieJar {
+  get: (name: string) => string | undefined;
+  set: (name: string, value: string, options: ReturnType<typeof cookieOptions>) => void;
+  remove: (name: string, options: { path: string }) => void;
+}
+
+export async function getDashboardHandler(cookies: CookieJar): Promise<DashboardData> {
+  const npsso = cookies.get(COOKIE_NAME);
+  if (!npsso) return demoDashboard;
+  try {
+    const auth = await authenticate(npsso);
+    return await buildDashboard(auth);
+  } catch {
+    cookies.remove(COOKIE_NAME, { path: "/" });
+    return demoDashboard;
   }
+}
+
+export const getDashboard = createServerFn({ method: "GET" }).handler(() =>
+  getDashboardHandler({ get: getCookie, set: setCookie, remove: deleteCookie })
 );
 
 const signInInput = z.object({
   npsso: z.string().trim().min(1, "Paste your npsso token first."),
 });
 
+export async function signInWithTokenHandler(
+  data: z.infer<typeof signInInput>,
+  cookies: CookieJar
+): Promise<DashboardData> {
+  let dashboard: DashboardData;
+  try {
+    const auth = await authenticate(data.npsso);
+    dashboard = await buildDashboard(auth);
+  } catch {
+    throw new Error(
+      "That token didn't work — it may be expired. Grab a fresh npsso and try again."
+    );
+  }
+  cookies.set(COOKIE_NAME, data.npsso, cookieOptions());
+  return dashboard;
+}
+
 export const signInWithToken = createServerFn({ method: "POST" })
   .validator(signInInput)
-  .handler(async ({ data }): Promise<DashboardData> => {
-    let dashboard: DashboardData;
-    try {
-      const auth = await authenticate(data.npsso);
-      dashboard = await buildDashboard(auth);
-    } catch {
-      throw new Error(
-        "That token didn't work — it may be expired. Grab a fresh npsso and try again."
-      );
-    }
-    setCookie(COOKIE_NAME, data.npsso, cookieOptions());
-    return dashboard;
-  });
+  .handler(({ data }) =>
+    signInWithTokenHandler(data, { get: getCookie, set: setCookie, remove: deleteCookie })
+  );
 
-export const signOut = createServerFn({ method: "POST" }).handler(
-  async (): Promise<{ ok: true }> => {
-    deleteCookie(COOKIE_NAME, { path: "/" });
-    return { ok: true };
-  }
+export function signOutHandler(cookies: CookieJar): { ok: true } {
+  cookies.remove(COOKIE_NAME, { path: "/" });
+  return { ok: true };
+}
+
+export const signOut = createServerFn({ method: "POST" }).handler(() =>
+  signOutHandler({ get: getCookie, set: setCookie, remove: deleteCookie })
 );

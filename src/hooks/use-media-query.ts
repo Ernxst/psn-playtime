@@ -13,14 +13,20 @@ function getServerSnapshot(): boolean {
 /** SSR-safe hook: true when the viewport is below the `md` breakpoint. */
 export function useMediaQuery(_query: "max-md"): boolean {
   const subscribe = useCallback((callback: () => void) => {
+    // Defensive SSR guard; subscribe only runs client-side where window exists.
+    /* v8 ignore start */
     if (typeof window === "undefined") return () => {};
+    /* v8 ignore stop */
     const mql = window.matchMedia(MOBILE_MEDIA_QUERY);
     mql.addEventListener("change", callback);
     return () => mql.removeEventListener("change", callback);
   }, []);
 
   const getSnapshot = useCallback(() => {
+    // Defensive SSR guard; getSnapshot only runs client-side where window exists.
+    /* v8 ignore start */
     if (typeof window === "undefined") return false;
+    /* v8 ignore stop */
     return window.matchMedia(MOBILE_MEDIA_QUERY).matches;
   }, []);
 

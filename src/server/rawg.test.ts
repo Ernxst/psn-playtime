@@ -105,4 +105,31 @@ describe(".lookupRawgGenre", () => {
 
     await expect(lookupRawgGenre("Some Game", createRawgCache())).resolves.toBeUndefined();
   });
+
+  it("falls back to undefined when the response payload fails schema validation", async () => {
+    process.env.RAWG_API_KEY = "test-key";
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ results: "not-an-array" }), { status: 200 })
+    );
+
+    await expect(lookupRawgGenre("Some Game", createRawgCache())).resolves.toBeUndefined();
+  });
+
+  it("returns undefined for a result with no genres array", async () => {
+    process.env.RAWG_API_KEY = "test-key";
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ results: [{}] }), { status: 200 })
+    );
+
+    await expect(lookupRawgGenre("Some Game", createRawgCache())).resolves.toBeUndefined();
+  });
+
+  it("skips the network when the name normalizes to an empty query", async () => {
+    process.env.RAWG_API_KEY = "test-key";
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+    await expect(lookupRawgGenre("™®©", createRawgCache())).resolves.toBeUndefined();
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
 });
