@@ -75,6 +75,7 @@ export function GenreChart({ data }: { data: DashboardData }) {
           content={
             <ChartTooltipContent
               nameKey="genre"
+              labelKey="genre"
               formatter={(v, _n, item) =>
                 `${Number(v).toLocaleString()} hours · ${item.payload.share}%`
               }
