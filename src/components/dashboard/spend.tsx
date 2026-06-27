@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { useMediaQuery } from "@/hooks/use-media-query";
 import { type SpendSummary, summariseSpend } from "@/lib/psn/spend";
 import { bookmarkletHref } from "@/lib/psn/transaction-bookmarklet";
 import type { DashboardData } from "@/lib/psn/types";
@@ -20,26 +21,37 @@ function perHour(currency: string, value: number): string {
   return `${money(currency, value)}/hr`;
 }
 
-const STEPS: Array<{ text: ReactNode; href?: string; linkText?: string }> = [
-  {
-    text: "Drag the button below onto your bookmarks bar (or copy it and make a new bookmark).",
-  },
-  {
-    text: (
-      <>
-        Open PlayStation and make sure you are <strong>signed in</strong>.
-      </>
-    ),
-    href: "https://www.playstation.com/en-gb/",
-    linkText: "Open PlayStation",
-  },
-  {
-    text: "Click the bookmark — it fetches your full purchase history and sends it back here in one click. No navigating or scrolling.",
-  },
-];
+function steps(
+  canDragBookmarklet: boolean
+): Array<{ text: ReactNode; href?: string; linkText?: string }> {
+  return [
+    {
+      text: canDragBookmarklet
+        ? "Drag the button below onto your bookmarks bar (or copy it and make a new bookmark)."
+        : "Click Copy bookmark and save it as a new bookmark.",
+    },
+    {
+      text: (
+        <>
+          Open PlayStation and make sure you are <strong>signed in</strong>.
+        </>
+      ),
+      href: "https://www.playstation.com/en-gb/",
+      linkText: "Open PlayStation",
+    },
+    {
+      text: "Click the bookmark — it fetches your full purchase history and sends it back here in one click. No navigating or scrolling.",
+    },
+  ];
+}
 
 /** A numbered instruction step, mirroring the onboarding sign-in card. */
-function Step({ index, text, href, linkText }: (typeof STEPS)[number] & { index: number }) {
+function Step({
+  index,
+  text,
+  href,
+  linkText,
+}: ReturnType<typeof steps>[number] & { index: number }) {
   return (
     <li className="flex gap-3">
       <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
@@ -101,6 +113,8 @@ function BookmarkletActions() {
 
 /** Prompt shown until the user imports their transaction history. */
 function ImportSpendCard() {
+  const canDragBookmarklet = !useMediaQuery("coarse-pointer");
+
   return (
     <Card>
       <CardHeader>
@@ -114,7 +128,7 @@ function ImportSpendCard() {
       </CardHeader>
       <CardContent className="space-y-4 text-sm">
         <ol className="space-y-3 text-muted-foreground">
-          {STEPS.map((step, i) => (
+          {steps(canDragBookmarklet).map((step, i) => (
             <Step key={step.linkText ?? i} index={i} {...step} />
           ))}
         </ol>

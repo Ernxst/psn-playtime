@@ -9,6 +9,24 @@ import { SpendSection } from "./spend";
 /** The demo library as it would arrive for a real, signed-in account. */
 const realDashboard = { ...demoDashboard, isDemo: false };
 
+function mockPointer(coarse: boolean) {
+  const original = window.matchMedia;
+  window.matchMedia = (query: string): MediaQueryList =>
+    ({
+      matches: query === "(pointer: coarse)" ? coarse : original.call(window, query).matches,
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      addListener: () => {},
+      dispatchEvent: () => true,
+      removeEventListener: () => {},
+      removeListener: () => {},
+    }) satisfies MediaQueryList;
+  onTestFinished(() => {
+    window.matchMedia = original;
+  });
+}
+
 function seed(transactions: TransactionRow[]) {
   saveTransactionImport({
     transactions,
@@ -25,6 +43,32 @@ test("prompts for an import when no transactions are present", async () => {
 
   await expect.element(page.getByText("Add your spend")).toBeVisible();
   await expect.element(page.getByText("Import PSN spend")).toBeVisible();
+});
+
+test("tells coarse pointer users to copy the bookmark", async () => {
+  onTestFinished(clearTransactionImport);
+  mockPointer(true);
+
+  await render(<SpendSection data={demoDashboard} />);
+
+  await expect
+    .element(page.getByText("Click Copy bookmark and save it as a new bookmark."))
+    .toBeVisible();
+});
+
+test("tells fine pointer users they can drag the bookmarklet", async () => {
+  onTestFinished(clearTransactionImport);
+  mockPointer(false);
+
+  await render(<SpendSection data={demoDashboard} />);
+
+  await expect
+    .element(
+      page.getByText(
+        "Drag the button below onto your bookmarks bar (or copy it and make a new bookmark)."
+      )
+    )
+    .toBeVisible();
 });
 
 test("links to PlayStation order history in the import instructions", async () => {
