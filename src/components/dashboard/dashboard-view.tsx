@@ -22,7 +22,7 @@ import { AppsExcludedNote, ComebacksCard, LifespansCard, RecencyCard, ValueCard 
 import { KpiCards } from "./kpi-cards";
 import { LlmPromptCard } from "./llm-prompt-card";
 import { SpendSection } from "./spend";
-import { DashboardEmpty } from "./states";
+import { DashboardEmpty, DashboardNoMatches } from "./states";
 
 const LazyTopGamesSection = lazy(() =>
   import("./chart-sections").then((module) => ({ default: module.TopGamesSection }))
@@ -165,7 +165,6 @@ function InsightsSection({ data }: { data: DashboardData }) {
 }
 
 function DashboardBody({ data, timeframe }: { data: DashboardData; timeframe: Timeframe }) {
-  if (data.games.length === 0) return <DashboardEmpty />;
   return (
     <div className="space-y-6">
       <Section id="overview">
@@ -200,10 +199,30 @@ function DashboardBody({ data, timeframe }: { data: DashboardData; timeframe: Ti
   );
 }
 
+function DashboardContent({
+  data,
+  filters,
+  onClearFilters,
+}: {
+  data: DashboardData;
+  filters: DashboardFilters;
+  onClearFilters: () => void;
+}) {
+  const scoped = applyFilters(data, filters);
+  if (scoped.games.length === 0) {
+    return data.games.length > 0 ? (
+      <DashboardNoMatches onClear={onClearFilters} />
+    ) : (
+      <DashboardEmpty />
+    );
+  }
+  return <DashboardBody data={scoped} timeframe={filters.timeframe} />;
+}
+
 export function DashboardView({ data, onSignOut, signingOut }: Props) {
   const { profile } = data;
   const [filters, setFilters] = useState<DashboardFilters>(defaultFilters);
-  const scoped = applyFilters(data, filters);
+  const resetFilters = () => setFilters(defaultFilters);
   return (
     <SidebarProvider>
       <DashboardSidebar />
@@ -233,7 +252,7 @@ export function DashboardView({ data, onSignOut, signingOut }: Props) {
             />
             <FilterBar data={data} filters={filters} onChange={setFilters} />
           </div>
-          <DashboardBody data={scoped} timeframe={filters.timeframe} />
+          <DashboardContent data={data} filters={filters} onClearFilters={resetFilters} />
         </div>
       </SidebarInset>
     </SidebarProvider>
