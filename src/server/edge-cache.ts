@@ -30,6 +30,14 @@ export interface CacheLike {
   put: (request: Request, response: Response) => Promise<void>;
 }
 
+declare global {
+  // `caches.default` is a Cloudflare Workers extension absent from the DOM
+  // `CacheStorage` type; declare it rather than pulling in a types package.
+  interface CacheStorage {
+    readonly default: CacheLike;
+  }
+}
+
 export interface CachedDeps {
   /** Inject a cache (tests); defaults to `caches.default` when available. */
   cache?: CacheLike;
@@ -39,12 +47,9 @@ export interface CachedDeps {
 
 function resolveCache(injected: CacheLike | undefined): CacheLike | undefined {
   if (injected) return injected;
-  // `caches.default` is a Cloudflare Workers extension absent from the DOM
-  // `CacheStorage` type, so reach it through a narrow cast rather than pulling
-  // in @cloudflare/workers-types just for one property.
   if (typeof caches === "undefined") return undefined;
   try {
-    return (caches as unknown as { default?: CacheLike }).default;
+    return caches.default;
   } catch {
     return undefined;
   }
@@ -69,7 +74,11 @@ async function readFresh<T>(
   try {
     const expires = Number(response.headers.get(EXPIRES_HEADER));
     if (!Number.isFinite(expires) || now >= expires) return { fresh: false };
-    return { fresh: true, value: (await response.json()) as T };
+    // Deserialising an opaque cache body to the caller's T is inherently an
+    // unchecked assertion; the producer's return type is the source of truth.
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+    const value = (await response.json()) as T;
+    return { fresh: true, value };
   } catch {
     return { fresh: false };
   }
@@ -78,16 +87,14 @@ async function readFresh<T>(
 async function safePut<T>(
   cache: CacheLike,
   request: Request,
-  value: T,
-  ttlMs: number,
-  expiresAt: number
+  entry: { value: T; ttlMs: number; expiresAt: number }
 ): Promise<void> {
   try {
-    const response = new Response(JSON.stringify(value), {
+    const response = new Response(JSON.stringify(entry.value), {
       headers: {
         "content-type": "application/json",
-        "cache-control": `max-age=${Math.floor(ttlMs / 1000)}`,
-        [EXPIRES_HEADER]: String(expiresAt),
+        "cache-control": `max-age=${Math.floor(entry.ttlMs / 1000)}`,
+        [EXPIRES_HEADER]: String(entry.expiresAt),
       },
     });
     await cache.put(request, response);
@@ -121,6 +128,6 @@ export async function cached<T>(
   }
 
   const value = await producer();
-  await safePut(cache, request, value, ttlMs, now() + ttlMs);
+  await safePut(cache, request, { value, ttlMs, expiresAt: now() + ttlMs });
   return value;
 }
