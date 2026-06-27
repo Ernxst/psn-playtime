@@ -9,6 +9,7 @@ import {
   COMPLETION_INTERPRETATION_GUIDANCE,
   PLAY_PATTERN_GUIDANCE,
   PLAYTIME_SIGNAL_GUIDANCE,
+  PRICE_CONTEXT_GUIDANCE,
   PROMPT_GROUPS,
   PROMPT_VARIANTS,
   TROPHY_SIGNAL_GUIDANCE,
@@ -189,6 +190,27 @@ describe(".buildDataSummary", () => {
 
     expect(summary).not.toContain("add-ons purchased");
     expect(summary).not.toContain("Imported transaction signal");
+  });
+
+  it("surfaces per-game purchase-price context when spend matches the base game", () => {
+    const [game] = demoDashboard.games;
+    const summary = buildDataSummary(demoDashboard, [
+      tx({
+        productName: game?.name ?? "",
+        skuId: game?.titleId,
+        amountMinor: 374,
+        originalPriceMinor: 4499,
+        discountMinor: 4125,
+      }),
+    ]);
+
+    expect(summary).toContain("bought: deep-sale (£3.74 of £44.99)");
+  });
+
+  it("omits purchase-price context when no transactions are imported", () => {
+    const summary = buildDataSummary(demoDashboard);
+
+    expect(summary).not.toContain("bought:");
   });
 });
 
@@ -385,5 +407,37 @@ describe(".buildPrompt", () => {
 
     expect(prompt).not.toContain(ADD_ON_SIGNAL_GUIDANCE);
     expect(prompt).not.toContain("add-ons purchased");
+  });
+
+  it("embeds price-context guidance when imported transactions match a base game", () => {
+    const [game] = demoDashboard.games;
+    const [variant] = PROMPT_VARIANTS;
+    const prompt = buildPrompt(demoDashboard, variant, [
+      tx({
+        productName: game?.name ?? "",
+        skuId: game?.titleId,
+        amountMinor: 374,
+        originalPriceMinor: 4499,
+        discountMinor: 4125,
+      }),
+    ]);
+
+    expect(prompt).toContain(PRICE_CONTEXT_GUIDANCE);
+    expect(prompt).toContain("bought: deep-sale (£3.74 of £44.99)");
+  });
+
+  it("omits price-context guidance when no transactions are imported", () => {
+    const [variant] = PROMPT_VARIANTS;
+    const prompt = buildPrompt(demoDashboard, variant);
+
+    expect(prompt).not.toContain(PRICE_CONTEXT_GUIDANCE);
+    expect(prompt).not.toContain("bought:");
+  });
+
+  it("keeps the sale-is-not-lower-enjoyment and missing-data-unknown caveats", () => {
+    expect(PRICE_CONTEXT_GUIDANCE).toContain(
+      "A sale or deep-sale purchase does NOT imply lower enjoyment."
+    );
+    expect(PRICE_CONTEXT_GUIDANCE).toContain("Missing spend data is UNKNOWN, not neutral or negative");
   });
 });

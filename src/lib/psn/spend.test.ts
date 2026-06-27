@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isAddOnPurchase, summariseAddOns, summariseSpend } from "./spend";
+import { isAddOnPurchase, summariseAddOns, summarisePriceContext, summariseSpend } from "./spend";
 import type { TransactionRow } from "./transactions";
 import type { DashboardData, GamePlay } from "./types";
 
@@ -186,6 +186,110 @@ describe(".summariseAddOns", () => {
   it("ignores unmatched add-ons", () => {
     const summary = summariseAddOns(data([game("Hades", 10)]), [
       tx({ productName: "Unknown Game Season Pass", amountMinor: 999 }),
+    ]);
+
+    expect(summary).toEqual([]);
+  });
+});
+
+describe(".summarisePriceContext", () => {
+  it("labels a free claim as free", () => {
+    const summary = summarisePriceContext(data([game("Free Claim", 5)]), [
+      tx({ productName: "Free Claim", amountMinor: 0 }),
+    ]);
+
+    expect(summary).toEqual([
+      {
+        titleId: "Free Claim",
+        name: "Free Claim",
+        label: "free",
+        paidMinor: 0,
+        originalPriceMinor: undefined,
+        currency: "£",
+      },
+    ]);
+  });
+
+  it("labels a large discount as deep-sale", () => {
+    const summary = summarisePriceContext(data([game("Sale Hit", 20)]), [
+      tx({
+        productName: "Sale Hit",
+        amountMinor: 374,
+        originalPriceMinor: 4499,
+        discountMinor: 4125,
+      }),
+    ]);
+
+    expect(summary).toEqual([
+      {
+        titleId: "Sale Hit",
+        name: "Sale Hit",
+        label: "deep-sale",
+        paidMinor: 374,
+        originalPriceMinor: 4499,
+        currency: "£",
+      },
+    ]);
+  });
+
+  it("labels a modest discount as discounted", () => {
+    const summary = summarisePriceContext(data([game("Bit Off", 20)]), [
+      tx({ productName: "Bit Off", amountMinor: 3999, originalPriceMinor: 4999 }),
+    ]);
+
+    expect(summary[0]?.label).toBe("discounted");
+  });
+
+  it("labels a negligible discount as full-price", () => {
+    const summary = summarisePriceContext(data([game("Near Full", 20)]), [
+      tx({ productName: "Near Full", amountMinor: 4900, originalPriceMinor: 4999 }),
+    ]);
+
+    expect(summary[0]?.label).toBe("full-price");
+  });
+
+  it("falls back to full-price when no original price is known", () => {
+    const summary = summarisePriceContext(data([game("No Original", 20)]), [
+      tx({ productName: "No Original", amountMinor: 5999 }),
+    ]);
+
+    expect(summary[0]?.label).toBe("full-price");
+  });
+
+  it("derives the discount from discountMinor when originalPriceMinor is absent", () => {
+    const summary = summarisePriceContext(data([game("Disc Only", 20)]), [
+      tx({ productName: "Disc Only", amountMinor: 1000, discountMinor: 4000 }),
+    ]);
+
+    expect(summary[0]?.label).toBe("deep-sale");
+  });
+
+  it("attributes the base-game purchase through the spend matcher and ignores add-ons", () => {
+    const summary = summarisePriceContext(data([game("Hades", 10, "PPSA01234_00")]), [
+      tx({
+        productName: "Hades",
+        skuId: "EP4040-PPSA01234_00-HADES00000000000-E001",
+        amountMinor: 1599,
+        originalPriceMinor: 1999,
+      }),
+      tx({ productName: "Hades - Season Pass", amountMinor: 999, originalPriceMinor: 999 }),
+    ]);
+
+    expect(summary).toEqual([
+      {
+        titleId: "PPSA01234_00",
+        name: "Hades",
+        label: "discounted",
+        paidMinor: 1599,
+        originalPriceMinor: 1999,
+        currency: "£",
+      },
+    ]);
+  });
+
+  it("ignores purchases that match no library title", () => {
+    const summary = summarisePriceContext(data([game("Hades", 10)]), [
+      tx({ productName: "Unknown Game", amountMinor: 1999, originalPriceMinor: 1999 }),
     ]);
 
     expect(summary).toEqual([]);
