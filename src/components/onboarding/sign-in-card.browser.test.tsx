@@ -23,6 +23,31 @@ test("renders the connect-account card with the manual steps", async () => {
   await expect.element(page.getByRole("link", { name: /explore the demo/i })).toBeVisible();
 });
 
+test("discloses the unofficial ToS-violating method before the token step", async () => {
+  const { element } = createHarness(<SignInCard />);
+
+  await render(element);
+
+  await expect.element(page.getByText(/unofficial method/i)).toBeVisible();
+  await expect.element(page.getByText(/against PlayStation's Terms of Service/i)).toBeVisible();
+});
+
+test("expanding the disclosure reveals the read-only detail and the psn-api link", async () => {
+  const { element } = createHarness(<SignInCard />);
+
+  await render(element);
+
+  await page.getByText("Learn more").click();
+
+  await expect.element(page.getByText(/It is read-only/i)).toBeVisible();
+  await expect.element(page.getByText(/expires after about 2 months/i)).toBeVisible();
+
+  const psnApiLink = page.getByRole("link", { name: /psn-api/i });
+  await expect
+    .element(psnApiLink)
+    .toHaveAttribute("href", "https://github.com/achievements-app/psn-api");
+});
+
 test("submitting an empty token shows a validation toast and skips the request", async () => {
   const { element } = createHarness(
     <>

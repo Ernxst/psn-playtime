@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { ArrowRight, ExternalLink, Loader2, ShieldAlert } from "lucide-react";
+import { ArrowRight, ExternalLink, Info, Loader2, ShieldAlert } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -59,6 +59,68 @@ const STEPS: Array<{
     ),
   },
 ];
+
+const PSN_API_URL = "https://github.com/achievements-app/psn-api";
+
+function TosDetails() {
+  return (
+    <ul className="mt-2 list-disc space-y-1.5 pr-1 pl-9 text-muted-foreground">
+      <li>
+        It uses your PSN session cookie with Sony's internal endpoints. There is no public PSN API,
+        so this is technically a Terms of Service violation.
+      </li>
+      <li>
+        It is read-only. It only reads your own profile and playtime, and never changes anything on
+        your account.
+      </li>
+      <li>
+        Your npsso token is like a password, so keep it secret. It stays in your browser session and
+        is never shared.
+      </li>
+      <li>
+        The token expires after about 2 months, and you can revoke it any time by signing out of
+        PSN.
+      </li>
+      <li>
+        Curious how it works? It is built on{" "}
+        <a
+          href={PSN_API_URL}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1 text-primary underline-offset-4 hover:underline"
+        >
+          psn-api
+          <ExternalLink className="size-3" />
+        </a>
+        .
+      </li>
+    </ul>
+  );
+}
+
+function TosDisclosure() {
+  return (
+    <div className="space-y-2 rounded-md border bg-muted/50 p-3 text-xs">
+      <p className="flex items-start gap-2 text-foreground">
+        <Info
+          className="size-3.5 shrink-0 translate-y-px text-muted-foreground"
+          aria-hidden="true"
+        />
+        <span>
+          This connects with an <span className="font-semibold">unofficial method</span> that is
+          against PlayStation's Terms of Service. The risk for read-only personal use is low, but
+          not zero, so you opt in at your own discretion.
+        </span>
+      </p>
+      <details>
+        <summary className="ml-[1.375rem] cursor-pointer text-primary underline-offset-4 hover:underline">
+          Learn more
+        </summary>
+        <TosDetails />
+      </details>
+    </div>
+  );
+}
 
 function Step({
   index,
@@ -177,6 +239,7 @@ export function SignInCard() {
             ))}
           </ol>
         </div>
+        <TosDisclosure />
         <TokenForm />
         <div className="flex items-center justify-center pt-1">
           <Button render={<Link to="/dashboard" />} variant="ghost" size="sm">
