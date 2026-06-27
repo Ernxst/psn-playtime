@@ -547,24 +547,52 @@ export const METRIC_GUIDANCE_CAVEAT = [
 ].join("\n");
 
 /**
+ * Groups whose lead question is anchored on a metric reading (enjoyment-vs-time,
+ * completion, recommendations, and the ranking/efficiency questions under
+ * "More"). For these the per-metric calibration rubric (trophy / playtime /
+ * completion / add-on / price) earns its place. For the soft groups ("Taste &
+ * preferences", "Profile & personality") that rubric is mostly noise that
+ * anchors the model into a scoring mindset, so it is dropped — the global caveat
+ * and the genre-interpretation block (#94) still apply. "More" defaults in:
+ * a couple of its questions are soft, but over-informing is safer than starving
+ * a metric question, and genre interpretation is shown regardless.
+ */
+const METRIC_RUBRIC_GROUPS = new Set<PromptGroup>([
+  "Engagement & enjoyment",
+  "Completion & habits",
+  "Recommendations",
+  "More",
+]);
+
+/**
  * Build the full, ready-to-paste prompt: the data summary once, the chosen
  * lead question, then the rest as paste-able follow-ups.
+ *
+ * The global caveat and the genre-interpretation block are always shown. The
+ * per-metric calibration rubric is included only when the lead question's group
+ * is anchored on a metric reading (see `METRIC_RUBRIC_GROUPS`); the conditional
+ * add-on / price blocks are additionally gated on imported transactions.
  */
 export function buildPrompt(
   data: DashboardData,
   lead: PromptVariant,
   transactions?: readonly TransactionRow[]
 ): string {
+  const metricRubric = METRIC_RUBRIC_GROUPS.has(lead.group)
+    ? [
+        TROPHY_SIGNAL_GUIDANCE,
+        PLAYTIME_SIGNAL_GUIDANCE,
+        COMPLETION_INTERPRETATION_GUIDANCE,
+        ...addOnGuidance(data, transactions),
+        ...priceContextGuidance(data, transactions),
+      ]
+    : [];
   return [
     "You are a gaming analyst. I'm sharing a summary of my PlayStation playtime.",
     "Weigh WHEN I played (recency and trends from each game's last/first played dates), not just total hours — a big total played years ago means something different from a smaller total I'm playing now.",
     METRIC_GUIDANCE_CAVEAT,
     PLAY_PATTERN_GUIDANCE,
-    TROPHY_SIGNAL_GUIDANCE,
-    PLAYTIME_SIGNAL_GUIDANCE,
-    COMPLETION_INTERPRETATION_GUIDANCE,
-    ...addOnGuidance(data, transactions),
-    ...priceContextGuidance(data, transactions),
+    ...metricRubric,
     "",
     buildDataSummary(data, transactions),
     "",
