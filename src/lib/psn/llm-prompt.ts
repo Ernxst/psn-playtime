@@ -35,7 +35,7 @@ export interface PromptVariant {
  * The questions on offer. Each shares the data summary but asks the LLM
  * something different. Ordered most-to-least common intent.
  */
-export const PROMPT_VARIANTS: readonly PromptVariant[] = [
+export const PROMPT_VARIANTS = [
   {
     id: "most-played",
     label: "What do I play the most?",
@@ -78,7 +78,7 @@ export const PROMPT_VARIANTS: readonly PromptVariant[] = [
     instruction:
       "Tell me whether I'm a binge player or a dip-in player. Use my hours-per-session figures to separate the games I marathon from the ones I only dip into, and describe my overall session style.",
   },
-];
+] as const satisfies readonly PromptVariant[];
 
 function listGames(data: DashboardData): string {
   return topGamesByHours(data, 10)
