@@ -45,21 +45,28 @@ function useActiveSection(): string {
   const [active, setActive] = useState<string>("overview");
 
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((entry) => entry.isIntersecting)
-          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
-        if (visible[0]) setActive(visible[0].target.id);
-      },
-      { rootMargin: "-15% 0px -75% 0px", threshold: 0 }
-    );
+    let observer: IntersectionObserver | undefined;
+    const timer = window.setTimeout(() => {
+      observer = new IntersectionObserver(
+        (entries) => {
+          const visible = entries
+            .filter((entry) => entry.isIntersecting)
+            .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+          if (visible[0]) setActive(visible[0].target.id);
+        },
+        { rootMargin: "-15% 0px -75% 0px", threshold: 0 }
+      );
 
-    for (const id of SECTION_IDS) {
-      const el = document.getElementById(id);
-      if (el) observer.observe(el);
-    }
-    return () => observer.disconnect();
+      for (const id of SECTION_IDS) {
+        const el = document.getElementById(id);
+        if (el) observer.observe(el);
+      }
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timer);
+      observer?.disconnect();
+    };
   }, []);
 
   return active;

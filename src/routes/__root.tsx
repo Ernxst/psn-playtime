@@ -16,6 +16,8 @@ const DEFAULT_TITLE = "PSN Playtime — your PlayStation history, visualised";
 const DEFAULT_DESCRIPTION =
   "Turn your PlayStation play history into clear charts: top games, genres, franchises and more.";
 const OG_IMAGE = `${SITE_URL}/og-image.png`;
+const FONT_STYLESHEET =
+  "https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap";
 
 const rootMeta = [
   { charSet: "utf-8" },
@@ -41,6 +43,9 @@ const rootMeta = [
 ];
 
 const rootLinks = [
+  { rel: "preconnect", href: "https://fonts.googleapis.com" },
+  { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" as const },
+  { rel: "stylesheet", href: FONT_STYLESHEET },
   { rel: "stylesheet", href: appCss },
   { rel: "canonical", href: SITE_URL },
   { rel: "icon", href: "/favicon.ico" },

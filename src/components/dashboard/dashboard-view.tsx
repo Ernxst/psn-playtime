@@ -1,9 +1,10 @@
 import { Link } from "@tanstack/react-router";
 import { Home, Info } from "lucide-react";
-import { useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTab } from "@/components/ui/tabs";
 import {
   applyFilters,
@@ -12,8 +13,6 @@ import {
   type Timeframe,
 } from "@/lib/psn/analytics";
 import type { DashboardData } from "@/lib/psn/types";
-import { ChartCard } from "./chart-card";
-import { FranchiseChart, GenreChart, SessionChart, TopGamesChart, YearChart } from "./charts";
 import { DashboardHeader } from "./dashboard-header";
 import { DashboardSidebar } from "./dashboard-sidebar";
 import { FilterBar } from "./filter-bar";
@@ -21,6 +20,16 @@ import { GamesTable } from "./games-table";
 import { AppsExcludedNote, LifespansCard, RecencyCard, ValueCard } from "./insights";
 import { KpiCards } from "./kpi-cards";
 import { DashboardEmpty } from "./states";
+
+const LazyTopGamesSection = lazy(() =>
+  import("./chart-sections").then((module) => ({ default: module.TopGamesSection }))
+);
+const LazyGenresFranchisesSection = lazy(() =>
+  import("./chart-sections").then((module) => ({ default: module.GenresFranchisesSection }))
+);
+const LazyTimelineSection = lazy(() =>
+  import("./chart-sections").then((module) => ({ default: module.TimelineSection }))
+);
 
 interface Props {
   data: DashboardData;
@@ -87,42 +96,40 @@ function Section({ id, children }: { id: string; children: React.ReactNode }) {
   );
 }
 
-function GenresFranchisesSection({ data }: { data: DashboardData }) {
-  return (
-    <Section id="genres-franchises">
-      <div className="grid gap-4 lg:grid-cols-2">
-        <ChartCard title="What kind of player are you?" caption="Share of your playtime by genre.">
-          <GenreChart data={data} />
-        </ChartCard>
-        <ChartCard
-          title="Favourite franchises"
-          caption="Series you keep coming back to, by total hours."
-        >
-          <FranchiseChart data={data} />
-        </ChartCard>
-      </div>
-    </Section>
-  );
+function ChartPlaceholder({ height = 340 }: { height?: number }) {
+  return <Skeleton className="w-full" style={{ height }} />;
 }
 
-function TimelineSection({ data }: { data: DashboardData }) {
+function DeferredSection({ children, height }: { children: React.ReactNode; height?: number }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) {
+          setVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "400px 0px" }
+    );
+
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <Section id="timeline">
-      <div className="grid gap-4 lg:grid-cols-2">
-        <ChartCard
-          title="Hours by most-recent year"
-          caption="A proxy timeline: each game's full playtime is placed in the year you last played it (PSN only gives lifetime totals)."
-        >
-          <YearChart data={data} />
-        </ChartCard>
-        <ChartCard
-          title="Binge or dip-in?"
-          caption="Average hours per session — tall bars are marathon games, short bars are quick visits."
-        >
-          <SessionChart data={data} />
-        </ChartCard>
-      </div>
-    </Section>
+    <div ref={ref}>
+      {visible ? (
+        <Suspense fallback={<ChartPlaceholder height={height} />}>{children}</Suspense>
+      ) : (
+        <ChartPlaceholder height={height} />
+      )}
+    </div>
   );
 }
 
@@ -147,15 +154,20 @@ function DashboardBody({ data }: { data: DashboardData }) {
         <KpiCards data={data} />
       </Section>
       <Section id="top-games">
-        <ChartCard
-          title="Top games by hours"
-          caption="The titles you've sunk the most lifetime hours into."
-        >
-          <TopGamesChart data={data} />
-        </ChartCard>
+        <DeferredSection height={430}>
+          <LazyTopGamesSection data={data} />
+        </DeferredSection>
       </Section>
-      <GenresFranchisesSection data={data} />
-      <TimelineSection data={data} />
+      <Section id="genres-franchises">
+        <DeferredSection height={390}>
+          <LazyGenresFranchisesSection data={data} />
+        </DeferredSection>
+      </Section>
+      <Section id="timeline">
+        <DeferredSection height={350}>
+          <LazyTimelineSection data={data} />
+        </DeferredSection>
+      </Section>
       <InsightsSection data={data} />
       <Section id="all-games">
         <GamesTable data={data} />
@@ -167,7 +179,7 @@ function DashboardBody({ data }: { data: DashboardData }) {
 export function DashboardView({ data, onSignOut, signingOut }: Props) {
   const { profile } = data;
   const [filters, setFilters] = useState<DashboardFilters>(defaultFilters);
-  const scoped = useMemo(() => applyFilters(data, filters), [data, filters]);
+  const scoped = applyFilters(data, filters);
   return (
     <SidebarProvider>
       <DashboardSidebar />
