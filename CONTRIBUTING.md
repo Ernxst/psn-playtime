@@ -23,7 +23,7 @@ Read [AGENTS.md](./AGENTS.md) — it documents every toolchain quirk and pattern
 - **Never `git add -A`** — stage specific files only
 - **Every commit** should be atomic, verifiable, reviewable, revertable.
 - Commit after each complete, verified logical change; do not defer all commits until the end of a task.
-- **Co-author recommended** — include the model/agent name if known (e.g. "Claude Sonnet 4")
+- **Co-author required** — include the model/agent name if known (e.g. "Claude Sonnet 4")
 - **Never combine `git add` and `git commit` in one command.** Always run them as separate commands.
 
 ### Commit message
