@@ -1,7 +1,7 @@
 import { Activity, CalendarClock, Info } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { lifespans, recency, valuePerGame } from "@/lib/psn/analytics";
+import { LIFETIME_HOURS_CAVEAT, lifespans, recency, valuePerGame } from "@/lib/psn/analytics";
 import type { DashboardData } from "@/lib/psn/types";
 import { fmtHours, fmtNumber } from "./format";
 
@@ -36,7 +36,7 @@ export function LifespansCard({ data }: { data: DashboardData }) {
 export function ValueCard({ data }: { data: DashboardData }) {
   const v = valuePerGame(data);
   const stats = [
-    { label: "Hours per game", value: fmtHours(v.avgHoursPerGame) },
+    { label: "Lifetime hours per game", value: fmtHours(v.avgHoursPerGame) },
     { label: "Sessions per game", value: fmtNumber(v.avgSessionsPerGame) },
     { label: "Avg session length", value: `${v.avgSessionLength} h` },
   ];
@@ -44,7 +44,9 @@ export function ValueCard({ data }: { data: DashboardData }) {
     <Card>
       <CardHeader>
         <CardTitle className="text-base">What a game is worth to you</CardTitle>
-        <CardDescription>Typical mileage you get from each title in your library.</CardDescription>
+        <CardDescription>
+          Typical mileage you get from each title in your library. Hours are lifetime totals.
+        </CardDescription>
       </CardHeader>
       <CardContent className="grid grid-cols-3 divide-x divide-border">
         {stats.map((s) => (
@@ -78,11 +80,15 @@ export function RecencyCard({ data }: { data: DashboardData }) {
         <div className="flex justify-between text-sm">
           <div>
             <div className="font-semibold">{r.activeGames} active</div>
-            <div className="text-xs text-muted-foreground">{fmtHours(r.activeHours)}</div>
+            <div className="text-xs text-muted-foreground" title={LIFETIME_HOURS_CAVEAT}>
+              {fmtHours(r.activeHours)} lifetime
+            </div>
           </div>
           <div className="text-right">
             <div className="font-semibold">{r.dormantGames} dormant</div>
-            <div className="text-xs text-muted-foreground">{fmtHours(r.dormantHours)}</div>
+            <div className="text-xs text-muted-foreground" title={LIFETIME_HOURS_CAVEAT}>
+              {fmtHours(r.dormantHours)} lifetime
+            </div>
           </div>
         </div>
       </CardContent>
@@ -107,8 +113,8 @@ export function AppsExcludedNote({ data }: { data: DashboardData }) {
           <Info className="size-4" /> Not counted: streaming & apps
         </CardTitle>
         <CardDescription>
-          {fmtHours(totalAppHours)} of YouTube, Netflix and other apps are excluded so the numbers
-          above are games only.
+          {fmtHours(totalAppHours)} of lifetime YouTube, Netflix and other app time is excluded so
+          the numbers above are games only.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-2 text-sm">

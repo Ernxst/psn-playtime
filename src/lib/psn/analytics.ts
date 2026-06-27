@@ -27,6 +27,18 @@ function lastPlayedYear(game: GamePlay): number | undefined {
 export type Timeframe = "all" | "last-12-months" | "last-2-years" | "this-year";
 
 /**
+ * App-wide caveat shown near the KPIs. PSN exposes only lifetime `playDuration`
+ * per game, so there is no per-period playtime: a date filter selects *which*
+ * games by their last-played date and still shows each game's lifetime hours.
+ */
+export const LIFETIME_HOURS_NOTE =
+  "All playtime is each game's lifetime total from PSN. PSN doesn't report hours per period, so date filters select games by when you last played them and still show each game's lifetime hours, not hours within the range.";
+
+/** Short lifetime caveat for tooltips/titles on an individual hour figure. */
+export const LIFETIME_HOURS_CAVEAT =
+  "Lifetime total from PSN. PSN only reports each game's lifetime hours, never hours within a period.";
+
+/**
  * The actual current calendar year (UTC). The "this year" timeframe anchors to
  * this — real "now" — not to `data.fetchedAt`, which drifts when data is stale.
  */

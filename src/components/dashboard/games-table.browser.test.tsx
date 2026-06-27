@@ -13,6 +13,13 @@ test("lists played game names from the data", async () => {
   await expect.element(page.getByText("Satisfactory")).toBeInTheDocument();
 });
 
+test("labels the hours column as a lifetime total", async () => {
+  await render(<GamesTable data={demoDashboard} />);
+
+  await expect.element(page.getByRole("button", { name: "Sort by Lifetime hours" })).toBeVisible();
+  await expect.element(page.getByText(/Hours are each game's lifetime total/)).toBeVisible();
+});
+
 test("renders trophy progress as a percentage and a dash when absent", async () => {
   const trophy: NonNullable<GamePlay["trophy"]> = {
     progress: 80,

@@ -16,12 +16,15 @@ export function TopGamesSection({ data }: { data: DashboardData }) {
 export function GenresFranchisesSection({ data }: { data: DashboardData }) {
   return (
     <div className="grid gap-4 lg:grid-cols-2">
-      <ChartCard title="What kind of player are you?" caption="Share of your playtime by genre.">
+      <ChartCard
+        title="What kind of player are you?"
+        caption="Share of your lifetime hours by genre."
+      >
         <GenreChart data={data} />
       </ChartCard>
       <ChartCard
         title="Favourite franchises"
-        caption="Series you keep coming back to, by total hours."
+        caption="Series you keep coming back to, by total lifetime hours."
       >
         <FranchiseChart data={data} />
       </ChartCard>

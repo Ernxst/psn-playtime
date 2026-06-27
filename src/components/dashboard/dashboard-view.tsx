@@ -59,6 +59,20 @@ const TIMEFRAMES: ReadonlyArray<{ value: Timeframe; label: string }> = [
   { value: "this-year", label: `This year (${currentYear()})` },
 ];
 
+/** Human phrase for the active timeframe, used to reframe filtered hour totals. */
+function timeframePhrase(timeframe: Timeframe): string | undefined {
+  switch (timeframe) {
+    case "all":
+      return undefined;
+    case "last-12-months":
+      return "the last 12 months";
+    case "last-2-years":
+      return "the last 2 years";
+    case "this-year":
+      return `${currentYear()}`;
+  }
+}
+
 function TimeframeControl({
   value,
   onValueChange,
@@ -149,12 +163,12 @@ function InsightsSection({ data }: { data: DashboardData }) {
   );
 }
 
-function DashboardBody({ data }: { data: DashboardData }) {
+function DashboardBody({ data, timeframe }: { data: DashboardData; timeframe: Timeframe }) {
   if (data.games.length === 0) return <DashboardEmpty />;
   return (
     <div className="space-y-6">
       <Section id="overview">
-        <KpiCards data={data} />
+        <KpiCards data={data} timeframePhrase={timeframePhrase(timeframe)} />
       </Section>
       <Section id="top-games">
         <DeferredSection height={430}>
@@ -218,7 +232,7 @@ export function DashboardView({ data, onSignOut, signingOut }: Props) {
             />
             <FilterBar data={data} filters={filters} onChange={setFilters} />
           </div>
-          <DashboardBody data={scoped} />
+          <DashboardBody data={scoped} timeframe={filters.timeframe} />
         </div>
       </SidebarInset>
     </SidebarProvider>

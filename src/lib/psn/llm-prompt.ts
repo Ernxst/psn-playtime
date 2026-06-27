@@ -295,6 +295,7 @@ export function buildDataSummary(data: DashboardData): string {
 
   return [
     "DATA (my PlayStation playtime, lifetime totals):",
+    "- Note: every hour below is a per-game LIFETIME total from PSN. PSN reports no per-period or per-session playtime, so never read these as hours played within a specific window.",
     `- Totals: ${totals.gamesPlayed} games, ${totals.totalHours}h played, ${totals.sessions} sessions, PSN trophy level ${totals.trophyLevel}.`,
     `- Averages: ${value.avgHoursPerGame}h per game, ${value.avgSessionsPerGame} sessions per game, ${value.avgSessionLength}h per session.`,
     `- Recency (${r.thisYear}): ${r.activeGames} active games (${r.activeHours}h) vs ${r.dormantGames} dormant (${r.dormantHours}h).`,

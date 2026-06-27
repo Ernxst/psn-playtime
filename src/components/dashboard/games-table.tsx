@@ -21,7 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { gameRows } from "@/lib/psn/analytics";
+import { gameRows, LIFETIME_HOURS_CAVEAT } from "@/lib/psn/analytics";
 import type { GameRow } from "@/lib/psn/analytics";
 import type { DashboardData } from "@/lib/psn/types";
 import { fmtDate, fmtHours, fmtNumber } from "./format";
@@ -51,9 +51,9 @@ const columns: Array<ColumnDef<GameRow>> = [
   },
   {
     accessorKey: "hours",
-    header: "Hours",
-    cell: ({ row }) => fmtHours(row.original.hours),
-    meta: { numeric: true, label: "Hours" },
+    header: "Lifetime hours",
+    cell: ({ row }) => <span title={LIFETIME_HOURS_CAVEAT}>{fmtHours(row.original.hours)}</span>,
+    meta: { numeric: true, label: "Lifetime hours" },
   },
   {
     accessorKey: "playCount",
@@ -165,7 +165,8 @@ export function GamesTable({ data }: { data: DashboardData }) {
       <CardHeader>
         <CardTitle className="text-base">Every game you've played</CardTitle>
         <CardDescription>
-          Tap a column to sort. {fmtNumber(data.meta.totalGames)} titles in total.
+          Tap a column to sort. {fmtNumber(data.meta.totalGames)} titles in total. Hours are each
+          game's lifetime total from PSN.
         </CardDescription>
       </CardHeader>
       <CardContent>
