@@ -15,7 +15,7 @@ import {
 } from "@/lib/transactions-store";
 import { createHarness } from "@/test/harness";
 import { multiProductPurchase } from "@/test/transaction-fixtures";
-import { ImportReceiver } from "./import";
+import { ImportReceiver } from "./import-receiver";
 
 /** Two compact rows (base game + add-on) the bookmarklet would hand off. */
 const rows = flattenApiTransactions([multiProductPurchase]);
