@@ -2,15 +2,15 @@
 
 ## Prerequisites
 
-- [bun](https://bun.sh) 1.3+
-- Node.js 25.x
+- pnpm 9.15.4
+- Node.js 26.x
 - A browser with WebGPU support
 
 ## Setup
 
 ```bash
-bun install
-bun run dev
+pnpm install
+pnpm dev
 ```
 
 ## Code conventions
