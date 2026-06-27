@@ -80,13 +80,37 @@ function isoDate(value: string | undefined): string | undefined {
   return date.toISOString().slice(0, 10);
 }
 
-/** Normalize a title name for cross-source matching. */
+/**
+ * Normalize a title name for cross-source matching. Trademark glyphs (™®©) are
+ * non-alphanumeric, so the `[^a-z0-9]+` step turns them into a separator —
+ * "The Division®2" → "the division 2" rather than gluing into "division2".
+ */
 function normName(name: string): string {
   return name
     .toLowerCase()
-    .replace(/[™®©]/g, "")
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
+}
+
+/**
+ * A trailing platform/console descriptor (often a parenthetical the trophy set
+ * omits) breaks cross-gen matching — played "Grand Theft Auto V (PlayStation®5)"
+ * normalizes to "grand theft auto v playstation 5" but the trophy set is just
+ * "grand theft auto v". Strip only these TRAILING markers, never mid-name ones,
+ * so both sides meet in the middle without dropping meaningful words.
+ */
+const TRAILING_PLATFORM =
+  / (?:ps4 and ps5|ps5 and ps4|ps4 ps5|ps5 ps4|playstation 4|playstation 5|ps4|ps5)$/;
+
+/** Normalize plus strip a trailing platform descriptor, for matching keys. */
+function matchKey(name: string): string {
+  return normName(name).replace(TRAILING_PLATFORM, "").trim();
+}
+
+/** Whether `needle`'s tokens appear as a contiguous run within `haystack`'s. */
+function isContiguousSubset(needle: string[], haystack: string[]): boolean {
+  if (needle.length === 0 || needle.length > haystack.length) return false;
+  return ` ${haystack.join(" ")} `.includes(` ${needle.join(" ")} `);
 }
 
 function pickAvatar(urls: Array<{ size: string; avatarUrl: string }>): string | undefined {
@@ -152,9 +176,12 @@ async function fetchTrophyTitles(auth: AuthorizationPayload): Promise<TrophyTitl
 function buildTrophyMap(titles: TrophyTitle[]): Map<string, TrophyTitle> {
   const map = new Map<string, TrophyTitle>();
   for (const title of titles) {
-    const key = normName(title.trophyTitleName);
+    const key = matchKey(title.trophyTitleName);
     const existing = map.get(key);
-    // On name collisions (same game across platforms), keep the more-progressed set.
+    // A game can have several trophy lists under one name (PS4 + PS5 stacks);
+    // on collision keep the more-progressed set as the deterministic
+    // representative. Additional sets like "Minecraft • Set 2" normalize to a
+    // distinct key ("minecraft set 2"), so they neither collide nor clobber.
     if (!existing || title.progress > existing.progress) map.set(key, title);
   }
   return map;
@@ -170,8 +197,46 @@ function buildTrophyMap(titles: TrophyTitle[]): Map<string, TrophyTitle> {
  */
 function findTrophyTitle(map: Map<string, TrophyTitle>, names: string[]): TrophyTitle | undefined {
   for (const name of names) {
-    const title = map.get(normName(name));
+    const title = map.get(matchKey(name));
     if (title) return title;
+  }
+  return findTrophyBySubset(map, names);
+}
+
+/**
+ * A brand prefix (e.g. "Tom Clancy's") can sit on only one side of the
+ * play/trophy name split, so exact equality misses even after normalization:
+ * the trophy "Tom Clancy's The Division®2" → "tom clancy s the division 2"
+ * never equals a played "the division 2". Fall back to a guarded token-subset
+ * match — the shorter name's tokens must appear as a contiguous run within the
+ * longer's, with enough tokens to be specific (`MIN_SUBSET_TOKENS`) and a
+ * single unambiguous trophy list, so an unrelated set is never attached.
+ */
+const MIN_SUBSET_TOKENS = 2;
+
+function subsetMatch(playedKey: string, trophyKey: string): boolean {
+  const a = playedKey.split(" ");
+  const b = trophyKey.split(" ");
+  const [shorter, longer] = a.length <= b.length ? [a, b] : [b, a];
+  if (shorter.length < MIN_SUBSET_TOKENS) return false;
+  return isContiguousSubset(shorter, longer);
+}
+
+function uniqueSubsetMatch(map: Map<string, TrophyTitle>, key: string): TrophyTitle | undefined {
+  const matches = new Set<TrophyTitle>();
+  for (const [trophyKey, title] of map) {
+    if (subsetMatch(key, trophyKey)) matches.add(title);
+  }
+  return matches.size === 1 ? matches.values().next().value : undefined;
+}
+
+function findTrophyBySubset(
+  map: Map<string, TrophyTitle>,
+  names: string[]
+): TrophyTitle | undefined {
+  for (const name of names) {
+    const match = uniqueSubsetMatch(map, matchKey(name));
+    if (match) return match;
   }
   return undefined;
 }
