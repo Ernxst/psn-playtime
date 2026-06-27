@@ -5,7 +5,7 @@ import { LIFETIME_HOURS_CAVEAT, lifespans, recency, valuePerGame } from "@/lib/p
 import type { DashboardData } from "@/lib/psn/types";
 import { fmtHours, fmtNumber } from "./format";
 
-/** Games with the longest first→last play span — the ones you keep returning to. */
+/** Games with the longest first→last play span — the ones in your library the longest. */
 export function LifespansCard({ data }: { data: DashboardData }) {
   const top = lifespans(data, 12)
     .toSorted((a, b) => b.days - a.days)
@@ -16,9 +16,12 @@ export function LifespansCard({ data }: { data: DashboardData }) {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
-          <CalendarClock className="size-4" /> Kept coming back to
+          <CalendarClock className="size-4" /> Longest in rotation
         </CardTitle>
-        <CardDescription>Longest gap between your first and last session.</CardDescription>
+        <CardDescription>
+          The games you've had in rotation the longest, time between your first and most recent
+          session.
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-2 text-sm">
         {top.map((g) => (
