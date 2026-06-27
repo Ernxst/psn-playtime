@@ -103,36 +103,40 @@ export interface HandoffPayload {
   transactions: TransactionRow[];
 }
 
-/** The handful of HTML entities PlayStation emits in product names. */
-export const HTML_ENTITIES: Record<string, string> = {
-  "&amp;": "&",
-  "&lt;": "<",
-  "&gt;": ">",
-  "&quot;": '"',
-  "&apos;": "'",
-  "&#39;": "'",
-};
-
 /**
  * Normalise a product name. PlayStation leaves HTML entities in some titles
  * (e.g. `EA SPORTS FC™ 26 Standard Edition PS4 &amp; PS5`); decode the handful it
  * emits and collapse whitespace. Trademark glyphs (`™ ®`) are preserved.
  *
- * Self-contained (only references {@link HTML_ENTITIES}, also embedded) so it
- * survives `toString()` embedding into the bookmarklet.
+ * Fully self-contained — the entity map is a local const, so it references no
+ * module-scope identifier and survives `toString()` embedding into the
+ * bookmarklet even after the app bundle minifies (and renames) module bindings.
  */
 export function normaliseProductName(raw: string): string {
+  const entities: Record<string, string> = {
+    "&amp;": "&",
+    "&lt;": "<",
+    "&gt;": ">",
+    "&quot;": '"',
+    "&apos;": "'",
+    "&#39;": "'",
+  };
   return raw
-    .replace(/&(?:amp|lt|gt|quot|apos|#39);/g, (entity) => HTML_ENTITIES[entity] ?? entity)
+    .replace(/&(?:amp|lt|gt|quot|apos|#39);/g, (entity) => entities[entity] ?? entity)
     .replace(/\s+/g, " ")
     .trim();
 }
 
-export const CURRENCY = /US\$|[£$€]|[A-Z]{3}/;
-
-/** Currency symbol/code from a formatted amount, or "" when none is present. */
+/**
+ * Currency symbol/code from a formatted amount, or "" when none is present.
+ *
+ * Fully self-contained — the currency pattern is a local regex, so it references
+ * no module-scope identifier and survives `toString()` embedding into the
+ * bookmarklet even after minification renames module bindings.
+ */
 export function currencySymbol(formatted: string): string {
-  const match = CURRENCY.exec(formatted);
+  const currency = /US\$|[£$€]|[A-Z]{3}/;
+  const match = currency.exec(formatted);
   return match ? match[0] : "";
 }
 

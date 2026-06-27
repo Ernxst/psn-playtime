@@ -24,12 +24,10 @@
  * here via `toString()` so the bookmarklet stays a single self-contained string.
  */
 import {
-  CURRENCY,
   currencySymbol,
   flattenApiTransactions,
   HANDOFF_FRAGMENT_KEY,
   HANDOFF_VERSION,
-  HTML_ENTITIES,
   nonPurchaseRow,
   normaliseProductName,
   parseDisplayAmount,
@@ -100,25 +98,31 @@ function source(appOrigin: string, importUrl: string): string {
   const MAX_FRAGMENT = 1500000;
   const log = (...a) => console.log('[psn-import]', ...a);
   const warn = (...a) => console.warn('[psn-import]', ...a);
-  const buildTransactionHistoryUrl = ${buildTransactionHistoryUrl.toString()};
-  const dedupeTransactions = ${dedupeTransactions.toString()};
+  const ${buildTransactionHistoryUrl.name} = ${buildTransactionHistoryUrl.toString()};
+  const ${dedupeTransactions.name} = ${dedupeTransactions.toString()};
   // Flatten helpers, embedded from transactions.ts so the bookmarklet matches
   // the app's parser exactly. Defined in dependency order.
-  const HTML_ENTITIES = ${JSON.stringify(HTML_ENTITIES)};
-  const CURRENCY = ${CURRENCY.toString()};
-  const normaliseProductName = ${normaliseProductName.toString()};
-  const currencySymbol = ${currencySymbol.toString()};
-  const parseDisplayAmount = ${parseDisplayAmount.toString()};
-  const toPurchaseRow = ${toPurchaseRow.toString()};
-  const purchaseRows = ${purchaseRows.toString()};
-  const nonPurchaseRow = ${nonPurchaseRow.toString()};
-  const flattenApiTransactions = ${flattenApiTransactions.toString()};
+  //
+  // Each helper is declared under its *runtime* \`.name\`, not a hard-coded
+  // identifier. The app bundle minifies these functions, so \`fn.toString()\`
+  // captures bodies whose helper-to-helper calls use the minified binding names;
+  // \`fn.name\` is that same minified name, so the \`const\` we declare matches the
+  // call sites and nothing references an undefined identifier. (Unminified, in
+  // dev and tests, \`.name\` is just the original name.) The helpers carry no
+  // free module-scope references of their own — only browser globals.
+  const ${normaliseProductName.name} = ${normaliseProductName.toString()};
+  const ${currencySymbol.name} = ${currencySymbol.toString()};
+  const ${parseDisplayAmount.name} = ${parseDisplayAmount.toString()};
+  const ${toPurchaseRow.name} = ${toPurchaseRow.toString()};
+  const ${purchaseRows.name} = ${purchaseRows.toString()};
+  const ${nonPurchaseRow.name} = ${nonPurchaseRow.toString()};
+  const ${flattenApiTransactions.name} = ${flattenApiTransactions.toString()};
 
   // 1. Replay the GraphQL request the checkout iframe uses, cookie-authenticated.
   //    Returns the data node when usable (even if the response also has errors,
   //    e.g. a strict-schema null productName); throws only when no data.
   const fetchPage = async (endDate) => {
-    const url = buildTransactionHistoryUrl(ENDPOINT, { startDate: START_DATE, endDate, limit: LIMIT }, HASH);
+    const url = ${buildTransactionHistoryUrl.name}(ENDPOINT, { startDate: START_DATE, endDate, limit: LIMIT }, HASH);
     const requestId = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()) + Math.random();
     const res = await fetch(url, {
       credentials: 'include',
@@ -163,13 +167,13 @@ function source(appOrigin: string, importUrl: string): string {
       if (!data.hasMore || !data.nextEndDate) break;
       endDate = data.nextEndDate;
     }
-    return dedupeTransactions(all);
+    return ${dedupeTransactions.name}(all);
   };
 
   let rows;
   try {
     const transactions = await collect();
-    rows = flattenApiTransactions(transactions);
+    rows = ${flattenApiTransactions.name}(transactions);
   } catch (err) {
     warn('fetch failed: ' + (err && err.message));
     alert('PSN Import failed: ' + (err && err.message ? err.message : 'could not fetch your transactions.') + '\\n\\nMake sure you are signed in to PlayStation and try again.');
