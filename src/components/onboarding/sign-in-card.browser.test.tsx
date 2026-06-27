@@ -10,6 +10,8 @@ import { SignInCard } from "./sign-in-card";
 vi.mock("@/server/psn", () => ({
   signInWithToken: vi.fn(),
   getDashboard: vi.fn(),
+  getRawgGenres: vi.fn(),
+  getRawgFranchises: vi.fn(),
   signOut: vi.fn(),
 }));
 
