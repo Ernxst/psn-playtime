@@ -160,8 +160,24 @@ function buildTrophyMap(titles: TrophyTitle[]): Map<string, TrophyTitle> {
   return map;
 }
 
-function trophyFor(map: Map<string, TrophyTitle>, name: string): GameTrophy | undefined {
-  const title = map.get(normName(name));
+/**
+ * Find a played title's trophy list. The played-games and trophy endpoints
+ * format names independently (store name vs trophy-set name), so a title is
+ * tried under several candidate names — its store `name` first, then its
+ * canonical `concept.name` (the same across PS4/PS5/editions), which often
+ * matches the trophy-set name when an edition/platform suffix breaks the store
+ * name. Returns undefined only when no candidate matches a real trophy list.
+ */
+function findTrophyTitle(map: Map<string, TrophyTitle>, names: string[]): TrophyTitle | undefined {
+  for (const name of names) {
+    const title = map.get(normName(name));
+    if (title) return title;
+  }
+  return undefined;
+}
+
+function trophyFor(map: Map<string, TrophyTitle>, names: string[]): GameTrophy | undefined {
+  const title = findTrophyTitle(map, names);
   if (!title) return undefined;
   const earned: TrophyCounts = {
     platinum: title.earnedTrophies.platinum,
@@ -198,7 +214,7 @@ function toGamePlay(
     genre: enriched.genre,
     franchise: enriched.franchise,
     isApp: false,
-    trophy: trophyFor(trophyMap, title.name),
+    trophy: trophyFor(trophyMap, [title.name, title.concept?.name ?? ""]),
   };
 }
 

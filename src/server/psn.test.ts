@@ -328,6 +328,86 @@ describe("getDashboard", () => {
     expect(cookies.remove).not.toHaveBeenCalled();
   });
 
+  it("matches a played title to its trophy list by canonical concept name", async () => {
+    cookies.get.mockReturnValue("npsso-token");
+    mockExchangeNpsso.mockResolvedValue("access-code");
+    mockExchangeTokens.mockResolvedValue(authTokens);
+    mockGetProfile.mockResolvedValue(profile());
+    mockGetPlayed.mockResolvedValue(
+      playedPage(
+        [
+          played({
+            titleId: "gow",
+            // Store name carries an edition suffix the trophy set lacks, so it
+            // only resolves via the canonical concept name.
+            name: "God of War Ragnarök: Digital Deluxe Edition",
+            category: "ps5_native_game",
+            concept: { ...basePlayed.concept, name: "God of War Ragnarök" },
+            playDuration: "PT220H",
+            playCount: 7,
+          }),
+        ],
+        1
+      )
+    );
+    mockGetTitles.mockResolvedValue(
+      trophyPage(
+        [
+          trophy({
+            trophyTitleName: "God of War Ragnarök",
+            progress: 73,
+            earnedTrophies: { bronze: 20, silver: 5, gold: 2, platinum: 1 },
+            lastUpdatedDateTime: "2023-02-01T00:00:00Z",
+          }),
+        ],
+        1
+      )
+    );
+
+    const result = await getDashboardHandler(cookies);
+
+    const gow = result.games.find((g) => g.titleId === "gow")!;
+
+    expect(gow.trophy).toEqual({
+      progress: 73,
+      earned: { platinum: 1, gold: 2, silver: 5, bronze: 20 },
+      total: 28,
+      hasPlatinum: true,
+      lastEarnedAt: "2023-02-01T00:00:00Z",
+    });
+  });
+
+  it("leaves trophy undefined when no candidate name matches a trophy list", async () => {
+    cookies.get.mockReturnValue("npsso-token");
+    mockExchangeNpsso.mockResolvedValue("access-code");
+    mockExchangeTokens.mockResolvedValue(authTokens);
+    mockGetProfile.mockResolvedValue(profile());
+    mockGetPlayed.mockResolvedValue(
+      playedPage(
+        [
+          played({
+            titleId: "obscure",
+            name: "Some Game With No Trophies",
+            category: "ps5_native_game",
+            concept: { ...basePlayed.concept, name: "Some Game With No Trophies" },
+            playDuration: "PT5H",
+            playCount: 1,
+          }),
+        ],
+        1
+      )
+    );
+    mockGetTitles.mockResolvedValue(
+      trophyPage([trophy({ trophyTitleName: "An Unrelated Game", progress: 50 })], 1)
+    );
+
+    const result = await getDashboardHandler(cookies);
+
+    const obscure = result.games.find((g) => g.titleId === "obscure")!;
+
+    expect(obscure.trophy).toBeUndefined();
+  });
+
   it("falls back to an empty trophy map when the trophy fetch fails", async () => {
     cookies.get.mockReturnValue("npsso-token");
     mockExchangeNpsso.mockResolvedValue("access-code");
