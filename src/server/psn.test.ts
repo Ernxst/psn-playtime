@@ -377,6 +377,243 @@ describe("getDashboard", () => {
     });
   });
 
+  it("matches a glyph-glued trophy name carrying a brand prefix to its played title", async () => {
+    cookies.get.mockReturnValue("npsso-token");
+    mockExchangeNpsso.mockResolvedValue("access-code");
+    mockExchangeTokens.mockResolvedValue(authTokens);
+    mockGetProfile.mockResolvedValue(profile());
+    mockGetPlayed.mockResolvedValue(
+      playedPage(
+        [
+          played({
+            titleId: "div2",
+            name: "The Division 2",
+            category: "ps4_game",
+            concept: { ...basePlayed.concept, name: "The Division 2" },
+            playDuration: "PT460H",
+            playCount: 12,
+          }),
+        ],
+        1
+      )
+    );
+    mockGetTitles.mockResolvedValue(
+      trophyPage(
+        [
+          trophy({
+            // Glyph glues "Division" to "2" and a "Tom Clancy's" brand prefix
+            // sits only on the trophy side, so only a subset match resolves it.
+            trophyTitleName: "Tom Clancy's The Division®2",
+            progress: 64,
+            earnedTrophies: { bronze: 30, silver: 8, gold: 3, platinum: 0 },
+            lastUpdatedDateTime: "2024-01-01T00:00:00Z",
+          }),
+        ],
+        1
+      )
+    );
+
+    const result = await getDashboardHandler(cookies);
+
+    const div2 = result.games.find((g) => g.titleId === "div2")!;
+
+    expect(div2.trophy).toEqual({
+      progress: 64,
+      earned: { platinum: 0, gold: 3, silver: 8, bronze: 30 },
+      total: 41,
+      hasPlatinum: false,
+      lastEarnedAt: "2024-01-01T00:00:00Z",
+    });
+  });
+
+  it("does not subset-match an unrelated trophy list to a played title", async () => {
+    cookies.get.mockReturnValue("npsso-token");
+    mockExchangeNpsso.mockResolvedValue("access-code");
+    mockExchangeTokens.mockResolvedValue(authTokens);
+    mockGetProfile.mockResolvedValue(profile());
+    mockGetPlayed.mockResolvedValue(
+      playedPage(
+        [
+          played({
+            titleId: "div2",
+            name: "The Division 2",
+            category: "ps4_game",
+            concept: { ...basePlayed.concept, name: "The Division 2" },
+            playDuration: "PT460H",
+            playCount: 12,
+          }),
+        ],
+        1
+      )
+    );
+    mockGetTitles.mockResolvedValue(
+      trophyPage([trophy({ trophyTitleName: "Forza Horizon 5", progress: 50 })], 1)
+    );
+
+    const result = await getDashboardHandler(cookies);
+
+    const div2 = result.games.find((g) => g.titleId === "div2")!;
+
+    expect(div2.trophy).toBeUndefined();
+  });
+
+  it.each([
+    { playedName: "God of War", trophyTitleName: "God of War Ragnarök" },
+    { playedName: "Persona 5", trophyTitleName: "Persona 5 Royal" },
+    { playedName: "Grand Theft Auto V", trophyTitleName: "Grand Theft Auto V: The Story" },
+    { playedName: "LEGO Star Wars", trophyTitleName: "LEGO Star Wars: The Skywalker Saga" },
+    { playedName: "Call of Duty", trophyTitleName: "Call of Duty: Modern Warfare" },
+  ])(
+    'does not attach the more-specific "$trophyTitleName" to the broader played "$playedName"',
+    async ({ playedName, trophyTitleName }) => {
+      cookies.get.mockReturnValue("npsso-token");
+      mockExchangeNpsso.mockResolvedValue("access-code");
+      mockExchangeTokens.mockResolvedValue(authTokens);
+      mockGetProfile.mockResolvedValue(profile());
+      mockGetPlayed.mockResolvedValue(
+        playedPage(
+          [
+            played({
+              titleId: "seq",
+              name: playedName,
+              category: "ps5_native_game",
+              concept: { ...basePlayed.concept, name: playedName },
+              playDuration: "PT40H",
+              playCount: 5,
+            }),
+          ],
+          1
+        )
+      );
+      mockGetTitles.mockResolvedValue(trophyPage([trophy({ trophyTitleName, progress: 60 })], 1));
+
+      const result = await getDashboardHandler(cookies);
+
+      const game = result.games.find((g) => g.titleId === "seq")!;
+
+      expect(game.trophy).toBeUndefined();
+    }
+  );
+
+  it("matches a played title that carries a trailing platform suffix the trophy list omits", async () => {
+    cookies.get.mockReturnValue("npsso-token");
+    mockExchangeNpsso.mockResolvedValue("access-code");
+    mockExchangeTokens.mockResolvedValue(authTokens);
+    mockGetProfile.mockResolvedValue(profile());
+    mockGetPlayed.mockResolvedValue(
+      playedPage(
+        [
+          played({
+            titleId: "gta5",
+            name: "Grand Theft Auto V (PlayStation®5)",
+            category: "ps5_native_game",
+            concept: { ...basePlayed.concept, name: "Grand Theft Auto V (PlayStation®5)" },
+            playDuration: "PT300H",
+            playCount: 20,
+          }),
+        ],
+        1
+      )
+    );
+    // Two stacks under one name: the more-progressed PS5 set is the representative.
+    mockGetTitles.mockResolvedValue(
+      trophyPage(
+        [
+          trophy({ trophyTitleName: "Grand Theft Auto V", progress: 27 }),
+          trophy({
+            trophyTitleName: "Grand Theft Auto V",
+            progress: 28,
+            earnedTrophies: { bronze: 40, silver: 8, gold: 2, platinum: 0 },
+            lastUpdatedDateTime: "2024-03-01T00:00:00Z",
+          }),
+        ],
+        2
+      )
+    );
+
+    const result = await getDashboardHandler(cookies);
+
+    const gta5 = result.games.find((g) => g.titleId === "gta5")!;
+
+    expect(gta5.trophy).toEqual({
+      progress: 28,
+      earned: { platinum: 0, gold: 2, silver: 8, bronze: 40 },
+      total: 50,
+      hasPlatinum: false,
+      lastEarnedAt: "2024-03-01T00:00:00Z",
+    });
+  });
+
+  it("matches the glyph-glued The Division 2 when the brand prefix is on both sides", async () => {
+    cookies.get.mockReturnValue("npsso-token");
+    mockExchangeNpsso.mockResolvedValue("access-code");
+    mockExchangeTokens.mockResolvedValue(authTokens);
+    mockGetProfile.mockResolvedValue(profile());
+    mockGetPlayed.mockResolvedValue(
+      playedPage(
+        [
+          played({
+            titleId: "div2",
+            name: "Tom Clancy's The Division 2",
+            category: "ps4_game",
+            concept: { ...basePlayed.concept, name: "Tom Clancy's The Division 2" },
+            playDuration: "PT70H",
+            playCount: 8,
+          }),
+        ],
+        1
+      )
+    );
+    mockGetTitles.mockResolvedValue(
+      trophyPage([trophy({ trophyTitleName: "Tom Clancy's The Division® 2", progress: 70 })], 1)
+    );
+
+    const result = await getDashboardHandler(cookies);
+
+    const div2 = result.games.find((g) => g.titleId === "div2")!;
+
+    expect(div2.trophy).toMatchObject({ progress: 70 });
+  });
+
+  it("keeps the most-progressed trophy list when a game has several under one name", async () => {
+    cookies.get.mockReturnValue("npsso-token");
+    mockExchangeNpsso.mockResolvedValue("access-code");
+    mockExchangeTokens.mockResolvedValue(authTokens);
+    mockGetProfile.mockResolvedValue(profile());
+    mockGetPlayed.mockResolvedValue(
+      playedPage(
+        [
+          played({
+            titleId: "minecraft",
+            name: "Minecraft",
+            category: "ps5_native_game",
+            concept: { ...basePlayed.concept, name: "Minecraft" },
+            playDuration: "PT120H",
+            playCount: 15,
+          }),
+        ],
+        1
+      )
+    );
+    mockGetTitles.mockResolvedValue(
+      trophyPage(
+        [
+          trophy({ trophyTitleName: "Minecraft", progress: 22 }),
+          trophy({ trophyTitleName: "Minecraft", progress: 34 }),
+          // An additional set normalizes to a distinct key and must not clobber.
+          trophy({ trophyTitleName: "Minecraft • Set 2", progress: 2 }),
+        ],
+        3
+      )
+    );
+
+    const result = await getDashboardHandler(cookies);
+
+    const minecraft = result.games.find((g) => g.titleId === "minecraft")!;
+
+    expect(minecraft.trophy).toMatchObject({ progress: 34 });
+  });
+
   it("leaves trophy undefined when no candidate name matches a trophy list", async () => {
     cookies.get.mockReturnValue("npsso-token");
     mockExchangeNpsso.mockResolvedValue("access-code");
