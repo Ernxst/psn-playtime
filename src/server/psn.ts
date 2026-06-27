@@ -32,6 +32,7 @@ import {
   createRawgFranchiseCache,
   lookupRawgFranchise,
   lookupRawgGenre,
+  lookupRawgPlaytime,
   type RawgCache,
   type RawgFranchiseCache,
 } from "@/server/rawg";
@@ -358,12 +359,21 @@ function partitionTitles(
   return { games, appsExcluded };
 }
 
+/** Typical hours-to-complete by title name; rides the same genre lookups. */
+type RawgPlaytimeMap = Map<string, number | undefined>;
+
+interface RawgGenreInfo {
+  genres: RawgGenreMap;
+  playtimes: RawgPlaytimeMap;
+}
+
 async function prefetchRawgGenres(
   playedTitles: Array<{ name: string; category?: string }>,
   rawgCache: RawgCache
-): Promise<RawgGenreMap> {
+): Promise<RawgGenreInfo> {
   const names = new Set<string>();
-  const rawgGenres: RawgGenreMap = new Map();
+  const genres: RawgGenreMap = new Map();
+  const playtimes: RawgPlaytimeMap = new Map();
 
   for (const title of playedTitles) {
     const enriched = enrichTitle(title.name, title.category);
@@ -376,12 +386,14 @@ async function prefetchRawgGenres(
     // oxlint-disable-next-line react-doctor/async-await-in-loop
     await Promise.all(
       batch.map(async (name) => {
-        rawgGenres.set(name, await lookupRawgGenre(name, rawgCache));
+        // Genre then playtime share one cached request, so this is a single call.
+        genres.set(name, await lookupRawgGenre(name, rawgCache));
+        playtimes.set(name, await lookupRawgPlaytime(name, rawgCache));
       })
     );
   }
 
-  return rawgGenres;
+  return { genres, playtimes };
 }
 
 /**
@@ -529,13 +541,25 @@ export const signOut = createServerFn({ method: "POST" }).handler(() =>
 
 export const getRawgGenres = createServerFn({ method: "POST" })
   .validator(rawgGenreInput)
-  .handler(async ({ data }): Promise<Array<{ titleId: string; genre: Genre }>> => {
-    const rawgGenres = await prefetchRawgGenres(data.titles, createRawgCache());
-    return data.titles.flatMap((title) => {
-      const genre = rawgGenres.get(title.name);
-      return genre ? [{ titleId: title.titleId, genre }] : [];
-    });
-  });
+  .handler(
+    async ({
+      data,
+    }): Promise<Array<{ titleId: string; genre?: Genre; typicalPlaytime?: number }>> => {
+      const { genres, playtimes } = await prefetchRawgGenres(data.titles, createRawgCache());
+      return data.titles.flatMap((title) => {
+        const genre = genres.get(title.name);
+        const typicalPlaytime = playtimes.get(title.name);
+        if (!genre && typicalPlaytime === undefined) return [];
+        return [
+          {
+            titleId: title.titleId,
+            ...(genre && { genre }),
+            ...(typicalPlaytime !== undefined && { typicalPlaytime }),
+          },
+        ];
+      });
+    }
+  );
 
 export const getRawgFranchises = createServerFn({ method: "POST" })
   .validator(rawgGenreInput)
