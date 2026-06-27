@@ -7,6 +7,7 @@ import {
   buildFollowUps,
   buildPrompt,
   COMPLETION_INTERPRETATION_GUIDANCE,
+  METRIC_GUIDANCE_CAVEAT,
   PLAY_PATTERN_GUIDANCE,
   PLAYTIME_SIGNAL_GUIDANCE,
   PRICE_CONTEXT_GUIDANCE,
@@ -280,6 +281,25 @@ describe(".buildPrompt", () => {
     expect(present).toStrictEqual(demoDashboard.games.map(() => true));
   });
 
+  it.each(PROMPT_VARIANTS)("embeds the global metric caveat for $id", (variant) => {
+    const prompt = buildPrompt(demoDashboard, variant);
+
+    expect(prompt).toContain(METRIC_GUIDANCE_CAVEAT);
+  });
+
+  it("frames the metric guidance as interpretive hints, not a scoring rubric", () => {
+    expect(METRIC_GUIDANCE_CAVEAT).toContain("interpretive hints, NOT a scoring rubric");
+    expect(METRIC_GUIDANCE_CAVEAT).toContain("WEAK evidence on its own");
+    expect(METRIC_GUIDANCE_CAVEAT).toContain(
+      "let no single metric dominate unless several independent signals agree"
+    );
+  });
+
+  it("keeps ranking valid when a question explicitly asks for it", () => {
+    expect(METRIC_GUIDANCE_CAVEAT).toContain("This is not a ban on ranking or scoring");
+    expect(METRIC_GUIDANCE_CAVEAT).toContain("do exactly that");
+  });
+
   it.each(PROMPT_VARIANTS)(
     "embeds the genre-calibrated play-pattern guidance for $id",
     (variant) => {
@@ -390,6 +410,13 @@ describe(".buildPrompt", () => {
     );
   });
 
+  it("softens the completion-from-typical-playtime inference", () => {
+    expect(COMPLETION_INTERPRETATION_GUIDANCE).toContain("that MAY indicate satisfied completion");
+    expect(COMPLETION_INTERPRETATION_GUIDANCE).not.toContain(
+      "I most likely finished what I came for"
+    );
+  });
+
   it("embeds add-on guidance when imported transactions match add-ons", () => {
     const [game] = demoDashboard.games;
     const [variant] = PROMPT_VARIANTS;
@@ -399,6 +426,14 @@ describe(".buildPrompt", () => {
 
     expect(prompt).toContain(ADD_ON_SIGNAL_GUIDANCE);
     expect(prompt).toContain("add-ons purchased: 1");
+  });
+
+  it("reads add-ons as a supporting signal corroborated by other signals, not a strong verdict", () => {
+    expect(ADD_ON_SIGNAL_GUIDANCE).toContain("SUPPORTING commitment/intent signal");
+    expect(ADD_ON_SIGNAL_GUIDANCE).toContain(
+      "infer enjoyment only when it is corroborated by playtime, recency or trophies"
+    );
+    expect(ADD_ON_SIGNAL_GUIDANCE).not.toContain("STRONG commitment/enjoyment signal");
   });
 
   it("omits add-on guidance when no transactions are imported", () => {

@@ -497,14 +497,14 @@ export const PLAYTIME_SIGNAL_GUIDANCE = [
  */
 export const COMPLETION_INTERPRETATION_GUIDANCE = [
   "Do NOT treat moderate or low trophy completion, or a game I 'stopped playing', as inherent dislike or abandonment — finishing the main story and skipping grindy endgame, DLC or multiplayer trophies is satisfied completion, not a bounce-off, especially for campaign and live-service titles:",
-  "- Use the playtime-vs-typical-time line ('you: Xh lifetime vs typical ~Yh (~Nx)') to tell them apart: if my lifetime hours are roughly the typical completion time and then play stopped, I most likely finished what I came for (satisfied), even when trophy completion looks low.",
+  "- Use the playtime-vs-typical-time line ('you: Xh lifetime vs typical ~Yh (~Nx)') to tell them apart: if my lifetime hours are roughly the typical completion time and then play stopped, that MAY indicate satisfied completion, even when trophy completion looks low.",
   "- Use genre/type the same way: 'campaign + live-service endgame' titles expect low post-campaign engagement, with a large share of trophies sitting behind grind, multiplayer or DLC that an engaged story-player legitimately skips — so low completion there is expected, not dislike.",
-  "Do NOT flip the error the other way: a game with few hours, well SHORT of its typical completion time, and low trophies is still a genuine abandonment/bounce-off — use playtime-vs-typical-time plus genre to TELL satisfied completion apart from abandonment, never to assume every incomplete game was finished and loved.",
+  "Do NOT flip the error the other way: a game with few hours, well SHORT of its typical completion time, and low trophies is still a genuine abandonment/bounce-off — use genre to TELL satisfied completion apart from abandonment, never to assume every incomplete game was finished and loved.",
   "- 'trophies unknown (no data)' stays UNKNOWN, not dislike — never read a satisfied-completion or abandonment verdict off missing trophy data.",
 ].join("\n");
 
 export const ADD_ON_SIGNAL_GUIDANCE = [
-  "When a game's line shows 'add-ons purchased: N', read buying DLC/add-ons as a STRONG commitment/enjoyment signal to weigh alongside hours, recency, trophies and playtime-vs-typical-time, not as a verdict computed in code.",
+  "When a game's line shows 'add-ons purchased: N', read buying DLC/add-ons as a SUPPORTING commitment/intent signal — NOT an enjoyment verdict on its own, and never a value computed in code; infer enjoyment only when it is corroborated by playtime, recency or trophies.",
   "Honour these caveats:",
   "- This signal exists only when I imported transaction history; absence of add-on purchases is NOT a negative signal.",
   "- DLC, bundle and re-release names do not always line up with the base title; unmatched add-ons are ignored gracefully, not misattributed.",
@@ -518,7 +518,7 @@ function addOnGuidance(data: DashboardData, transactions?: readonly TransactionR
 
 export const PRICE_CONTEXT_GUIDANCE = [
   "When a game's line shows 'bought: <free|deep-sale|discounted|full-price>', read the price I paid versus the original price as a SUPPORTING context signal about my intent, patience, hype and value-sensitivity — NOT an enjoyment verdict, and never a value computed in code:",
-  "- Paying full price or buying early can suggest hype or low price-sensitivity; waiting for a deep sale can suggest patience or caution — weigh this only alongside hours, recency, trophies and playtime-vs-typical-time, never on its own.",
+  "- Paying full price or buying early can suggest hype or low price-sensitivity; waiting for a deep sale can suggest patience or caution — weigh this only alongside hours, recency and trophies, never on its own.",
   "Honour these caveats and never overclaim:",
   "- A sale or deep-sale purchase does NOT imply lower enjoyment.",
   "- A full-price purchase does NOT imply higher enjoyment by itself.",
@@ -535,6 +535,18 @@ function priceContextGuidance(
 }
 
 /**
+ * Global caveat placed before the per-metric guidance blocks. It reframes those
+ * blocks as interpretive hints rather than a scoring rubric so no single metric
+ * (hours, trophies, playtime-vs-typical-time, add-ons, price) becomes de facto
+ * truth, while explicitly preserving ranking/scoring for the lead questions that
+ * ask for it.
+ */
+export const METRIC_GUIDANCE_CAVEAT = [
+  "The guidance below gives interpretive hints, NOT a scoring rubric: treat each signal (hours, recency, trophies, playtime-vs-typical-time, add-ons, price) as WEAK evidence on its own, and let no single metric dominate unless several independent signals agree.",
+  "This is not a ban on ranking or scoring — when a question explicitly asks you to rank or score (e.g. top 10 by hours, rank my franchises), do exactly that, but build the ordering from converging signals rather than one metric, and don't invent a rigid points system.",
+].join("\n");
+
+/**
  * Build the full, ready-to-paste prompt: the data summary once, the chosen
  * lead question, then the rest as paste-able follow-ups.
  */
@@ -546,6 +558,7 @@ export function buildPrompt(
   return [
     "You are a gaming analyst. I'm sharing a summary of my PlayStation playtime.",
     "Weigh WHEN I played (recency and trends from each game's last/first played dates), not just total hours — a big total played years ago means something different from a smaller total I'm playing now.",
+    METRIC_GUIDANCE_CAVEAT,
     PLAY_PATTERN_GUIDANCE,
     TROPHY_SIGNAL_GUIDANCE,
     PLAYTIME_SIGNAL_GUIDANCE,
