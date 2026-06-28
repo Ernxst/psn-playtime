@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { Home, Info } from "lucide-react";
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useRef, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
@@ -119,17 +119,18 @@ function ChartPlaceholder({ height = 340 }: { height?: number }) {
 
 function DeferredSection({ children, height }: { children: React.ReactNode; height?: number }) {
   const ref = useRef<HTMLDivElement>(null);
-  const [visible, setVisible] = useState(false);
+  const visibleRef = useRef(false);
 
-  useEffect(() => {
+  const subscribe = useCallback((onStoreChange: () => void) => {
     const element = ref.current;
-    if (!element) return;
+    if (!element) return () => {};
 
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry?.isIntersecting) {
-          setVisible(true);
+          visibleRef.current = true;
           observer.disconnect();
+          onStoreChange();
         }
       },
       { rootMargin: "400px 0px" }
@@ -138,6 +139,14 @@ function DeferredSection({ children, height }: { children: React.ReactNode; heig
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
+
+  // One-shot reveal flag read during render: useSyncExternalStore subscribes the observer,
+  // the snapshot is the flag, and the server snapshot defaults to not-visible.
+  const visible = useSyncExternalStore(
+    subscribe,
+    () => visibleRef.current,
+    () => false
+  );
 
   return (
     <div ref={ref}>
