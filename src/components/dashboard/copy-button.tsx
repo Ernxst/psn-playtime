@@ -26,6 +26,10 @@ export function useCopied(): [boolean, () => void] {
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
+  // Fire-and-forget unmount teardown: cancel the pending setTimeout (a browser
+  // timer system) so it can't call setCopied after unmount. Nothing here is read
+  // during render (so not useSyncExternalStore); the timer is started in the
+  // `flash` event handler, not by this Effect, and there's nothing to derive.
   useEffect(() => () => clearTimeout(timer.current), []);
 
   const flash = () => {

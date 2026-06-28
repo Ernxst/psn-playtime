@@ -1,6 +1,5 @@
 import { Coins, ExternalLink, Trophy, Wallet } from "lucide-react";
 import type { ReactNode } from "react";
-import { useEffect, useRef } from "react";
 import { useCopied } from "@/components/dashboard/copy-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -78,14 +77,7 @@ function Step({
 
 /** The draggable bookmarklet link plus a copy fallback. */
 function BookmarkletActions() {
-  const ref = useRef<HTMLAnchorElement>(null);
   const [copied, flash] = useCopied();
-
-  useEffect(() => {
-    // Set the `javascript:` href imperatively: React strips it from JSX, and
-    // this keeps SSR output free of the bookmarklet string.
-    if (ref.current) ref.current.href = bookmarkletHref(window.location.origin);
-  }, []);
 
   const copy = () => {
     void navigator.clipboard.writeText(bookmarkletHref(window.location.origin)).then(flash);
@@ -99,7 +91,12 @@ function BookmarkletActions() {
           accessibility tree — the keyboard-accessible path is the Copy button. */}
       {/* oxlint-disable-next-line react-doctor/nextjs-no-a-element, react-doctor/no-prevent-default -- draggable javascript: bookmarklet, not a navigation link */}
       <a
-        ref={ref}
+        ref={(el) => {
+          // Set the `javascript:` href imperatively at commit via a callback
+          // ref: React strips it from JSX, and refs don't run during SSR, so
+          // the server output stays free of the bookmarklet string.
+          if (el) el.href = bookmarkletHref(window.location.origin);
+        }}
         href="/import"
         aria-hidden="true"
         tabIndex={-1}
