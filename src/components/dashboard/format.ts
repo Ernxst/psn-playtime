@@ -1,4 +1,4 @@
-import { format, parseISO } from "date-fns";
+import { format, formatDistanceToNow, parseISO } from "date-fns";
 
 /** "1,253.6 h" style hour label. */
 export function fmtHours(hours: number): string {
@@ -14,6 +14,16 @@ export function fmtDate(iso?: string): string {
   if (!iso) return "—";
   try {
     return format(parseISO(iso), "d MMM yyyy");
+  } catch {
+    return "—";
+  }
+}
+
+/** "3 days ago" style relative label, tolerant of missing/invalid values. */
+export function fmtRelative(iso?: string): string {
+  if (!iso) return "—";
+  try {
+    return formatDistanceToNow(parseISO(iso), { addSuffix: true });
   } catch {
     return "—";
   }
