@@ -27,6 +27,13 @@ interface YearSpend {
   purchases: number;
 }
 
+/** One matched title with its total spend (base game + add-ons). */
+export interface TitleSpend {
+  titleId: string;
+  name: string;
+  spend: number;
+}
+
 export interface SpendSummary {
   /** Currency symbol/code from the imported data ("" when unknown). */
   currency: string;
@@ -44,6 +51,8 @@ export interface SpendSummary {
   byYear: YearSpend[];
   /** Best value first (lowest £/hour). */
   leaderboard: SpendLeader[];
+  /** Every matched title with spend > 0, highest total spend first. */
+  byTitle: TitleSpend[];
 }
 
 export interface AddOnSummary {
@@ -262,6 +271,22 @@ function buildLeaderboard(games: GamePlay[], spendByTitle: Map<string, number>):
   return leaders.sort((a, b) => a.perHour - b.perHour);
 }
 
+/**
+ * Per-title total spend (base game + add-ons), highest first. Includes every
+ * matched title with spend > 0 — even those with no playtime — unlike the value
+ * {@link buildLeaderboard}, which is filtered to `hours > 0`. Top-ups never
+ * reach `spendByTitle`, so they are excluded by construction.
+ */
+function buildByTitle(games: GamePlay[], spendByTitle: Map<string, number>): TitleSpend[] {
+  const titles: TitleSpend[] = [];
+  for (const g of games) {
+    const spend = spendByTitle.get(g.titleId);
+    if (spend === undefined || spend <= 0) continue;
+    titles.push({ titleId: g.titleId, name: g.name, spend: round(spend, 2) });
+  }
+  return titles.sort((a, b) => b.spend - a.spend || a.name.localeCompare(b.name));
+}
+
 function buildByYear(byYear: Acc["byYear"]): YearSpend[] {
   return [...byYear.entries()]
     .map(([year, v]) => ({ year, spend: round(v.spend, 2), purchases: v.purchases }))
@@ -416,5 +441,6 @@ export function summariseSpend(data: DashboardData, transactions: TransactionRow
     unmatchedSpend: round(acc.unmatchedSpend, 2),
     byYear: buildByYear(acc.byYear),
     leaderboard: buildLeaderboard(games, acc.spendByTitle),
+    byTitle: buildByTitle(games, acc.spendByTitle),
   };
 }

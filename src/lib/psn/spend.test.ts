@@ -147,6 +147,41 @@ describe(".summariseSpend", () => {
   });
 });
 
+describe(".summariseSpend byTitle", () => {
+  it("ranks matched titles by total spend (base + add-ons) desc, incl. unplayed", () => {
+    const library = data([
+      game("Cyberpunk 2077", 40, "PPSA01491_00"),
+      game("Bought But Unplayed", 0, "UNPLAYED"),
+      game("Cheap Game", 5, "CHEAP"),
+    ]);
+    const summary = summariseSpend(library, [
+      tx({
+        productName: "Cyberpunk 2077",
+        skuType: "STANDARD",
+        skuId: "EP4082-PPSA01491_00-00000000000000N1-U001",
+        amountMinor: 1999,
+      }),
+      tx({
+        productName: "Cyberpunk 2077: Phantom Liberty",
+        skuType: "PRE_ORDER",
+        skuId: "EP4082-PPSA01491_00-EXPANSION1000000-U001",
+        amountMinor: 2499,
+      }),
+      tx({ productName: "Bought But Unplayed", amountMinor: 4000 }),
+      tx({ productName: "Cheap Game", amountMinor: 500 }),
+      // Top-up and unmatched purchase: neither is per-game, so neither appears.
+      tx({ productName: "PlayStation Store Wallet", amountMinor: 5000, kind: "top-up" }),
+      tx({ productName: "Some Unowned Game", amountMinor: 6000 }),
+    ]);
+
+    expect(summary.byTitle).toEqual([
+      { titleId: "PPSA01491_00", name: "Cyberpunk 2077", spend: 44.98 },
+      { titleId: "UNPLAYED", name: "Bought But Unplayed", spend: 40 },
+      { titleId: "CHEAP", name: "Cheap Game", spend: 5 },
+    ]);
+  });
+});
+
 describe(".isAddOnPurchase", () => {
   it.each([
     tx({ productName: "Known Game", skuType: "ADD_ON" }),
