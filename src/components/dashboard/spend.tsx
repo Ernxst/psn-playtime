@@ -346,8 +346,7 @@ export function AddOnsSection({ data }: { data: DashboardData }) {
 
   const ranked = summariseAddOns(data, imported.transactions)
     .slice()
-    .sort((a, b) => b.addOnCount - a.addOnCount || a.name.localeCompare(b.name))
-    .slice(0, 10);
+    .sort((a, b) => b.addOnCount - a.addOnCount || a.name.localeCompare(b.name));
   if (ranked.length === 0) return null;
 
   return (
@@ -360,7 +359,7 @@ export function AddOnsSection({ data }: { data: DashboardData }) {
           Games you bought add-ons, DLC or in-game items for, ranked by number of add-on purchases.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-2 text-sm">
+      <CardContent className="max-h-96 space-y-2 overflow-y-auto text-sm">
         {ranked.map((g) => (
           <AddOnRow key={g.titleId} summary={g} />
         ))}

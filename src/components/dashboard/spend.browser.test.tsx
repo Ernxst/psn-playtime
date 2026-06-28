@@ -226,6 +226,21 @@ function addOnFor(titleId: string, n: number): TransactionRow {
   };
 }
 
+test("shows every game with add-ons, beyond the former cap of ten", async () => {
+  const games = Array.from({ length: 12 }, (_, i) =>
+    libraryGame(`G${String(i + 1).padStart(2, "0")}`, `Game ${String(i + 1).padStart(2, "0")}`)
+  );
+  // One add-on each: all tie on count, so ranking falls back to name order, and
+  // the eleventh and twelfth titles would be dropped by a `.slice(0, 10)`.
+  seed(games.map((g) => addOnFor(g.titleId, 1)));
+
+  await render(<AddOnsSection data={{ ...realDashboard, games }} />);
+
+  await expect.element(page.getByText("Spent extra on")).toBeVisible();
+  await expect.element(page.getByText("Game 11")).toBeVisible();
+  await expect.element(page.getByText("Game 12")).toBeVisible();
+});
+
 /** A base-game purchase matched to a given library titleId by skuId. */
 function baseFor(titleId: string, amountMinor: number): TransactionRow {
   return {
