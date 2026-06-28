@@ -64,24 +64,30 @@ const columns: Array<ColumnDef<TransactionRow>> = [
     meta: { numeric: true, label: "Amount paid" },
   },
   {
+    id: "original",
+    accessorFn: (row) => row.originalPriceMinor,
+    header: "Original",
+    // Lines with no original-price data sink to the bottom in both sort directions.
+    sortUndefined: "last",
+    cell: ({ row }) => {
+      const { currency, originalPriceMinor } = row.original;
+      if (originalPriceMinor === undefined) return "—";
+      return <span className="text-muted-foreground">{money(currency, originalPriceMinor)}</span>;
+    },
+    meta: { numeric: true, label: "Original" },
+  },
+  {
     id: "discount",
     accessorFn: (row) => row.discountMinor,
-    header: "Original / discount",
+    header: "Discount",
     // Lines with no discount data sink to the bottom in both sort directions.
     sortUndefined: "last",
     cell: ({ row }) => {
-      const { currency, originalPriceMinor, discountMinor } = row.original;
-      if (originalPriceMinor === undefined && discountMinor === undefined) return "—";
-      return (
-        <span className="text-muted-foreground">
-          {originalPriceMinor === undefined ? "—" : money(currency, originalPriceMinor)}
-          {discountMinor ? (
-            <span className="text-foreground"> −{money(currency, discountMinor)}</span>
-          ) : null}
-        </span>
-      );
+      const { currency, discountMinor } = row.original;
+      if (!discountMinor) return "—";
+      return <span className="text-foreground">−{money(currency, discountMinor)}</span>;
     },
-    meta: { numeric: true, label: "Original / discount" },
+    meta: { numeric: true, label: "Discount" },
   },
   {
     accessorKey: "kind",
