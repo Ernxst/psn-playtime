@@ -7,6 +7,7 @@ import {
   Lightbulb,
   type LucideIcon,
   PieChart,
+  Receipt,
   Sparkles,
   Trophy,
 } from "lucide-react";
@@ -39,6 +40,7 @@ const DASHBOARD_SECTIONS: readonly Section[] = [
   { icon: Lightbulb, id: "insights", label: "Insights" },
   { icon: Sparkles, id: "ask-ai", label: "Ask an AI" },
   { icon: Coins, id: "spend", label: "Spend" },
+  { icon: Receipt, id: "purchase-history", label: "Purchase history" },
   { icon: Gamepad2, id: "all-games", label: "All games" },
 ];
 
