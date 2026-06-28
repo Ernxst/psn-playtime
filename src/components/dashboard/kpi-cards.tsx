@@ -1,6 +1,7 @@
 import { Clock, Gamepad2, Hourglass, Info, Sparkles, Trophy } from "lucide-react";
-import type { ComponentType } from "react";
+import { type ComponentType, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip";
 import { headlineTotals, LIFETIME_HOURS_CAVEAT, LIFETIME_HOURS_NOTE } from "@/lib/psn/analytics";
 import type { DashboardData } from "@/lib/psn/types";
 import { fmtDuration, fmtHours, fmtNumber } from "./format";
@@ -10,7 +11,7 @@ interface Kpi {
   value: string;
   sub: string;
   icon: ComponentType<{ className?: string }>;
-  /** Optional caveat surfaced as the value's hover title (used on hour figures). */
+  /** Optional caveat surfaced as an accessible tooltip on the value (used on hour figures). */
   valueTitle?: string;
 }
 
@@ -62,9 +63,18 @@ function KpiCard({ kpi }: { kpi: Kpi }) {
           <kpi.icon className="size-4" />
           <span className="text-xs font-medium uppercase tracking-wide">{kpi.label}</span>
         </div>
-        <div className="truncate text-2xl font-bold" title={kpi.valueTitle ?? kpi.value}>
-          {kpi.value}
-        </div>
+        {kpi.valueTitle ? (
+          <Tooltip>
+            <TooltipTrigger className="block w-full cursor-help truncate text-left text-2xl font-bold">
+              {kpi.value}
+            </TooltipTrigger>
+            <TooltipPopup className="max-w-xs">{kpi.valueTitle}</TooltipPopup>
+          </Tooltip>
+        ) : (
+          <div className="truncate text-2xl font-bold" title={kpi.value}>
+            {kpi.value}
+          </div>
+        )}
         <div className="truncate text-xs text-muted-foreground">{kpi.sub}</div>
       </CardContent>
     </Card>
@@ -78,10 +88,11 @@ export function KpiCards({
   data: DashboardData;
   timeframePhrase?: string;
 }) {
+  const kpis = useMemo(() => buildKpis(data, timeframePhrase), [data, timeframePhrase]);
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
-        {buildKpis(data, timeframePhrase).map((k) => (
+        {kpis.map((k) => (
           <KpiCard key={k.label} kpi={k} />
         ))}
       </div>

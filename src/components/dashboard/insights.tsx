@@ -1,6 +1,7 @@
 import { Activity, CalendarClock, Info, Repeat } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   comebacks,
   LIFETIME_HOURS_CAVEAT,
@@ -121,15 +122,21 @@ export function RecencyCard({ data }: { data: DashboardData }) {
         <div className="flex justify-between text-sm">
           <div>
             <div className="font-semibold">{r.activeGames} active</div>
-            <div className="text-xs text-muted-foreground" title={LIFETIME_HOURS_CAVEAT}>
-              {fmtHours(r.activeHours)} lifetime
-            </div>
+            <Tooltip>
+              <TooltipTrigger className="cursor-help text-xs text-muted-foreground">
+                {fmtHours(r.activeHours)} lifetime
+              </TooltipTrigger>
+              <TooltipPopup className="max-w-xs">{LIFETIME_HOURS_CAVEAT}</TooltipPopup>
+            </Tooltip>
           </div>
           <div className="text-right">
             <div className="font-semibold">{r.dormantGames} dormant</div>
-            <div className="text-xs text-muted-foreground" title={LIFETIME_HOURS_CAVEAT}>
-              {fmtHours(r.dormantHours)} lifetime
-            </div>
+            <Tooltip>
+              <TooltipTrigger className="cursor-help text-xs text-muted-foreground">
+                {fmtHours(r.dormantHours)} lifetime
+              </TooltipTrigger>
+              <TooltipPopup className="max-w-xs">{LIFETIME_HOURS_CAVEAT}</TooltipPopup>
+            </Tooltip>
           </div>
         </div>
       </CardContent>

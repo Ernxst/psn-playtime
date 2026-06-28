@@ -22,6 +22,17 @@ test("recency card splits active versus dormant games", async () => {
   await expect.element(page.getByText(/dormant/)).toBeVisible();
 });
 
+test("recency card exposes the lifetime caveat as an accessible tooltip", async () => {
+  await render(<RecencyCard data={demoDashboard} />);
+
+  await page
+    .getByRole("button", { name: /lifetime/ })
+    .first()
+    .hover();
+
+  await expect.element(page.getByText(/PSN only reports each game's lifetime hours/)).toBeVisible();
+});
+
 test("lifespans card ranks the games with the longest first-to-last span", async () => {
   await render(<LifespansCard data={demoDashboard} />);
 

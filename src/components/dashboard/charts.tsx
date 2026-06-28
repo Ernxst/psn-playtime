@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 // Charts are deliberately server-rendered for first paint, so recharts is a
 // static import rather than a lazy chunk.
 // oxlint-disable-next-line react-doctor/prefer-dynamic-import
@@ -31,7 +32,7 @@ const hoursConfig = {
 
 /** Top games by lifetime hours — horizontal bars. */
 export function TopGamesChart({ data }: { data: DashboardData }) {
-  const rows = topGamesByHours(data, 10);
+  const rows = useMemo(() => topGamesByHours(data, 10), [data]);
   return (
     <ChartContainer config={hoursConfig} className="aspect-auto h-[320px] w-full">
       <BarChart accessibilityLayer data={rows} layout="vertical" margin={{ left: 8, right: 32 }}>
@@ -68,9 +69,13 @@ export function TopGamesChart({ data }: { data: DashboardData }) {
 
 /** Genre split — donut. */
 export function GenreChart({ data }: { data: DashboardData }) {
-  const slices = genreBreakdown(data).map((s, i) => ({ ...s, fill: chartColor(i) }));
-  const config: ChartConfig = Object.fromEntries(
-    slices.map((s) => [s.genre, { label: s.genre, color: s.fill }])
+  const slices = useMemo(
+    () => genreBreakdown(data).map((s, i) => ({ ...s, fill: chartColor(i) })),
+    [data]
+  );
+  const config: ChartConfig = useMemo(
+    () => Object.fromEntries(slices.map((s) => [s.genre, { label: s.genre, color: s.fill }])),
+    [slices]
   );
   return (
     <ChartContainer config={config} className="mx-auto aspect-square h-[300px]">
@@ -98,7 +103,7 @@ export function GenreChart({ data }: { data: DashboardData }) {
 
 /** Top franchises by total hours — horizontal bars. */
 export function FranchiseChart({ data }: { data: DashboardData }) {
-  const rows = topFranchises(data, 8);
+  const rows = useMemo(() => topFranchises(data, 8), [data]);
   return (
     <ChartContainer config={hoursConfig} className="aspect-auto h-[300px] w-full">
       <BarChart accessibilityLayer data={rows} layout="vertical" margin={{ left: 8, right: 32 }}>
@@ -137,7 +142,7 @@ export function FranchiseChart({ data }: { data: DashboardData }) {
 
 /** Hours bucketed by most-recent-play year (a proxy, not a true timeline). */
 export function YearChart({ data }: { data: DashboardData }) {
-  const rows = hoursByYear(data);
+  const rows = useMemo(() => hoursByYear(data), [data]);
   return (
     <ChartContainer config={hoursConfig} className="aspect-auto h-[260px] w-full">
       <AreaChart accessibilityLayer data={rows} margin={{ left: 8, right: 8 }}>
@@ -173,7 +178,7 @@ export function YearChart({ data }: { data: DashboardData }) {
 
 /** Average session length per game — separates bingers from dip-in players. */
 export function SessionChart({ data }: { data: DashboardData }) {
-  const rows = bingeVsDipIn(data, 12);
+  const rows = useMemo(() => bingeVsDipIn(data, 12), [data]);
   return (
     <ChartContainer config={hoursConfig} className="aspect-auto h-[340px] w-full">
       <BarChart accessibilityLayer data={rows} layout="vertical" margin={{ left: 8, right: 40 }}>
