@@ -93,10 +93,16 @@ function BookmarkletActions() {
 
   return (
     <div className="flex items-center gap-3">
+      {/* Drag-only affordance: it exists so fine-pointer users can drag the
+          bookmarklet onto their bookmarks bar. Dragging is mouse-only with no
+          keyboard equivalent, so it is removed from the tab order and the
+          accessibility tree — the keyboard-accessible path is the Copy button. */}
       {/* oxlint-disable-next-line react-doctor/nextjs-no-a-element, react-doctor/no-prevent-default -- draggable javascript: bookmarklet, not a navigation link */}
       <a
         ref={ref}
         href="/import"
+        aria-hidden="true"
+        tabIndex={-1}
         className="hit-area-y-2 inline-flex h-9 cursor-grab items-center rounded-md border border-border bg-primary px-4 font-medium text-primary-foreground"
         onClick={(e) => e.preventDefault()}
       >

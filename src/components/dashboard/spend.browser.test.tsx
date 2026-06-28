@@ -88,6 +88,20 @@ test("copies the bookmarklet and flashes confirmation when Copy is clicked", asy
   await expect.element(page.getByRole("button", { name: "Copied" })).toBeVisible();
 });
 
+test("keeps the drag affordance out of the tab order and accessibility tree", async () => {
+  onTestFinished(clearTransactionImport);
+
+  await render(<SpendSection data={demoDashboard} />);
+
+  const affordance = page.getByText("Import PSN spend");
+
+  await expect.element(affordance).toHaveAttribute("aria-hidden", "true");
+  await expect.element(affordance).toHaveAttribute("tabindex", "-1");
+  await expect
+    .element(page.getByRole("link", { name: "Import PSN spend" }))
+    .not.toBeInTheDocument();
+});
+
 test("links to PlayStation order history in the import instructions", async () => {
   onTestFinished(clearTransactionImport);
 
