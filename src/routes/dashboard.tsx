@@ -3,7 +3,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import { DashboardView } from "@/components/dashboard/dashboard-view";
-import { rawgFranchisesQueryOptions, rawgGenresQueryOptions } from "@/components/dashboard/query";
+import {
+  rawgFranchisesQueryOptions,
+  rawgGenresQueryOptions,
+  shouldPersistEnrichment,
+} from "@/components/dashboard/query";
 import { DashboardSkeleton } from "@/components/dashboard/states";
 import { clearActiveAccount, saveDashboard, useActiveDashboard } from "@/lib/dashboard-store";
 import type { DashboardData, GamePlay, Genre } from "@/lib/psn/types";
@@ -66,10 +70,8 @@ function Dashboard() {
 }
 
 function DashboardCachedView({ data }: { data: DashboardData }) {
-  const { data: rawgGenres = [], fetchStatus: genresStatus } = useQuery(
-    rawgGenresQueryOptions(data)
-  );
-  const { data: rawgFranchises = [], fetchStatus: franchisesStatus } = useQuery(
+  const { data: rawgGenres = [], status: genresStatus } = useQuery(rawgGenresQueryOptions(data));
+  const { data: rawgFranchises = [], status: franchisesStatus } = useQuery(
     rawgFranchisesQueryOptions(data)
   );
   const enrichedData = useMemo(
@@ -77,12 +79,24 @@ function DashboardCachedView({ data }: { data: DashboardData }) {
     [data, rawgGenres, rawgFranchises]
   );
 
-  // Persist the enriched data back to the client cache once the RAWG lookups
-  // settle, so revisits render fully enriched without re-hitting RAWG. The
-  // `enriched` flag (set here) gates the lookups off, breaking the save loop.
+  // Fire-and-forget: write the enriched snapshot to localStorage (via the
+  // dashboard store) once the RAWG lookups have actually SUCCEEDED, so revisits
+  // render fully enriched without re-hitting RAWG. `shouldPersistEnrichment`
+  // gates on the query `status` (not `fetchStatus`), so a failed lookup leaves
+  // the data un-enriched and a later visit retries (#136).
+  //
+  // This stays a `useEffect` per docs/rules/effects.md: it pushes to localStorage
+  // and nothing here is read back during this render (the store re-publishes via
+  // its own `useSyncExternalStore`, so not that hook); no user interaction
+  // triggers it — it fires on async query settlement, not an event (so not an
+  // event handler); and writing to localStorage during render would be an impure
+  // side effect (so not render-time derivation). Moving the write into the query
+  // layer was attempted but is not viable: the `@/server/psn` server functions
+  // require the TanStack Start server runtime and cannot be driven at the query
+  // layer in tests without mocking our own wrapper, which docs/rules/testing.md
+  // forbids.
   useEffect(() => {
-    if (data.isDemo || data.enriched) return;
-    if (genresStatus !== "idle" || franchisesStatus !== "idle") return;
+    if (!shouldPersistEnrichment(data, genresStatus, franchisesStatus)) return;
     saveDashboard({ ...enrichedData, enriched: true });
   }, [data, enrichedData, genresStatus, franchisesStatus]);
 
