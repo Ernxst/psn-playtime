@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import type { DashboardData } from "@/lib/psn/types";
+import { CachedDataIndicator } from "./cached-data-indicator";
 import { fmtNumber } from "./format";
 
 interface Props {
@@ -32,6 +33,7 @@ export function DashboardHeader({ data, onSignOut, signingOut }: Props) {
             <Progress value={profile.levelProgress} className="h-1.5 w-24" />
             <span>{profile.levelProgress}% to next</span>
           </div>
+          <CachedDataIndicator data={data} />
         </div>
       </div>
       {!data.isDemo ? (
