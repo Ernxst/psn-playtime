@@ -1,12 +1,14 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { ArrowRight, ExternalLink, Info, ShieldAlert } from "lucide-react";
-import { useState } from "react";
+import { ArrowRight, ExternalLink } from "lucide-react";
+import { useId, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Field, FieldControl, FieldDescription, FieldLabel } from "@/components/ui/field";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Field, FieldControl, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { signInWithToken } from "@/server/psn";
 
@@ -62,10 +64,25 @@ const STEPS: Array<{
 ];
 
 const PSN_API_URL = "https://github.com/achievements-app/psn-api";
+const REPO_URL = "https://github.com/Ernxst/psn-playtime";
 
-function TosDetails() {
+function ExternalAnchor({ href, children }: { href: string; children: React.ReactNode }) {
   return (
-    <ul className="mt-2 list-disc space-y-1.5 pr-1 pl-9 text-muted-foreground">
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className="inline-flex items-center gap-1 text-primary underline-offset-4 hover:underline"
+    >
+      {children}
+      <ExternalLink className="size-3" />
+    </a>
+  );
+}
+
+function RiskDetailsList() {
+  return (
+    <ul className="mt-2 list-disc space-y-1.5 pr-1 pl-5 text-muted-foreground">
       <li>
         It uses your PSN session cookie with Sony's internal endpoints. There is no public PSN API,
         so this is technically a Terms of Service violation.
@@ -75,51 +92,36 @@ function TosDetails() {
         your account.
       </li>
       <li>
-        Your npsso token is like a password, so keep it secret. It stays in your browser session and
-        is never shared.
+        Your token is never logged or stored on the server. It lives only in your browser's httpOnly
+        session cookie.
       </li>
       <li>
-        The token expires after about 2 months, and you can revoke it any time by signing out of
-        PSN.
+        The token expires after about 2 months, and you can revoke it any time by signing out of PSN.
+      </li>
+      <li>
+        This app is <ExternalAnchor href={REPO_URL}>open source</ExternalAnchor>, so you can read the
+        code yourself or self-host your own instance if you'd rather not trust this one.
       </li>
       <li>
         Curious how it works? It is built on{" "}
-        <a
-          href={PSN_API_URL}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-1 text-primary underline-offset-4 hover:underline"
-        >
-          psn-api
-          <ExternalLink className="size-3" />
-        </a>
-        .
+        <ExternalAnchor href={PSN_API_URL}>psn-api</ExternalAnchor>.
       </li>
     </ul>
   );
 }
 
-function TosDisclosure() {
+/**
+ * On-demand "learn about the risk" action. Collapsed by default, so the detail
+ * only appears when the user opens it, never as an always-on wall of text.
+ */
+function RiskDetails() {
   return (
-    <div className="space-y-2 rounded-md border bg-muted/50 p-3 text-xs">
-      <p className="flex items-start gap-2 text-foreground">
-        <Info
-          className="size-3.5 shrink-0 translate-y-px text-muted-foreground"
-          aria-hidden="true"
-        />
-        <span>
-          This connects with an <span className="font-semibold">unofficial method</span> that is
-          against PlayStation's Terms of Service. The risk for read-only personal use is low, but
-          not zero, so you opt in at your own discretion.
-        </span>
-      </p>
-      <details>
-        <summary className="ml-[1.375rem] cursor-pointer text-primary underline-offset-4 hover:underline">
-          Learn more
-        </summary>
-        <TosDetails />
-      </details>
-    </div>
+    <details className="rounded-md border bg-muted/50 p-3 text-xs">
+      <summary className="cursor-pointer font-medium text-foreground underline-offset-4 hover:underline">
+        Learn about the risk
+      </summary>
+      <RiskDetailsList />
+    </details>
   );
 }
 
@@ -137,17 +139,7 @@ function Step({
       </span>
       <div className="space-y-1">
         <p>{text}</p>
-        {href ? (
-          <a
-            href={href}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1 text-primary underline-offset-4 hover:underline"
-          >
-            {linkText}
-            <ExternalLink className="size-3" />
-          </a>
-        ) : null}
+        {href ? <ExternalAnchor href={href}>{linkText}</ExternalAnchor> : null}
         {example}
       </div>
     </li>
@@ -170,7 +162,7 @@ function useSignIn() {
   });
 }
 
-function SubmitButton({ pending }: { pending: boolean }) {
+function SubmitButton({ pending, disabled }: { pending: boolean; disabled: boolean }) {
   if (pending) {
     return (
       <Button type="submit" disabled>
@@ -179,18 +171,46 @@ function SubmitButton({ pending }: { pending: boolean }) {
     );
   }
   return (
-    <Button type="submit">
+    <Button type="submit" disabled={disabled}>
       Sign in <ArrowRight className="size-4" />
     </Button>
   );
 }
 
+function ConsentCheckbox({
+  checked,
+  onCheckedChange,
+}: {
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+}) {
+  const consentId = useId();
+  return (
+    <div className="flex items-start gap-2">
+      <Checkbox
+        id={consentId}
+        checked={checked}
+        onCheckedChange={(value) => onCheckedChange(value === true)}
+        className="mt-0.5"
+      />
+      <Label htmlFor={consentId} className="text-xs font-normal text-muted-foreground">
+        I understand this token can sign in to my PlayStation account, like handing over my
+        PlayStation password, including whoever runs this app.
+      </Label>
+    </div>
+  );
+}
+
 function TokenForm() {
   const [npsso, setNpsso] = useState("");
+  const [acknowledged, setAcknowledged] = useState(false);
   const signIn = useSignIn();
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!acknowledged) {
+      return;
+    }
     const token = normalizeNpsso(npsso);
     if (token) {
       signIn.mutate(token);
@@ -200,28 +220,27 @@ function TokenForm() {
   }
 
   return (
-    <Field render={<form onSubmit={onSubmit} />} className="gap-2">
-      <FieldDescription className="flex items-center gap-2 text-destructive text-xs font-medium">
-        <ShieldAlert className="size-3.5 shrink-0" aria-hidden="true" />
-        Treat this token like a password. Never share it or post a screenshot of it.
-      </FieldDescription>
-      <FieldLabel>npsso token</FieldLabel>
-      <div className="flex w-full flex-col gap-2 sm:flex-row">
-        <FieldControl
-          render={
-            <Input
-              value={npsso}
-              onChange={(e) => setNpsso(e.target.value)}
-              placeholder="Paste your 64-character npsso value"
-              autoComplete="off"
-              spellCheck={false}
-              disabled={signIn.isPending}
-            />
-          }
-        />
-        <SubmitButton pending={signIn.isPending} />
-      </div>
-    </Field>
+    <form onSubmit={onSubmit} className="flex flex-col gap-2">
+      <Field className="gap-2">
+        <FieldLabel>npsso token</FieldLabel>
+        <div className="flex w-full flex-col gap-2 sm:flex-row">
+          <FieldControl
+            render={
+              <Input
+                value={npsso}
+                onChange={(e) => setNpsso(e.target.value)}
+                placeholder="Paste your 64-character npsso value"
+                autoComplete="off"
+                spellCheck={false}
+                disabled={signIn.isPending}
+              />
+            }
+          />
+          <SubmitButton pending={signIn.isPending} disabled={!acknowledged} />
+        </div>
+      </Field>
+      <ConsentCheckbox checked={acknowledged} onCheckedChange={setAcknowledged} />
+    </form>
   );
 }
 
@@ -243,7 +262,7 @@ export function SignInCard() {
             ))}
           </ol>
         </div>
-        <TosDisclosure />
+        <RiskDetails />
         <TokenForm />
         <div className="flex items-center justify-center pt-1">
           <Button render={<Link to="/dashboard" />} variant="ghost" size="sm">
