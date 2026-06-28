@@ -1,4 +1,4 @@
-import { Coins, ExternalLink, Gift, Trophy, Wallet } from "lucide-react";
+import { Banknote, Coins, ExternalLink, Gift, Trophy, Wallet } from "lucide-react";
 import type { ReactNode } from "react";
 import { useCopied } from "@/components/dashboard/copy-button";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import {
   type SpendSummary,
   summariseAddOns,
   summariseSpend,
+  type TitleSpend,
 } from "@/lib/psn/spend";
 import { bookmarkletHref } from "@/lib/psn/transaction-bookmarklet";
 import type { DashboardData } from "@/lib/psn/types";
@@ -279,6 +280,46 @@ export function SpendSection({ data }: { data: DashboardData }) {
       <ByYearCard summary={summary} />
       <LeaderboardCard summary={summary} />
     </div>
+  );
+}
+
+function TitleSpendRow({ currency, title }: { currency: string; title: TitleSpend }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <div className="min-w-0 truncate">{title.name}</div>
+      <span className="shrink-0 font-semibold tabular-nums">{money(currency, title.spend)}</span>
+    </div>
+  );
+}
+
+/**
+ * Games ranked by total spend (base game + add-ons), highest first — surfacing
+ * the titles the most money went on, distinct from {@link AddOnsSection} (which
+ * ranks by add-on count). Every matched title with spend shows, including ones
+ * with no playtime. Hidden for the demo library and until a transaction import
+ * lands, mirroring {@link SpendSection}.
+ */
+export function SpentMostSection({ data }: { data: DashboardData }) {
+  const imported = useTransactionImport();
+  if (data.isDemo || !imported || imported.transactions.length === 0) return null;
+
+  const summary = summariseSpend(data, imported.transactions);
+  if (summary.byTitle.length === 0) return null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Banknote className="size-4" /> Spent the most on
+        </CardTitle>
+        <CardDescription>Games ranked by total spend: base game plus any add-ons.</CardDescription>
+      </CardHeader>
+      <CardContent className="max-h-96 space-y-2 overflow-y-auto text-sm">
+        {summary.byTitle.map((t) => (
+          <TitleSpendRow key={t.titleId} currency={summary.currency} title={t} />
+        ))}
+      </CardContent>
+    </Card>
   );
 }
 

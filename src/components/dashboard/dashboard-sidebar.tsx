@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import {
+  Banknote,
   CalendarRange,
   Coins,
   Gamepad2,
@@ -43,6 +44,7 @@ const DASHBOARD_SECTIONS: readonly Section[] = [
   { icon: Sparkles, id: "ask-ai", label: "Ask an AI" },
   { icon: Coins, id: "spend", label: "Spend" },
   { icon: Receipt, id: "purchase-history", label: "Purchase history" },
+  { icon: Banknote, id: "spent-most", label: "Spent the most on" },
   { icon: Gift, id: "add-ons", label: "Spent extra on" },
   { icon: Gamepad2, id: "all-games", label: "All games" },
 ];

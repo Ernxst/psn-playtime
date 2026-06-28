@@ -22,7 +22,7 @@ import { AppsExcludedNote, ComebacksCard, LifespansCard, RecencyCard, ValueCard 
 import { KpiCards } from "./kpi-cards";
 import { LlmPromptCard } from "./llm-prompt-card";
 import { PurchaseHistorySection } from "./purchase-history";
-import { AddOnsSection, SpendSection } from "./spend";
+import { AddOnsSection, SpendSection, SpentMostSection } from "./spend";
 import { DashboardEmpty, DashboardNoMatches } from "./states";
 import { TrophySection } from "./trophies";
 
@@ -169,6 +169,9 @@ function SpendSections({ data }: { data: DashboardData }) {
       </Section>
       <Section id="purchase-history">
         <PurchaseHistorySection data={data} />
+      </Section>
+      <Section id="spent-most">
+        <SpentMostSection data={data} />
       </Section>
       <Section id="add-ons">
         <AddOnsSection data={data} />

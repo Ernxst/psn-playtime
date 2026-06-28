@@ -4,8 +4,9 @@ import { page } from "vitest/browser";
 import { demoDashboard } from "@/lib/psn/mock";
 import { bookmarkletHref } from "@/lib/psn/transaction-bookmarklet";
 import type { TransactionRow } from "@/lib/psn/transactions";
+import type { GamePlay } from "@/lib/psn/types";
 import { clearTransactionImport, saveTransactionImport } from "@/lib/transactions-store";
-import { AddOnsSection, SpendSection } from "./spend";
+import { AddOnsSection, SpendSection, SpentMostSection } from "./spend";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -201,4 +202,74 @@ test("hides the add-ons section when no transactions are imported", async () => 
   await render(<AddOnsSection data={realDashboard} />);
 
   await expect.element(page.getByText("Spent extra on")).not.toBeInTheDocument();
+});
+
+function libraryGame(titleId: string, name: string, hours = 1): GamePlay {
+  return { titleId, name, platform: "PS5", hours, playCount: 1, genre: "Other", isApp: false };
+}
+
+/** An add-on purchase matched to a given library titleId by skuId. */
+function addOnFor(titleId: string, n: number): TransactionRow {
+  return {
+    transactionId: `${titleId}-${n}`,
+    key: `${titleId}-${n}`,
+    date: "2022-05-12",
+    transactionType: "PRODUCT_PURCHASE",
+    kind: "purchase",
+    productName: `${titleId} Season Pass`,
+    skuId: `EP0001-${titleId}-ADDON${n}-U001`,
+    skuType: "ADD_ON",
+    quantity: 1,
+    amountMinor: 999,
+    currency: "£",
+    displayAmount: "£9.99",
+  };
+}
+
+/** A base-game purchase matched to a given library titleId by skuId. */
+function baseFor(titleId: string, amountMinor: number): TransactionRow {
+  return {
+    transactionId: `${titleId}-base`,
+    key: `${titleId}-base`,
+    date: "2022-05-12",
+    transactionType: "PRODUCT_PURCHASE",
+    kind: "purchase",
+    productName: titleId,
+    skuId: `EP0001-${titleId}-00000000000000N1-U001`,
+    skuType: "STANDARD",
+    quantity: 1,
+    amountMinor,
+    currency: "£",
+    displayAmount: "",
+  };
+}
+
+test("ranks games by total spend, summing base game and add-ons", async () => {
+  const cyberpunk = libraryGame("CYBER", "Cyberpunk 2077", 40);
+  seed([
+    baseFor("CYBER", 1999),
+    addOnFor("CYBER", 1), // 999 add-on → £29.98 total
+  ]);
+
+  await render(<SpentMostSection data={{ ...realDashboard, games: [cyberpunk] }} />);
+
+  await expect.element(page.getByText("Spent the most on")).toBeVisible();
+  await expect.element(page.getByText("Cyberpunk 2077")).toBeVisible();
+  await expect.element(page.getByText("£29.98")).toBeVisible();
+});
+
+test("hides the spent-most section for the demo dashboard", async () => {
+  seed([baseFor("DEMO-8", 1999)]);
+
+  await render(<SpentMostSection data={demoDashboard} />);
+
+  await expect.element(page.getByText("Spent the most on")).not.toBeInTheDocument();
+});
+
+test("hides the spent-most section when no transactions are imported", async () => {
+  onTestFinished(clearTransactionImport);
+
+  await render(<SpentMostSection data={realDashboard} />);
+
+  await expect.element(page.getByText("Spent the most on")).not.toBeInTheDocument();
 });
