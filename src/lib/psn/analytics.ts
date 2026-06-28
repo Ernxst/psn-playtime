@@ -31,11 +31,11 @@ export type Timeframe = "all" | "last-12-months" | "last-2-years" | "this-year";
  * games by their last-played date and still shows each game's lifetime hours.
  */
 export const LIFETIME_HOURS_NOTE =
-  "All playtime is each game's lifetime total from PSN. PSN doesn't report hours per period, so date filters select games by when you last played them and still show each game's lifetime hours, not hours within the range.";
+  "All playtime is PSN-recorded hours per game, which don't always reflect your true time played — PSN can under-report or miss play time for some titles, so a low number may understate it. PSN also doesn't report hours per period, so date filters select games by when you last played them and still show each game's recorded hours, not hours within the range.";
 
-/** Short lifetime caveat for tooltips/titles on an individual hour figure. */
+/** Short caveat for tooltips/titles on an individual hour figure. */
 export const LIFETIME_HOURS_CAVEAT =
-  "Lifetime total from PSN. PSN only reports each game's lifetime hours, never hours within a period.";
+  "PSN-recorded hours, which don't always reflect your true time played: PSN can under-report or miss play time for some titles, so a low number may understate it, and it never reports hours within a period.";
 
 /**
  * The actual current calendar year (UTC). The "this year" timeframe anchors to

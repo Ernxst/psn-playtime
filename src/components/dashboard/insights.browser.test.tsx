@@ -30,7 +30,9 @@ test("recency card exposes the lifetime caveat as an accessible tooltip", async 
     .first()
     .hover();
 
-  await expect.element(page.getByText(/PSN only reports each game's lifetime hours/)).toBeVisible();
+  await expect
+    .element(page.getByText(/PSN can under-report or miss play time for some titles/))
+    .toBeVisible();
 });
 
 test("lifespans card ranks the games with the longest first-to-last span", async () => {
