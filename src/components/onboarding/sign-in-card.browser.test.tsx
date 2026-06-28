@@ -1,11 +1,15 @@
-import { expect, test, vi } from "vitest";
+import { expect, onTestFinished, test, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
 import { Toaster } from "@/components/ui/sonner";
 import { demoDashboard } from "@/lib/psn/mock";
+import { loadRememberedAccounts, rememberAccount } from "@/lib/remembered-accounts";
 import { signInWithToken } from "@/server/psn";
 import { createHarness } from "@/test/harness";
 import { SignInCard } from "./sign-in-card";
+
+// Dummy, non-secret stand-in for an npsso token.
+const DUMMY_NPSSO = "dummy-npsso-token";
 
 vi.mock("@/server/psn", () => ({
   signInWithToken: vi.fn(),
@@ -94,4 +98,81 @@ test("a failed sign-in surfaces the error message as a toast", async () => {
   await page.getByRole("button", { name: "Sign in" }).click();
 
   await expect.element(page.getByText("That token didn't work")).toBeVisible();
+});
+
+test("opting in remembers the account after a successful sign-in", async () => {
+  onTestFinished(() => window.localStorage.clear());
+  vi.mocked(signInWithToken).mockResolvedValue(demoDashboard);
+  const { element, queryClient } = createHarness(<SignInCard />);
+
+  await render(element);
+
+  await page.getByLabelText("npsso token").fill(DUMMY_NPSSO);
+  await page.getByText("Remember this account on this device").click();
+  await page.getByRole("button", { name: "Sign in" }).click();
+
+  await expect.poll(() => queryClient.getQueryData(["dashboard"])).toBe(demoDashboard);
+  expect(loadRememberedAccounts()).toEqual([{ onlineId: "Ernxst_", npsso: DUMMY_NPSSO }]);
+});
+
+test("without opting in, a successful sign-in stores nothing", async () => {
+  onTestFinished(() => window.localStorage.clear());
+  vi.mocked(signInWithToken).mockResolvedValue(demoDashboard);
+  const { element, queryClient } = createHarness(<SignInCard />);
+
+  await render(element);
+
+  await page.getByLabelText("npsso token").fill(DUMMY_NPSSO);
+  await page.getByRole("button", { name: "Sign in" }).click();
+
+  await expect.poll(() => queryClient.getQueryData(["dashboard"])).toBe(demoDashboard);
+  expect(loadRememberedAccounts()).toEqual([]);
+});
+
+test("a remembered account offers Continue as and reuses the stored token", async () => {
+  onTestFinished(() => window.localStorage.clear());
+  rememberAccount({ onlineId: "Ernxst_", npsso: DUMMY_NPSSO });
+  vi.mocked(signInWithToken).mockResolvedValue(demoDashboard);
+  const { element, queryClient } = createHarness(<SignInCard />);
+
+  await render(element);
+
+  await page.getByRole("button", { name: /continue as Ernxst_/i }).click();
+
+  expect(signInWithToken).toHaveBeenCalledWith({ data: { npsso: DUMMY_NPSSO } });
+  await expect.poll(() => queryClient.getQueryData(["dashboard"])).toBe(demoDashboard);
+});
+
+test("forgetting a remembered account removes it from the quick-select", async () => {
+  onTestFinished(() => window.localStorage.clear());
+  rememberAccount({ onlineId: "Ernxst_", npsso: DUMMY_NPSSO });
+  const { element } = createHarness(<SignInCard />);
+
+  await render(element);
+
+  await page.getByRole("button", { name: "Forget Ernxst_" }).click();
+
+  await expect.poll(() => loadRememberedAccounts()).toEqual([]);
+  await expect
+    .element(page.getByRole("button", { name: /continue as Ernxst_/i }))
+    .not.toBeInTheDocument();
+});
+
+test("a stale remembered token degrades to the paste flow with a clear message", async () => {
+  onTestFinished(() => window.localStorage.clear());
+  rememberAccount({ onlineId: "Ernxst_", npsso: "stale-token" });
+  vi.mocked(signInWithToken).mockRejectedValue(new Error("That token didn't work"));
+  const { element } = createHarness(
+    <>
+      <SignInCard />
+      <Toaster />
+    </>
+  );
+
+  await render(element);
+
+  await page.getByRole("button", { name: /continue as Ernxst_/i }).click();
+
+  await expect.element(page.getByText(/that saved sign-in didn't work/i)).toBeVisible();
+  await expect.element(page.getByLabelText("npsso token")).toBeVisible();
 });

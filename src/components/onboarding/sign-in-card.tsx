@@ -1,13 +1,24 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { type UseMutationResult, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { ArrowRight, ExternalLink, Info, ShieldAlert } from "lucide-react";
+import { ArrowRight, ExternalLink, Info, ShieldAlert, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldControl, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
+import type { DashboardData } from "@/lib/psn/types";
+import {
+  forgetAccount,
+  type RememberedAccount,
+  rememberAccount,
+  useRememberedAccounts,
+} from "@/lib/remembered-accounts";
 import { signInWithToken } from "@/server/psn";
 
 /**
@@ -154,12 +165,28 @@ function Step({
   );
 }
 
-function useSignIn() {
+/** Variables for a sign-in attempt. `remember` opts the token into local persistence. */
+interface SignInVars {
+  token: string;
+  remember: boolean;
+}
+
+type SignIn = UseMutationResult<DashboardData, Error, SignInVars>;
+
+function useSignIn(): SignIn {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (token: string) => signInWithToken({ data: { npsso: token } }),
-    onSuccess: (data) => {
+  return useMutation<DashboardData, Error, SignInVars>({
+    mutationFn: ({ token }) => signInWithToken({ data: { npsso: token } }),
+    onSuccess: (data, { token, remember }) => {
+      // Only persist the password-grade token when the user opted in.
+      if (remember) {
+        rememberAccount({
+          onlineId: data.profile.onlineId,
+          avatarUrl: data.profile.avatarUrl,
+          npsso: token,
+        });
+      }
       queryClient.setQueryData(["dashboard"], data);
       void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       void navigate({ to: "/dashboard" });
@@ -185,47 +212,174 @@ function SubmitButton({ pending }: { pending: boolean }) {
   );
 }
 
-function TokenForm() {
+function RememberToggle({
+  checked,
+  onChange,
+  disabled,
+}: {
+  checked: boolean;
+  onChange: (next: boolean) => void;
+  disabled: boolean;
+}) {
+  return (
+    <div className="space-y-1.5 rounded-md border bg-muted/50 p-3">
+      <Label className="items-start">
+        <Checkbox
+          checked={checked}
+          onCheckedChange={onChange}
+          disabled={disabled}
+          className="mt-0.5"
+        />
+        <span>Remember this account on this device</span>
+      </Label>
+      <p className="pl-[1.625rem] text-xs text-muted-foreground">
+        Saves your npsso token in this browser so you can sign back in without pasting it again. The
+        token is like a password, so only do this on a device you trust.
+      </p>
+    </div>
+  );
+}
+
+function TokenForm({ signIn }: { signIn: SignIn }) {
   const [npsso, setNpsso] = useState("");
-  const signIn = useSignIn();
+  const [remember, setRemember] = useState(false);
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     const token = normalizeNpsso(npsso);
     if (token) {
-      signIn.mutate(token);
+      signIn.mutate({ token, remember });
     } else {
       toast.error("Paste your npsso token first.");
     }
   }
 
   return (
-    <Field render={<form onSubmit={onSubmit} />} className="gap-2">
-      <FieldDescription className="flex items-center gap-2 text-destructive text-xs font-medium">
-        <ShieldAlert className="size-3.5 shrink-0" aria-hidden="true" />
-        Treat this token like a password. Never share it or post a screenshot of it.
-      </FieldDescription>
-      <FieldLabel>npsso token</FieldLabel>
-      <div className="flex w-full flex-col gap-2 sm:flex-row">
-        <FieldControl
-          render={
-            <Input
-              value={npsso}
-              onChange={(e) => setNpsso(e.target.value)}
-              placeholder="Paste your 64-character npsso value"
-              autoComplete="off"
-              spellCheck={false}
-              disabled={signIn.isPending}
-            />
-          }
-        />
-        <SubmitButton pending={signIn.isPending} />
+    <form onSubmit={onSubmit} className="space-y-3">
+      <Field className="gap-2">
+        <FieldDescription className="flex items-center gap-2 text-destructive text-xs font-medium">
+          <ShieldAlert className="size-3.5 shrink-0" aria-hidden="true" />
+          Treat this token like a password. Never share it or post a screenshot of it.
+        </FieldDescription>
+        <FieldLabel>npsso token</FieldLabel>
+        <div className="flex w-full flex-col gap-2 sm:flex-row">
+          <FieldControl
+            render={
+              <Input
+                value={npsso}
+                onChange={(e) => setNpsso(e.target.value)}
+                placeholder="Paste your 64-character npsso value"
+                autoComplete="off"
+                spellCheck={false}
+                disabled={signIn.isPending}
+              />
+            }
+          />
+          <SubmitButton pending={signIn.isPending} />
+        </div>
+      </Field>
+      <RememberToggle checked={remember} onChange={setRemember} disabled={signIn.isPending} />
+    </form>
+  );
+}
+
+function ContinueButton({
+  account,
+  pending,
+  onContinue,
+}: {
+  account: RememberedAccount;
+  pending: boolean;
+  onContinue: () => void;
+}) {
+  return (
+    <Button
+      variant="outline"
+      className="h-auto flex-1 justify-start gap-3 py-2"
+      onClick={onContinue}
+      disabled={pending}
+      aria-label={`Continue as ${account.onlineId}`}
+    >
+      <Avatar className="size-9">
+        <AvatarImage src={account.avatarUrl} alt={account.onlineId} />
+        <AvatarFallback>{account.onlineId.slice(0, 2).toUpperCase()}</AvatarFallback>
+      </Avatar>
+      <span className="flex flex-col items-start text-left">
+        <span className="text-xs font-normal text-muted-foreground">Continue as</span>
+        <span className="font-semibold">{account.onlineId}</span>
+      </span>
+      {pending ? <Spinner className="ml-auto size-4" /> : <ArrowRight className="ml-auto size-4" />}
+    </Button>
+  );
+}
+
+function RememberedAccountRow({
+  account,
+  signIn,
+}: {
+  account: RememberedAccount;
+  signIn: SignIn;
+}) {
+  const [stale, setStale] = useState(false);
+  const pending = signIn.isPending;
+
+  function onContinue() {
+    setStale(false);
+    // Reuse the stored token through the same sign-in path as a manual paste.
+    signIn.mutate({ token: account.npsso, remember: true }, { onError: () => setStale(true) });
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <ContinueButton account={account} pending={pending} onContinue={onContinue} />
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => forgetAccount(account.onlineId)}
+          disabled={pending}
+          aria-label={`Forget ${account.onlineId}`}
+        >
+          <X className="size-4" />
+        </Button>
       </div>
-    </Field>
+      {stale ? (
+        <p className="text-xs text-destructive">
+          That saved sign-in didn't work. The token may have expired, so forget it and paste a fresh
+          one below.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function RememberedAccounts({
+  accounts,
+  signIn,
+}: {
+  accounts: readonly RememberedAccount[];
+  signIn: SignIn;
+}) {
+  return (
+    <div className="space-y-3">
+      <p className="text-sm font-medium text-muted-foreground">Pick up where you left off:</p>
+      <div className="space-y-2">
+        {accounts.map((account) => (
+          <RememberedAccountRow key={account.onlineId} account={account} signIn={signIn} />
+        ))}
+      </div>
+      <div className="flex items-center gap-3 pt-1">
+        <Separator className="flex-1" />
+        <span className="text-xs text-muted-foreground">or use a new token</span>
+        <Separator className="flex-1" />
+      </div>
+    </div>
   );
 }
 
 export function SignInCard() {
+  const accounts = useRememberedAccounts();
+  const signIn = useSignIn();
   return (
     <Card>
       <CardHeader>
@@ -235,6 +389,7 @@ export function SignInCard() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
+        {accounts.length > 0 ? <RememberedAccounts accounts={accounts} signIn={signIn} /> : null}
         <div className="space-y-3">
           <p className="text-sm font-medium text-muted-foreground">How to get your token:</p>
           <ol className="space-y-3 text-sm">
@@ -244,7 +399,7 @@ export function SignInCard() {
           </ol>
         </div>
         <TosDisclosure />
-        <TokenForm />
+        <TokenForm signIn={signIn} />
         <div className="flex items-center justify-center pt-1">
           <Button render={<Link to="/dashboard" />} variant="ghost" size="sm">
             Or explore the demo instead
