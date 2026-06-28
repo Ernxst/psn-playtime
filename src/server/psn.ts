@@ -139,16 +139,37 @@ async function fetchProfile(auth: AuthorizationPayload): Promise<ProfileSummary>
   };
 }
 
+const PLAYED_PAGE_LIMIT = 200;
+const TROPHY_PAGE_LIMIT = 800;
+
+/**
+ * Whether paging should stop. PSN normally reports `totalItemCount`, but it can
+ * omit it; the old `?? all.length` fallback made the stop condition trivially
+ * true after a full first page, silently dropping every later page. So when the
+ * count is absent fall back to page fullness: keep going while the last page was
+ * full (more may follow) and stop only on a short or empty page.
+ */
+function pagingComplete(
+  pageSize: number,
+  fetched: number,
+  totalItemCount: number | undefined,
+  limit: number
+): boolean {
+  if (pageSize === 0) return true;
+  if (totalItemCount !== undefined) return fetched >= totalItemCount;
+  return pageSize < limit;
+}
+
 type PlayedTitle = Awaited<ReturnType<typeof getUserPlayedGames>>["titles"][number];
 
 async function fetchAllPlayedGames(auth: AuthorizationPayload): Promise<PlayedTitle[]> {
   const all: PlayedTitle[] = [];
   let offset = 0;
   for (;;) {
-    const res = await getUserPlayedGames(auth, "me", { limit: 200, offset });
+    const res = await getUserPlayedGames(auth, "me", { limit: PLAYED_PAGE_LIMIT, offset });
     all.push(...res.titles);
     offset += res.titles.length;
-    if (res.titles.length === 0 || all.length >= (res.totalItemCount ?? all.length)) break;
+    if (pagingComplete(res.titles.length, all.length, res.totalItemCount, PLAYED_PAGE_LIMIT)) break;
   }
   return all;
 }
@@ -180,11 +201,12 @@ async function fetchTrophyTitles(auth: AuthorizationPayload): Promise<TrophyTitl
   let offset = 0;
   let totalItemCount: number | undefined;
   for (;;) {
-    const res = await getUserTitles(auth, "me", { limit: 800, offset });
+    const res = await getUserTitles(auth, "me", { limit: TROPHY_PAGE_LIMIT, offset });
     all.push(...res.trophyTitles);
     offset += res.trophyTitles.length;
     totalItemCount = res.totalItemCount;
-    if (res.trophyTitles.length === 0 || all.length >= (res.totalItemCount ?? all.length)) break;
+    if (pagingComplete(res.trophyTitles.length, all.length, res.totalItemCount, TROPHY_PAGE_LIMIT))
+      break;
   }
   logTrophyTitlesDebug(all, totalItemCount);
   return all;

@@ -651,4 +651,87 @@ describe(".signInWithTokenHandler", () => {
       /That token didn't work/
     );
   });
+
+  it("keeps paging played games past a full first page when PSN omits the total", async () => {
+    mockExchangeNpsso.mockResolvedValue("access-code");
+    mockExchangeTokens.mockResolvedValue(authTokens);
+    mockGetProfile.mockResolvedValue(profile());
+    // A full first page (== the 200 limit) with no total: the loop must keep
+    // going and fetch the (short) second page rather than stop after page one.
+    const firstPage = Array.from({ length: 200 }, (_, i) =>
+      played({
+        titleId: `bulk-${i}`,
+        name: `Bulk Game ${i}`,
+        category: "ps5_native_game",
+        playDuration: "PT1H",
+        playCount: 1,
+      })
+    );
+    mockGetPlayed
+      .mockResolvedValueOnce(withoutTotal(playedPage(firstPage, 0)))
+      .mockResolvedValueOnce(
+        withoutTotal(
+          playedPage(
+            [
+              played({
+                titleId: "second-page",
+                name: "Second Page Game",
+                category: "ps5_native_game",
+                playDuration: "PT2H",
+                playCount: 1,
+              }),
+            ],
+            0
+          )
+        )
+      );
+    mockGetTitles.mockResolvedValue(trophyPage([], 0));
+
+    const result = await signInWithTokenHandler({ npsso: "npsso-token" });
+
+    expect(mockGetPlayed).toHaveBeenCalledTimes(2);
+    expect(result.games).toHaveLength(201);
+    expect(result.games.map((g) => g.titleId)).toContain("second-page");
+  });
+
+  it("keeps paging trophy titles past a full first page when PSN omits the total", async () => {
+    mockExchangeNpsso.mockResolvedValue("access-code");
+    mockExchangeTokens.mockResolvedValue(authTokens);
+    mockGetProfile.mockResolvedValue(profile());
+    mockGetPlayed.mockResolvedValue(
+      playedPage(
+        [
+          played({
+            titleId: "marker",
+            name: "Marker Trophy Game",
+            category: "ps5_native_game",
+            concept: { ...basePlayed.concept, name: "Marker Trophy Game" },
+            playDuration: "PT9H",
+            playCount: 4,
+          }),
+        ],
+        1
+      )
+    );
+    // A full first trophy page (== the 800 limit) with no total; the matching
+    // trophy list lives on the (short) second page, only reached if paging
+    // continues past the full page.
+    const firstTrophyPage = Array.from({ length: 800 }, (_, i) =>
+      trophy({ trophyTitleName: `Filler Trophy ${i}`, progress: 1 })
+    );
+    mockGetTitles
+      .mockResolvedValueOnce(withoutTotal(trophyPage(firstTrophyPage, 0)))
+      .mockResolvedValueOnce(
+        withoutTotal(
+          trophyPage([trophy({ trophyTitleName: "Marker Trophy Game", progress: 55 })], 0)
+        )
+      );
+
+    const result = await signInWithTokenHandler({ npsso: "npsso-token" });
+
+    const marker = result.games.find((g) => g.titleId === "marker")!;
+
+    expect(mockGetTitles).toHaveBeenCalledTimes(2);
+    expect(marker.trophy).toMatchObject({ progress: 55 });
+  });
 });
