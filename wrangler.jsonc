@@ -16,6 +16,9 @@
   "compatibility_date": "2026-06-03",
   // psn-api / its deps reach for node:crypto and node:buffer on the Workers runtime.
   "compatibility_flags": ["nodejs_compat"],
+  // Smart Placement: let Cloudflare run the worker near the services it calls
+  // (PSN/RAWG origins) rather than pinning it to the client's edge location.
+  "placement": { "mode": "smart" },
   "assets": {
     "directory": ".output/public",
     "binding": "ASSETS",
