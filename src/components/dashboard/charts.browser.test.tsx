@@ -4,6 +4,13 @@ import { page } from "vitest/browser";
 import { demoDashboard } from "@/lib/psn/mock";
 import { FranchiseChart, SessionChart, TopGamesChart, YearChart } from "./charts";
 
+const named = [
+  { Chart: TopGamesChart, prefix: "Top games by lifetime hours:" },
+  { Chart: FranchiseChart, prefix: "Top franchises by lifetime hours:" },
+  { Chart: YearChart, prefix: "Lifetime hours by most-recent-play year:" },
+  { Chart: SessionChart, prefix: "Average session length per game:" },
+] as const;
+
 // Tailwind isn't loaded in browser tests, so the chart height classes resolve
 // to 0 and Recharts renders nothing — give every chart surface a real size.
 beforeEach(() => {
@@ -38,3 +45,18 @@ test("session chart plots a bar per title with a sessions axis", async () => {
 
   await expect.poll(() => container.querySelectorAll(".recharts-bar-rectangle").length).toBe(12);
 });
+
+test.each(named)(
+  "exposes $prefix chart as an image queryable by its accessible name",
+  async ({ Chart, prefix }) => {
+    const { container } = await render(<Chart data={demoDashboard} />);
+
+    const chart = container.querySelector('[role="img"]');
+    if (!chart) throw new Error("expected the chart to expose role=img");
+
+    expect(chart).toHaveAttribute(
+      "aria-label",
+      expect.stringMatching(new RegExp(`^${prefix} .+\\.$`))
+    );
+  }
+);
