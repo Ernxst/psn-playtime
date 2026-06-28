@@ -27,6 +27,7 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
+    "@effect/atom-react": "4.0.0-beta.91",
     "@fontsource-variable/fraunces": "^5.2.9",
     "@fontsource-variable/manrope": "^5.2.8",
     "@tailwindcss/vite": "4.3.1",
@@ -42,6 +43,7 @@
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
     "date-fns": "4.4.0",
+    "effect": "4.0.0-beta.91",
     "lucide-react": "1.21.0",
     "next-themes": "0.4.6",
     "nitro": "npm:nitro-nightly@3.0.1-20260626-071224-83acc441",
