@@ -24,6 +24,7 @@ import { LlmPromptCard } from "./llm-prompt-card";
 import { PurchaseHistorySection } from "./purchase-history";
 import { SpendSection } from "./spend";
 import { DashboardEmpty, DashboardNoMatches } from "./states";
+import { TrophySection } from "./trophies";
 
 const LazyTopGamesSection = lazy(() =>
   import("./chart-sections").then((module) => ({ default: module.TopGamesSection }))
@@ -194,6 +195,9 @@ function DashboardBody({ data, timeframe }: { data: DashboardData; timeframe: Ti
         <DeferredSection height={350}>
           <LazyTimelineSection data={data} />
         </DeferredSection>
+      </Section>
+      <Section id="trophies">
+        <TrophySection data={data} />
       </Section>
       <InsightsSection data={data} />
       <Section id="ask-ai">

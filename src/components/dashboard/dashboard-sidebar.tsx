@@ -37,6 +37,7 @@ const DASHBOARD_SECTIONS: readonly Section[] = [
   { icon: Trophy, id: "top-games", label: "Top games" },
   { icon: PieChart, id: "genres-franchises", label: "Genres & franchises" },
   { icon: CalendarRange, id: "timeline", label: "Timeline" },
+  { icon: Trophy, id: "trophies", label: "Trophies" },
   { icon: Lightbulb, id: "insights", label: "Insights" },
   { icon: Sparkles, id: "ask-ai", label: "Ask an AI" },
   { icon: Coins, id: "spend", label: "Spend" },
