@@ -10,7 +10,7 @@ import {
   Sparkles,
   Trophy,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import {
   Sidebar,
   SidebarContent,
@@ -44,36 +44,64 @@ const DASHBOARD_SECTIONS: readonly Section[] = [
 
 const SECTION_IDS: readonly string[] = DASHBOARD_SECTIONS.map((section) => section.id);
 
+const OBSERVER_OPTIONS: IntersectionObserverInit = {
+  rootMargin: "-15% 0px -75% 0px",
+  threshold: 0,
+};
+
+/** The topmost section currently intersecting the viewport, if any. */
+function topVisibleSection(entries: readonly IntersectionObserverEntry[]): string | undefined {
+  const visible = entries
+    .filter((entry) => entry.isIntersecting)
+    .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+  return visible[0]?.target.id;
+}
+
+/** SSR-safe scroll-spy store: an IntersectionObserver feeds the section in view. */
+function createActiveSectionStore(): {
+  subscribe: (onStoreChange: () => void) => () => void;
+  getSnapshot: () => string;
+  getServerSnapshot: () => string;
+} {
+  let active = "overview";
+  let notify: (() => void) | undefined;
+
+  function setActive(id: string): void {
+    if (id === active) return;
+    active = id;
+    notify?.();
+  }
+
+  return {
+    subscribe(onStoreChange) {
+      notify = onStoreChange;
+      let observer: IntersectionObserver | undefined;
+      const timer = window.setTimeout(() => {
+        observer = new IntersectionObserver((entries) => {
+          const id = topVisibleSection(entries);
+          if (id) setActive(id);
+        }, OBSERVER_OPTIONS);
+        for (const id of SECTION_IDS) {
+          const el = document.getElementById(id);
+          if (el) observer.observe(el);
+        }
+      }, 0);
+
+      return () => {
+        notify = undefined;
+        window.clearTimeout(timer);
+        observer?.disconnect();
+      };
+    },
+    getSnapshot: () => active,
+    getServerSnapshot: () => "overview",
+  };
+}
+
 /** SSR-safe scroll-spy: tracks which section is in view. */
 function useActiveSection(): string {
-  const [active, setActive] = useState<string>("overview");
-
-  useEffect(() => {
-    let observer: IntersectionObserver | undefined;
-    const timer = window.setTimeout(() => {
-      observer = new IntersectionObserver(
-        (entries) => {
-          const visible = entries
-            .filter((entry) => entry.isIntersecting)
-            .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
-          if (visible[0]) setActive(visible[0].target.id);
-        },
-        { rootMargin: "-15% 0px -75% 0px", threshold: 0 }
-      );
-
-      for (const id of SECTION_IDS) {
-        const el = document.getElementById(id);
-        if (el) observer.observe(el);
-      }
-    }, 0);
-
-    return () => {
-      window.clearTimeout(timer);
-      observer?.disconnect();
-    };
-  }, []);
-
-  return active;
+  const [store] = useState(createActiveSectionStore);
+  return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getServerSnapshot);
 }
 
 function NavMenu({
