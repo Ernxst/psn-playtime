@@ -31,6 +31,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Redacted from "effect/Redacted";
+import * as Stream from "effect/Stream";
 import {
   exchangeAccessCodeForAuthTokens,
   exchangeNpssoForAccessCode,
@@ -408,49 +409,49 @@ const fetchProfile = (
     return toProfileSummary(profile);
   });
 
+/**
+ * Page through a paginated PSN endpoint with `Stream.paginate`: the state is the
+ * running `offset`, each step fetches one page, and `pagingComplete` decides
+ * (identically to the old loop, preserving the #140 fix) whether to continue
+ * with `Option.some(nextOffset)` or stop with `Option.none()`. `Stream.runCollect`
+ * flattens the pages into one array.
+ */
 const fetchAllPlayedGames = (
   auth: AuthorizationPayload
-): Effect.Effect<PlayedTitle[], AccountProviderError> => {
-  const go = (
-    offset: number,
-    acc: PlayedTitle[]
-  ): Effect.Effect<PlayedTitle[], AccountProviderError> =>
-    Effect.gen(function* () {
-      const res = yield* Effect.tryPromise({
-        try: () => getUserPlayedGames(auth, "me", { limit: PLAYED_PAGE_LIMIT, offset }),
-        catch: providerError,
-      });
-      const all = [...acc, ...res.titles];
-      if (pagingComplete(res.titles.length, all.length, res.totalItemCount, PLAYED_PAGE_LIMIT)) {
-        return all;
-      }
-      return yield* go(offset + res.titles.length, all);
-    });
-  return go(0, []);
-};
+): Effect.Effect<PlayedTitle[], AccountProviderError> =>
+  Stream.paginate(0, (offset: number) =>
+    Effect.tryPromise({
+      try: () => getUserPlayedGames(auth, "me", { limit: PLAYED_PAGE_LIMIT, offset }),
+      catch: providerError,
+    }).pipe(
+      Effect.map((res) => {
+        const next = offset + res.titles.length;
+        const stop = pagingComplete(res.titles.length, next, res.totalItemCount, PLAYED_PAGE_LIMIT);
+        return [res.titles, stop ? Option.none() : Option.some(next)] as const;
+      })
+    )
+  ).pipe(Stream.runCollect);
 
 const fetchTrophyTitles = (
   auth: AuthorizationPayload
-): Effect.Effect<TrophyTitle[], AccountProviderError> => {
-  const go = (
-    offset: number,
-    acc: TrophyTitle[]
-  ): Effect.Effect<TrophyTitle[], AccountProviderError> =>
-    Effect.gen(function* () {
-      const res = yield* Effect.tryPromise({
-        try: () => getUserTitles(auth, "me", { limit: TROPHY_PAGE_LIMIT, offset }),
-        catch: providerError,
-      });
-      const all = [...acc, ...res.trophyTitles];
-      if (
-        pagingComplete(res.trophyTitles.length, all.length, res.totalItemCount, TROPHY_PAGE_LIMIT)
-      ) {
-        return all;
-      }
-      return yield* go(offset + res.trophyTitles.length, all);
-    });
-  return go(0, []);
-};
+): Effect.Effect<TrophyTitle[], AccountProviderError> =>
+  Stream.paginate(0, (offset: number) =>
+    Effect.tryPromise({
+      try: () => getUserTitles(auth, "me", { limit: TROPHY_PAGE_LIMIT, offset }),
+      catch: providerError,
+    }).pipe(
+      Effect.map((res) => {
+        const next = offset + res.trophyTitles.length;
+        const stop = pagingComplete(
+          res.trophyTitles.length,
+          next,
+          res.totalItemCount,
+          TROPHY_PAGE_LIMIT
+        );
+        return [res.trophyTitles, stop ? Option.none() : Option.some(next)] as const;
+      })
+    )
+  ).pipe(Stream.runCollect);
 
 /**
  * Fetch and normalize one account into the un-enriched `DashboardData`. Profile,
