@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { SecurityCallout } from "@/components/onboarding/security-callout";
 import { SignInCard } from "@/components/onboarding/sign-in-card";
 import { SITE_NAME, SITE_URL } from "@/lib/seo";
 
@@ -52,7 +51,6 @@ function Home() {
           Turn your PlayStation history into a clear picture of how you actually play.
         </p>
       </div>
-      <SecurityCallout />
       <SignInCard />
     </main>
   );
