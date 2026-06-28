@@ -37,6 +37,16 @@ export default defineConfig({
         test: {
           name: "browser",
           include: ["src/**/*.browser.test.ts", "src/**/*.browser.test.tsx"],
+          // Cap the browser pool and run it in its own sequence group so its
+          // Playwright workers don't spin up alongside the node project (whose
+          // heavy esbuild-in-`vm` test, `transaction-bookmarklet.test.ts`,
+          // competes for the same FDs/ports). Unbounded, overlapping browser
+          // parallelism exhausted sandbox FDs/ports under load (`listen EPERM` /
+          // `EMFILE`), flaking unrelated files run-to-run (#120). A distinct
+          // `groupOrder` runs the node group first, then the capped browser
+          // group, so the two pools never contend.
+          maxWorkers: 3,
+          sequence: { groupOrder: 1 },
           browser: {
             enabled: true,
             connectTimeout: 5000,
