@@ -1,10 +1,15 @@
-import { expect, onTestFinished, test } from "vitest";
+import { afterEach, expect, onTestFinished, test, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
 import { demoDashboard } from "@/lib/psn/mock";
+import { bookmarkletHref } from "@/lib/psn/transaction-bookmarklet";
 import type { TransactionRow } from "@/lib/psn/transactions";
 import { clearTransactionImport, saveTransactionImport } from "@/lib/transactions-store";
 import { SpendSection } from "./spend";
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 /** The demo library as it would arrive for a real, signed-in account. */
 const realDashboard = { ...demoDashboard, isDemo: false };
@@ -69,6 +74,18 @@ test("tells fine pointer users they can drag the bookmarklet", async () => {
       )
     )
     .toBeVisible();
+});
+
+test("copies the bookmarklet and flashes confirmation when Copy is clicked", async () => {
+  onTestFinished(clearTransactionImport);
+  const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+
+  await render(<SpendSection data={demoDashboard} />);
+
+  await page.getByRole("button", { name: "Copy bookmarklet" }).click();
+
+  expect(writeText).toHaveBeenCalledExactlyOnceWith(bookmarkletHref(window.location.origin));
+  await expect.element(page.getByRole("button", { name: "Copied" })).toBeVisible();
 });
 
 test("links to PlayStation order history in the import instructions", async () => {

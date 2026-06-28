@@ -22,7 +22,7 @@ export interface CopyButtonProps {
 }
 
 /** Track a transient "copied" flag that auto-reverts after `CONFIRM_MS`. */
-function useCopied(): [boolean, () => void] {
+export function useCopied(): [boolean, () => void] {
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
