@@ -24,25 +24,33 @@ test("renders the connect-account card with the manual steps", async () => {
   await expect.element(page.getByRole("link", { name: /explore the demo/i })).toBeVisible();
 });
 
-test("keeps the risk details hidden until the learn-more action is opened", async () => {
+test("keeps the risk details, including the password-grade warning, hidden until the learn-more action is opened", async () => {
   const { element } = createHarness(<SignInCard />);
 
   await render(element);
 
   await expect.element(page.getByText("Learn about the risk")).toBeVisible();
+  await expect
+    .element(page.getByText(/full access to your PlayStation account/i))
+    .not.toBeVisible();
   await expect.element(page.getByText(/It is read-only/i)).not.toBeVisible();
-  await expect.element(page.getByText(/never logged or stored on the server/i)).not.toBeVisible();
+  await expect.element(page.getByText(/never logged or stored/i)).not.toBeVisible();
 });
 
-test("opening the learn-more action reveals the read-only, storage, open-source and self-host detail", async () => {
+test("opening the learn-more action reveals the password-grade warning, read-only, storage, open-source and self-host detail", async () => {
   const { element } = createHarness(<SignInCard />);
 
   await render(element);
 
   await page.getByText("Learn about the risk").click();
 
+  await expect.element(page.getByText(/full access to your PlayStation account/i)).toBeVisible();
+  await expect.element(page.getByText(/Never share it/i)).toBeVisible();
+  await expect.element(page.getByText(/do not enter your token/i)).toBeVisible();
   await expect.element(page.getByText(/It is read-only/i)).toBeVisible();
-  await expect.element(page.getByText(/httpOnly session cookie/i)).toBeVisible();
+  await expect
+    .element(page.getByText(/sent to the server only to load your data once, then discarded/i))
+    .toBeVisible();
   await expect.element(page.getByText(/self-host your own instance/i)).toBeVisible();
   await expect.element(page.getByText(/expires after about 2 months/i)).toBeVisible();
 
