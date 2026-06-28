@@ -14,10 +14,10 @@ import type { EnrichmentProviderError } from "./errors.effect";
 
 /**
  * Genre + typical hours-to-complete for one title. Both ride a single upstream
- * lookup today (`rawg.ts`'s `lookupRawgGameInfo`), so they are returned
- * together. Absent fields mean "no usable data" — the caller keeps its fallback.
+ * lookup today (`rawg.effect.ts`'s game search), so they are returned together.
+ * Absent fields mean "no usable data" — the caller keeps its fallback.
  */
-export interface GameEnrichment {
+export interface GameMetadata {
   readonly genre?: Genre;
   /** Community-average hours to complete; omitted when absent or zero. */
   readonly typicalPlaytime?: number;
@@ -25,20 +25,19 @@ export interface GameEnrichment {
 
 export interface EnrichmentProviderShape {
   /**
-   * Look up a title's coarse genre and typical playtime in one request.
-   * Mirrors `rawg.ts`'s `lookupRawgGenre` + `lookupRawgPlaytime` (one cached
-   * call). Missing data is a successful empty result, not an error.
+   * Fetch a title's coarse genre and typical playtime in one request. Both ride
+   * a single cached RAWG game search. Missing data is a successful empty
+   * result, not an error.
    */
-  readonly lookupGameInfo: (
+  readonly fetchGameMetadata: (
     title: string
-  ) => Effect.Effect<GameEnrichment, EnrichmentProviderError>;
+  ) => Effect.Effect<GameMetadata, EnrichmentProviderError>;
 
   /**
-   * Look up a title's franchise/series label. Mirrors `rawg.ts`'s
-   * `lookupRawgFranchise`. `undefined` means "no franchise" (a successful
-   * absence), not an error.
+   * Fetch a title's franchise/series label. `undefined` means "no franchise" (a
+   * successful absence), not an error.
    */
-  readonly lookupFranchise: (
+  readonly fetchFranchise: (
     title: string
   ) => Effect.Effect<string | undefined, EnrichmentProviderError>;
 }

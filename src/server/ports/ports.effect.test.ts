@@ -4,7 +4,7 @@ import * as Redacted from "effect/Redacted";
 import { describe, expect, it } from "vitest";
 import { demoDashboard } from "@/lib/psn/mock";
 import { AccountProvider, type AccountCredential } from "./account-provider.effect";
-import { type GameEnrichment, EnrichmentProvider } from "./enrichment-provider.effect";
+import { type GameMetadata, EnrichmentProvider } from "./enrichment-provider.effect";
 import {
   AccountAuthError,
   ProviderRateLimitedError,
@@ -27,20 +27,20 @@ const accountTestLayer = Layer.succeed(AccountProvider, {
       : Effect.fail(new AccountAuthError({ reason: "rejected" })),
 });
 
-const ENRICHED: GameEnrichment = { genre: "RPG", typicalPlaytime: 40 };
+const ENRICHED: GameMetadata = { genre: "RPG", typicalPlaytime: 40 };
 
 /**
- * A stand-in enrichment source: a known title resolves to a `GameEnrichment`,
+ * A stand-in enrichment source: a known title resolves to a `GameMetadata`,
  * one title rate-limits, everything else is upstream-unavailable.
  */
 const enrichmentTestLayer = Layer.succeed(EnrichmentProvider, {
-  lookupGameInfo: (title: string) => {
+  fetchGameMetadata: (title: string) => {
     if (title === "Known Game") return Effect.succeed(ENRICHED);
     if (title === "Busy Game")
       return Effect.fail(new ProviderRateLimitedError({ provider: "test" }));
     return Effect.fail(new ProviderUnavailableError({ provider: "test", reason: "503" }));
   },
-  lookupFranchise: () => Effect.succeed(undefined),
+  fetchFranchise: () => Effect.succeed(undefined),
 });
 
 describe("E3 service ports", () => {
@@ -67,10 +67,10 @@ describe("E3 service ports", () => {
     expect(await Effect.runPromise(program)).toBe("rejected");
   });
 
-  it("resolves a GameEnrichment through the EnrichmentProvider port", async () => {
+  it("resolves a GameMetadata through the EnrichmentProvider port", async () => {
     const program = Effect.gen(function* () {
       const provider = yield* EnrichmentProvider;
-      return yield* provider.lookupGameInfo("Known Game");
+      return yield* provider.fetchGameMetadata("Known Game");
     });
 
     const info = await Effect.runPromise(program.pipe(Effect.provide(enrichmentTestLayer)));
@@ -82,7 +82,7 @@ describe("E3 service ports", () => {
     const lookup = (title: string) =>
       Effect.gen(function* () {
         const provider = yield* EnrichmentProvider;
-        return yield* provider.lookupGameInfo(title);
+        return yield* provider.fetchGameMetadata(title);
       }).pipe(
         Effect.catchTags({
           ProviderRateLimitedError: (error) => Effect.succeed(`rate:${error.provider}`),
