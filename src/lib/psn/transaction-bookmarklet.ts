@@ -84,6 +84,117 @@ export function dedupeTransactions<T extends { id: string }>(rows: T[]): T[] {
   return out;
 }
 
+/**
+ * Map a raw fetch/GraphQL failure message to a short, actionable line for the
+ * overlay: not-signed-in / session expired, rate-limited, bot-challenge (Akamai),
+ * or network/other. Categorises purely from the message text the existing fetch
+ * loop already throws (HTTP status / GraphQL error), so the fetch logic is
+ * unchanged. Renders no sensitive data — only the categorised guidance, falling
+ * back to echoing the error message (never a cookie or token).
+ *
+ * Self-contained (browser globals only) so it survives `toString()` embedding.
+ */
+export function importErrorMessage(message: string): string {
+  const m = String(message || "");
+  // Status-specific patterns first: the 403/429 messages the fetch loop throws
+  // also contain "signed in", which the session fallback would otherwise claim.
+  const rules: [RegExp, string][] = [
+    [
+      /HTTP 429/,
+      "PlayStation is rate-limiting requests. Wait a minute, then run the bookmarklet again.",
+    ],
+    [
+      /HTTP 403/,
+      "PlayStation blocked the request (sign-in or bot check). Reload the page, make sure you are signed in, then retry.",
+    ],
+    [
+      /HTTP 401|session|signed in|sign-in|sign in/i,
+      "You are not signed in, or your session expired. Sign in to PlayStation, then run the bookmarklet again.",
+    ],
+    [
+      /failed to fetch|networkerror|load failed|network/i,
+      "Network error reaching PlayStation. Check your connection, then try again.",
+    ],
+  ];
+  const hit = rules.find(([pattern]) => pattern.test(m));
+  return hit ? hit[1] : "Import failed: " + m;
+}
+
+/**
+ * Mount a minimal, fixed-position progress overlay on the host page and return a
+ * controller for live updates. Plain DOM + inline styles only — no `<style>`
+ * blocks, no external resources, no dependencies — so it survives any CSP and
+ * never relies on page CSS. A prior instance (bookmarklet re-run) is removed
+ * first; the progress line carries `aria-live="polite"`; the box uses a max
+ * `z-index` and a uniquely-namespaced id. The caller tears it down on success;
+ * on error it is left visible.
+ *
+ * Self-contained apart from {@link importErrorMessage} (which is embedded
+ * alongside it in dependency order, under its runtime `.name`), so it survives
+ * `toString()` embedding under the app's minifier like the helpers above.
+ */
+// oxlint-disable-next-line eslint/max-lines-per-function, complexity/complexity -- one self-contained embedded DOM widget; its controller methods are inherent closures and splitting would only add more `.name`-wired embedded helpers
+export function mountImportOverlay(): {
+  progress: (collected: number, page: number) => void;
+  done: () => void;
+  error: (message: string) => void;
+  remove: () => void;
+} {
+  const ID = "psn-playtime-import-overlay";
+  const previous = document.getElementById(ID);
+  if (previous) previous.remove();
+  const box = document.createElement("div");
+  box.id = ID;
+  Object.assign(box.style, {
+    position: "fixed",
+    top: "16px",
+    right: "16px",
+    zIndex: "2147483647",
+    maxWidth: "320px",
+    boxSizing: "border-box",
+    padding: "14px 16px",
+    background: "#0a1c40",
+    color: "#ffffff",
+    font: '14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif',
+    borderRadius: "10px",
+    border: "1px solid rgba(255,255,255,0.18)",
+    borderLeft: "4px solid #4c8dff",
+    boxShadow: "0 6px 24px rgba(0,0,0,0.45)",
+  });
+  const title = document.createElement("div");
+  title.textContent = "PSN Playtime";
+  Object.assign(title.style, { fontWeight: "700", marginBottom: "5px", letterSpacing: "0.2px" });
+  const msg = document.createElement("div");
+  msg.setAttribute("role", "status");
+  msg.setAttribute("aria-live", "polite");
+  Object.assign(msg.style, { opacity: "0.92" });
+  msg.textContent = "Fetching your transactions… Keep this tab open.";
+  box.appendChild(title);
+  box.appendChild(msg);
+  (document.body || document.documentElement).appendChild(box);
+  const paint = (text: string, accent: string) => {
+    msg.textContent = text;
+    box.style.borderLeft = "4px solid " + accent;
+  };
+  return {
+    progress: (collected: number, page: number) =>
+      paint(
+        "Fetching transactions… " +
+          collected +
+          " collected (page " +
+          page +
+          "). Keep this tab open.",
+        "#4c8dff"
+      ),
+    done: () => paint("Done — opening Playtime…", "#22c55e"),
+    error: (message: string) => {
+      box.style.background = "#3a0d0d";
+      paint(importErrorMessage(message), "#ef4444");
+    },
+    remove: () => box.remove(),
+  };
+}
+
 /** The IIFE body, parameterised by the app's origin and import URL. */
 // oxlint-disable-next-line eslint/max-lines-per-function -- a single self-contained bookmarklet IIFE string; splitting it would only fragment one literal
 function source(appOrigin: string, importUrl: string): string {
@@ -117,6 +228,15 @@ function source(appOrigin: string, importUrl: string): string {
   const ${purchaseRows.name} = ${purchaseRows.toString()};
   const ${nonPurchaseRow.name} = ${nonPurchaseRow.toString()};
   const ${flattenApiTransactions.name} = ${flattenApiTransactions.toString()};
+
+  // Progress overlay (self-contained: plain DOM + inline styles, browser globals
+  // only). Declared under its runtime \`.name\` in dependency order for the same
+  // minification reason as the helpers above (\`mountImportOverlay\` calls
+  // \`importErrorMessage\` by its minified binding), then mounted immediately so
+  // the user gets instant feedback.
+  const ${importErrorMessage.name} = ${importErrorMessage.toString()};
+  const ${mountImportOverlay.name} = ${mountImportOverlay.toString()};
+  const overlay = ${mountImportOverlay.name}();
 
   // 1. Replay the GraphQL request the checkout iframe uses, cookie-authenticated.
   //    Returns the data node when usable (even if the response also has errors,
@@ -164,6 +284,7 @@ function source(appOrigin: string, importUrl: string): string {
       const txs = data.transactions || [];
       for (const t of txs) all.push(t);
       log('page ' + (page + 1) + ': ' + txs.length + ' transactions (running total ' + all.length + ')');
+      overlay.progress(all.length, page + 1);
       if (!data.hasMore || !data.nextEndDate) break;
       endDate = data.nextEndDate;
     }
@@ -176,7 +297,8 @@ function source(appOrigin: string, importUrl: string): string {
     rows = ${flattenApiTransactions.name}(transactions);
   } catch (err) {
     warn('fetch failed: ' + (err && err.message));
-    alert('PSN Import failed: ' + (err && err.message ? err.message : 'could not fetch your transactions.') + '\\n\\nMake sure you are signed in to PlayStation and try again.');
+    // Leave the overlay visible with an actionable, categorised error.
+    overlay.error(err && err.message ? err.message : 'could not fetch your transactions.');
     return;
   }
   log('flattened ' + rows.length + ' rows');
@@ -190,9 +312,13 @@ function source(appOrigin: string, importUrl: string): string {
   log('payload: ' + rows.length + ' rows, ' + encoded.length + ' encoded bytes');
   if (encoded.length > MAX_FRAGMENT) warn('payload exceeds ~1.5MB encoded — the fragment handoff may be truncated by the browser');
   const target = IMPORT_URL + '#${HANDOFF_FRAGMENT_KEY}=' + encoded;
+  overlay.done();
   const w = window.open(target);
   if (!w) { warn('popup blocked by window.open — same-tab redirect to ' + APP_ORIGIN); location.href = target; }
   else log('handoff opened at ' + APP_ORIGIN + '/import');
+  // Tear the overlay down once the handoff is under way, after the success
+  // message has had a moment on screen.
+  setTimeout(() => overlay.remove(), 1500);
 })();`;
 }
 
