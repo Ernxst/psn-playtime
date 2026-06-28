@@ -1,11 +1,11 @@
 /**
- * `PsnClient` — an authenticated PSN session as a `Context.Service`.
+ * `PsnSession` — an authenticated PSN session as a `Context.Service`.
  *
  * `make(credential)` performs the npsso → access-code → access-token exchange
  * ONCE, then returns a shape whose `profile` / `playedGames` / `trophyTitles`
  * effects each CAPTURE the resulting `auth` payload in closure. The consequence
  * is the whole point of this service: `auth` is never threaded as a parameter
- * across the provider boundary — callers `yield* PsnClient` and read the three
+ * across the provider boundary — callers `yield* PsnSession` and read the three
  * effects, which already know how to authenticate themselves.
  *
  * Behaviour mirrors the previous inline `psn.effect.ts` exactly:
@@ -125,8 +125,8 @@ const fetchTrophyTitles = (
     )
   );
 
-/** The shape a `PsnClient` exposes: three `auth`-captured session effects. */
-export interface PsnClientShape {
+/** The shape a `PsnSession` exposes: three `auth`-captured session effects. */
+export interface PsnSessionShape {
   readonly profile: Effect.Effect<ProfileSummary, AccountProviderError>;
   readonly playedGames: Effect.Effect<PlayedTitle[], AccountProviderError>;
   readonly trophyTitles: Effect.Effect<TrophyTitle[], AccountProviderError>;
@@ -137,23 +137,23 @@ export interface PsnClientShape {
  * captured in closure. Fails with `CredentialRejectedError` when the exchange
  * is rejected — surfaced on the error channel of whoever acquires the service.
  *
- * Exposed as the service's `make`, so `PsnClient.make(credential)` is the single
+ * Exposed as the service's `make`, so `PsnSession.make(credential)` is the single
  * acquisition effect a per-request consumer injects (via
  * `Effect.provideServiceEffect`). A static `layer` is intentionally omitted: the
- * credential is per-request, so the client is acquired at the call site rather
- * than composed into a long-lived layer, and tests inject a fake `PsnClient`
+ * credential is per-request, so the session is acquired at the call site rather
+ * than composed into a long-lived layer, and tests inject a fake `PsnSession`
  * with a plain `Layer.succeed`.
  */
-const makePsnClient = Effect.fn("PsnClient.make")(function* (credential: AccountCredential) {
+const makePsnSession = Effect.fn("PsnSession.make")(function* (credential: AccountCredential) {
   const auth = yield* authenticate(credential);
   return {
     profile: fetchProfile(auth),
     playedGames: fetchAllPlayedGames(auth),
     trophyTitles: fetchTrophyTitles(auth),
-  } satisfies PsnClientShape;
+  } satisfies PsnSessionShape;
 });
 
-export class PsnClient extends Context.Service<PsnClient, PsnClientShape>()(
-  "psn-playtime/server/psn/psn-client.effect/PsnClient",
-  { make: makePsnClient }
+export class PsnSession extends Context.Service<PsnSession, PsnSessionShape>()(
+  "psn-playtime/server/psn/psn-session.effect/PsnSession",
+  { make: makePsnSession }
 ) {}

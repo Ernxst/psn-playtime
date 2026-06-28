@@ -1,12 +1,12 @@
 /**
  * DI-seam test for the PSN provider.
  *
- * Proves that `buildSnapshot` depends on the `PsnClient` *service* — not the
- * concrete psn-api transport — by providing a hand-built fake `PsnClient` layer
+ * Proves that `buildSnapshot` depends on the `PsnSession` *service* — not the
+ * concrete psn-api transport — by providing a hand-built fake `PsnSession` layer
  * (no psn-api, no mocks) and asserting the assembled `DashboardData` reflects
  * exactly what the fake session returned. This is the seam a future provider, or
  * a contract test, plugs into. It complements `psn-account-provider.effect.test`
- * (which drives the *real* client with mocked psn-api for byte-parity).
+ * (which drives the *real* session with mocked psn-api for byte-parity).
  */
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -15,7 +15,7 @@ import { describe, expect, it } from "vitest";
 import type { DashboardData, ProfileSummary } from "@/lib/psn/types";
 import { ProviderUnavailableError } from "@/server/ports/errors.effect";
 import { buildSnapshot } from "@/server/psn/psn-account-provider.effect";
-import { PsnClient, type PsnClientShape } from "@/server/psn/psn-client.effect";
+import { PsnSession, type PsnSessionShape } from "@/server/psn/psn-session.effect";
 
 type PlayedTitle = UserPlayedGamesResponse["titles"][number];
 
@@ -77,22 +77,22 @@ const trophy = (overrides: Partial<TrophyTitle>): TrophyTitle => ({
   ...overrides,
 });
 
-/** A fake `PsnClient` layer that serves canned session data — the DI seam. */
-function fakePsnClient(shape: Partial<PsnClientShape>): Layer.Layer<PsnClient> {
-  return Layer.succeed(PsnClient, {
+/** A fake `PsnSession` layer that serves canned session data — the DI seam. */
+function fakePsnSession(shape: Partial<PsnSessionShape>): Layer.Layer<PsnSession> {
+  return Layer.succeed(PsnSession, {
     profile: shape.profile ?? Effect.succeed(profileSummary),
     playedGames: shape.playedGames ?? Effect.succeed([]),
     trophyTitles: shape.trophyTitles ?? Effect.succeed([]),
   });
 }
 
-/** Run `buildSnapshot` with an injected fake `PsnClient`. */
-function snapshotWith(shape: Partial<PsnClientShape>): Promise<DashboardData> {
-  return Effect.runPromise(buildSnapshot.pipe(Effect.provide(fakePsnClient(shape))));
+/** Run `buildSnapshot` with an injected fake `PsnSession`. */
+function snapshotWith(shape: Partial<PsnSessionShape>): Promise<DashboardData> {
+  return Effect.runPromise(buildSnapshot.pipe(Effect.provide(fakePsnSession(shape))));
 }
 
 describe("buildSnapshot DI seam", () => {
-  it("assembles the snapshot from an injected fake PsnClient", async () => {
+  it("assembles the snapshot from an injected fake PsnSession", async () => {
     const result = await snapshotWith({
       profile: Effect.succeed(profileSummary),
       playedGames: Effect.succeed([
