@@ -27,7 +27,7 @@ import type {
 import type { DashboardData } from "@/lib/psn/types";
 import { AccountProvider } from "@/server/ports/account-provider.effect";
 import type { AccountProviderError } from "@/server/ports/errors.effect";
-import { PsnAccountProviderLayer } from "@/server/psn.effect";
+import { PsnAccountProviderLayer } from "@/server/psn/psn-account-provider.effect";
 
 const mockExchangeNpsso = vi.mocked(exchangeNpssoForAccessCode);
 const mockExchangeTokens = vi.mocked(exchangeAccessCodeForAuthTokens);
@@ -87,7 +87,12 @@ const basePlayed: PlayedTitle = {
   category: "ps4_game",
   service: "none",
   playCount: 0,
-  concept: { id: 0, titleIds: [], name: "", media: { audios: [], videos: [], images: [] } },
+  concept: {
+    id: 0,
+    titleIds: [],
+    name: "",
+    media: { audios: [], videos: [], images: [] },
+  },
   media: {},
   firstPlayedDateTime: "",
   lastPlayedDateTime: "",
@@ -122,7 +127,12 @@ function playedPage(titles: PlayedTitle[], totalItemCount: number): UserPlayedGa
 }
 
 function trophyPage(trophies: TrophyTitle[], totalItemCount: number): UserTitlesResponse {
-  return { trophyTitles: trophies, totalItemCount, nextOffset: 0, previousOffset: 0 };
+  return {
+    trophyTitles: trophies,
+    totalItemCount,
+    nextOffset: 0,
+    previousOffset: 0,
+  };
 }
 
 /** Run `fetchSnapshot` through the real PSN layer, surfacing the success value. */
@@ -173,7 +183,11 @@ describe("PsnAccountProvider.fetchSnapshot", () => {
             playCount: 5,
             firstPlayedDateTime: "2020-01-01T10:00:00Z",
           }),
-          played({ titleId: "netflix", name: "Netflix", category: "ps4_native_media_app" }),
+          played({
+            titleId: "netflix",
+            name: "Netflix",
+            category: "ps4_native_media_app",
+          }),
         ],
         2
       )
@@ -245,7 +259,14 @@ describe("PsnAccountProvider.fetchSnapshot", () => {
     mockGetProfile.mockResolvedValue(profile());
     mockGetPlayed.mockResolvedValue(
       playedPage(
-        [played({ titleId: "cod", name: "Call of Duty", playDuration: "PT5H", playCount: 1 })],
+        [
+          played({
+            titleId: "cod",
+            name: "Call of Duty",
+            playDuration: "PT5H",
+            playCount: 1,
+          }),
+        ],
         1
       )
     );
