@@ -22,19 +22,13 @@ import type {
   UserPlayedGamesResponse,
   UserTitlesResponse,
 } from "psn-api";
-import { demoDashboard } from "@/lib/psn/mock";
-import { getDashboardHandler, signInWithTokenHandler, signOutHandler } from "@/server/psn";
+import { signInWithTokenHandler } from "@/server/psn";
 
 const mockExchangeNpsso = vi.mocked(exchangeNpssoForAccessCode);
 const mockExchangeTokens = vi.mocked(exchangeAccessCodeForAuthTokens);
 const mockGetProfile = vi.mocked(getProfileFromUserName);
 const mockGetPlayed = vi.mocked(getUserPlayedGames);
 const mockGetTitles = vi.mocked(getUserTitles);
-const cookies = {
-  get: vi.fn((_: string): string | undefined => undefined),
-  set: vi.fn((_: string, __: string, ___: unknown): void => {}),
-  remove: vi.fn((_: string, __: { path: string }): void => {}),
-};
 
 type ProfileBody = ProfileFromUserNameResponse["profile"];
 type PlayedTitle = UserPlayedGamesResponse["titles"][number];
@@ -261,21 +255,11 @@ afterEach(() => {
   mockGetPlayed.mockReset();
 });
 
-describe("getDashboard", () => {
-  it("returns the demo dataset when no cookie is present", async () => {
-    cookies.get.mockReturnValue(undefined);
-
-    const result = await getDashboardHandler(cookies);
-
-    expect(result).toBe(demoDashboard);
-    expect(mockExchangeNpsso).not.toHaveBeenCalled();
-  });
-
-  it("normalizes a live PSN account when a valid cookie is present", async () => {
-    cookies.get.mockReturnValue("npsso-token");
+describe(".signInWithTokenHandler", () => {
+  it("normalizes a live PSN account for a valid token", async () => {
     stubLiveBuild();
 
-    const result = await getDashboardHandler(cookies);
+    const result = await signInWithTokenHandler({ npsso: "npsso-token" });
 
     expect(result.isDemo).toBe(false);
     expect(result.profile.onlineId).toBe("Ernxst_");
@@ -323,13 +307,9 @@ describe("getDashboard", () => {
     expect(unknown.playCount).toBe(0);
     expect(unknown.firstPlayed).toBeUndefined();
     expect(unknown.lastPlayed).toBeUndefined();
-
-    expect(cookies.set).not.toHaveBeenCalled();
-    expect(cookies.remove).not.toHaveBeenCalled();
   });
 
   it("matches a played title to its trophy list by canonical concept name", async () => {
-    cookies.get.mockReturnValue("npsso-token");
     mockExchangeNpsso.mockResolvedValue("access-code");
     mockExchangeTokens.mockResolvedValue(authTokens);
     mockGetProfile.mockResolvedValue(profile());
@@ -364,7 +344,7 @@ describe("getDashboard", () => {
       )
     );
 
-    const result = await getDashboardHandler(cookies);
+    const result = await signInWithTokenHandler({ npsso: "npsso-token" });
 
     const gow = result.games.find((g) => g.titleId === "gow")!;
 
@@ -378,7 +358,6 @@ describe("getDashboard", () => {
   });
 
   it("matches a glyph-glued trophy name carrying a brand prefix to its played title", async () => {
-    cookies.get.mockReturnValue("npsso-token");
     mockExchangeNpsso.mockResolvedValue("access-code");
     mockExchangeTokens.mockResolvedValue(authTokens);
     mockGetProfile.mockResolvedValue(profile());
@@ -413,7 +392,7 @@ describe("getDashboard", () => {
       )
     );
 
-    const result = await getDashboardHandler(cookies);
+    const result = await signInWithTokenHandler({ npsso: "npsso-token" });
 
     const div2 = result.games.find((g) => g.titleId === "div2")!;
 
@@ -427,7 +406,6 @@ describe("getDashboard", () => {
   });
 
   it("does not subset-match an unrelated trophy list to a played title", async () => {
-    cookies.get.mockReturnValue("npsso-token");
     mockExchangeNpsso.mockResolvedValue("access-code");
     mockExchangeTokens.mockResolvedValue(authTokens);
     mockGetProfile.mockResolvedValue(profile());
@@ -450,7 +428,7 @@ describe("getDashboard", () => {
       trophyPage([trophy({ trophyTitleName: "Forza Horizon 5", progress: 50 })], 1)
     );
 
-    const result = await getDashboardHandler(cookies);
+    const result = await signInWithTokenHandler({ npsso: "npsso-token" });
 
     const div2 = result.games.find((g) => g.titleId === "div2")!;
 
@@ -466,7 +444,6 @@ describe("getDashboard", () => {
   ])(
     'does not attach the more-specific "$trophyTitleName" to the broader played "$playedName"',
     async ({ playedName, trophyTitleName }) => {
-      cookies.get.mockReturnValue("npsso-token");
       mockExchangeNpsso.mockResolvedValue("access-code");
       mockExchangeTokens.mockResolvedValue(authTokens);
       mockGetProfile.mockResolvedValue(profile());
@@ -487,7 +464,7 @@ describe("getDashboard", () => {
       );
       mockGetTitles.mockResolvedValue(trophyPage([trophy({ trophyTitleName, progress: 60 })], 1));
 
-      const result = await getDashboardHandler(cookies);
+      const result = await signInWithTokenHandler({ npsso: "npsso-token" });
 
       const game = result.games.find((g) => g.titleId === "seq")!;
 
@@ -496,7 +473,6 @@ describe("getDashboard", () => {
   );
 
   it("matches a played title that carries a trailing platform suffix the trophy list omits", async () => {
-    cookies.get.mockReturnValue("npsso-token");
     mockExchangeNpsso.mockResolvedValue("access-code");
     mockExchangeTokens.mockResolvedValue(authTokens);
     mockGetProfile.mockResolvedValue(profile());
@@ -531,7 +507,7 @@ describe("getDashboard", () => {
       )
     );
 
-    const result = await getDashboardHandler(cookies);
+    const result = await signInWithTokenHandler({ npsso: "npsso-token" });
 
     const gta5 = result.games.find((g) => g.titleId === "gta5")!;
 
@@ -545,7 +521,6 @@ describe("getDashboard", () => {
   });
 
   it("matches the glyph-glued The Division 2 when the brand prefix is on both sides", async () => {
-    cookies.get.mockReturnValue("npsso-token");
     mockExchangeNpsso.mockResolvedValue("access-code");
     mockExchangeTokens.mockResolvedValue(authTokens);
     mockGetProfile.mockResolvedValue(profile());
@@ -568,7 +543,7 @@ describe("getDashboard", () => {
       trophyPage([trophy({ trophyTitleName: "Tom Clancy's The Division® 2", progress: 70 })], 1)
     );
 
-    const result = await getDashboardHandler(cookies);
+    const result = await signInWithTokenHandler({ npsso: "npsso-token" });
 
     const div2 = result.games.find((g) => g.titleId === "div2")!;
 
@@ -576,7 +551,6 @@ describe("getDashboard", () => {
   });
 
   it("keeps the most-progressed trophy list when a game has several under one name", async () => {
-    cookies.get.mockReturnValue("npsso-token");
     mockExchangeNpsso.mockResolvedValue("access-code");
     mockExchangeTokens.mockResolvedValue(authTokens);
     mockGetProfile.mockResolvedValue(profile());
@@ -607,7 +581,7 @@ describe("getDashboard", () => {
       )
     );
 
-    const result = await getDashboardHandler(cookies);
+    const result = await signInWithTokenHandler({ npsso: "npsso-token" });
 
     const minecraft = result.games.find((g) => g.titleId === "minecraft")!;
 
@@ -615,7 +589,6 @@ describe("getDashboard", () => {
   });
 
   it("leaves trophy undefined when no candidate name matches a trophy list", async () => {
-    cookies.get.mockReturnValue("npsso-token");
     mockExchangeNpsso.mockResolvedValue("access-code");
     mockExchangeTokens.mockResolvedValue(authTokens);
     mockGetProfile.mockResolvedValue(profile());
@@ -638,7 +611,7 @@ describe("getDashboard", () => {
       trophyPage([trophy({ trophyTitleName: "An Unrelated Game", progress: 50 })], 1)
     );
 
-    const result = await getDashboardHandler(cookies);
+    const result = await signInWithTokenHandler({ npsso: "npsso-token" });
 
     const obscure = result.games.find((g) => g.titleId === "obscure")!;
 
@@ -646,7 +619,6 @@ describe("getDashboard", () => {
   });
 
   it("falls back to an empty trophy map when the trophy fetch fails", async () => {
-    cookies.get.mockReturnValue("npsso-token");
     mockExchangeNpsso.mockResolvedValue("access-code");
     mockExchangeTokens.mockResolvedValue(authTokens);
     mockGetProfile.mockResolvedValue(profile({ avatarUrls: [], aboutMe: "" }));
@@ -654,7 +626,7 @@ describe("getDashboard", () => {
     mockGetPlayed.mockResolvedValue(withoutTotal(playedPage(playedTitles, 0)));
     mockGetTitles.mockRejectedValue(new Error("trophy service down"));
 
-    const result = await getDashboardHandler(cookies);
+    const result = await signInWithTokenHandler({ npsso: "npsso-token" });
 
     expect(result.isDemo).toBe(false);
     expect(result.profile.avatarUrl).toBeUndefined();
@@ -662,49 +634,21 @@ describe("getDashboard", () => {
     expect(result.games.every((g) => g.trophy === undefined)).toBe(true);
   });
 
-  it("clears the cookie and returns demo data when authentication fails", async () => {
-    cookies.get.mockReturnValue("stale-token");
-    mockExchangeNpsso.mockRejectedValue(new Error("expired"));
-
-    const result = await getDashboardHandler(cookies);
-
-    expect(result).toBe(demoDashboard);
-    expect(cookies.remove).toHaveBeenCalledWith("psn_npsso", { path: "/" });
-  });
-});
-
-describe("signInWithToken", () => {
-  it("sets the session cookie and returns the live dashboard on success", async () => {
+  it("falls back to the first listed avatar when no xl/l/m size is present", async () => {
     stubLiveBuild(profile({ avatarUrls: [{ size: "s", avatarUrl: "https://img/s" }], plus: 0 }));
 
-    const result = await signInWithTokenHandler({ npsso: "fresh-token" }, cookies);
+    const result = await signInWithTokenHandler({ npsso: "fresh-token" });
 
     expect(result.isDemo).toBe(false);
-    // No xl/l/m avatar present → falls back to the first listed url.
     expect(result.profile.avatarUrl).toBe("https://img/s");
     expect(result.profile.isPlus).toBe(false);
-    expect(cookies.set).toHaveBeenCalledWith(
-      "psn_npsso",
-      "fresh-token",
-      expect.objectContaining({ httpOnly: true, sameSite: "lax", path: "/" })
-    );
   });
 
-  it("throws a friendly error and leaves the cookie untouched on failure", async () => {
+  it("throws a friendly error when authentication fails", async () => {
     mockExchangeNpsso.mockRejectedValue(new Error("nope"));
 
-    await expect(signInWithTokenHandler({ npsso: "bad-token" }, cookies)).rejects.toThrow(
+    await expect(signInWithTokenHandler({ npsso: "bad-token" })).rejects.toThrow(
       /That token didn't work/
     );
-    expect(cookies.set).not.toHaveBeenCalled();
-  });
-});
-
-describe("signOut", () => {
-  it("clears the session cookie", async () => {
-    const result = signOutHandler(cookies);
-
-    expect(result).toEqual({ ok: true });
-    expect(cookies.remove).toHaveBeenCalledWith("psn_npsso", { path: "/" });
   });
 });

@@ -2,11 +2,11 @@
  * Server data layer. Fetches a single PlayStation account's play-time from PSN
  * via psn-api and normalizes everything into the `DashboardData` contract.
  *
- * The npsso session token is stored in an httpOnly cookie. When no token is
- * present (or auth fails) the bundled demo dataset is returned instead.
+ * The npsso token is used transiently to fetch an account once; it is never
+ * stored server-side. The derived `DashboardData` is cached client-side
+ * (`@/lib/dashboard-store`), which is the source for revisits.
  */
 import { createServerFn } from "@tanstack/react-start";
-import { deleteCookie, getCookie, setCookie } from "@tanstack/react-start/server";
 import {
   exchangeAccessCodeForAuthTokens,
   exchangeNpssoForAccessCode,
@@ -17,8 +17,6 @@ import {
 import type { AuthorizationPayload } from "psn-api";
 import { z } from "zod";
 import { enrichTitle, platformOf } from "@/lib/psn/enrich";
-import { demoDashboard } from "@/lib/psn/mock";
-import { cached, SEVEN_DAYS_MS } from "@/server/edge-cache";
 import type {
   DashboardData,
   DashboardMeta,
@@ -38,33 +36,7 @@ import {
   type RawgFranchiseCache,
 } from "@/server/rawg";
 
-const COOKIE_NAME = "psn_npsso";
-const COOKIE_MAX_AGE = 60 * 60 * 24 * 50; // ~50 days
 const RAWG_LOOKUP_CONCURRENCY = 8;
-
-function cookieOptions() {
-  return {
-    httpOnly: true,
-    sameSite: "lax" as const,
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: COOKIE_MAX_AGE,
-  };
-}
-
-/**
- * A stable, non-secret edge-cache key for the signed-in account. The npsso is
- * the credential and is 1:1 with the account within a stored session, so its
- * SHA-256 hash isolates one user's cached dashboard from another's WITHOUT ever
- * placing the secret (or a reversible form of it) in the cache key. Hashing the
- * credential also lets us serve a cache hit before any PSN API call — including
- * the token exchange — which keying by the profile `accountId` (only available
- * after a profile fetch) could not.
- */
-async function accountCacheKey(npsso: string): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(npsso));
-  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
-}
 
 /** Exchange an npsso token for an access-token authorization payload. */
 async function authenticate(npsso: string): Promise<AuthorizationPayload> {
@@ -486,53 +458,26 @@ async function buildDashboard(auth: AuthorizationPayload): Promise<DashboardData
   };
 }
 
-interface CookieJar {
-  get: (name: string) => string | undefined;
-  set: (name: string, value: string, options: ReturnType<typeof cookieOptions>) => void;
-  remove: (name: string, options: { path: string }) => void;
-}
-
-export async function getDashboardHandler(cookies: CookieJar): Promise<DashboardData> {
-  const npsso = cookies.get(COOKIE_NAME);
-  // Demo (signed-out) data is never cached — it is a static local payload.
-  if (!npsso) return demoDashboard;
-  try {
-    const key = await accountCacheKey(npsso);
-    // Edge-cached per account (~7-day TTL): a hit skips the npsso→token
-    // exchange and every PSN fetch. Outside the worker the producer just runs.
-    return await cached(`dashboard/${key}`, SEVEN_DAYS_MS, async () => {
-      const auth = await authenticate(npsso);
-      return buildDashboard(auth);
-    });
-  } catch {
-    cookies.remove(COOKIE_NAME, { path: "/" });
-    return demoDashboard;
-  }
-}
-
-export const getDashboard = createServerFn({ method: "GET" }).handler(() =>
-  getDashboardHandler({ get: getCookie, set: setCookie, remove: deleteCookie })
-);
-
 const signInInput = z.object({
   npsso: z.string().trim().min(1, "Paste your npsso token first."),
 });
 
+/**
+ * Fetch and normalize one account from a transient npsso token. The token is
+ * never stored server-side; the caller persists the returned `DashboardData` in
+ * the client cache. Throws a friendly error when the token is rejected.
+ */
 export async function signInWithTokenHandler(
-  data: z.infer<typeof signInInput>,
-  cookies: CookieJar
+  data: z.infer<typeof signInInput>
 ): Promise<DashboardData> {
-  let dashboard: DashboardData;
   try {
     const auth = await authenticate(data.npsso);
-    dashboard = await buildDashboard(auth);
+    return await buildDashboard(auth);
   } catch {
     throw new Error(
       "That token didn't work — it may be expired. Grab a fresh npsso and try again."
     );
   }
-  cookies.set(COOKIE_NAME, data.npsso, cookieOptions());
-  return dashboard;
 }
 
 const rawgGenreInput = z.object({
@@ -547,18 +492,7 @@ const rawgGenreInput = z.object({
 
 export const signInWithToken = createServerFn({ method: "POST" })
   .validator(signInInput)
-  .handler(({ data }) =>
-    signInWithTokenHandler(data, { get: getCookie, set: setCookie, remove: deleteCookie })
-  );
-
-export function signOutHandler(cookies: CookieJar): { ok: true } {
-  cookies.remove(COOKIE_NAME, { path: "/" });
-  return { ok: true };
-}
-
-export const signOut = createServerFn({ method: "POST" }).handler(() =>
-  signOutHandler({ get: getCookie, set: setCookie, remove: deleteCookie })
-);
+  .handler(({ data }) => signInWithTokenHandler(data));
 
 export const getRawgGenres = createServerFn({ method: "POST" })
   .validator(rawgGenreInput)

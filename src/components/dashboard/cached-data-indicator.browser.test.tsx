@@ -22,7 +22,7 @@ test("reveals the cache explanation on hover for real data", async () => {
 
   await page.getByRole("button", { name: /Updated/ }).hover();
 
-  await expect.element(page.getByText(/cached for up to ~7 days/)).toBeVisible();
+  await expect.element(page.getByText(/cached in this browser/)).toBeVisible();
 });
 
 test("labels demo data instead of showing a fetch time", async () => {

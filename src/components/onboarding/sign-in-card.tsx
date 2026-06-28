@@ -1,8 +1,9 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowRight, ExternalLink } from "lucide-react";
 import { useId, useState } from "react";
 import { toast } from "sonner";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -10,6 +11,12 @@ import { Field, FieldControl, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
+import {
+  type CachedAccount,
+  saveDashboard,
+  setActiveAccount,
+  useCachedAccounts,
+} from "@/lib/dashboard-store";
 import { signInWithToken } from "@/server/psn";
 
 /**
@@ -148,12 +155,13 @@ function Step({
 
 function useSignIn() {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (token: string) => signInWithToken({ data: { npsso: token } }),
     onSuccess: (data) => {
-      queryClient.setQueryData(["dashboard"], data);
-      void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      // Cache the fetched data client-side and make it the active account; the
+      // token is discarded here — revisits render from the cache without it.
+      saveDashboard(data);
+      setActiveAccount(data.profile.accountId);
       void navigate({ to: "/dashboard" });
     },
     onError: (err) => {
@@ -244,6 +252,43 @@ function TokenForm() {
   );
 }
 
+function AccountButton({ account }: { account: CachedAccount }) {
+  const navigate = useNavigate();
+  return (
+    <Button
+      variant="outline"
+      className="h-auto w-full justify-start gap-3 py-2"
+      onClick={() => {
+        setActiveAccount(account.accountId);
+        void navigate({ to: "/dashboard" });
+      }}
+    >
+      <Avatar className="size-8">
+        <AvatarImage src={account.avatarUrl} alt={account.onlineId} />
+        <AvatarFallback>{account.onlineId.slice(0, 2).toUpperCase()}</AvatarFallback>
+      </Avatar>
+      <span className="truncate">Continue as {account.onlineId}</span>
+      <ArrowRight className="ml-auto size-4 shrink-0" />
+    </Button>
+  );
+}
+
+/** Lists accounts already cached in localStorage so a revisit needs no token. */
+function AccountSelector() {
+  const accounts = useCachedAccounts();
+  if (accounts.length === 0) return null;
+  return (
+    <div className="space-y-3">
+      <p className="text-sm font-medium text-muted-foreground">Pick up where you left off:</p>
+      <div className="space-y-2">
+        {accounts.map((account) => (
+          <AccountButton key={account.accountId} account={account} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function SignInCard() {
   return (
     <Card>
@@ -254,6 +299,7 @@ export function SignInCard() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
+        <AccountSelector />
         <div className="space-y-3">
           <p className="text-sm font-medium text-muted-foreground">How to get your token:</p>
           <ol className="space-y-3 text-sm">
