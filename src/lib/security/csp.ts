@@ -32,5 +32,8 @@ export function buildCsp({ nonce }: { nonce: string }): string {
     "connect-src 'self'",
     "worker-src 'self' blob:",
     "media-src 'self'",
+    // PWA web manifest is same-origin (`<link rel="manifest" href="/manifest.json">`);
+    // without this it would fall back to the restrictive `default-src` and be blocked.
+    "manifest-src 'self'",
   ].join("; ");
 }
