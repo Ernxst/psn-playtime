@@ -21,6 +21,7 @@ import { GamesTable } from "./games-table";
 import { AppsExcludedNote, ComebacksCard, LifespansCard, RecencyCard, ValueCard } from "./insights";
 import { KpiCards } from "./kpi-cards";
 import { LlmPromptCard } from "./llm-prompt-card";
+import { PurchaseHistorySection } from "./purchase-history";
 import { SpendSection } from "./spend";
 import { DashboardEmpty, DashboardNoMatches } from "./states";
 
@@ -200,6 +201,9 @@ function DashboardBody({ data, timeframe }: { data: DashboardData; timeframe: Ti
       </Section>
       <Section id="spend">
         <SpendSection data={data} />
+      </Section>
+      <Section id="purchase-history">
+        <PurchaseHistorySection data={data} />
       </Section>
       <Section id="all-games">
         <GamesTable data={data} />
