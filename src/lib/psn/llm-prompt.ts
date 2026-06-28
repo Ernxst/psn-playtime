@@ -19,7 +19,13 @@ import {
   topFranchises,
   valuePerGame,
 } from "./analytics";
-import { summariseAddOns, summarisePriceContext, type PriceContextSummary } from "./spend";
+import {
+  summariseAddOns,
+  summarisePriceContext,
+  summariseSpend,
+  type PriceContextSummary,
+  type SpendSummary,
+} from "./spend";
 import type { TransactionRow } from "./transactions";
 import type { DashboardData, GamePlay } from "./types";
 
@@ -30,6 +36,7 @@ export type PromptGroup =
   | "Taste & preferences"
   | "Recommendations"
   | "Profile & personality"
+  | "Spending & value"
   | "More";
 
 /** Display order for the groups in both the selector and the follow-up menu. */
@@ -39,6 +46,7 @@ export const PROMPT_GROUPS = [
   "Taste & preferences",
   "Recommendations",
   "Profile & personality",
+  "Spending & value",
   "More",
 ] as const satisfies readonly PromptGroup[];
 
@@ -247,6 +255,71 @@ export const PROMPT_VARIANTS = [
   },
 ] as const satisfies readonly PromptVariant[];
 
+/**
+ * Spend/purchase questions, kept SEPARATE from {@link PROMPT_VARIANTS} because
+ * they only make sense once transaction history is imported. They are folded
+ * into the menu and follow-ups (and gain the spend data block + guidance) only
+ * when transactions are present — see {@link availableVariants}. Each treats
+ * spend as a SUPPORTING context/intent signal, never an enjoyment verdict, and
+ * leaves every value-for-money judgement to the model rather than to code.
+ */
+export const SPEND_VARIANTS = [
+  {
+    id: "spend-over-time",
+    group: "Spending & value",
+    question: "How has my spending on games changed over time?",
+    instruction:
+      "Using the imported spend block, describe how my spending has changed over time — lean on the spend-by-year figures and the total, and call out my busiest and quietest spending periods. Treat spend as context about my buying habits, not a measure of enjoyment.",
+  },
+  {
+    id: "cost-per-hour",
+    group: "Spending & value",
+    question: "Which games were the most and least expensive per hour I played?",
+    instruction:
+      "Rank my games by cost per hour played (matched spend ÷ lifetime hours) and call out the most and least expensive per hour. Read cost per hour as plain economics — hours per pound, not proof of enjoyment — and note where missing spend or very low hours make the figure unreliable.",
+  },
+  {
+    id: "full-price-vs-sale",
+    group: "Spending & value",
+    question: "Which games did I buy at full price versus on a deep sale?",
+    instruction:
+      "Group my purchases by what I paid versus the original price — full-price or early buys against discounted and deep-sale ones — using each game's 'bought:' context. Read this as a signal of hype, patience and price-sensitivity, never as higher or lower enjoyment.",
+  },
+  {
+    id: "add-on-spend",
+    group: "Spending & value",
+    question: "Where did my DLC and add-on spending go?",
+    instruction:
+      "Point out which games I invested in beyond the base game through DLC and add-ons, using the per-game add-on counts. Treat extra spend as a SUPPORTING commitment signal that only suggests enjoyment when playtime, recency or trophies agree.",
+  },
+  {
+    id: "wallet-top-ups",
+    group: "Spending & value",
+    question: "How much did I top up my wallet versus spend on games?",
+    instruction:
+      "Compare my wallet top-ups against my actual game spend from the imported spend block. Be clear that top-ups fund the wallet and are not spend on any one game, and that unmatched or free titles are unknown spend, not zero.",
+  },
+  {
+    id: "value-for-money",
+    group: "Spending & value",
+    question: "Which games gave me the best and worst value for money?",
+    instruction:
+      "Weigh what I paid for each game against how much I played it (and, where known, recency and trophies) to judge which gave the best and worst value for money. Reason about value yourself from the spend and playtime figures — there is no value score in the data — and flag games where missing spend makes the call uncertain.",
+  },
+] as const satisfies readonly PromptVariant[];
+
+/**
+ * Every question on offer for the current prompt: the always-available
+ * {@link PROMPT_VARIANTS} plus the {@link SPEND_VARIANTS} only when transaction
+ * history is imported (so spend questions never surface without the spend data
+ * to answer them).
+ */
+function availableVariants(transactions?: readonly TransactionRow[]): readonly PromptVariant[] {
+  return transactions && transactions.length > 0
+    ? [...PROMPT_VARIANTS, ...SPEND_VARIANTS]
+    : PROMPT_VARIANTS;
+}
+
 /** Compact "last/first played" timing, omitting dates that are unknown. */
 function gameTiming(g: GamePlay): string {
   const parts: string[] = [];
@@ -370,6 +443,49 @@ function completionistBaseline(data: DashboardData): string {
   return `- Completionist baseline: ${accountPlatinums} platinums earned account-wide; platinumed ${platinumed.length} of ${eligible.length} platinum-eligible games with trophy data (${rate}).`;
 }
 
+/** Format a major-unit amount with its currency symbol, e.g. "£44.99". */
+function fmtMajor(amount: number, currency: string): string {
+  return `${currency}${amount.toFixed(2)}`;
+}
+
+function spendByYearLine(s: SpendSummary): string {
+  const years = s.byYear
+    .map((y) => `${y.year} ${fmtMajor(y.spend, s.currency)} (${y.purchases} purchases)`)
+    .join(", ");
+  return `- Spend by year: ${years}`;
+}
+
+function costPerHourLines(s: SpendSummary): string {
+  return [
+    "- Cost per hour played (matched purchases, lowest first — total matched spend ÷ lifetime hours):",
+    ...s.leaderboard.map(
+      (l) =>
+        `  - ${l.name}: ${fmtMajor(l.spend, s.currency)} over ${Math.round(l.hours)}h (${fmtMajor(l.perHour, s.currency)}/h)`
+    ),
+  ].join("\n");
+}
+
+/**
+ * The imported-spend data block: account-wide totals, wallet top-ups, matched
+ * vs unmatched coverage, spend per year and cost per hour played — all factual
+ * figures from {@link summariseSpend}, with no value judgement baked in (that is
+ * left to the model, see {@link SPEND_SIGNAL_GUIDANCE}). Present only when
+ * transaction history is imported.
+ */
+function spendSummaryLines(
+  data: DashboardData,
+  transactions?: readonly TransactionRow[]
+): string[] {
+  if (!transactions || transactions.length === 0) return [];
+  const s = summariseSpend(data, [...transactions]);
+  const lines = [
+    `- Spend (imported transaction history): ${fmtMajor(s.totalSpend, s.currency)} total across ${s.purchaseCount} purchases; wallet top-ups ${fmtMajor(s.topUpTotal, s.currency)}; ${s.paidGames} games matched to a purchase, ${s.freeGames} with no matched purchase (PS Plus / pre-installs / free / unmatched); ${fmtMajor(s.unmatchedSpend, s.currency)} of purchases matched no library title.`,
+  ];
+  if (s.byYear.length > 0) lines.push(spendByYearLine(s));
+  if (s.leaderboard.length > 0) lines.push(costPerHourLines(s));
+  return lines;
+}
+
 function transactionLines(data: DashboardData, transactions?: readonly TransactionRow[]): string[] {
   if (!transactions || transactions.length === 0) return [];
   const lines: string[] = [];
@@ -418,6 +534,7 @@ export function buildDataSummary(
     listFranchises(data),
     "- Session style (hours per session):",
     listSessionStyle(data),
+    ...spendSummaryLines(data, transactions),
     ...transactionLines(data, transactions),
   ].join("\n");
 }
@@ -427,12 +544,16 @@ export function buildDataSummary(
  * category, phrased so the user can paste any of them straight into the ongoing
  * chat without re-sending the data.
  */
-export function buildFollowUps(lead: PromptVariant): string {
+export function buildFollowUps(
+  lead: PromptVariant,
+  transactions?: readonly TransactionRow[]
+): string {
+  const variants = availableVariants(transactions);
   const lines = [
     "FOLLOW-UP QUESTIONS — paste any of these into this chat afterwards; you already have my data above, so don't ask me to resend it:",
   ];
   for (const group of PROMPT_GROUPS) {
-    const questions = PROMPT_VARIANTS.filter((v) => v.group === group && v.id !== lead.id);
+    const questions = variants.filter((v) => v.group === group && v.id !== lead.id);
     if (questions.length === 0) continue;
     lines.push(`${group}:`);
     for (const v of questions) lines.push(`- ${v.question}`);
@@ -532,6 +653,19 @@ function priceContextGuidance(
   return summarisePriceContext(data, transactions).length === 0 ? [] : [PRICE_CONTEXT_GUIDANCE];
 }
 
+export const SPEND_SIGNAL_GUIDANCE = [
+  "When the 'Spend (imported transaction history)' block is present you can answer questions about my spend totals, spend over time, wallet top-ups and cost per hour played — but treat spend as a SUPPORTING context signal about my budgeting, patience and value-sensitivity, NEVER an enjoyment verdict, and never a value judgement baked into the figures: the numbers are factual cost, and deciding whether something was 'worth it' is your reasoning, weighed alongside hours, recency and trophies.",
+  "Honour these caveats and never overclaim:",
+  "- Cost per hour is just total matched spend ÷ lifetime hours — a low cost per hour means many hours per pound, NOT more enjoyment, and a high cost per hour does NOT imply regret.",
+  "- Wallet top-ups fund the wallet balance and are NOT spend on any game — never attribute a top-up to a title or count it as a purchase.",
+  "- Unmatched spend, and games with no matched purchase (PS Plus, pre-installs, free claims), are UNKNOWN, not zero — imported transactions cover only part of a library, so absent spend says nothing about enjoyment or intent.",
+  "- These figures exist only because I imported transaction history, and DLC/bundle attribution is imperfect, so don't over-index on any single number.",
+].join("\n");
+
+function spendGuidance(transactions?: readonly TransactionRow[]): string[] {
+  return transactions && transactions.length > 0 ? [SPEND_SIGNAL_GUIDANCE] : [];
+}
+
 /**
  * Global caveat placed before the per-metric guidance blocks. It reframes those
  * blocks as interpretive hints rather than a scoring rubric so no single metric
@@ -571,17 +705,19 @@ export const MENU_MODE = "menu" as const;
  * analysing nothing until the user picks a question.
  */
 export const MENU_INSTRUCTION =
-  "Don't analyse anything yet. Briefly introduce what you can tell me from this data, then present a concise menu of what I could ask — grouped (Engagement & enjoyment, Completion & habits, Taste & preferences, Profile & personality, Recommendations, More) — and ask which I'd like to explore first.";
+  "Don't analyse anything yet. Briefly introduce what you can tell me from this data, then present a concise menu of what I could ask, grouped by category (use the groups shown in the menu below), and ask which I'd like to explore first.";
 
 /**
- * The full grouped menu of questions, built from `PROMPT_VARIANTS` so it stays
- * in sync as variants change. Unlike `buildFollowUps` it excludes nothing —
- * there is no lead question in menu mode, so every question is on offer.
+ * The full grouped menu of questions, built from the {@link availableVariants}
+ * (the spend questions are folded in only when transactions are imported) so it
+ * stays in sync as variants change. Unlike `buildFollowUps` it excludes no lead
+ * — there is no lead question in menu mode, so every available question is on offer.
  */
-export function buildMenu(): string {
+export function buildMenu(transactions?: readonly TransactionRow[]): string {
+  const variants = availableVariants(transactions);
   const lines = ["MENU — the questions I could ask, grouped (pick one to start):"];
   for (const group of PROMPT_GROUPS) {
-    const questions = PROMPT_VARIANTS.filter((v) => v.group === group);
+    const questions = variants.filter((v) => v.group === group);
     if (questions.length === 0) continue;
     lines.push(`${group}:`);
     for (const v of questions) lines.push(`- ${v.question}`);
@@ -611,7 +747,7 @@ function buildMenuPrompt(data: DashboardData, transactions?: readonly Transactio
     "",
     MENU_INSTRUCTION,
     "",
-    buildMenu(),
+    buildMenu(transactions),
   ].join("\n");
 }
 
@@ -638,6 +774,7 @@ export function buildPrompt(
         COMPLETION_INTERPRETATION_GUIDANCE,
         ...addOnGuidance(data, transactions),
         ...priceContextGuidance(data, transactions),
+        ...spendGuidance(transactions),
       ]
     : [];
   return [
@@ -651,6 +788,6 @@ export function buildPrompt(
     "",
     `TASK: ${lead.instruction}`,
     "",
-    buildFollowUps(lead),
+    buildFollowUps(lead, transactions),
   ].join("\n");
 }
