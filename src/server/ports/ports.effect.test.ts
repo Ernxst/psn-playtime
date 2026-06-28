@@ -6,7 +6,7 @@ import { demoDashboard } from "@/lib/psn/mock";
 import { AccountProvider, type AccountCredential } from "./account-provider.effect";
 import { type GameMetadata, EnrichmentProvider } from "./enrichment-provider.effect";
 import {
-  AccountAuthError,
+  CredentialRejectedError,
   ProviderRateLimitedError,
   ProviderUnavailableError,
 } from "./errors.effect";
@@ -21,10 +21,10 @@ const VALID = "valid-token";
 
 /** A stand-in account source: a known credential succeeds, anything else fails auth. */
 const accountTestLayer = Layer.succeed(AccountProvider, {
-  loadDashboard: (credential: AccountCredential) =>
+  fetchSnapshot: (credential: AccountCredential) =>
     Redacted.value(credential) === VALID
       ? Effect.succeed(demoDashboard)
-      : Effect.fail(new AccountAuthError({ reason: "rejected" })),
+      : Effect.fail(new CredentialRejectedError({ reason: "rejected" })),
 });
 
 const ENRICHED: GameMetadata = { genre: "RPG", typicalPlaytime: 40 };
@@ -47,7 +47,7 @@ describe("E3 service ports", () => {
   it("resolves a DashboardData through the AccountProvider port", async () => {
     const program = Effect.gen(function* () {
       const provider = yield* AccountProvider;
-      return yield* provider.loadDashboard(Redacted.make(VALID));
+      return yield* provider.fetchSnapshot(Redacted.make(VALID));
     });
 
     const data = await Effect.runPromise(program.pipe(Effect.provide(accountTestLayer)));
@@ -55,12 +55,12 @@ describe("E3 service ports", () => {
     expect(data.profile.onlineId).toBe(demoDashboard.profile.onlineId);
   });
 
-  it("recovers AccountAuthError on the typed channel", async () => {
+  it("recovers CredentialRejectedError on the typed channel", async () => {
     const program = Effect.gen(function* () {
       const provider = yield* AccountProvider;
-      return yield* provider.loadDashboard(Redacted.make("stale"));
+      return yield* provider.fetchSnapshot(Redacted.make("stale"));
     }).pipe(
-      Effect.catchTag("AccountAuthError", (error) => Effect.succeed(error.reason)),
+      Effect.catchTag("CredentialRejectedError", (error) => Effect.succeed(error.reason)),
       Effect.provide(accountTestLayer)
     );
 

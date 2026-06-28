@@ -31,7 +31,7 @@ export interface AccountProviderShape {
    * genre/franchise/playtime is the separate, deferred {@link EnrichmentProvider}
    * concern, exactly as today's client-side merge keeps it.
    */
-  readonly loadDashboard: (
+  readonly fetchSnapshot: (
     credential: AccountCredential
   ) => Effect.Effect<DashboardData, AccountProviderError>;
 }

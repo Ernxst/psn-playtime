@@ -22,7 +22,7 @@ import * as Data from "effect/Data";
  * may be expired"). Account-source-specific; enrichment uses an API-key gate,
  * not a user credential, so it never raises this.
  */
-export class AccountAuthError extends Data.TaggedError("AccountAuthError")<{
+export class CredentialRejectedError extends Data.TaggedError("CredentialRejectedError")<{
   readonly reason: string;
 }> {}
 
@@ -52,7 +52,7 @@ export class ProviderRateLimitedError extends Data.TaggedError("ProviderRateLimi
 
 /** Failures the {@link AccountProvider} port can surface. */
 export type AccountProviderError =
-  | AccountAuthError
+  | CredentialRejectedError
   | ProviderUnavailableError
   | ProviderRateLimitedError;
 

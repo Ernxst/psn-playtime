@@ -68,7 +68,7 @@ const APP_RULE =
   /youtube|netflix|spotify|disney\s?\+|disney plus|prime video|amazon prime|bbc iplayer|apple tv|apple music|\btwitch\b|\bplex\b|\bnow\b|channel\s?4|sky go|\bhulu\b|crunchyroll|\bhbo\b|^max$|\bdazn\b|\btidal\b|deezer|peacock|paramount\s?\+|funimation|web browser|internet browser/i;
 
 function isAppTitle(name: string, category?: string): boolean {
-  if (category && /media_app|_app\b/i.test(category)) return true;
+  if (category !== undefined && /media_app|_app\b/i.test(category)) return true;
   return APP_RULE.test(name);
 }
 
