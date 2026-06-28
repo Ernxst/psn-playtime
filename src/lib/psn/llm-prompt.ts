@@ -705,7 +705,21 @@ export const MENU_MODE = "menu" as const;
  * analysing nothing until the user picks a question.
  */
 export const MENU_INSTRUCTION =
-  "Don't analyse anything yet. Briefly introduce what you can tell me from this data, then present a concise menu of what I could ask, grouped by category (use the groups shown in the menu below), and ask which I'd like to explore first.";
+  "Don't analyse anything yet. Briefly introduce what you can tell me from this data, then present a concise menu of what I could ask — grouped (Engagement & enjoyment, Completion & habits, Taste & preferences, Profile & personality, Recommendations, More) — and ask which I'd like to explore first.";
+
+/**
+ * The menu instruction for the current prompt: the verbatim {@link MENU_INSTRUCTION}
+ * by default, with the "Spending & value" group folded into its enumerated group
+ * list ONLY when transactions are imported. Gating it here keeps the
+ * no-transactions menu prompt byte-identical to before spend questions existed.
+ */
+function menuInstruction(transactions?: readonly TransactionRow[]): string {
+  if (!transactions || transactions.length === 0) return MENU_INSTRUCTION;
+  return MENU_INSTRUCTION.replace(
+    "Recommendations, More)",
+    "Recommendations, Spending & value, More)"
+  );
+}
 
 /**
  * The full grouped menu of questions, built from the {@link availableVariants}
@@ -745,7 +759,7 @@ function buildMenuPrompt(data: DashboardData, transactions?: readonly Transactio
     "",
     buildDataSummary(data, transactions),
     "",
-    MENU_INSTRUCTION,
+    menuInstruction(transactions),
     "",
     buildMenu(transactions),
   ].join("\n");

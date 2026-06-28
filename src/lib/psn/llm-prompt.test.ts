@@ -815,4 +815,25 @@ describe(".buildPrompt (menu mode)", () => {
     expect(prompt).toContain("Spending & value:");
     expect(present).toStrictEqual(SPEND_VARIANTS.map(() => true));
   });
+
+  it("leaves the no-transactions menu prompt byte-identical to the undefined case", () => {
+    expect(buildPrompt(demoDashboard, MENU_MODE, [])).toBe(buildPrompt(demoDashboard, MENU_MODE));
+  });
+
+  it("keeps the menu instruction's enumerated group list spend-free without transactions", () => {
+    const prompt = buildPrompt(demoDashboard, MENU_MODE);
+
+    expect(prompt).toContain(MENU_INSTRUCTION);
+    expect(prompt).not.toContain("Recommendations, Spending & value, More)");
+  });
+
+  it("adds the spend group to the menu instruction's enumerated list with transactions", () => {
+    const [game] = demoDashboard.games;
+
+    const prompt = buildPrompt(demoDashboard, MENU_MODE, [
+      tx({ productName: game?.name ?? "", skuId: game?.titleId }),
+    ]);
+
+    expect(prompt).toContain("Recommendations, Spending & value, More)");
+  });
 });
