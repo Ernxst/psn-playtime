@@ -64,6 +64,7 @@ You MUST follow existing testing patterns. Test: initial render, user interactio
 
 - Group by **public API surface**
 - Function tests: top-level `describe` must be `.functionName` e.g. `describe(".hashThumbnail")`
+- Constant tests: a module that exports only constants (no functions) groups its constants under a single descriptive `describe` for that surface, e.g. `describe("seo constants")`
 
 ---
 

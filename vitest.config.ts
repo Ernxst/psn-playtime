@@ -10,7 +10,6 @@ export default defineConfig({
       exclude: [
         "src/**/*.test.ts",
         "src/**/*.test.tsx",
-        "src/**/__tests__/**",
         "src/**/__screenshots__/**",
         "src/main.tsx",
         "src/main.ts",
@@ -29,14 +28,14 @@ export default defineConfig({
         test: {
           name: "node",
           include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
-          exclude: ["src/**/*.browser.test.ts", "src/**/*.browser.test.tsx"],
+          exclude: ["src/**/*.browser.test.tsx"],
         },
       },
       {
         extends: "./vite.config.ts",
         test: {
           name: "browser",
-          include: ["src/**/*.browser.test.ts", "src/**/*.browser.test.tsx"],
+          include: ["src/**/*.browser.test.tsx"],
           // Cap the browser pool and run it in its own sequence group so its
           // Playwright workers don't spin up alongside the node project (whose
           // heavy esbuild-in-`vm` test, `transaction-bookmarklet.test.ts`,
