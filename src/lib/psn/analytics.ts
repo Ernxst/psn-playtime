@@ -9,15 +9,14 @@
  * as a proxy and is labelled honestly in the UI as "by most-recent year".
  */
 import type { DashboardData, GamePlay, Genre, Platform } from "./types";
+import { round, yearOf } from "./util";
 
 const HOURS_PER_DAY = 24;
 const DAYS_PER_YEAR = 365;
 
 /** Year a game was most recently played (proxy bucket). */
 function lastPlayedYear(game: GamePlay): number | undefined {
-  if (!game.lastPlayed) return undefined;
-  const year = new Date(game.lastPlayed).getUTCFullYear();
-  return Number.isNaN(year) ? undefined : year;
+  return game.lastPlayed ? yearOf(game.lastPlayed) : undefined;
 }
 
 /**
@@ -276,7 +275,7 @@ export function applyFilters(data: DashboardData, filters: DashboardFilters): Da
     floor: dateFloor(data, filters),
     ceil: dateCeil(filters.lastPlayedTo),
     search: filters.search.trim().toLowerCase(),
-    mostRecentYear: new Date(data.fetchedAt).getUTCFullYear(),
+    mostRecentYear: yearOf(data.fetchedAt) ?? currentYear(),
   };
 
   const preds = activePredicates(filters, ctx);
@@ -533,7 +532,7 @@ export interface Recency {
 
 /** Split the library into titles touched this year vs. gone dormant. */
 export function recency(data: DashboardData): Recency {
-  const thisYear = new Date(data.fetchedAt).getUTCFullYear();
+  const thisYear = yearOf(data.fetchedAt) ?? currentYear();
   let activeGames = 0;
   let dormantGames = 0;
   let activeHours = 0;
@@ -594,9 +593,4 @@ export function gameRows(data: DashboardData): GameRow[] {
     lastPlayed: g.lastPlayed,
     trophyProgress: g.trophy?.progress,
   }));
-}
-
-function round(n: number, dp = 0): number {
-  const f = 10 ** dp;
-  return Math.round(n * f) / f;
 }

@@ -9,6 +9,7 @@
  */
 import type { TransactionRow } from "./transactions";
 import type { DashboardData, GamePlay } from "./types";
+import { round, yearOf } from "./util";
 
 /** One game with its matched spend and resulting value. */
 interface SpendLeader {
@@ -51,10 +52,6 @@ export interface AddOnSummary {
   addOnCount: number;
 }
 
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
-}
-
 /** Normalise a title for cross-source matching (mirrors the server normaliser). */
 function normTitle(name: string): string {
   return name
@@ -62,14 +59,6 @@ function normTitle(name: string): string {
     .replace(/[™®©]/g, "")
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
-}
-
-/** Year of an ISO/`YYYY-...` date, or `undefined` when unparseable. */
-function yearOf(date: string): number | undefined {
-  const iso = /^(\d{4})-\d{2}-\d{2}/.exec(date);
-  if (iso) return Number(iso[1]);
-  const year = new Date(date).getUTCFullYear();
-  return Number.isNaN(year) ? undefined : year;
 }
 
 /** Index library games by normalised name, keeping the first per name. */
@@ -245,9 +234,9 @@ function buildLeaderboard(games: GamePlay[], spendByTitle: Map<string, number>):
     leaders.push({
       titleId: g.titleId,
       name: g.name,
-      hours: round2(g.hours),
-      spend: round2(spend),
-      perHour: round2(spend / g.hours),
+      hours: round(g.hours, 2),
+      spend: round(spend, 2),
+      perHour: round(spend / g.hours, 2),
     });
   }
   return leaders.sort((a, b) => a.perHour - b.perHour);
@@ -255,7 +244,7 @@ function buildLeaderboard(games: GamePlay[], spendByTitle: Map<string, number>):
 
 function buildByYear(byYear: Acc["byYear"]): YearSpend[] {
   return [...byYear.entries()]
-    .map(([year, v]) => ({ year, spend: round2(v.spend), purchases: v.purchases }))
+    .map(([year, v]) => ({ year, spend: round(v.spend, 2), purchases: v.purchases }))
     .sort((a, b) => a.year - b.year);
 }
 
@@ -399,12 +388,12 @@ export function summariseSpend(data: DashboardData, transactions: TransactionRow
 
   return {
     currency: acc.currency,
-    totalSpend: round2(acc.totalSpend),
-    topUpTotal: round2(acc.topUpTotal),
+    totalSpend: round(acc.totalSpend, 2),
+    topUpTotal: round(acc.topUpTotal, 2),
     purchaseCount: acc.purchaseCount,
     paidGames: acc.spendByTitle.size,
     freeGames: games.length - acc.spendByTitle.size,
-    unmatchedSpend: round2(acc.unmatchedSpend),
+    unmatchedSpend: round(acc.unmatchedSpend, 2),
     byYear: buildByYear(acc.byYear),
     leaderboard: buildLeaderboard(games, acc.spendByTitle),
   };
