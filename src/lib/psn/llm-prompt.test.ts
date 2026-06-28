@@ -16,9 +16,12 @@ import {
   PRICE_CONTEXT_GUIDANCE,
   PROMPT_GROUPS,
   PROMPT_VARIANTS,
+  SPEND_SIGNAL_GUIDANCE,
+  SPEND_VARIANTS,
   TROPHY_SIGNAL_GUIDANCE,
 } from "./llm-prompt";
 import { demoDashboard } from "./mock";
+import { summariseSpend } from "./spend";
 import type { TransactionRow } from "./transactions";
 import type { GamePlay } from "./types";
 
@@ -60,6 +63,24 @@ describe(".PROMPT_VARIANTS", () => {
     const known = groups.map((group) => PROMPT_GROUPS.includes(group));
 
     expect(known).toStrictEqual(groups.map(() => true));
+  });
+});
+
+describe(".SPEND_VARIANTS", () => {
+  it("gives every spend question an id unique across all variants", () => {
+    const ids = [...PROMPT_VARIANTS, ...SPEND_VARIANTS].map((v) => v.id);
+
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("files every spend question under the Spending & value group", () => {
+    const groups = SPEND_VARIANTS.map((v) => v.group);
+
+    expect(groups).toStrictEqual(SPEND_VARIANTS.map(() => "Spending & value"));
+  });
+
+  it("declares the Spending & value group in PROMPT_GROUPS", () => {
+    expect(PROMPT_GROUPS).toContain("Spending & value");
   });
 });
 
@@ -225,6 +246,65 @@ describe(".buildDataSummary", () => {
 
     expect(summary).not.toContain("bought:");
   });
+
+  it("surfaces account-wide spend totals and wallet top-ups from imported transactions", () => {
+    const [game] = demoDashboard.games;
+
+    const summary = buildDataSummary(demoDashboard, [
+      tx({ productName: game?.name ?? "", skuId: game?.titleId, amountMinor: 4499 }),
+      tx({
+        kind: "top-up",
+        transactionType: "WALLET_TOPUP",
+        productName: "Wallet",
+        amountMinor: 1000,
+      }),
+    ]);
+
+    expect(summary).toContain(
+      "Spend (imported transaction history): £44.99 total across 1 purchases"
+    );
+    expect(summary).toContain("wallet top-ups £10.00");
+    expect(summary).toContain("1 games matched to a purchase");
+  });
+
+  it("breaks imported spend down by year", () => {
+    const [game] = demoDashboard.games;
+
+    const summary = buildDataSummary(demoDashboard, [
+      tx({
+        productName: game?.name ?? "",
+        skuId: game?.titleId,
+        amountMinor: 4499,
+        date: "2023-05-01",
+      }),
+    ]);
+
+    expect(summary).toContain("Spend by year: 2023 £44.99 (1 purchases)");
+  });
+
+  it("lists matched games by cost per hour played, lowest first", () => {
+    const [game] = demoDashboard.games;
+    const transactions = [
+      tx({ productName: game?.name ?? "", skuId: game?.titleId, amountMinor: 4499 }),
+    ];
+    const [leader] = summariseSpend(demoDashboard, transactions).leaderboard;
+
+    const summary = buildDataSummary(demoDashboard, transactions);
+
+    expect(summary).toContain(
+      "Cost per hour played (matched purchases, lowest first — total matched spend ÷ lifetime hours):"
+    );
+    expect(summary).toContain(
+      `${leader?.name}: £${leader?.spend.toFixed(2)} over ${Math.round(leader?.hours ?? 0)}h (£${leader?.perHour.toFixed(2)}/h)`
+    );
+  });
+
+  it("omits the spend block when no transactions are imported", () => {
+    const summary = buildDataSummary(demoDashboard);
+
+    expect(summary).not.toContain("Spend (imported transaction history)");
+    expect(summary).not.toContain("Cost per hour played");
+  });
 });
 
 describe(".buildFollowUps", () => {
@@ -247,6 +327,29 @@ describe(".buildFollowUps", () => {
     const [lead] = PROMPT_VARIANTS;
 
     expect(buildFollowUps(lead)).toContain("don't ask me to resend it");
+  });
+
+  it("omits the spend questions when no transactions are imported", () => {
+    const [lead] = PROMPT_VARIANTS;
+
+    const followUps = buildFollowUps(lead);
+
+    const present = SPEND_VARIANTS.map((v) => followUps.includes(`- ${v.question}`));
+
+    expect(present).toStrictEqual(SPEND_VARIANTS.map(() => false));
+  });
+
+  it("lists the spend questions as follow-ups when transactions are imported", () => {
+    const [lead] = PROMPT_VARIANTS;
+    const [game] = demoDashboard.games;
+
+    const followUps = buildFollowUps(lead, [
+      tx({ productName: game?.name ?? "", skuId: game?.titleId }),
+    ]);
+
+    const present = SPEND_VARIANTS.map((v) => followUps.includes(`- ${v.question}`));
+
+    expect(present).toStrictEqual(SPEND_VARIANTS.map(() => true));
   });
 });
 
@@ -488,7 +591,44 @@ describe(".buildPrompt", () => {
     expect(PRICE_CONTEXT_GUIDANCE).toContain(
       "A sale or deep-sale purchase does NOT imply lower enjoyment."
     );
-    expect(PRICE_CONTEXT_GUIDANCE).toContain("Missing spend data is UNKNOWN, not neutral or negative");
+    expect(PRICE_CONTEXT_GUIDANCE).toContain(
+      "Missing spend data is UNKNOWN, not neutral or negative"
+    );
+  });
+
+  it("embeds spend guidance for a metric lead when transactions are imported", () => {
+    const [game] = demoDashboard.games;
+    const [variant] = PROMPT_VARIANTS;
+
+    const prompt = buildPrompt(demoDashboard, variant, [
+      tx({ productName: game?.name ?? "", skuId: game?.titleId, amountMinor: 4499 }),
+    ]);
+
+    expect(prompt).toContain(SPEND_SIGNAL_GUIDANCE);
+  });
+
+  it("omits spend guidance when no transactions are imported", () => {
+    const [variant] = PROMPT_VARIANTS;
+
+    const prompt = buildPrompt(demoDashboard, variant);
+
+    expect(prompt).not.toContain(SPEND_SIGNAL_GUIDANCE);
+  });
+
+  it("reads spend as a supporting signal, never an enjoyment verdict or a coded value judgement", () => {
+    expect(SPEND_SIGNAL_GUIDANCE).toContain("SUPPORTING context signal");
+    expect(SPEND_SIGNAL_GUIDANCE).toContain("NEVER an enjoyment verdict");
+    expect(SPEND_SIGNAL_GUIDANCE).toContain("never a value judgement baked into the figures");
+  });
+
+  it("keeps the top-up, cost-per-hour and unknown-spend caveats", () => {
+    expect(SPEND_SIGNAL_GUIDANCE).toContain(
+      "a low cost per hour means many hours per pound, NOT more enjoyment"
+    );
+    expect(SPEND_SIGNAL_GUIDANCE).toContain(
+      "Wallet top-ups fund the wallet balance and are NOT spend on any game"
+    );
+    expect(SPEND_SIGNAL_GUIDANCE).toContain("are UNKNOWN, not zero");
   });
 
   it.each(SOFT_LEADS)("drops the metric rubric blocks for the soft lead $id", (variant) => {
@@ -527,6 +667,7 @@ describe(".buildPrompt", () => {
 
       expect(prompt).not.toContain(ADD_ON_SIGNAL_GUIDANCE);
       expect(prompt).not.toContain(PRICE_CONTEXT_GUIDANCE);
+      expect(prompt).not.toContain(SPEND_SIGNAL_GUIDANCE);
       expect(prompt).toContain("add-ons purchased: 1");
       expect(prompt).toContain("bought: deep-sale (£3.74 of £44.99)");
     }
@@ -552,12 +693,37 @@ describe(".buildMenu", () => {
   it("lists every question grouped under its category", () => {
     const menu = buildMenu();
 
-    const present = PROMPT_GROUPS.flatMap((group) => [
+    const populatedGroups = PROMPT_GROUPS.filter((group) =>
+      PROMPT_VARIANTS.some((v) => v.group === group)
+    );
+    const present = populatedGroups.flatMap((group) => [
       menu.includes(`${group}:`),
-      ...PROMPT_VARIANTS.filter((v) => v.group === group).map((v) => menu.includes(`- ${v.question}`)),
+      ...PROMPT_VARIANTS.filter((v) => v.group === group).map((v) =>
+        menu.includes(`- ${v.question}`)
+      ),
     ]);
 
     expect(present).toStrictEqual(present.map(() => true));
+  });
+
+  it("omits the spend group and its questions when no transactions are imported", () => {
+    const menu = buildMenu();
+
+    const present = SPEND_VARIANTS.map((v) => menu.includes(`- ${v.question}`));
+
+    expect(menu).not.toContain("Spending & value:");
+    expect(present).toStrictEqual(SPEND_VARIANTS.map(() => false));
+  });
+
+  it("folds in the spend group and its questions when transactions are imported", () => {
+    const [game] = demoDashboard.games;
+
+    const menu = buildMenu([tx({ productName: game?.name ?? "", skuId: game?.titleId })]);
+
+    const present = SPEND_VARIANTS.map((v) => menu.includes(`- ${v.question}`));
+
+    expect(menu).toContain("Spending & value:");
+    expect(present).toStrictEqual(SPEND_VARIANTS.map(() => true));
   });
 });
 
@@ -621,7 +787,53 @@ describe(".buildPrompt (menu mode)", () => {
 
     expect(prompt).not.toContain(ADD_ON_SIGNAL_GUIDANCE);
     expect(prompt).not.toContain(PRICE_CONTEXT_GUIDANCE);
+    expect(prompt).not.toContain(SPEND_SIGNAL_GUIDANCE);
     expect(prompt).toContain("add-ons purchased: 1");
     expect(prompt).toContain("bought: deep-sale (£3.74 of £44.99)");
+  });
+
+  it("still surfaces the spend data block while deferring the spend guidance", () => {
+    const [game] = demoDashboard.games;
+
+    const prompt = buildPrompt(demoDashboard, MENU_MODE, [
+      tx({ productName: game?.name ?? "", skuId: game?.titleId, amountMinor: 4499 }),
+    ]);
+
+    expect(prompt).toContain("Spend (imported transaction history):");
+    expect(prompt).not.toContain(SPEND_SIGNAL_GUIDANCE);
+  });
+
+  it("folds the spend questions into the menu when transactions are imported", () => {
+    const [game] = demoDashboard.games;
+
+    const prompt = buildPrompt(demoDashboard, MENU_MODE, [
+      tx({ productName: game?.name ?? "", skuId: game?.titleId }),
+    ]);
+
+    const present = SPEND_VARIANTS.map((v) => prompt.includes(`- ${v.question}`));
+
+    expect(prompt).toContain("Spending & value:");
+    expect(present).toStrictEqual(SPEND_VARIANTS.map(() => true));
+  });
+
+  it("leaves the no-transactions menu prompt byte-identical to the undefined case", () => {
+    expect(buildPrompt(demoDashboard, MENU_MODE, [])).toBe(buildPrompt(demoDashboard, MENU_MODE));
+  });
+
+  it("keeps the menu instruction's enumerated group list spend-free without transactions", () => {
+    const prompt = buildPrompt(demoDashboard, MENU_MODE);
+
+    expect(prompt).toContain(MENU_INSTRUCTION);
+    expect(prompt).not.toContain("Recommendations, Spending & value, More)");
+  });
+
+  it("adds the spend group to the menu instruction's enumerated list with transactions", () => {
+    const [game] = demoDashboard.games;
+
+    const prompt = buildPrompt(demoDashboard, MENU_MODE, [
+      tx({ productName: game?.name ?? "", skuId: game?.titleId }),
+    ]);
+
+    expect(prompt).toContain("Recommendations, Spending & value, More)");
   });
 });
