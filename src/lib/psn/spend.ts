@@ -111,6 +111,12 @@ const ADD_ON_SKU_TYPES = [
   "SEASON PASS",
 ];
 
+// Strong add-on markers carried in the sku id's content segment, e.g.
+// `EP4082-PPSA01491_00-EXPANSION1000000-U001`. PSN sometimes ships expansions
+// as a `PRE_ORDER` skuType with a neutral product name (no add-on keyword), so
+// the content code is the only reliable signal that the purchase is an add-on.
+const ADD_ON_SKU_ID_MARKERS = ["EXPANSION", "DLC", "ADDON", "SEASONPASS"];
+
 const ADD_ON_NAME_TERMS = [
   "season pass",
   "dlc",
@@ -141,6 +147,19 @@ function isAddOnSkuType(skuType: string | undefined): boolean {
   return ADD_ON_SKU_TYPES.some((type) => normalised.includes(type.replace(/[_-]+/g, " ")));
 }
 
+/**
+ * Add-on detected from the sku id's content segment (third `-`-delimited part,
+ * e.g. `EXPANSION1000000`). Only the content segment is inspected so region,
+ * title-id and edition segments cannot trigger a false positive.
+ */
+function isAddOnSkuId(skuId: string | undefined): boolean {
+  if (!skuId) return false;
+  const content = skuId.split("-")[2];
+  if (!content) return false;
+  const normalised = content.toUpperCase();
+  return ADD_ON_SKU_ID_MARKERS.some((marker) => normalised.includes(marker));
+}
+
 function isBaseGameEdition(name: string): boolean {
   return BASE_GAME_NAME_TERMS.some((term) => name.includes(term));
 }
@@ -157,6 +176,7 @@ function isNamedAddOn(productName: string, game: GamePlay | undefined): boolean 
 export function isAddOnPurchase(tx: TransactionRow, game?: GamePlay): boolean {
   if (tx.kind !== "purchase") return false;
   if (isAddOnSkuType(tx.skuType)) return true;
+  if (isAddOnSkuId(tx.skuId)) return true;
   return isNamedAddOn(tx.productName, game);
 }
 

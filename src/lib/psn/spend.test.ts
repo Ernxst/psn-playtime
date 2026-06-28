@@ -167,6 +167,26 @@ describe(".isAddOnPurchase", () => {
   ])("does not count base-game editions or bundles as add-ons", (row) => {
     expect(isAddOnPurchase(row, game("Known Game", 10))).toBe(false);
   });
+
+  it("detects an expansion from the sku-id marker when skuType and name give no signal", () => {
+    const row = tx({
+      productName: "Cyberpunk 2077: Phantom Liberty",
+      skuType: "PRE_ORDER",
+      skuId: "EP4082-PPSA01491_00-EXPANSION1000000-U001",
+    });
+
+    expect(isAddOnPurchase(row, game("Cyberpunk 2077", 40, "PPSA01491_00"))).toBe(true);
+  });
+
+  it("does not treat the base-game sku-id content segment as an add-on", () => {
+    const row = tx({
+      productName: "Cyberpunk 2077",
+      skuType: "STANDARD",
+      skuId: "EP4082-PPSA01491_00-00000000000000N1-U001",
+    });
+
+    expect(isAddOnPurchase(row, game("Cyberpunk 2077", 40, "PPSA01491_00"))).toBe(false);
+  });
 });
 
 describe(".summariseAddOns", () => {
@@ -282,6 +302,37 @@ describe(".summarisePriceContext", () => {
         label: "discounted",
         paidMinor: 1599,
         originalPriceMinor: 1999,
+        currency: "£",
+      },
+    ]);
+  });
+
+  it("uses the base-game purchase, not a same-title expansion, for the price context", () => {
+    const summary = summarisePriceContext(data([game("Cyberpunk 2077", 40, "PPSA01491_00")]), [
+      tx({
+        productName: "Cyberpunk 2077: Phantom Liberty",
+        skuType: "PRE_ORDER",
+        skuId: "EP4082-PPSA01491_00-EXPANSION1000000-U001",
+        amountMinor: 2499,
+        originalPriceMinor: 2499,
+      }),
+      tx({
+        productName: "Cyberpunk 2077",
+        skuType: "STANDARD",
+        skuId: "EP4082-PPSA01491_00-00000000000000N1-U001",
+        amountMinor: 1999,
+        originalPriceMinor: 3999,
+        discountMinor: 2000,
+      }),
+    ]);
+
+    expect(summary).toEqual([
+      {
+        titleId: "PPSA01491_00",
+        name: "Cyberpunk 2077",
+        label: "deep-sale",
+        paidMinor: 1999,
+        originalPriceMinor: 3999,
         currency: "£",
       },
     ]);
