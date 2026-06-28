@@ -194,7 +194,15 @@ function InsightsSection({ data }: { data: DashboardData }) {
   );
 }
 
-function DashboardBody({ data, timeframe }: { data: DashboardData; timeframe: Timeframe }) {
+interface DashboardBodyProps {
+  /** Filter-scoped library powering the game-centric views. */
+  data: DashboardData;
+  /** Unfiltered, account-wide library for the spend sections. */
+  accountData: DashboardData;
+  timeframe: Timeframe;
+}
+
+function DashboardBody({ data, accountData, timeframe }: DashboardBodyProps) {
   return (
     <div className="space-y-6">
       <Section id="overview">
@@ -222,7 +230,7 @@ function DashboardBody({ data, timeframe }: { data: DashboardData; timeframe: Ti
       <Section id="ask-ai">
         <LlmPromptCard data={data} />
       </Section>
-      <SpendSections data={data} />
+      <SpendSections data={accountData} />
       <Section id="all-games">
         <GamesTable data={data} />
       </Section>
@@ -247,7 +255,7 @@ function DashboardContent({
       <DashboardEmpty />
     );
   }
-  return <DashboardBody data={scoped} timeframe={filters.timeframe} />;
+  return <DashboardBody data={scoped} accountData={data} timeframe={filters.timeframe} />;
 }
 
 export function DashboardView({ data, onSignOut, signingOut }: Props) {
