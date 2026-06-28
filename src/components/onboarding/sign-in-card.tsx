@@ -285,7 +285,7 @@ function AccountButton({ account }: { account: CachedAccount }) {
   return (
     <Button
       variant="outline"
-      className="h-auto w-full justify-start gap-3 py-4"
+      className="h-auto sm:h-auto w-full justify-start gap-3 py-3"
       onClick={() => {
         setActiveAccount(account.accountId);
         void navigate({ to: "/dashboard" });
