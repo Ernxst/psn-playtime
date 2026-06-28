@@ -22,7 +22,7 @@ import { AppsExcludedNote, ComebacksCard, LifespansCard, RecencyCard, ValueCard 
 import { KpiCards } from "./kpi-cards";
 import { LlmPromptCard } from "./llm-prompt-card";
 import { PurchaseHistorySection } from "./purchase-history";
-import { SpendSection } from "./spend";
+import { AddOnsSection, SpendSection } from "./spend";
 import { DashboardEmpty, DashboardNoMatches } from "./states";
 import { TrophySection } from "./trophies";
 
@@ -161,6 +161,22 @@ function DeferredSection({ children, height }: { children: React.ReactNode; heig
   );
 }
 
+function SpendSections({ data }: { data: DashboardData }) {
+  return (
+    <>
+      <Section id="spend">
+        <SpendSection data={data} />
+      </Section>
+      <Section id="purchase-history">
+        <PurchaseHistorySection data={data} />
+      </Section>
+      <Section id="add-ons">
+        <AddOnsSection data={data} />
+      </Section>
+    </>
+  );
+}
+
 function InsightsSection({ data }: { data: DashboardData }) {
   return (
     <Section id="insights">
@@ -203,12 +219,7 @@ function DashboardBody({ data, timeframe }: { data: DashboardData; timeframe: Ti
       <Section id="ask-ai">
         <LlmPromptCard data={data} />
       </Section>
-      <Section id="spend">
-        <SpendSection data={data} />
-      </Section>
-      <Section id="purchase-history">
-        <PurchaseHistorySection data={data} />
-      </Section>
+      <SpendSections data={data} />
       <Section id="all-games">
         <GamesTable data={data} />
       </Section>

@@ -3,6 +3,7 @@ import {
   CalendarRange,
   Coins,
   Gamepad2,
+  Gift,
   LayoutDashboard,
   Lightbulb,
   type LucideIcon,
@@ -42,6 +43,7 @@ const DASHBOARD_SECTIONS: readonly Section[] = [
   { icon: Sparkles, id: "ask-ai", label: "Ask an AI" },
   { icon: Coins, id: "spend", label: "Spend" },
   { icon: Receipt, id: "purchase-history", label: "Purchase history" },
+  { icon: Gift, id: "add-ons", label: "Spent extra on" },
   { icon: Gamepad2, id: "all-games", label: "All games" },
 ];
 
