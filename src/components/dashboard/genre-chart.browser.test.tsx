@@ -25,6 +25,37 @@ test("genre donut tooltip shows the genre name on hover", async () => {
   // directly to avoid fighting the slice's entrance animation.
   sector.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
 
-  await expect.element(page.getByText(topGenre)).toBeInTheDocument();
-  await expect.element(page.getByText(/lifetime hours/)).toBeInTheDocument();
+  // The genre and "lifetime hours" also appear in the hidden table, so scope to the donut.
+  const donut = page.getByRole("img");
+  await expect.element(donut.getByText(topGenre)).toBeInTheDocument();
+  await expect.element(donut.getByText(/lifetime hours ·/)).toBeInTheDocument();
+});
+
+test("names the donut with each genre's share and hours as its text equivalent", async () => {
+  const slices = genreBreakdown(demoDashboard);
+  const expected = `Genre share of lifetime hours: ${slices
+    .map((s) => `${s.genre} ${s.hours.toLocaleString()} hours, ${s.share}%`)
+    .join(", ")}.`;
+
+  const { container } = await render(<GenreChart data={demoDashboard} />);
+
+  const chart = container.querySelector('[role="img"]');
+  if (!chart) throw new Error("expected the genre donut to expose role=img");
+
+  expect(chart).toHaveAttribute("aria-label", expected);
+});
+
+test("exposes a visually-hidden data table covering every genre slice", async () => {
+  const slices = genreBreakdown(demoDashboard);
+  const topSlice = slices[0];
+  if (!topSlice) throw new Error("expected at least one genre slice");
+
+  const { container } = await render(<GenreChart data={demoDashboard} />);
+
+  const table = container.querySelector("table.sr-only");
+  if (!table) throw new Error("expected a visually-hidden genre data table");
+
+  expect(table.querySelectorAll("tbody tr")).toHaveLength(slices.length);
+
+  await expect.element(page.getByRole("rowheader", { name: topSlice.genre })).toBeInTheDocument();
 });
