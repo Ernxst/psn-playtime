@@ -5,7 +5,7 @@ import { demoDashboard } from "@/lib/psn/mock";
 import { bookmarkletHref } from "@/lib/psn/transaction-bookmarklet";
 import type { TransactionRow } from "@/lib/psn/transactions";
 import { clearTransactionImport, saveTransactionImport } from "@/lib/transactions-store";
-import { SpendSection } from "./spend";
+import { AddOnsSection, SpendSection } from "./spend";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -157,4 +157,48 @@ test("shows the import prompt on the demo dashboard even when an import exists",
 
   await expect.element(page.getByText("Add your spend")).toBeVisible();
   await expect.element(page.getByText("Best value per hour")).not.toBeInTheDocument();
+});
+
+/** An add-on purchase matched to "FIFA 18" (titleId DEMO-1) in the demo library. */
+function addOn(transactionId: string): TransactionRow {
+  return {
+    transactionId,
+    key: transactionId,
+    date: "2022-05-12",
+    transactionType: "PRODUCT_PURCHASE",
+    kind: "purchase",
+    productName: "FIFA 18 Ultimate Team Points Pack",
+    skuId: `EP0001-DEMO-1-ADDON${transactionId}-U001`,
+    skuType: "ADD_ON",
+    quantity: 1,
+    amountMinor: 999,
+    currency: "£",
+    displayAmount: "£9.99",
+  };
+}
+
+test("ranks games by how many add-ons were bought once transactions are imported", async () => {
+  seed([addOn("a1"), addOn("a2")]);
+
+  await render(<AddOnsSection data={realDashboard} />);
+
+  await expect.element(page.getByText("Spent extra on")).toBeVisible();
+  await expect.element(page.getByText("FIFA 18")).toBeVisible();
+  await expect.element(page.getByText("2 add-ons")).toBeVisible();
+});
+
+test("hides the add-ons section for the demo dashboard", async () => {
+  seed([addOn("a1")]);
+
+  await render(<AddOnsSection data={demoDashboard} />);
+
+  await expect.element(page.getByText("Spent extra on")).not.toBeInTheDocument();
+});
+
+test("hides the add-ons section when no transactions are imported", async () => {
+  onTestFinished(clearTransactionImport);
+
+  await render(<AddOnsSection data={realDashboard} />);
+
+  await expect.element(page.getByText("Spent extra on")).not.toBeInTheDocument();
 });

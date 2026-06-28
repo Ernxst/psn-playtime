@@ -1,11 +1,16 @@
-import { Coins, ExternalLink, Trophy, Wallet } from "lucide-react";
+import { Coins, ExternalLink, Gift, Trophy, Wallet } from "lucide-react";
 import type { ReactNode } from "react";
 import { useCopied } from "@/components/dashboard/copy-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useMediaQuery } from "@/hooks/use-media-query";
-import { type SpendSummary, summariseSpend } from "@/lib/psn/spend";
+import {
+  type AddOnSummary,
+  type SpendSummary,
+  summariseAddOns,
+  summariseSpend,
+} from "@/lib/psn/spend";
 import { bookmarkletHref } from "@/lib/psn/transaction-bookmarklet";
 import type { DashboardData } from "@/lib/psn/types";
 import { useTransactionImport } from "@/lib/transactions-store";
@@ -274,5 +279,51 @@ export function SpendSection({ data }: { data: DashboardData }) {
       <ByYearCard summary={summary} />
       <LeaderboardCard summary={summary} />
     </div>
+  );
+}
+
+function AddOnRow({ summary }: { summary: AddOnSummary }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <div className="min-w-0 truncate">{summary.name}</div>
+      <span className="shrink-0 font-semibold tabular-nums">
+        {summary.addOnCount} {summary.addOnCount === 1 ? "add-on" : "add-ons"}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * Games the user bought add-ons, DLC or in-game items for — a willingness-to-
+ * invest signal distinct from base-game spend. Ranked by number of add-on
+ * purchases. Hidden for the demo library and until a transaction import lands,
+ * mirroring {@link SpendSection}.
+ */
+export function AddOnsSection({ data }: { data: DashboardData }) {
+  const imported = useTransactionImport();
+  if (data.isDemo || !imported || imported.transactions.length === 0) return null;
+
+  const ranked = summariseAddOns(data, imported.transactions)
+    .slice()
+    .sort((a, b) => b.addOnCount - a.addOnCount || a.name.localeCompare(b.name))
+    .slice(0, 10);
+  if (ranked.length === 0) return null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Gift className="size-4" /> Spent extra on
+        </CardTitle>
+        <CardDescription>
+          Games you bought add-ons, DLC or in-game items for, ranked by number of add-on purchases.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-2 text-sm">
+        {ranked.map((g) => (
+          <AddOnRow key={g.titleId} summary={g} />
+        ))}
+      </CardContent>
+    </Card>
   );
 }
