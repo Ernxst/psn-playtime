@@ -3,8 +3,12 @@
 Avoid `useEffect` at all costs. There is almost always a better alternative —
 see [You Might Not Need an Effect](https://react.dev/learn/you-might-not-need-an-effect).
 
-`useEffect` is permitted **only** for genuine synchronisation with an external system.
-Every surviving `useEffect` MUST carry a short comment justifying why no alternative works.
+`useEffect` is permitted **only** for true fire-and-forget side effects that push to a
+non-React system whose result you do **not** read during render — e.g. connecting to a
+server or socket, imperatively driving a non-React widget, or firing analytics on a
+lifecycle moment. Anything you subscribe to or read back during render is
+`useSyncExternalStore`'s job, **not** `useEffect`'s. Every surviving `useEffect` MUST carry
+a short comment justifying why no alternative works.
 
 ## Definition of Done
 
@@ -45,25 +49,35 @@ and must be regenerated:
 
 ## Legitimate Escape Hatches
 
-`useEffect` is allowed ONLY to synchronise with an external system, such as:
+`useEffect` is allowed ONLY for a true fire-and-forget side effect: one that pushes to a
+non-React system and whose result you do **not** read during render, such as:
 
-- Subscriptions to non-React sources (prefer `useSyncExternalStore` where it fits)
-- Browser/DOM APIs and non-React widgets that must be wired up imperatively
-- Timers (`setInterval` / `setTimeout`) and animation frames
-- Network connections (e.g. sockets) tied to component lifetime
+- Opening a network connection (e.g. a socket) tied to component lifetime
+- Imperatively wiring up a browser/DOM API or non-React widget that has no declarative API
+- Firing analytics or logging on a mount/unmount lifecycle moment
+
+If you instead need the external value **during render** — online/offline status, a store's
+current value, the viewport size — that is `useSyncExternalStore`, **not** `useEffect`. And
+when a user interaction is what triggers the side effect, prefer an event handler over an
+Effect.
 
 ---
 
 ## The Comment Requirement
 
-Every remaining `useEffect` MUST be preceded by a short comment naming the external system it
-synchronises with and why no alternative (render-time derivation, `useMemo`, an event handler,
-`key`, `useSyncExternalStore`, or the data layer) applies.
+Every remaining `useEffect` MUST be preceded by a short comment that names the non-React
+system it pushes to and explains why render-time derivation, an event handler, and
+`useSyncExternalStore` all fail to apply — not merely that it "talks to an external system".
+In particular it must say why the value is never read during render (so `useSyncExternalStore`
+is wrong) and why no user interaction triggers it (so an event handler is wrong).
 
 ```tsx
-// Sync: subscribe to the browser online/offline events — external system, no React equivalent.
+// Fire-and-forget: open a chat socket for this room's lifetime. Nothing here is read during
+// render (so not useSyncExternalStore); no user interaction triggers it (so not an event
+// handler); there is nothing to derive.
 useEffect(() => {
-  window.addEventListener("online", handleOnline);
-  return () => window.removeEventListener("online", handleOnline);
-}, []);
+  const socket = createConnection(roomId);
+  socket.connect();
+  return () => socket.disconnect();
+}, [roomId]);
 ```
