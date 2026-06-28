@@ -21,7 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { gameRows, LIFETIME_HOURS_CAVEAT } from "@/lib/psn/analytics";
+import { gameRows } from "@/lib/psn/analytics";
 import type { GameRow } from "@/lib/psn/analytics";
 import type { DashboardData } from "@/lib/psn/types";
 import { fmtDate, fmtHours, fmtNumber } from "./format";
@@ -52,7 +52,7 @@ const columns: Array<ColumnDef<GameRow>> = [
   {
     accessorKey: "hours",
     header: "Lifetime hours",
-    cell: ({ row }) => <span title={LIFETIME_HOURS_CAVEAT}>{fmtHours(row.original.hours)}</span>,
+    cell: ({ row }) => fmtHours(row.original.hours),
     meta: { numeric: true, label: "Lifetime hours" },
   },
   {

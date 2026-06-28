@@ -27,6 +27,14 @@ test("labels the headline hours as a lifetime total with a persistent disclaimer
   await expect.element(page.getByText(/All playtime is each game's lifetime total/)).toBeVisible();
 });
 
+test("exposes the lifetime caveat as an accessible tooltip on the headline figures", async () => {
+  await render(<KpiCards data={demoDashboard} />);
+
+  await page.getByRole("button").first().hover();
+
+  await expect.element(page.getByText(/PSN only reports each game's lifetime hours/)).toBeVisible();
+});
+
 test("reframes the headline as games-last-played when a timeframe is active", async () => {
   await render(<KpiCards data={demoDashboard} timeframePhrase="the last 12 months" />);
 
