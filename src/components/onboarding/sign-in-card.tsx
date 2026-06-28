@@ -1,6 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { ArrowRight, ExternalLink } from "lucide-react";
+import { ArrowRight, ExternalLink, ShieldAlert } from "lucide-react";
 import { useId, useState } from "react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -87,9 +87,28 @@ function ExternalAnchor({ href, children }: { href: string; children: React.Reac
   );
 }
 
+function RiskWarningPoints() {
+  return (
+    <>
+      <li>
+        The token grants{" "}
+        <strong className="font-semibold text-foreground">
+          full access to your PlayStation account
+        </strong>
+        . Treat it exactly like a password.
+      </li>
+      <li>
+        <strong className="font-semibold text-foreground">Never share it</strong> with anyone, and
+        never post a screenshot of it.
+      </li>
+    </>
+  );
+}
+
 function RiskDetailsList() {
   return (
     <ul className="mt-2 list-disc space-y-1.5 pr-1 pl-5 text-muted-foreground">
+      <RiskWarningPoints />
       <li>
         It uses your PSN session cookie with Sony's internal endpoints. There is no public PSN API,
         so this is technically a Terms of Service violation.
@@ -99,19 +118,27 @@ function RiskDetailsList() {
         your account.
       </li>
       <li>
-        Your token is never logged or stored on the server. It lives only in your browser's httpOnly
-        session cookie.
+        Your token is sent to the server only to load your data once, then discarded. It is never
+        logged or stored. Only the resulting stats are cached in your browser.
       </li>
       <li>
-        The token expires after about 2 months, and you can revoke it any time by signing out of PSN.
+        The token expires after about 2 months, and you can revoke it any time by signing out of
+        PSN.
       </li>
       <li>
-        This app is <ExternalAnchor href={REPO_URL}>open source</ExternalAnchor>, so you can read the
-        code yourself or self-host your own instance if you'd rather not trust this one.
+        This app is <ExternalAnchor href={REPO_URL}>open source</ExternalAnchor>, so you can read
+        the code yourself or self-host your own instance if you'd rather not trust this one.
       </li>
       <li>
         Curious how it works? It is built on{" "}
         <ExternalAnchor href={PSN_API_URL}>psn-api</ExternalAnchor>.
+      </li>
+      <li>
+        If you{" "}
+        <strong className="font-semibold text-foreground">
+          do not trust this app, do not enter your token
+        </strong>
+        . The demo is always available.
       </li>
     </ul>
   );
@@ -123,8 +150,9 @@ function RiskDetailsList() {
  */
 function RiskDetails() {
   return (
-    <details className="rounded-md border bg-muted/50 p-3 text-xs">
-      <summary className="cursor-pointer font-medium text-foreground underline-offset-4 hover:underline">
+    <details className="rounded-md border border-destructive/50 bg-destructive/5 p-3 text-xs">
+      <summary className="flex cursor-pointer items-center gap-2 font-medium text-destructive underline-offset-4 hover:underline">
+        <ShieldAlert className="size-4 shrink-0" aria-hidden="true" />
         Learn about the risk
       </summary>
       <RiskDetailsList />
@@ -257,7 +285,7 @@ function AccountButton({ account }: { account: CachedAccount }) {
   return (
     <Button
       variant="outline"
-      className="h-auto w-full justify-start gap-3 py-2"
+      className="h-auto w-full justify-start gap-3 py-4"
       onClick={() => {
         setActiveAccount(account.accountId);
         void navigate({ to: "/dashboard" });
