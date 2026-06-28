@@ -18,6 +18,9 @@ todos.json
 # Coverage reports
 coverage/
 
+# Vitest browser attachment debris
+.vitest-attachments/
+
 # Local PSN API capture (PII, do not commit)
 transactions.json
 ORCHESTRATION_PLAN.md

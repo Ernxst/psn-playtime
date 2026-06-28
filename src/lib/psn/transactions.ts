@@ -140,11 +140,31 @@ export function currencySymbol(formatted: string): string {
   return match ? match[0] : "";
 }
 
-/** Parse a formatted amount like "£10.00" into absolute minor units + currency. */
+/**
+ * Parse a formatted amount like "£10.00" into absolute minor units + currency.
+ *
+ * Handles both number groupings: English ("." decimal, "," thousands — e.g.
+ * "£1,234.56") and European ("," decimal, "." thousands — e.g. "€1.234,56").
+ * When both separators appear, the last-occurring one is the decimal point and
+ * the other is a thousands separator. When only one separator appears, it is a
+ * thousands separator if it repeats or groups exactly three trailing digits
+ * (e.g. "1.234", "1,234,567"); otherwise it is the decimal point.
+ *
+ * Self-contained (only browser globals besides {@link currencySymbol}, which is
+ * also embedded) so it survives `toString()` embedding into the bookmarklet.
+ */
 export function parseDisplayAmount(formatted: string): { minor: number; currency: string } {
   const currency = currencySymbol(formatted);
-  const digits = formatted.replace(/[^\d.,-]/g, "");
-  const normalised = digits.replace(/,(?=\d{3}\b)/g, "").replace(",", ".");
+  const digits = formatted.replace(/[^\d.,]/g, "");
+  // The last "." or "," is the decimal point unless it groups exactly three
+  // trailing digits, in which case it is a thousands separator (so "1.234" and
+  // "1,234" are 1234, while "1.23" and "1,23" are 1.23). All other separators
+  // are thousands groupings and are stripped.
+  const separator = Math.max(digits.lastIndexOf("."), digits.lastIndexOf(","));
+  const fraction = digits.length - separator - 1;
+  const plainDigits = digits.replace(/[.,]/g, "");
+  const cut = separator >= 0 && fraction !== 3 ? plainDigits.length - fraction : plainDigits.length;
+  const normalised = `${plainDigits.slice(0, cut)}.${plainDigits.slice(cut)}`;
   const value = Number.parseFloat(normalised);
   const minor = Number.isNaN(value) ? 0 : Math.round(Math.abs(value) * 100);
   return { minor, currency };
