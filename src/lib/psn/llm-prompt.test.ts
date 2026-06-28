@@ -99,10 +99,11 @@ describe(".buildDataSummary", () => {
     expect(buildDataSummary(demoDashboard)).toContain(`${top?.name} — ${top?.hours}h`);
   });
 
-  it("states the hours are lifetime totals with no per-period playtime", () => {
+  it("states the hours are PSN-recorded and can under-report with no per-period playtime", () => {
     const summary = buildDataSummary(demoDashboard);
 
-    expect(summary).toContain("every hour below is a per-game LIFETIME total");
+    expect(summary).toContain("every hour below is what PSN has RECORDED");
+    expect(summary).toContain("PSN can under-report or miss play time");
     expect(summary).toContain("PSN reports no per-period or per-session playtime");
   });
 

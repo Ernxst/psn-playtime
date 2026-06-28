@@ -521,7 +521,7 @@ export function buildDataSummary(
 
   return [
     "DATA (my PlayStation playtime, lifetime totals):",
-    "- Note: every hour below is a per-game LIFETIME total from PSN. PSN reports no per-period or per-session playtime, so never read these as hours played within a specific window.",
+    "- Note: every hour below is what PSN has RECORDED for that game, which doesn't always reflect true time played — PSN can under-report or miss play time for some titles, so a low hour count can understate it and should not be read as low engagement. PSN reports no per-period or per-session playtime, so never read these as hours played within a specific window.",
     `- Totals: ${totals.gamesPlayed} games, ${totals.totalHours}h played, ${totals.sessions} sessions, PSN trophy level ${totals.trophyLevel}.`,
     `- Averages: ${value.avgHoursPerGame}h per game, ${value.avgSessionsPerGame} sessions per game, ${value.avgSessionLength}h per session.`,
     `- Recency (${r.thisYear}): ${r.activeGames} active games (${r.activeHours}h) vs ${r.dormantGames} dormant (${r.dormantHours}h).`,
@@ -604,6 +604,7 @@ export const PLAYTIME_SIGNAL_GUIDANCE = [
   "- My hours are LIFETIME totals, so the ratio is most meaningful for completion-style games (narrative / RPG / adventure) where there's an end to reach.",
   "- Do NOT overweight it for clearly live-service / multiplayer games (e.g. FIFA / EA FC, Apex, Fortnite, Destiny) — they have no 'completion', so a huge ratio there reflects an ongoing habit, not finishing-and-loving a game.",
   "- The comparison is shown only for games where a typical time exists; its absence on a game says nothing — do not infer anything from a missing comparison.",
+  "- A low recorded-hour count can itself be unreliable: PSN sometimes under-reports play time, so weight hours DOWN when trophies or completion contradict them — a fully-completed game showing only ~1h is the tell that real time played is far higher, never proof of low engagement.",
 ].join("\n");
 
 /**

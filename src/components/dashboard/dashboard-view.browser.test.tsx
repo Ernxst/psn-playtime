@@ -42,6 +42,10 @@ test("composes the header, KPIs, chart sections and games table from the data", 
 
   await expect.element(page.getByRole("heading", { name: "Ernxst_" })).toBeVisible();
   await expect.element(page.getByText("Games played")).toBeVisible();
+
+  // Reveal the deferred chart section so its IntersectionObserver fires and loads the chart.
+  document.getElementById("top-games")?.scrollIntoView();
+
   await expect.element(page.getByText("Top games by hours")).toBeVisible();
   await expect.element(page.getByText("Every game you've played")).toBeVisible();
 });

@@ -17,14 +17,14 @@ test("falls back to a placeholder when the library has no biggest game", async (
   await render(<KpiCards data={empty} />);
 
   await expect.element(page.getByText("Biggest game")).toBeVisible();
-  await expect.element(page.getByText("—")).toBeVisible();
+  await expect.element(page.getByText("—", { exact: true })).toBeVisible();
 });
 
 test("labels the headline hours as a lifetime total with a persistent disclaimer", async () => {
   await render(<KpiCards data={demoDashboard} />);
 
   await expect.element(page.getByText("Lifetime play time")).toBeVisible();
-  await expect.element(page.getByText(/All playtime is each game's lifetime total/)).toBeVisible();
+  await expect.element(page.getByText(/All playtime is PSN-recorded hours/)).toBeVisible();
 });
 
 test("exposes the lifetime caveat as an accessible tooltip on the headline figures", async () => {
@@ -32,7 +32,9 @@ test("exposes the lifetime caveat as an accessible tooltip on the headline figur
 
   await page.getByRole("button").first().hover();
 
-  await expect.element(page.getByText(/PSN only reports each game's lifetime hours/)).toBeVisible();
+  await expect
+    .element(page.getByText(/PSN can under-report or miss play time for some titles/))
+    .toBeVisible();
 });
 
 test("reframes the headline as games-last-played when a timeframe is active", async () => {
