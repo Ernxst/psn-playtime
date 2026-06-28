@@ -26,6 +26,7 @@ import type {
   ProfileSummary,
   TrophyCounts,
 } from "@/lib/psn/types";
+import { round } from "@/lib/psn/util";
 import {
   createRawgCache,
   createRawgFranchiseCache,
@@ -43,10 +44,6 @@ async function authenticate(npsso: string): Promise<AuthorizationPayload> {
   const accessCode = await exchangeNpssoForAccessCode(npsso);
   const tokens = await exchangeAccessCodeForAuthTokens(accessCode);
   return { accessToken: tokens.accessToken };
-}
-
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
 }
 
 /** Convert an ISO-8601 duration like "PT123H4M5S" to decimal hours. */
@@ -354,7 +351,7 @@ function partitionTitles(
   const games: GamePlay[] = [];
   const appsExcluded: Partitioned["appsExcluded"] = [];
   for (const title of playedTitles) {
-    const hours = round2(hoursFromDuration(title.playDuration));
+    const hours = round(hoursFromDuration(title.playDuration), 2);
     const enriched = enrichTitle(title.name, title.category);
     if (enriched.isApp) {
       appsExcluded.push({ name: title.name, hours });
@@ -450,7 +447,10 @@ function computeMeta(games: GamePlay[], appsExcluded: Partitioned["appsExcluded"
   const firstEverPlayed = firstDates[0];
   return {
     totalGames: games.length,
-    totalHours: round2(games.reduce((sum, g) => sum + g.hours, 0)),
+    totalHours: round(
+      games.reduce((sum, g) => sum + g.hours, 0),
+      2
+    ),
     totalSessions: games.reduce((sum, g) => sum + g.playCount, 0),
     appsExcluded,
     firstEverPlayed,
