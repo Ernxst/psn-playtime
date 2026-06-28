@@ -1,9 +1,29 @@
-import { beforeEach, expect, test, vi } from "vitest";
+import { beforeEach, expect, onTestFinished, test, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
 import { demoDashboard } from "@/lib/psn/mock";
+import type { TransactionRow } from "@/lib/psn/transactions";
+import { clearTransactionImport, saveTransactionImport } from "@/lib/transactions-store";
 import { createHarness } from "@/test/harness";
 import { DashboardView } from "./dashboard-view";
+
+/** A base-game purchase matched to a demo library titleId by skuId. */
+function baseFor(titleId: string, amountMinor: number): TransactionRow {
+  return {
+    transactionId: `${titleId}-base`,
+    key: `${titleId}-base`,
+    date: "2022-05-12",
+    transactionType: "PRODUCT_PURCHASE",
+    kind: "purchase",
+    productName: titleId,
+    skuId: `EP0001-${titleId}-00000000000000N1-U001`,
+    skuType: "STANDARD",
+    quantity: 1,
+    amountMinor,
+    currency: "£",
+    displayAmount: "",
+  };
+}
 
 // Give the chart surfaces a real size so Recharts renders inside the compose.
 beforeEach(() => {
@@ -94,6 +114,44 @@ test("narrowing the library narrows the AI prompt", async () => {
 
   expect(fullCount).toBe(demoDashboard.games.length);
   expect(countGames()).toBeLessThan(fullCount);
+});
+
+test("keeps account-wide spend totals when a filter narrows the library", async () => {
+  // A real, signed-in account: spend joins to the library and is account-wide.
+  saveTransactionImport({
+    transactions: [baseFor("DEMO-8", 3000), baseFor("DEMO-6", 2000)],
+    importedAt: "2024-01-01T00:00:00.000Z",
+    source: "store.playstation.com",
+  });
+  onTestFinished(clearTransactionImport);
+
+  const { element } = createHarness(
+    <DashboardView
+      data={{ ...demoDashboard, isDemo: false }}
+      onSignOut={vi.fn()}
+      signingOut={false}
+    />
+  );
+
+  const { container } = await render(element);
+
+  // The "Spent the most on" section is account-wide; scope spend reads to it.
+  const spentMost = () => container.querySelector("#spent-most")?.textContent ?? "";
+
+  await expect.element(page.getByText(/98 titles in total/)).toBeVisible();
+
+  // Satisfactory's £20 spend (DEMO-6) shows alongside the full library.
+  expect(spentMost()).toContain("Satisfactory");
+  expect(spentMost()).toContain("£20.00");
+
+  // Filtering to Cyberpunk (DEMO-8) narrows the game-centric views off Satisfactory.
+  await page.getByRole("searchbox", { name: "Search games by name" }).fill("Cyberpunk");
+
+  await expect.element(page.getByText(/98 titles in total/)).not.toBeInTheDocument();
+
+  // …but spend stays account-wide: Satisfactory's £20 is still reported.
+  expect(spentMost()).toContain("Satisfactory");
+  expect(spentMost()).toContain("£20.00");
 });
 
 test("renders the empty state when the account has no played games", async () => {
