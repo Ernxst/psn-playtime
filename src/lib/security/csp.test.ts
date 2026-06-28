@@ -35,4 +35,16 @@ describe(".buildCsp", () => {
     expect(csp).toContain("frame-ancestors 'none'");
     expect(csp).toContain("upgrade-insecure-requests");
   });
+
+  it("allows the same-origin PWA manifest in production", () => {
+    vi.stubEnv("PROD", true);
+
+    expect(buildCsp({ nonce: "abc123" })).toContain("manifest-src 'self'");
+  });
+
+  it("allows the same-origin PWA manifest in development", () => {
+    vi.stubEnv("PROD", false);
+
+    expect(buildCsp({ nonce: "abc123" })).toContain("manifest-src 'self'");
+  });
 });
