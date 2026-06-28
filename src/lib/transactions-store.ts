@@ -1,8 +1,9 @@
 /**
  * Client-side persistence for imported PSN transactions.
  *
- * The dashboard playtime data comes from the server (httpOnly cookie → react-query),
- * but transactions are scraped in the browser by the bookmarklet and handed off
+ * The dashboard playtime data comes from the server (npsso token POSTed per-fetch,
+ * never stored, then discarded → react-query), but transactions are scraped in the
+ * browser by the bookmarklet and handed off
  * via the URL fragment — they never touch the server. We persist them in
  * `localStorage` so the spend view survives reloads, and expose a
  * `useSyncExternalStore` hook so the dashboard re-renders when an import lands.
