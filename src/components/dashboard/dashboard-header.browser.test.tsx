@@ -8,7 +8,7 @@ test("demo header shows the demo badge and hides the sign-out button", async () 
   await render(<DashboardHeader data={demoDashboard} onSignOut={() => {}} signingOut={false} />);
 
   await expect.element(page.getByRole("heading", { name: "Ernxst_" })).toBeVisible();
-  await expect.element(page.getByText("Demo")).toBeVisible();
+  await expect.element(page.getByText("Demo", { exact: true })).toBeVisible();
   await expect.element(page.getByText("PS Plus")).toBeVisible();
   expect(page.getByRole("button", { name: /sign out/i }).query()).toBeNull();
 });
