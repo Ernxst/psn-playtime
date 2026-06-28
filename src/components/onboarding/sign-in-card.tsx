@@ -1,6 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { ArrowRight, ExternalLink, ShieldAlert } from "lucide-react";
+import { ArrowRight, ChevronDown, ExternalLink, ShieldAlert } from "lucide-react";
 import { useId, useState } from "react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -79,7 +79,7 @@ function ExternalAnchor({ href, children }: { href: string; children: React.Reac
       href={href}
       target="_blank"
       rel="noreferrer"
-      className="inline-flex items-center gap-1 text-primary underline-offset-4 hover:underline"
+      className="inline-flex items-center gap-1 font-medium text-primary underline decoration-primary/40 underline-offset-4 hover:decoration-primary"
     >
       {children}
       <ExternalLink className="size-3" />
@@ -150,10 +150,14 @@ function RiskDetailsList() {
  */
 function RiskDetails() {
   return (
-    <details className="rounded-md border border-destructive/50 bg-destructive/5 p-3 text-xs">
-      <summary className="flex cursor-pointer items-center gap-2 font-medium text-destructive underline-offset-4 hover:underline">
+    <details className="group rounded-md border border-destructive/50 bg-destructive/5 p-3 text-xs">
+      <summary className="-m-1 flex cursor-pointer list-none items-center gap-2 rounded-md p-1 font-medium text-destructive transition-colors hover:bg-destructive/10 focus-visible:ring-2 focus-visible:ring-destructive/50 focus-visible:outline-none [&::-webkit-details-marker]:hidden">
         <ShieldAlert className="size-4 shrink-0" aria-hidden="true" />
         Learn about the risk
+        <ChevronDown
+          className="ml-auto size-4 shrink-0 transition-transform group-open:rotate-180"
+          aria-hidden="true"
+        />
       </summary>
       <RiskDetailsList />
     </details>

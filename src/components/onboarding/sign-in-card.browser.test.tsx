@@ -24,6 +24,42 @@ test("renders the connect-account card with the manual steps", async () => {
   await expect.element(page.getByRole("link", { name: /explore the demo/i })).toBeVisible();
 });
 
+test("styles the external links with a persistent underline so they read as links, not body text", async () => {
+  const { element } = createHarness(<SignInCard />);
+
+  await render(element);
+
+  const link = page.getByRole("link", { name: /open the ssocookie page/i });
+
+  await expect.element(link).toHaveClass(/underline/);
+});
+
+test("gives the risk disclosure a chevron affordance wired to rotate when the details open", async () => {
+  const { element } = createHarness(<SignInCard />);
+
+  await render(element);
+
+  const summary = page.getByText("Learn about the risk");
+  const chevron = summary.element().querySelector("svg.lucide-chevron-down");
+
+  expect(chevron).toHaveClass("group-open:rotate-180");
+});
+
+test("opens the risk disclosure when its summary is activated", async () => {
+  const { element } = createHarness(<SignInCard />);
+
+  await render(element);
+
+  const summary = page.getByText("Learn about the risk");
+  const details = summary.element().closest("details");
+
+  expect(details).not.toHaveAttribute("open");
+
+  await summary.click();
+
+  expect(details).toHaveAttribute("open");
+});
+
 test("keeps the risk details, including the password-grade warning, hidden until the learn-more action is opened", async () => {
   const { element } = createHarness(<SignInCard />);
 
