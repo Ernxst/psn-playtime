@@ -58,6 +58,14 @@ describe(".parseDisplayAmount", () => {
     ["€10,00", 1000, "€"],
     ["£0.00", 0, "£"],
     ["Free", 0, ""],
+    // European grouping: "." thousands, "," decimal.
+    ["€1.234,56", 123456, "€"],
+    ["-€1.234,56", 123456, "€"],
+    ["€1.000.000,00", 100000000, "€"],
+    ["€1.000", 100000, "€"],
+    // English grouping: "," thousands, "." decimal.
+    ["£1,234,567.89", 123456789, "£"],
+    ["£1,000", 100000, "£"],
   ])("parses %s as %d minor units in %s", (formatted, minor, currency) => {
     expect(parseDisplayAmount(formatted)).toEqual({ minor, currency });
   });

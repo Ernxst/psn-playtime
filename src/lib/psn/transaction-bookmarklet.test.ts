@@ -187,4 +187,31 @@ describe(".bookmarkletHref", () => {
       },
     ]);
   });
+
+  it("parses European-formatted top-ups via the minified embedded parser", async () => {
+    const body = await minifiedBookmarkletBody("https://psn.example.dev");
+    const topUp = {
+      id: "txn-eu",
+      date: "2024-06-01T00:00:00.000Z",
+      transactionType: "WALLET_FUNDED",
+      displayOfTransactionValue: "€1.234,56",
+    };
+
+    const rows = runEmbeddedFlatten(body, [topUp]);
+
+    expect(rows).toEqual([
+      {
+        transactionId: "txn-eu",
+        key: "txn-eu",
+        date: "2024-06-01T00:00:00.000Z",
+        transactionType: "WALLET_FUNDED",
+        kind: "top-up",
+        productName: "WALLET_FUNDED",
+        quantity: 1,
+        amountMinor: 123456,
+        currency: "€",
+        displayAmount: "€1.234,56",
+      },
+    ]);
+  });
 });
