@@ -120,6 +120,33 @@ test("nudging the min-sessions slider reports a non-zero floor", async () => {
   expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ minSessions: 1 }));
 });
 
+test("the hours range slider names its two thumbs Minimum and Maximum hours", async () => {
+  await render(<FilterBar data={demoDashboard} filters={defaultFilters} onChange={() => {}} />);
+
+  await page.getByRole("button", { name: "Filters" }).click();
+
+  await expect.element(page.getByRole("slider", { name: "Minimum hours" })).toBeInTheDocument();
+  await expect.element(page.getByRole("slider", { name: "Maximum hours" })).toBeInTheDocument();
+});
+
+test("the min-sessions slider names its thumb Minimum sessions", async () => {
+  await render(<FilterBar data={demoDashboard} filters={defaultFilters} onChange={() => {}} />);
+
+  await page.getByRole("button", { name: "Filters" }).click();
+
+  await expect.element(page.getByRole("slider", { name: "Minimum sessions" })).toBeInTheDocument();
+});
+
+test("the min-progress trophy slider names its thumb Minimum trophy progress", async () => {
+  await render(<FilterBar data={withTrophies} filters={defaultFilters} onChange={() => {}} />);
+
+  await page.getByRole("button", { name: "Filters" }).click();
+
+  await expect
+    .element(page.getByRole("slider", { name: "Minimum trophy progress" }))
+    .toBeInTheDocument();
+});
+
 test("the trophy facet appears only when the library has trophy data", async () => {
   const onChange = vi.fn();
 

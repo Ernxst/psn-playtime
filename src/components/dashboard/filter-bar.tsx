@@ -165,6 +165,7 @@ function HoursFacet({
         min={0}
         max={max}
         value={[lo, hi]}
+        thumbLabels={["Minimum hours", "Maximum hours"]}
         onValueChange={(value) => {
           const [a, b] = pair(value, max);
           set({ minHours: a === 0 ? undefined : a, maxHours: b === max ? undefined : b });
@@ -191,6 +192,7 @@ function SessionsFacet({
         min={0}
         max={max}
         value={value}
+        thumbLabels={["Minimum sessions"]}
         onValueChange={(next) => {
           const n = firstNumber(next);
           set({ minSessions: n === 0 ? undefined : n });
@@ -221,6 +223,7 @@ function TrophyFacet({ filters, set }: { filters: DashboardFilters; set: Setter 
           min={0}
           max={100}
           value={progress}
+          thumbLabels={["Minimum trophy progress"]}
           onValueChange={(next) => {
             const n = firstNumber(next);
             set({ minTrophyProgress: n === 0 ? undefined : n });
