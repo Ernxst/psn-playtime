@@ -1,8 +1,8 @@
 import * as Effect from "effect/Effect";
 import * as ManagedRuntime from "effect/ManagedRuntime";
 import { describe, expect, it, onTestFinished } from "vitest";
-import { AppLayer, appRuntime, runServer } from "./runtime";
-import { AppConfig, requireAppName } from "./services";
+import { AppLayer, appRuntime, runServer } from "./runtime.effect";
+import { AppConfig, requireAppName } from "./services.effect";
 
 describe("effect runtime foundation", () => {
   it("resolves the example service through the app runtime", async () => {

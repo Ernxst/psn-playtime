@@ -3,8 +3,8 @@ import * as AsyncResult from "effect/unstable/reactivity/AsyncResult";
 import { expect, test } from "vitest";
 import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
-import { appNameAtom } from "./atoms";
-import { EffectAtomProvider } from "./provider";
+import { appNameAtom } from "./atoms.effect";
+import { EffectAtomProvider } from "./provider.effect";
 
 // Module-scoped so the selector reference is stable across renders.
 const selectAppName = AsyncResult.getOrElse(() => "loading");

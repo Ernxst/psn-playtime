@@ -23,14 +23,19 @@ ground every API against the local source before using it.
   `Effect.Service`):
 
   ```ts
-  export class AppConfig extends Context.Service<AppConfig>()("psn-playtime/AppConfig", {
-    make: Effect.succeed({ appName: "psn-playtime" }),
-  }) {
+  export class AppConfig extends Context.Service<AppConfig>()(
+    "psn-playtime/integrations/effect/services.effect/AppConfig",
+    {
+      make: Effect.succeed({ appName: "psn-playtime" }),
+    }
+  ) {
     static readonly layer = Layer.effect(this, this.make);
   }
   ```
 
-- Identifier strings are namespaced: `psn-playtime/<ServiceName>`.
+- Identifier strings are the **deterministic key** the `deterministicKeys` rule
+  derives from the file path: `psn-playtime/<path-from-src>/<ServiceName>` (no
+  extension). The strict typecheck (below) fails on any other key.
 - Prefer `yield* Service` inside `Effect.gen` over `Service.use(...)` so
   dependencies stay explicit at the call site.
 
@@ -78,6 +83,46 @@ this.make)`; v4 does **not** auto-generate a `Default` layer.
   inline closure, to avoid re-subscribing every render).
 - Atom values from runtime atoms are `AsyncResult<A, E>`; read them with
   `AsyncResult` accessors (`getOrElse`, `getOrThrow`, `match`).
+
+## The `*.effect.ts(x)` convention & strict rules
+
+Effectful code lives in files named `*.effect.ts` / `*.effect.tsx`. The name is
+load-bearing: it is the glob that opts a file into the strict
+[`@effect/language-service`](https://github.com/Effect-TS/language-service)
+rule set. Anything outside that convention is checked only by the base
+`tsconfig.json`.
+
+- **Production effect code** → `name.effect.ts(x)` (e.g.
+  `services.effect.ts`, `provider.effect.tsx`).
+- **Effectful tests** → `name.effect.test.ts(x)` (e.g.
+  `runtime.effect.test.ts`). They carry the `.effect.` marker for discovery but
+  end in `.test.ts(x)`, so they stay matched by vitest **and** fall outside the
+  strict `**/*.effect.ts(x)` include — test ergonomics (gen, inline closures)
+  are not held to the production rules.
+
+### How enforcement works
+
+- `tsconfig.effect.json` extends `tsconfig.json`, adds the
+  `@effect/language-service` plugin with every diagnostic set to `error`
+  (`diagnosticSeverity`), and includes only `**/*.effect.ts(x)`.
+- `@typescript/native-preview`'s `tsgo` does not load TS language-service
+  plugins on its own. `@effect/tsgo` ships a `tsgo` fork that does; its
+  `effect-tsgo patch` command (run by the `prepare` script on install) swaps the
+  native-preview binary for the fork. After patching, the plugin's diagnostics
+  surface during typecheck — not just in the editor.
+- `pnpm run typecheck:effect` runs `tsgo --noEmit -p tsconfig.effect.json`.
+  `pnpm run typecheck` chains it after the base check, so CI, the gate, and the
+  lefthook pre-commit hook all fail on a rule violation.
+
+### What the rules forbid (in `*.effect.ts(x)`)
+
+Globals that hide effects are banned in favour of Effect-native equivalents:
+`Date` → `DateTime`/`Clock`, `Math.random`/`crypto.randomUUID` → `Random`,
+`fetch` → `HttpClient`, `console` → `Effect.log*`, `process.env` → `Config`,
+timers/`new Promise`/`async function` → Effect combinators, and `node:*`
+imports → `@effect/platform`. Style rules also require pipeable/do-notation form
+and the path-derived service keys above. Ground replacements in the local Effect
+source before reaching for a global.
 
 ## Definition of Done
 
