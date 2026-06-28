@@ -24,6 +24,7 @@ Follow the [Contribution Guide](./CONTRIBUTING.md)
 - Commit after each complete, verified logical change; do not defer all commits until the end of a task.
 - Prefer built-in platform, language, and framework capabilities over custom abstractions.
 - Avoid abstraction unless it removes duplication.
+- Avoid `useEffect` at all costs — see [Effects](./docs/rules/effects.md) rules
 
 ## Testing
 
