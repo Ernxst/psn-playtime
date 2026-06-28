@@ -6,6 +6,7 @@ import {
   bookmarkletHref,
   buildTransactionHistoryUrl,
   dedupeTransactions,
+  importErrorMessage,
   TRANSACTION_HISTORY_ENDPOINT,
 } from "./transaction-bookmarklet";
 
@@ -49,7 +50,10 @@ async function minifiedBookmarkletBody(origin: string): Promise<string> {
  * name it was actually given.
  */
 function runEmbeddedFlatten(body: string, transactions: unknown[]): unknown {
-  const helpers = body.slice(body.indexOf("// Flatten helpers"), body.indexOf("// 1. Replay"));
+  const helpers = body.slice(
+    body.indexOf("// Flatten helpers"),
+    body.indexOf("// Progress overlay")
+  );
   const names = [...helpers.matchAll(/const (\w+) =/g)].map((m) => m[1]);
   const flattenName = names.at(-1);
   const script = `(() => { ${helpers}\nreturn ${flattenName}(${JSON.stringify(transactions)}); })()`;
@@ -57,6 +61,92 @@ function runEmbeddedFlatten(body: string, transactions: unknown[]): unknown {
 
   return rows;
 }
+
+interface FakeElement {
+  style: Record<string, string>;
+  attrs: Record<string, string>;
+  id?: string;
+  textContent?: string;
+  setAttribute: (name: string, value: string) => void;
+  appendChild: (child: FakeElement) => FakeElement;
+  remove: () => void;
+}
+
+interface OverlayController {
+  progress: (collected: number, page: number) => void;
+  done: () => void;
+  error: (message: string) => void;
+  remove: () => void;
+}
+
+/** A document stub just rich enough to mount the overlay in a node `vm` realm. */
+function fakeDocument(): { document: unknown; created: FakeElement[] } {
+  const created: FakeElement[] = [];
+  const makeElement = (): FakeElement => {
+    const attrs: Record<string, string> = {};
+    const element: FakeElement = {
+      style: {},
+      attrs,
+      setAttribute: (name, value) => {
+        attrs[name] = value;
+      },
+      appendChild: (child) => child,
+      remove: () => {},
+    };
+
+    return element;
+  };
+  const body = makeElement();
+  const document = {
+    getElementById: () => null,
+    createElement: () => {
+      const element = makeElement();
+      created.push(element);
+
+      return element;
+    },
+    body,
+    documentElement: body,
+  };
+
+  return { document, created };
+}
+
+/**
+ * Mount the overlay from a *minified* bookmarklet body in a `vm` realm with a
+ * document stub. Slicing the embedded `// Progress overlay` region and running it
+ * proves the helper survives the app's minifier: a misnamed binding would throw
+ * `ReferenceError: <minified-name> is not defined` here, exactly as it would on
+ * the PSN page. Returns the live controller plus the `aria-live` message node.
+ */
+function runEmbeddedOverlay(body: string): { overlay: OverlayController; message: FakeElement } {
+  const region = body.slice(body.indexOf("// Progress overlay"), body.indexOf("// 1. Replay"));
+  const { document, created } = fakeDocument();
+  const script = `(() => { ${region}\nreturn overlay; })()`;
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- vm output from a freshly built artifact run in a child realm; its type is external to the project
+  const overlay = vm.runInNewContext(script, { document }) as OverlayController;
+  const message = created.find((element) => element.attrs["aria-live"] === "polite");
+  if (!message) throw new Error("overlay did not create an aria-live message node");
+
+  return { overlay, message };
+}
+
+describe(".importErrorMessage", () => {
+  it.each([
+    ["unexpected response (HTTP 401) — are you signed in to PlayStation?", "not signed in"],
+    ["your session has expired", "not signed in"],
+    ["unexpected response (HTTP 429) — are you signed in to PlayStation?", "rate-limiting"],
+    ["unexpected response (HTTP 403) — are you signed in to PlayStation?", "blocked the request"],
+    ["Failed to fetch", "Network error"],
+    ["PersistedQueryNotFound", "Import failed: PersistedQueryNotFound"],
+  ])("maps %j to an actionable message containing %j", (raw, expected) => {
+    expect(importErrorMessage(raw)).toContain(expected);
+  });
+
+  it("falls back to echoing an empty message safely", () => {
+    expect(importErrorMessage("")).toBe("Import failed: ");
+  });
+});
 
 describe(".buildTransactionHistoryUrl", () => {
   const url = buildTransactionHistoryUrl(
@@ -213,5 +303,55 @@ describe(".bookmarkletHref", () => {
         displayAmount: "€1.234,56",
       },
     ]);
+  });
+});
+
+describe("progress overlay", () => {
+  it("embeds the overlay helpers, mounts them, and wires progress/done/error", () => {
+    const body = bookmarkletBody("https://psn.example.dev");
+
+    expect(body).toContain("mountImportOverlay");
+    expect(body).toContain("importErrorMessage");
+    expect(body).toContain("aria-live");
+    expect(body).toContain("overlay.progress(");
+    expect(body).toContain("overlay.done()");
+    expect(body).toContain("overlay.error(");
+  });
+
+  it("mounts the overlay from the minified bookmarklet body without a ReferenceError", async () => {
+    const body = await minifiedBookmarkletBody("https://psn.example.dev");
+
+    const { message } = runEmbeddedOverlay(body);
+
+    expect(message.textContent).toBe("Fetching your transactions… Keep this tab open.");
+  });
+
+  it("updates the live progress line as pages are collected via the minified body", async () => {
+    const body = await minifiedBookmarkletBody("https://psn.example.dev");
+    const { overlay, message } = runEmbeddedOverlay(body);
+
+    overlay.progress(150, 2);
+
+    expect(message.textContent).toBe(
+      "Fetching transactions… 150 collected (page 2). Keep this tab open."
+    );
+  });
+
+  it("shows the success state before handoff via the minified body", async () => {
+    const body = await minifiedBookmarkletBody("https://psn.example.dev");
+    const { overlay, message } = runEmbeddedOverlay(body);
+
+    overlay.done();
+
+    expect(message.textContent).toBe("Done — opening Playtime…");
+  });
+
+  it("categorises errors through the minified embedded importErrorMessage", async () => {
+    const body = await minifiedBookmarkletBody("https://psn.example.dev");
+    const { overlay, message } = runEmbeddedOverlay(body);
+
+    overlay.error("unexpected response (HTTP 429) — are you signed in to PlayStation?");
+
+    expect(message.textContent).toContain("rate-limiting");
   });
 });
