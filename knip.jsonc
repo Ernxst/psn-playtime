@@ -1,6 +1,9 @@
 {
   "$schema": "./node_modules/knip/schema-jsonc.json",
   "treatConfigHintsAsErrors": true,
+  // TanStack Start resolves this as the server entry via a virtual module, so
+  // there is no static importer for knip to follow.
+  "entry": ["src/server.ts"],
   // Vendored shadcn primitives: keep the full component API even when unused.
   "ignore": ["src/components/ui/**"],
   "ignoreDependencies": [
