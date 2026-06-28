@@ -105,4 +105,10 @@ export interface DashboardData {
   meta: DashboardMeta;
   /** True when this is the bundled demo dataset rather than a live PSN pull. */
   isDemo: boolean;
+  /**
+   * True once the deferred RAWG genre/franchise enrichment has been merged into
+   * `games` and persisted to the client cache. Gates the RAWG lookups so a
+   * cached account renders without re-hitting RAWG on revisits.
+   */
+  enriched?: boolean;
 }

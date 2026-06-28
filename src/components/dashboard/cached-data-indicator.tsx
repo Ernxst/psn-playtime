@@ -4,12 +4,12 @@ import type { DashboardData } from "@/lib/psn/types";
 import { fmtRelative } from "./format";
 
 const CACHE_EXPLANATION =
-  "Data is cached for up to ~7 days to limit PSN API calls, so it may be slightly behind your latest activity.";
+  "Your data is cached in this browser from when you last signed in, so it may be behind your latest activity.";
 
 /**
  * Subtle freshness signal for the dashboard. Real data shows when it was last
- * pulled from PSN (which on a cache hit is the older fetch time) plus a tooltip
- * explaining the ~7-day cache. Demo data is labelled, never given a fake time.
+ * pulled from PSN plus a tooltip explaining the browser cache. Demo data is
+ * labelled, never given a fake time.
  */
 export function CachedDataIndicator({ data }: { data: DashboardData }) {
   if (data.isDemo) {

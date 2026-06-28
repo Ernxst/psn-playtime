@@ -1,12 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 import type { DashboardData } from "@/lib/psn/types";
-import { getDashboard, getRawgFranchises, getRawgGenres } from "@/server/psn";
-
-/** Shared query for the dashboard payload. Demo data is returned when signed out. */
-export const dashboardQueryOptions = queryOptions({
-  queryKey: ["dashboard"] as const,
-  queryFn: () => getDashboard(),
-});
+import { getRawgFranchises, getRawgGenres } from "@/server/psn";
 
 export function rawgGenresQueryOptions(data: DashboardData) {
   return queryOptions({
@@ -21,7 +15,7 @@ export function rawgGenresQueryOptions(data: DashboardData) {
           })),
         },
       }),
-    enabled: !data.isDemo && data.games.some((game) => game.genre === "Other"),
+    enabled: !data.isDemo && !data.enriched && data.games.some((game) => game.genre === "Other"),
     staleTime: Infinity,
   });
 }
@@ -39,7 +33,8 @@ export function rawgFranchisesQueryOptions(data: DashboardData) {
           })),
         },
       }),
-    enabled: !data.isDemo && data.games.some((game) => game.franchise === undefined),
+    enabled:
+      !data.isDemo && !data.enriched && data.games.some((game) => game.franchise === undefined),
     staleTime: Infinity,
   });
 }

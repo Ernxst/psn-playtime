@@ -1,16 +1,12 @@
-import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import { DashboardView } from "@/components/dashboard/dashboard-view";
-import {
-  dashboardQueryOptions,
-  rawgFranchisesQueryOptions,
-  rawgGenresQueryOptions,
-} from "@/components/dashboard/query";
-import { DashboardError, DashboardSkeleton } from "@/components/dashboard/states";
+import { rawgFranchisesQueryOptions, rawgGenresQueryOptions } from "@/components/dashboard/query";
+import { DashboardSkeleton } from "@/components/dashboard/states";
+import { clearActiveAccount, saveDashboard, useActiveDashboard } from "@/lib/dashboard-store";
 import type { DashboardData, GamePlay, Genre } from "@/lib/psn/types";
-import { signOut } from "@/server/psn";
 
 /** Apply a title's deferred RAWG enrichment, leaving unknown fields untouched. */
 function enrichGame(
@@ -50,7 +46,6 @@ function mergeRawgEnrichment(
 }
 
 export const Route = createFileRoute("/dashboard")({
-  loader: ({ context }) => context.queryClient.ensureQueryData(dashboardQueryOptions),
   head: () => ({
     meta: [
       {
@@ -60,38 +55,45 @@ export const Route = createFileRoute("/dashboard")({
     ],
   }),
   component: Dashboard,
-  pendingComponent: DashboardSkeleton,
-  errorComponent: ({ error }) => (
-    <DashboardError message={error instanceof Error ? error.message : "Something went wrong."} />
-  ),
 });
 
 function Dashboard() {
-  const { data } = useSuspenseQuery(dashboardQueryOptions);
-  const { data: rawgGenres = [] } = useQuery(rawgGenresQueryOptions(data));
-  const { data: rawgFranchises = [] } = useQuery(rawgFranchisesQueryOptions(data));
-  const queryClient = useQueryClient();
+  const data = useActiveDashboard();
+  // `undefined` during SSR and the initial client render: render a shell until
+  // hydration reads the cached data from localStorage (revisit-from-cache).
+  if (!data) return <DashboardSkeleton />;
+  return <DashboardCachedView data={data} />;
+}
+
+function DashboardCachedView({ data }: { data: DashboardData }) {
+  const { data: rawgGenres = [], fetchStatus: genresStatus } = useQuery(
+    rawgGenresQueryOptions(data)
+  );
+  const { data: rawgFranchises = [], fetchStatus: franchisesStatus } = useQuery(
+    rawgFranchisesQueryOptions(data)
+  );
   const enrichedData = useMemo(
     () => mergeRawgEnrichment(data, rawgGenres, rawgFranchises),
     [data, rawgGenres, rawgFranchises]
   );
 
-  const signOutMutation = useMutation({
-    mutationFn: () => signOut(),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-      toast.success("Signed out — showing demo data.");
-    },
-    onError: (err) => {
-      toast.error(err instanceof Error ? err.message : "Sign out failed.");
-    },
-  });
+  // Persist the enriched data back to the client cache once the RAWG lookups
+  // settle, so revisits render fully enriched without re-hitting RAWG. The
+  // `enriched` flag (set here) gates the lookups off, breaking the save loop.
+  useEffect(() => {
+    if (data.isDemo || data.enriched) return;
+    if (genresStatus !== "idle" || franchisesStatus !== "idle") return;
+    saveDashboard({ ...enrichedData, enriched: true });
+  }, [data, enrichedData, genresStatus, franchisesStatus]);
 
   return (
     <DashboardView
       data={enrichedData}
-      onSignOut={() => signOutMutation.mutate()}
-      signingOut={signOutMutation.isPending}
+      onSignOut={() => {
+        clearActiveAccount();
+        toast.success("Signed out — showing demo data.");
+      }}
+      signingOut={false}
     />
   );
 }

@@ -12,7 +12,6 @@
  */
 import { z } from "zod";
 import type { Genre } from "@/lib/psn/types";
-import { cached, SEVEN_DAYS_MS } from "@/server/edge-cache";
 
 const RAWG_ENDPOINT = "https://api.rawg.io/api/games";
 
@@ -188,11 +187,8 @@ async function lookupRawgGameInfo(name: string, cache: RawgCache): Promise<RawgG
   const inMemory = cache.get(key);
   if (inMemory) return inMemory;
 
-  // RAWG game data is global (not per-account), so key the edge cache by the
-  // normalised query alone. The in-memory map still dedupes within one build.
-  const result = await cached(`rawg-genres/${key}`, SEVEN_DAYS_MS, () =>
-    searchRawgGameInfo(query, apiKey)
-  );
+  // The in-memory map dedupes lookups within a single build.
+  const result = await searchRawgGameInfo(query, apiKey);
   cache.set(key, result);
   return result;
 }
@@ -275,12 +271,7 @@ export async function lookupRawgFranchise(
   const key = query.toLowerCase();
   if (cache.has(key)) return cache.get(key);
 
-  // Wrap the result so an absent franchise (`undefined`) is still cached at the
-  // edge as `{}` rather than skipped. RAWG series data is global, so key by the
-  // normalised query alone.
-  const { franchise } = await cached(`rawg-franchises/${key}`, SEVEN_DAYS_MS, async () => ({
-    franchise: await searchRawgFranchise(query, apiKey),
-  }));
+  const franchise = await searchRawgFranchise(query, apiKey);
   cache.set(key, franchise);
   return franchise;
 }
