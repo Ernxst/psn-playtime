@@ -87,7 +87,8 @@ export function ValueCard({ data }: { data: DashboardData }) {
       <CardHeader>
         <CardTitle className="text-base">What a game is worth to you</CardTitle>
         <CardDescription>
-          Typical mileage you get from each title in your library. Hours are lifetime totals.
+          Typical mileage you get from each title in your library. Hours are PSN-recorded and can
+          under-report real play time.
         </CardDescription>
       </CardHeader>
       <CardContent className="grid grid-cols-3 divide-x divide-border">

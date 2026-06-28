@@ -165,8 +165,8 @@ export function GamesTable({ data }: { data: DashboardData }) {
       <CardHeader>
         <CardTitle className="text-base">Every game you've played</CardTitle>
         <CardDescription>
-          Tap a column to sort. {fmtNumber(data.meta.totalGames)} titles in total. Hours are each
-          game's lifetime total from PSN.
+          Tap a column to sort. {fmtNumber(data.meta.totalGames)} titles in total. Hours are what
+          PSN recorded for each game and can under-report real play time.
         </CardDescription>
       </CardHeader>
       <CardContent>
