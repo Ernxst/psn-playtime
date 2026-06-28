@@ -13,7 +13,8 @@
     "preview": "vite preview",
     "----------------------------------------------------------------------------": "",
     "knip": "knip",
-    "typecheck": "tsgo --noEmit",
+    "typecheck": "tsgo --noEmit && pnpm run typecheck:effect",
+    "typecheck:effect": "tsgo --noEmit -p tsconfig.effect.json",
     "------------------------------------------------------------------------------": "",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -23,7 +24,7 @@
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
     "--------------------------------------------------------------------------------": "",
-    "prepare": "lefthook install"
+    "prepare": "lefthook install && effect-tsgo patch"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
@@ -62,6 +63,8 @@
   "devDependencies": {
     "@commitlint/cli": "21.1.0",
     "@commitlint/config-conventional": "21.1.0",
+    "@effect/language-service": "0.86.2",
+    "@effect/tsgo": "0.14.6",
     "@rolldown/plugin-babel": "0.2.3",
     "@tailwindcss/typography": "0.5.20",
     "@tanstack/devtools-vite": "0.8.1",

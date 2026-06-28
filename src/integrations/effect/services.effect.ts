@@ -14,9 +14,12 @@ export interface AppConfigShape {
   readonly appName: string;
 }
 
-export class AppConfig extends Context.Service<AppConfig>()("psn-playtime/AppConfig", {
-  make: Effect.succeed<AppConfigShape>({ appName: "psn-playtime" }),
-}) {
+export class AppConfig extends Context.Service<AppConfig>()(
+  "psn-playtime/integrations/effect/services.effect/AppConfig",
+  {
+    make: Effect.succeed<AppConfigShape>({ appName: "psn-playtime" }),
+  }
+) {
   static readonly layer = Layer.effect(this, this.make);
 }
 

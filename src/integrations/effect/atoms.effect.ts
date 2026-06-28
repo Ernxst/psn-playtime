@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect";
 import * as Atom from "effect/unstable/reactivity/Atom";
-import { AppLayer } from "./runtime";
-import { AppConfig } from "./services";
+import { AppLayer } from "./runtime.effect";
+import { AppConfig } from "./services.effect";
 
 /**
  * Reactive runtime for the app's atoms (phase E1 foundation). Built from the

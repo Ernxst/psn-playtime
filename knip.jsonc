@@ -8,6 +8,8 @@
   "ignore": ["src/components/ui/**"],
   "ignoreDependencies": [
     // Build-tooling / peers that are used but not import-traceable by knip.
+    // (`@effect/language-service` is traced via tsconfig.effect.json's
+    // `plugins`; `@effect/tsgo`'s `effect-tsgo` bin via the `prepare` script.)
     "@tanstack/router-plugin",
     "seroval",
     "seroval-plugins",

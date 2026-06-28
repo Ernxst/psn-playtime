@@ -1,7 +1,7 @@
 import type * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as ManagedRuntime from "effect/ManagedRuntime";
-import { AppConfig } from "./services";
+import { AppConfig } from "./services.effect";
 
 /**
  * Composition root for the Effect/atom migration (phase E1 foundation).
