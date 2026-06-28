@@ -55,3 +55,33 @@ test("searching filters the question list", async () => {
   await expect.element(page.getByRole("button", { name: SIGNATURE_QUESTION })).toBeVisible();
   await expect.element(page.getByRole("button", { name: LEAD_QUESTION })).not.toBeInTheDocument();
 });
+
+const MENU_OPTION = "Let the AI ask me (no specific question)";
+
+test("choosing the menu option copies a no-lead menu prompt", async () => {
+  const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+
+  await render(<LlmPromptCard data={demoDashboard} />);
+
+  await page.getByRole("button", { name: MENU_OPTION }).click();
+  await page.getByRole("button", { name: "Copy prompt" }).click();
+
+  expect(writeText).toHaveBeenCalledExactlyOnceWith(expect.stringContaining("Don't analyse anything yet."));
+  expect(writeText).toHaveBeenCalledExactlyOnceWith(
+    expect.not.stringContaining("TASK:")
+  );
+});
+
+test("picking a question after the menu option restores a lead prompt", async () => {
+  const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+
+  await render(<LlmPromptCard data={demoDashboard} />);
+
+  await page.getByRole("button", { name: MENU_OPTION }).click();
+  await page.getByRole("button", { name: SIGNATURE_QUESTION }).click();
+  await page.getByRole("button", { name: "Copy prompt" }).click();
+
+  expect(writeText).toHaveBeenCalledExactlyOnceWith(
+    expect.stringContaining("TASK: Tell me my signature genre")
+  );
+});

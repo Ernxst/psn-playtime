@@ -8,6 +8,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import {
   buildPrompt,
+  MENU_MODE,
   PROMPT_GROUPS,
   type PromptGroup,
   type PromptVariant,
@@ -113,21 +114,73 @@ function QuestionPicker({
   );
 }
 
+/** The selectable entry that switches the prompt into no-lead "menu" mode. */
+function MenuModeOption({ active, onActivate }: { active: boolean; onActivate: () => void }) {
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      aria-pressed={active}
+      onClick={onActivate}
+      className={cn(
+        "h-auto w-full justify-start whitespace-normal py-1.5 text-left font-normal",
+        active && "bg-accent text-accent-foreground"
+      )}
+    >
+      Let the AI ask me (no specific question)
+    </Button>
+  );
+}
+
+/** The line under the picker describing what the current selection will produce. */
+function PromptHint({ menuMode, question }: { menuMode: boolean; question: string }) {
+  return (
+    <p className="text-sm text-muted-foreground">
+      {menuMode
+        ? "The AI introduces what it can tell you, then presents a grouped menu and asks what to explore first."
+        : `Leads with “${question}”. The rest are added as paste-able follow-ups.`}
+    </p>
+  );
+}
+
+/** The read-only prompt preview plus its copy button. */
+function PromptPreview({ prompt }: { prompt: string }) {
+  return (
+    <div className="flex items-start gap-2">
+      <Textarea
+        readOnly
+        rows={8}
+        value={prompt}
+        aria-label="Prompt preview"
+        className="font-mono text-xs"
+      />
+      <CopyButton value={prompt} label="Copy prompt" />
+    </div>
+  );
+}
+
 /**
- * Lets the user pick a lead analysis question from the full grouped set and copy
- * one ready-to-paste LLM prompt. The prompt embeds a compact summary of their
- * library once, leads with the chosen question, and lists the rest as paste-able
- * follow-ups. A search box keeps the large question set usable.
+ * Lets the user pick a lead analysis question from the full grouped set — or the
+ * no-lead "menu" option — and copy one ready-to-paste LLM prompt. The prompt
+ * embeds a compact summary of their library once, leads with the chosen question
+ * (or asks the AI to present a menu), and lists the rest as paste-able follow-ups.
+ * A search box keeps the large question set usable.
  */
 export function LlmPromptCard({ data }: { data: DashboardData }) {
   const [selectedId, setSelectedId] = useState<string>(PROMPT_VARIANTS[0].id);
+  const [menuMode, setMenuMode] = useState(false);
   const imported = useTransactionImport();
 
   const variant = PROMPT_VARIANTS.find((v) => v.id === selectedId) ?? PROMPT_VARIANTS[0];
   const prompt = useMemo(
-    () => buildPrompt(data, variant, imported?.transactions),
-    [data, imported, variant]
+    () => buildPrompt(data, menuMode ? MENU_MODE : variant, imported?.transactions),
+    [data, imported, menuMode, variant]
   );
+
+  const selectQuestion = (id: string) => {
+    setSelectedId(id);
+    setMenuMode(false);
+  };
 
   return (
     <Card>
@@ -142,22 +195,13 @@ export function LlmPromptCard({ data }: { data: DashboardData }) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
-        <QuestionPicker selectedId={selectedId} onSelect={setSelectedId} />
+        <MenuModeOption active={menuMode} onActivate={() => setMenuMode(true)} />
 
-        <p className="text-sm text-muted-foreground">
-          Leads with “{variant.question}”. The rest are added as paste-able follow-ups.
-        </p>
+        <QuestionPicker selectedId={menuMode ? "" : selectedId} onSelect={selectQuestion} />
 
-        <div className="flex items-start gap-2">
-          <Textarea
-            readOnly
-            rows={8}
-            value={prompt}
-            aria-label="Prompt preview"
-            className="font-mono text-xs"
-          />
-          <CopyButton value={prompt} label="Copy prompt" />
-        </div>
+        <PromptHint menuMode={menuMode} question={variant.question} />
+
+        <PromptPreview prompt={prompt} />
       </CardContent>
     </Card>
   );
