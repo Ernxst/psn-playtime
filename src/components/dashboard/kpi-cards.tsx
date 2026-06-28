@@ -1,5 +1,5 @@
 import { Clock, Gamepad2, Hourglass, Info, Sparkles, Trophy } from "lucide-react";
-import type { ComponentType } from "react";
+import { type ComponentType, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { headlineTotals, LIFETIME_HOURS_CAVEAT, LIFETIME_HOURS_NOTE } from "@/lib/psn/analytics";
 import type { DashboardData } from "@/lib/psn/types";
@@ -78,10 +78,11 @@ export function KpiCards({
   data: DashboardData;
   timeframePhrase?: string;
 }) {
+  const kpis = useMemo(() => buildKpis(data, timeframePhrase), [data, timeframePhrase]);
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
-        {buildKpis(data, timeframePhrase).map((k) => (
+        {kpis.map((k) => (
           <KpiCard key={k.label} kpi={k} />
         ))}
       </div>
