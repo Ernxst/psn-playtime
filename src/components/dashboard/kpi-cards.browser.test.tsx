@@ -17,7 +17,7 @@ test("falls back to a placeholder when the library has no biggest game", async (
   await render(<KpiCards data={empty} />);
 
   await expect.element(page.getByText("Biggest game")).toBeVisible();
-  await expect.element(page.getByText("—")).toBeVisible();
+  await expect.element(page.getByText("—", { exact: true })).toBeVisible();
 });
 
 test("labels the headline hours as a lifetime total with a persistent disclaimer", async () => {
