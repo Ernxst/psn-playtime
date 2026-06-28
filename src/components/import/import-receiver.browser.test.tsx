@@ -1,4 +1,13 @@
-import { expect, onTestFinished, test } from "vitest";
+import {
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  Outlet,
+  RouterProvider,
+} from "@tanstack/react-router";
+import { toast } from "sonner";
+import { expect, onTestFinished, test, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
 import {
@@ -10,12 +19,12 @@ import {
 } from "@/lib/psn/transactions";
 import {
   clearTransactionImport,
+  loadTransactionImport,
   saveTransactionImport,
-  useTransactionImport,
 } from "@/lib/transactions-store";
-import { createHarness } from "@/test/harness";
+import { loadHandoff } from "@/routes/import";
 import { multiProductPurchase } from "@/test/transaction-fixtures";
-import { ImportReceiver } from "./import-receiver";
+import { ImportPending, ImportReceiver, receiveHandoff } from "./import-receiver";
 
 /** Two compact rows (base game + add-on) the bookmarklet would hand off. */
 const rows = flattenApiTransactions([multiProductPurchase]);
@@ -27,12 +36,6 @@ function payloadOf(transactions: TransactionRow[]): HandoffPayload {
     fetchedAt: "2024-01-01T00:00:00.000Z",
     transactions,
   };
-}
-
-/** Surfaces the persisted import count so the effect's write can be awaited. */
-function Probe() {
-  const imported = useTransactionImport();
-  return <div>imported:{imported?.transactions.length ?? 0}</div>;
 }
 
 function seedPrior(transactions: TransactionRow[]) {
@@ -48,27 +51,108 @@ function cleanUp() {
   window.location.hash = "";
 }
 
-test("persists the transactions handed over in the URL fragment", async () => {
+/** Render the real `/import` route (client loader + components) at `/import`. */
+function renderImportRoute() {
+  const rootRoute = createRootRoute({ component: () => <Outlet /> });
+  const importRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/import",
+    loader: loadHandoff,
+    component: ImportReceiver,
+    pendingComponent: ImportPending,
+  });
+  const dashboardRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/dashboard",
+    component: () => <div>dashboard view</div>,
+  });
+  const router = createRouter({
+    routeTree: rootRoute.addChildren([importRoute, dashboardRoute]),
+    history: createMemoryHistory({ initialEntries: ["/import"] }),
+  });
+
+  return render(<RouterProvider router={router} />);
+}
+
+test("reports the imported count and persists the de-duped rows", () => {
   onTestFinished(cleanUp);
   window.location.hash = `#${encodeHandoff(payloadOf(rows))}`;
 
-  const { element } = createHarness(
-    <>
-      <ImportReceiver />
-      <Probe />
-    </>
-  );
-  await render(element);
+  const result = receiveHandoff();
 
-  await expect.element(page.getByText("imported:2")).toBeVisible();
+  expect(result).toEqual({ status: "imported", count: 2 });
+  expect(loadTransactionImport()?.transactions).toHaveLength(2);
+});
+
+test("clears the URL fragment after a successful import", () => {
+  onTestFinished(cleanUp);
+  window.location.hash = `#${encodeHandoff(payloadOf(rows))}`;
+
+  receiveHandoff();
+
+  expect(window.location.hash).toBe("");
+});
+
+test("appends onto a prior import, de-duping by row key", () => {
+  onTestFinished(cleanUp);
+  seedPrior([rows[0]!]);
+  window.location.hash = `#${encodeHandoff(payloadOf(rows))}`;
+
+  const result = receiveHandoff();
+
+  // The prior row repeats and only the second row is appended.
+  expect(result).toEqual({ status: "imported", count: 2 });
+  expect(loadTransactionImport()?.transactions).toHaveLength(2);
+});
+
+test("reports an empty handoff and persists nothing when the fragment is absent", () => {
+  onTestFinished(cleanUp);
+  window.location.hash = "";
+
+  const result = receiveHandoff();
+
+  expect(result).toEqual({ status: "empty" });
+  expect(loadTransactionImport()).toBeNull();
+});
+
+test("reports an invalid handoff when the fragment carries no rows", () => {
+  onTestFinished(cleanUp);
+  window.location.hash = `#${encodeHandoff(payloadOf([]))}`;
+
+  const result = receiveHandoff();
+
+  expect(result).toEqual({ status: "invalid" });
+});
+
+test("reports an empty handoff when the payload fails schema validation", () => {
+  onTestFinished(cleanUp);
+  window.location.hash = `#data=${encodeURIComponent(JSON.stringify({ v: 99, transactions: "nope" }))}`;
+
+  const result = receiveHandoff();
+
+  expect(result).toEqual({ status: "empty" });
+  expect(loadTransactionImport()).toBeNull();
+});
+
+test("redirects to the dashboard and toasts after importing the fragment", async () => {
+  onTestFinished(cleanUp);
+  const success = vi.spyOn(toast, "success");
+  window.location.hash = `#${encodeHandoff(payloadOf(rows))}`;
+
+  await renderImportRoute();
+
+  await expect.element(page.getByText("dashboard view")).toBeVisible();
+  expect(loadTransactionImport()?.transactions).toHaveLength(2);
+  expect(success).toHaveBeenCalledExactlyOnceWith(
+    "Imported 2 transactions from your PlayStation history."
+  );
 });
 
 test("shows the empty state when there is no fragment data", async () => {
   onTestFinished(cleanUp);
   window.location.hash = "";
 
-  const { element } = createHarness(<ImportReceiver />);
-  await render(element);
+  await renderImportRoute();
 
   await expect.element(page.getByText("Nothing to import")).toBeVisible();
   await expect.element(page.getByText(/no import data in the link/)).toBeVisible();
@@ -78,42 +162,14 @@ test("shows the invalid state when the fragment carries no rows", async () => {
   onTestFinished(cleanUp);
   window.location.hash = `#${encodeHandoff(payloadOf([]))}`;
 
-  const { element } = createHarness(<ImportReceiver />);
-  await render(element);
+  await renderImportRoute();
 
   await expect.element(page.getByText("Nothing to import")).toBeVisible();
   await expect.element(page.getByText(/couldn't read any transactions/)).toBeVisible();
 });
 
-test("appends a fragment import onto a prior one, de-duping by row key", async () => {
-  onTestFinished(cleanUp);
-  seedPrior([rows[0]!]);
-  window.location.hash = `#${encodeHandoff(payloadOf(rows))}`;
+test("shows the importing spinner while the loader runs", async () => {
+  const screen = await render(<ImportPending />);
 
-  const { element } = createHarness(
-    <>
-      <ImportReceiver />
-      <Probe />
-    </>
-  );
-  await render(element);
-
-  // The prior row repeats and only the second row is appended.
-  await expect.element(page.getByText("imported:2")).toBeVisible();
-});
-
-test("ignores a fragment whose payload fails schema validation", async () => {
-  onTestFinished(cleanUp);
-  window.location.hash = `#data=${encodeURIComponent(JSON.stringify({ v: 99, transactions: "nope" }))}`;
-
-  const { element } = createHarness(
-    <>
-      <ImportReceiver />
-      <Probe />
-    </>
-  );
-  await render(element);
-
-  await expect.element(page.getByText("Nothing to import")).toBeVisible();
-  await expect.element(page.getByText("imported:0")).toBeVisible();
+  await expect.element(screen.getByText("Importing your spend…")).toBeVisible();
 });
