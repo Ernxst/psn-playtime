@@ -1,0 +1,259 @@
+import * as Effect from "effect/Effect";
+import * as Redacted from "effect/Redacted";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("psn-api", () => ({
+  exchangeNpssoForAccessCode: vi.fn(),
+  exchangeAccessCodeForAuthTokens: vi.fn(),
+  getProfileFromUserName: vi.fn(),
+  getUserPlayedGames: vi.fn(),
+  getUserTitles: vi.fn(),
+}));
+
+import {
+  exchangeAccessCodeForAuthTokens,
+  exchangeNpssoForAccessCode,
+  getProfileFromUserName,
+  getUserPlayedGames,
+  getUserTitles,
+} from "psn-api";
+import type {
+  AuthTokensResponse,
+  ProfileFromUserNameResponse,
+  TrophyTitle,
+  UserPlayedGamesResponse,
+  UserTitlesResponse,
+} from "psn-api";
+import type { DashboardData } from "@/lib/psn/types";
+import { AccountProvider } from "@/server/ports/account-provider.effect";
+import type { AccountProviderError } from "@/server/ports/errors.effect";
+import { PsnAccountProviderLayer } from "@/server/psn.effect";
+
+const mockExchangeNpsso = vi.mocked(exchangeNpssoForAccessCode);
+const mockExchangeTokens = vi.mocked(exchangeAccessCodeForAuthTokens);
+const mockGetProfile = vi.mocked(getProfileFromUserName);
+const mockGetPlayed = vi.mocked(getUserPlayedGames);
+const mockGetTitles = vi.mocked(getUserTitles);
+
+type ProfileBody = ProfileFromUserNameResponse["profile"];
+type PlayedTitle = UserPlayedGamesResponse["titles"][number];
+
+const authTokens: AuthTokensResponse = {
+  accessToken: "access-token",
+  expiresIn: 3600,
+  idToken: "id-token",
+  refreshToken: "refresh-token",
+  refreshTokenExpiresIn: 7200,
+  scope: "psn:mobile.v2.core psn:clientapp",
+  tokenType: "bearer",
+};
+
+const baseProfile: ProfileBody = {
+  onlineId: "Ernxst_",
+  accountId: "acc-1",
+  npId: "np-1",
+  avatarUrls: [{ size: "xl", avatarUrl: "https://img/xl" }],
+  plus: 1,
+  aboutMe: "Hello there",
+  languagesUsed: ["en"],
+  trophySummary: {
+    level: 220,
+    progress: 70,
+    earnedTrophies: { bronze: 887, silver: 188, gold: 54, platinum: 9 },
+  },
+  isOfficiallyVerified: false,
+  personalDetail: { firstName: "", lastName: "", profilePictureUrls: [] },
+  personalDetailSharing: "no",
+  personalDetailSharingRequestMessageFlag: false,
+  primaryOnlineStatus: "offline",
+  presences: [],
+  friendRelation: "no-relation",
+  requestMessageFlag: false,
+  blocking: false,
+  following: false,
+  consoleAvailability: { availabilityStatus: "unavailable" },
+};
+
+function profile(overrides: Partial<ProfileBody> = {}): ProfileFromUserNameResponse {
+  return { profile: { ...baseProfile, ...overrides } };
+}
+
+const basePlayed: PlayedTitle = {
+  titleId: "",
+  name: "",
+  localizedName: "",
+  imageUrl: "",
+  localizedImageUrl: "",
+  category: "ps4_game",
+  service: "none",
+  playCount: 0,
+  concept: { id: 0, titleIds: [], name: "", media: { audios: [], videos: [], images: [] } },
+  media: {},
+  firstPlayedDateTime: "",
+  lastPlayedDateTime: "",
+  playDuration: "PT0S",
+};
+
+function played(overrides: Partial<PlayedTitle>): PlayedTitle {
+  return { ...basePlayed, ...overrides };
+}
+
+const baseTrophy: TrophyTitle = {
+  npServiceName: "trophy",
+  npCommunicationId: "",
+  trophySetVersion: "01.00",
+  trophyTitleName: "",
+  trophyTitleIconUrl: "",
+  trophyTitlePlatform: "PS4",
+  hasTrophyGroups: false,
+  definedTrophies: { bronze: 0, silver: 0, gold: 0, platinum: 0 },
+  progress: 0,
+  earnedTrophies: { bronze: 0, silver: 0, gold: 0, platinum: 0 },
+  hiddenFlag: false,
+  lastUpdatedDateTime: "",
+};
+
+function trophy(overrides: Partial<TrophyTitle>): TrophyTitle {
+  return { ...baseTrophy, ...overrides };
+}
+
+function playedPage(titles: PlayedTitle[], totalItemCount: number): UserPlayedGamesResponse {
+  return { titles, totalItemCount, nextOffset: 0, previousOffset: 0 };
+}
+
+function trophyPage(trophies: TrophyTitle[], totalItemCount: number): UserTitlesResponse {
+  return { trophyTitles: trophies, totalItemCount, nextOffset: 0, previousOffset: 0 };
+}
+
+/** Run `fetchSnapshot` through the real PSN layer, surfacing the success value. */
+function fetchSnapshot(npsso = "npsso-token"): Promise<DashboardData> {
+  return Effect.runPromise(
+    Effect.gen(function* () {
+      const provider = yield* AccountProvider;
+      return yield* provider.fetchSnapshot(Redacted.make(npsso));
+    }).pipe(Effect.provide(PsnAccountProviderLayer))
+  );
+}
+
+/** Run `fetchSnapshot`, recovering any port failure to its `_tag` for assertion. */
+function fetchSnapshotTag(npsso = "npsso-token"): Promise<string> {
+  return Effect.runPromise(
+    Effect.gen(function* () {
+      const provider = yield* AccountProvider;
+      return yield* provider.fetchSnapshot(Redacted.make(npsso));
+    }).pipe(
+      Effect.match({
+        onFailure: (error: AccountProviderError) => error._tag,
+        onSuccess: () => "ok",
+      }),
+      Effect.provide(PsnAccountProviderLayer)
+    )
+  );
+}
+
+afterEach(() => {
+  vi.clearAllMocks();
+  mockGetPlayed.mockReset();
+  mockGetTitles.mockReset();
+});
+
+describe("PsnAccountProvider.fetchSnapshot", () => {
+  it("normalizes a live PSN account into an un-enriched snapshot", async () => {
+    mockExchangeNpsso.mockResolvedValue("access-code");
+    mockExchangeTokens.mockResolvedValue(authTokens);
+    mockGetProfile.mockResolvedValue(profile());
+    mockGetPlayed.mockResolvedValue(
+      playedPage(
+        [
+          played({
+            titleId: "cod",
+            name: "Call of Duty®: Modern Warfare®",
+            imageUrl: "https://img/cod",
+            playDuration: "PT100H30M15S",
+            playCount: 5,
+            firstPlayedDateTime: "2020-01-01T10:00:00Z",
+          }),
+          played({ titleId: "netflix", name: "Netflix", category: "ps4_native_media_app" }),
+        ],
+        2
+      )
+    );
+    mockGetTitles.mockResolvedValue(
+      trophyPage(
+        [
+          trophy({
+            trophyTitleName: "Call of Duty Modern Warfare",
+            progress: 90,
+            earnedTrophies: { bronze: 20, silver: 10, gold: 5, platinum: 1 },
+            lastUpdatedDateTime: "2021-06-10T00:00:00Z",
+          }),
+        ],
+        1
+      )
+    );
+
+    const result = await fetchSnapshot();
+
+    expect(result.isDemo).toBe(false);
+    expect(typeof result.fetchedAt).toBe("string");
+    expect(result.profile.onlineId).toBe("Ernxst_");
+    expect(result.profile.avatarUrl).toBe("https://img/xl");
+    expect(result.games.map((g) => g.titleId)).toEqual(["cod"]);
+    expect(result.meta.appsExcluded).toEqual([{ name: "Netflix", hours: 0 }]);
+
+    const cod = result.games[0]!;
+    expect(cod.hours).toBe(100.5);
+    expect(cod.firstPlayed).toBe("2020-01-01");
+    expect(cod.trophy).toEqual({
+      progress: 90,
+      earned: { platinum: 1, gold: 5, silver: 10, bronze: 20 },
+      total: 36,
+      hasPlatinum: true,
+      lastEarnedAt: "2021-06-10T00:00:00Z",
+    });
+  });
+
+  it("fails with CredentialRejectedError when the npsso exchange is rejected", async () => {
+    mockExchangeNpsso.mockRejectedValue(new Error("nope"));
+
+    expect(await fetchSnapshotTag()).toBe("CredentialRejectedError");
+  });
+
+  it("fails with ProviderRateLimitedError when PSN signals HTTP 429", async () => {
+    mockExchangeNpsso.mockResolvedValue("access-code");
+    mockExchangeTokens.mockResolvedValue(authTokens);
+    mockGetProfile.mockRejectedValue(new Error("429 Too Many Requests"));
+    mockGetPlayed.mockResolvedValue(playedPage([], 0));
+    mockGetTitles.mockResolvedValue(trophyPage([], 0));
+
+    expect(await fetchSnapshotTag()).toBe("ProviderRateLimitedError");
+  });
+
+  it("fails with ProviderUnavailableError on a non-429 fetch failure", async () => {
+    mockExchangeNpsso.mockResolvedValue("access-code");
+    mockExchangeTokens.mockResolvedValue(authTokens);
+    mockGetProfile.mockRejectedValue(new Error("503 service unavailable"));
+    mockGetPlayed.mockResolvedValue(playedPage([], 0));
+    mockGetTitles.mockResolvedValue(trophyPage([], 0));
+
+    expect(await fetchSnapshotTag()).toBe("ProviderUnavailableError");
+  });
+
+  it("swallows a trophy-fetch failure to an empty trophy map", async () => {
+    mockExchangeNpsso.mockResolvedValue("access-code");
+    mockExchangeTokens.mockResolvedValue(authTokens);
+    mockGetProfile.mockResolvedValue(profile());
+    mockGetPlayed.mockResolvedValue(
+      playedPage(
+        [played({ titleId: "cod", name: "Call of Duty", playDuration: "PT5H", playCount: 1 })],
+        1
+      )
+    );
+    mockGetTitles.mockRejectedValue(new Error("trophy service down"));
+
+    const result = await fetchSnapshot();
+
+    expect(result.isDemo).toBe(false);
+    expect(result.games.every((g) => g.trophy === undefined)).toBe(true);
+  });
+});
