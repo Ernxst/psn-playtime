@@ -120,27 +120,6 @@ export function toProfileSummary(profile: ProfileBody): ProfileSummary {
   };
 }
 
-export const PLAYED_PAGE_LIMIT = 200;
-export const TROPHY_PAGE_LIMIT = 800;
-
-/**
- * Whether paging should stop. PSN normally reports `totalItemCount`, but it can
- * omit it; the old `?? all.length` fallback made the stop condition trivially
- * true after a full first page, silently dropping every later page. So when the
- * count is absent fall back to page fullness: keep going while the last page was
- * full (more may follow) and stop only on a short or empty page.
- */
-export function pagingComplete(
-  pageSize: number,
-  fetched: number,
-  totalItemCount: number | undefined,
-  limit: number
-): boolean {
-  if (pageSize === 0) return true;
-  if (totalItemCount !== undefined) return fetched >= totalItemCount;
-  return pageSize < limit;
-}
-
 export function buildTrophyMap(titles: TrophyTitle[]): Map<string, TrophyTitle> {
   const map = new Map<string, TrophyTitle>();
   for (const title of titles) {

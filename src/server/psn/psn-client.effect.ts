@@ -14,8 +14,8 @@
  *   the layer's error channel, since it happens in `make`); a profile/played/
  *   trophy fetch becomes `ProviderRateLimitedError` on a detected HTTP 429 or
  *   `ProviderUnavailableError` otherwise.
- * - Paging stays `Stream.paginate` inside the session effects, preserving the
- *   #140 stop-condition fix via `pagingComplete`.
+ * - Paging goes through the shared `paginateAll` helper, preserving the #140
+ *   stop-condition fix via `pagingComplete`.
  *
  * SECURITY: the npsso `Redacted` is unwrapped with `Redacted.value` only inside
  * the psn-api `tryPromise` thunk, never logged; `CredentialRejectedError.reason`
@@ -23,9 +23,7 @@
  */
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
-import * as Option from "effect/Option";
 import * as Redacted from "effect/Redacted";
-import * as Stream from "effect/Stream";
 import {
   exchangeAccessCodeForAuthTokens,
   exchangeNpssoForAccessCode,
@@ -35,40 +33,25 @@ import {
 } from "psn-api";
 import type { AuthorizationPayload } from "psn-api";
 import type { ProfileSummary } from "@/lib/psn/types";
+import { paginateAll } from "@/server/paginate.effect";
 import type { AccountCredential } from "@/server/ports/account-provider.effect";
 import {
   CredentialRejectedError,
-  ProviderRateLimitedError,
-  ProviderUnavailableError,
+  providerError,
   type AccountProviderError,
 } from "@/server/ports/errors.effect";
-import {
-  PLAYED_PAGE_LIMIT,
-  TROPHY_PAGE_LIMIT,
-  pagingComplete,
-  toProfileSummary,
-  type PlayedTitle,
-  type TrophyTitle,
-} from "@/server/psn/psn-normalize";
+import { toProfileSummary, type PlayedTitle, type TrophyTitle } from "@/server/psn/psn-normalize";
 
-const messageOf = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error);
+const PLAYED_PAGE_LIMIT = 200;
+const TROPHY_PAGE_LIMIT = 800;
 
 /**
- * psn-api collapses every HTTP failure into a thrown `Error` (it never surfaces
- * the response status), so a 429 can only be detected from the message text.
- * Best-effort: treat an explicit 429 / rate-limit signal as rate-limiting and
- * everything else as a generic outage, matching the old catch-all behaviour.
+ * Classify a thrown psn-api error onto the provider error channel. psn-api
+ * collapses every HTTP failure into a status-less thrown `Error`, so the shared
+ * `providerError` detects a 429 from the message text and otherwise maps to a
+ * generic outage — matching the old catch-all behaviour.
  */
-const isRateLimited = (message: string): boolean =>
-  message.includes("429") || /too many requests|rate limit/i.test(message);
-
-const providerError = (error: unknown): ProviderRateLimitedError | ProviderUnavailableError => {
-  const message = messageOf(error);
-  return isRateLimited(message)
-    ? new ProviderRateLimitedError({ provider: "psn" })
-    : new ProviderUnavailableError({ provider: "psn", reason: message });
-};
+const psnError = providerError("psn");
 
 /**
  * Exchange a transient npsso for an access-token authorization payload. The
@@ -101,54 +84,46 @@ const fetchProfile = (
   Effect.gen(function* () {
     const { profile } = yield* Effect.tryPromise({
       try: () => getProfileFromUserName(auth, "me"),
-      catch: providerError,
+      catch: psnError,
     });
     return toProfileSummary(profile);
   });
 
 /**
- * Page through a paginated PSN endpoint with `Stream.paginate`: the state is the
- * running `offset`, each step fetches one page, and `pagingComplete` decides
- * (identically to the old loop, preserving the #140 fix) whether to continue
- * with `Option.some(nextOffset)` or stop with `Option.none()`. `Stream.runCollect`
- * flattens the pages into one array.
+ * Page through every played-games / trophy page with the shared `paginateAll`
+ * (preserving the #140 termination): each `fetchPage` wraps one psn-api call in
+ * `Effect.tryPromise`, classifies failures with `psnError`, and reports its
+ * page's `items` + `totalItemCount` for the stop decision.
  */
 const fetchAllPlayedGames = (
   auth: AuthorizationPayload
 ): Effect.Effect<PlayedTitle[], AccountProviderError> =>
-  Stream.paginate(0, (offset: number) =>
+  paginateAll(PLAYED_PAGE_LIMIT, (offset) =>
     Effect.tryPromise({
       try: () => getUserPlayedGames(auth, "me", { limit: PLAYED_PAGE_LIMIT, offset }),
-      catch: providerError,
+      catch: psnError,
     }).pipe(
-      Effect.map((res) => {
-        const next = offset + res.titles.length;
-        const stop = pagingComplete(res.titles.length, next, res.totalItemCount, PLAYED_PAGE_LIMIT);
-        return [res.titles, stop ? Option.none() : Option.some(next)] as const;
-      })
+      Effect.map((res) => ({
+        items: res.titles,
+        totalItemCount: res.totalItemCount,
+      }))
     )
-  ).pipe(Stream.runCollect);
+  );
 
 const fetchTrophyTitles = (
   auth: AuthorizationPayload
 ): Effect.Effect<TrophyTitle[], AccountProviderError> =>
-  Stream.paginate(0, (offset: number) =>
+  paginateAll(TROPHY_PAGE_LIMIT, (offset) =>
     Effect.tryPromise({
       try: () => getUserTitles(auth, "me", { limit: TROPHY_PAGE_LIMIT, offset }),
-      catch: providerError,
+      catch: psnError,
     }).pipe(
-      Effect.map((res) => {
-        const next = offset + res.trophyTitles.length;
-        const stop = pagingComplete(
-          res.trophyTitles.length,
-          next,
-          res.totalItemCount,
-          TROPHY_PAGE_LIMIT
-        );
-        return [res.trophyTitles, stop ? Option.none() : Option.some(next)] as const;
-      })
+      Effect.map((res) => ({
+        items: res.trophyTitles,
+        totalItemCount: res.totalItemCount,
+      }))
     )
-  ).pipe(Stream.runCollect);
+  );
 
 /** The shape a `PsnClient` exposes: three `auth`-captured session effects. */
 export interface PsnClientShape {
