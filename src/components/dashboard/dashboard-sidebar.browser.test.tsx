@@ -25,6 +25,26 @@ test("renders the section navigation and intercepts in-page nav clicks", async (
   expect(window.location.hash).toBe("");
 });
 
+test("marks the overview section active on first render", async () => {
+  await page.viewport(1280, 800);
+  onTestFinished(() => page.viewport(1280, 800));
+
+  const { element } = createHarness(
+    <SidebarProvider>
+      <DashboardSidebar />
+    </SidebarProvider>
+  );
+
+  await render(element);
+
+  await expect
+    .element(page.getByRole("link", { name: "Overview" }))
+    .toHaveAttribute("data-active", "true");
+  await expect
+    .element(page.getByRole("link", { name: "Top games" }))
+    .toHaveAttribute("data-active", "false");
+});
+
 test("closes the mobile drawer after a section is chosen", async () => {
   await page.viewport(480, 800);
   onTestFinished(() => page.viewport(1280, 800));
