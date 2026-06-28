@@ -182,6 +182,50 @@ describe(".summariseSpend byTitle", () => {
   });
 });
 
+describe(".summariseSpend name matching", () => {
+  it("attributes a sequel purchase to its own title, not the shorter base title", () => {
+    const summary = summariseSpend(
+      data([game("God of War", 20, "GOW1"), game("God of War Ragnarök", 30, "GOW2")]),
+      [tx({ productName: "God of War Ragnarök Digital Deluxe", amountMinor: 7000 })]
+    );
+
+    expect(summary.leaderboard).toEqual([
+      { titleId: "GOW2", name: "God of War Ragnarök", hours: 30, spend: 70, perHour: 2.33 },
+    ]);
+  });
+
+  it("still matches a bare base-game purchase to the base title", () => {
+    const summary = summariseSpend(
+      data([game("God of War", 20, "GOW1"), game("God of War Ragnarök", 30, "GOW2")]),
+      [tx({ productName: "God of War", amountMinor: 4000 })]
+    );
+
+    expect(summary.leaderboard).toEqual([
+      { titleId: "GOW1", name: "God of War", hours: 20, spend: 40, perHour: 2 },
+    ]);
+  });
+
+  it("prefers the longest matching title regardless of library order", () => {
+    const summary = summariseSpend(
+      data([game("God of War Ragnarök", 30, "GOW2"), game("God of War", 20, "GOW1")]),
+      [tx({ productName: "God of War Ragnarök Digital Deluxe", amountMinor: 7000 })]
+    );
+
+    expect(summary.leaderboard).toEqual([
+      { titleId: "GOW2", name: "God of War Ragnarök", hours: 30, spend: 70, perHour: 2.33 },
+    ]);
+  });
+
+  it("does not match a title that only appears mid-word in the product name", () => {
+    const summary = summariseSpend(data([game("War", 10, "WAR")]), [
+      tx({ productName: "Warhammer", amountMinor: 3000 }),
+    ]);
+
+    expect(summary.leaderboard).toEqual([]);
+    expect(summary.unmatchedSpend).toBe(30);
+  });
+});
+
 describe(".isAddOnPurchase", () => {
   it.each([
     tx({ productName: "Known Game", skuType: "ADD_ON" }),

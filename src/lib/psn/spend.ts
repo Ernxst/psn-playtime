@@ -86,12 +86,37 @@ function matchBySku(skuId: string | undefined, games: GamePlay[]): GamePlay | un
   return games.find((g) => g.titleId !== "" && skuId.includes(g.titleId));
 }
 
-/** Match a normalised name fully contained in the product name. */
+/**
+ * Whether the normalised game name `name` occurs in the normalised product
+ * `key` aligned to word boundaries (whole tokens), not an arbitrary mid-string
+ * substring. Both are space-delimited lowercase tokens, so a boundary match is
+ * full equality or the name flanked by the product's start/end or spaces.
+ */
+function containsWords(key: string, name: string): boolean {
+  return (
+    key === name ||
+    key.startsWith(`${name} `) ||
+    key.endsWith(` ${name}`) ||
+    key.includes(` ${name} `)
+  );
+}
+
+/**
+ * Match the most specific library title named in the product. Among games whose
+ * normalised name aligns on word boundaries in the product, the longest name
+ * wins, so a sequel/edition ("god of war ragnarok") is not absorbed by a
+ * shorter base title ("god of war").
+ */
 function matchByName(key: string, games: GamePlay[]): GamePlay | undefined {
-  return games.find((g) => {
+  let best: GamePlay | undefined;
+  let bestLength = 0;
+  for (const g of games) {
     const name = normTitle(g.name);
-    return name !== "" && key.includes(name);
-  });
+    if (name === "" || name.length <= bestLength || !containsWords(key, name)) continue;
+    best = g;
+    bestLength = name.length;
+  }
+  return best;
 }
 
 /**
