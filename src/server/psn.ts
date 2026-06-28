@@ -7,6 +7,7 @@
  * (`@/lib/dashboard-store`), which is the source for revisits.
  */
 import { createServerFn } from "@tanstack/react-start";
+import * as Effect from "effect/Effect";
 import {
   exchangeAccessCodeForAuthTokens,
   exchangeNpssoForAccessCode,
@@ -16,6 +17,7 @@ import {
 } from "psn-api";
 import type { AuthorizationPayload } from "psn-api";
 import { z } from "zod";
+import { runServer } from "@/integrations/effect/runtime.effect";
 import { enrichTitle, platformOf } from "@/lib/psn/enrich";
 import type {
   DashboardData,
@@ -28,16 +30,10 @@ import type {
 } from "@/lib/psn/types";
 import { round } from "@/lib/psn/util";
 import {
-  createRawgCache,
-  createRawgFranchiseCache,
-  lookupRawgFranchise,
-  lookupRawgGenre,
-  lookupRawgPlaytime,
-  type RawgCache,
-  type RawgFranchiseCache,
-} from "@/server/rawg";
-
-const RAWG_LOOKUP_CONCURRENCY = 8;
+  EnrichmentProviderLayer,
+  prefetchFranchises,
+  prefetchGameMetadata,
+} from "@/server/rawg.effect";
 
 /** Exchange an npsso token for an access-token authorization payload. */
 async function authenticate(npsso: string): Promise<AuthorizationPayload> {
@@ -365,76 +361,6 @@ function partitionTitles(
   return { games, appsExcluded };
 }
 
-/** Typical hours-to-complete by title name; rides the same genre lookups. */
-type RawgPlaytimeMap = Map<string, number | undefined>;
-
-interface RawgGenreInfo {
-  genres: RawgGenreMap;
-  playtimes: RawgPlaytimeMap;
-}
-
-async function prefetchRawgGenres(
-  playedTitles: Array<{ name: string; category?: string }>,
-  rawgCache: RawgCache
-): Promise<RawgGenreInfo> {
-  const names = new Set<string>();
-  const genres: RawgGenreMap = new Map();
-  const playtimes: RawgPlaytimeMap = new Map();
-
-  for (const title of playedTitles) {
-    const enriched = enrichTitle(title.name, title.category);
-    if (!enriched.isApp && enriched.genre === "Other") names.add(title.name);
-  }
-
-  const uniqueNames = Array.from(names);
-  for (let i = 0; i < uniqueNames.length; i += RAWG_LOOKUP_CONCURRENCY) {
-    const batch = uniqueNames.slice(i, i + RAWG_LOOKUP_CONCURRENCY);
-    // oxlint-disable-next-line react-doctor/async-await-in-loop
-    await Promise.all(
-      batch.map(async (name) => {
-        // Genre then playtime share one cached request, so this is a single call.
-        genres.set(name, await lookupRawgGenre(name, rawgCache));
-        playtimes.set(name, await lookupRawgPlaytime(name, rawgCache));
-      })
-    );
-  }
-
-  return { genres, playtimes };
-}
-
-/**
- * Franchise/series, keyed by title name. Keyword `FRANCHISE_RULES` are the
- * high-confidence fast path; only titles they leave without a franchise fall
- * through to a RAWG lookup, matching the genre prefetch's minimal-call shape.
- */
-type RawgFranchiseMap = Map<string, string | undefined>;
-
-async function prefetchRawgFranchises(
-  playedTitles: Array<{ name: string; category?: string }>,
-  rawgCache: RawgFranchiseCache
-): Promise<RawgFranchiseMap> {
-  const names = new Set<string>();
-  const rawgFranchises: RawgFranchiseMap = new Map();
-
-  for (const title of playedTitles) {
-    const enriched = enrichTitle(title.name, title.category);
-    if (!enriched.isApp && enriched.franchise === undefined) names.add(title.name);
-  }
-
-  const uniqueNames = Array.from(names);
-  for (let i = 0; i < uniqueNames.length; i += RAWG_LOOKUP_CONCURRENCY) {
-    const batch = uniqueNames.slice(i, i + RAWG_LOOKUP_CONCURRENCY);
-    // oxlint-disable-next-line react-doctor/async-await-in-loop
-    await Promise.all(
-      batch.map(async (name) => {
-        rawgFranchises.set(name, await lookupRawgFranchise(name, rawgCache));
-      })
-    );
-  }
-
-  return rawgFranchises;
-}
-
 function computeMeta(games: GamePlay[], appsExcluded: Partitioned["appsExcluded"]): DashboardMeta {
   const firstDates = games
     .map((g) => g.firstPlayed)
@@ -512,6 +438,23 @@ const rawgGenreInput = z.object({
   ),
 });
 
+/**
+ * The unique title names a RAWG lookup should run for: keyword rules are the
+ * fast path, so only titles they leave matching `needsLookup` (and that aren't
+ * apps) fall through. Mirrors the previous prefetch filtering exactly.
+ */
+function rawgLookupNames(
+  titles: Array<{ name: string; category?: string }>,
+  needsLookup: (enriched: ReturnType<typeof enrichTitle>) => boolean
+): string[] {
+  const names = new Set<string>();
+  for (const title of titles) {
+    const enriched = enrichTitle(title.name, title.category);
+    if (!enriched.isApp && needsLookup(enriched)) names.add(title.name);
+  }
+  return Array.from(names);
+}
+
 export const signInWithToken = createServerFn({ method: "POST" })
   .validator(signInInput)
   .handler(({ data }) => signInWithTokenHandler(data));
@@ -522,10 +465,14 @@ export const getRawgGenres = createServerFn({ method: "POST" })
     async ({
       data,
     }): Promise<Array<{ titleId: string; genre?: Genre; typicalPlaytime?: number }>> => {
-      const { genres, playtimes } = await prefetchRawgGenres(data.titles, createRawgCache());
+      const names = rawgLookupNames(data.titles, (enriched) => enriched.genre === "Other");
+      const metadata = await runServer(
+        prefetchGameMetadata(names).pipe(Effect.provide(EnrichmentProviderLayer))
+      );
       return data.titles.flatMap((title) => {
-        const genre = genres.get(title.name);
-        const typicalPlaytime = playtimes.get(title.name);
+        const info = metadata.get(title.name);
+        const genre = info?.genre;
+        const typicalPlaytime = info?.typicalPlaytime;
         if (!genre && typicalPlaytime === undefined) return [];
         return [
           {
@@ -541,7 +488,10 @@ export const getRawgGenres = createServerFn({ method: "POST" })
 export const getRawgFranchises = createServerFn({ method: "POST" })
   .validator(rawgGenreInput)
   .handler(async ({ data }): Promise<Array<{ titleId: string; franchise: string }>> => {
-    const rawgFranchises = await prefetchRawgFranchises(data.titles, createRawgFranchiseCache());
+    const names = rawgLookupNames(data.titles, (enriched) => enriched.franchise === undefined);
+    const rawgFranchises = await runServer(
+      prefetchFranchises(names).pipe(Effect.provide(EnrichmentProviderLayer))
+    );
     return data.titles.flatMap((title) => {
       const franchise = rawgFranchises.get(title.name);
       return franchise ? [{ titleId: title.titleId, franchise }] : [];
