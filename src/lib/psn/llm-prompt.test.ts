@@ -5,8 +5,11 @@ import {
   ADD_ON_SIGNAL_GUIDANCE,
   buildDataSummary,
   buildFollowUps,
+  buildMenu,
   buildPrompt,
   COMPLETION_INTERPRETATION_GUIDANCE,
+  MENU_INSTRUCTION,
+  MENU_MODE,
   METRIC_GUIDANCE_CAVEAT,
   PLAY_PATTERN_GUIDANCE,
   PLAYTIME_SIGNAL_GUIDANCE,
@@ -535,4 +538,90 @@ describe(".buildPrompt", () => {
       expect(buildPrompt(demoDashboard, variant, [])).toBe(buildPrompt(demoDashboard, variant));
     }
   );
+
+  it.each(PROMPT_VARIANTS)(
+    "leaves the lead-question prompt unchanged when menu mode is added for $id",
+    (variant) => {
+      expect(buildPrompt(demoDashboard, variant)).toContain(`TASK: ${variant.instruction}`);
+      expect(buildPrompt(demoDashboard, MENU_MODE)).not.toBe(buildPrompt(demoDashboard, variant));
+    }
+  );
+});
+
+describe(".buildMenu", () => {
+  it("lists every question grouped under its category", () => {
+    const menu = buildMenu();
+
+    const present = PROMPT_GROUPS.flatMap((group) => [
+      menu.includes(`${group}:`),
+      ...PROMPT_VARIANTS.filter((v) => v.group === group).map((v) => menu.includes(`- ${v.question}`)),
+    ]);
+
+    expect(present).toStrictEqual(present.map(() => true));
+  });
+});
+
+describe(".buildPrompt (menu mode)", () => {
+  it("replaces the TASK analysis lead with the menu instruction", () => {
+    const prompt = buildPrompt(demoDashboard, MENU_MODE);
+
+    expect(prompt).not.toContain("TASK:");
+    expect(prompt).toContain(MENU_INSTRUCTION);
+  });
+
+  it("does not embed any lead question's analysis instruction", () => {
+    const prompt = buildPrompt(demoDashboard, MENU_MODE);
+
+    const embedded = PROMPT_VARIANTS.map((v) => prompt.includes(v.instruction));
+
+    expect(embedded).toStrictEqual(PROMPT_VARIANTS.map(() => false));
+  });
+
+  it("presents the full grouped question menu", () => {
+    const prompt = buildPrompt(demoDashboard, MENU_MODE);
+
+    expect(prompt).toContain(buildMenu());
+  });
+
+  it("still embeds the data summary exactly once", () => {
+    const prompt = buildPrompt(demoDashboard, MENU_MODE);
+
+    expect(prompt).toContain(buildDataSummary(demoDashboard));
+    expect(prompt.split("DATA (my PlayStation playtime, lifetime totals):")).toHaveLength(2);
+  });
+
+  it("keeps the always-on global caveat and genre play-pattern guidance", () => {
+    const prompt = buildPrompt(demoDashboard, MENU_MODE);
+
+    expect(prompt).toContain(METRIC_GUIDANCE_CAVEAT);
+    expect(prompt).toContain(PLAY_PATTERN_GUIDANCE);
+  });
+
+  it("defers the per-metric calibration rubric until a question is picked", () => {
+    const prompt = buildPrompt(demoDashboard, MENU_MODE);
+
+    expect(prompt).not.toContain(TROPHY_SIGNAL_GUIDANCE);
+    expect(prompt).not.toContain(PLAYTIME_SIGNAL_GUIDANCE);
+    expect(prompt).not.toContain(COMPLETION_INTERPRETATION_GUIDANCE);
+  });
+
+  it("defers the add-on and price rubric even when transactions match", () => {
+    const [game] = demoDashboard.games;
+
+    const prompt = buildPrompt(demoDashboard, MENU_MODE, [
+      tx({ productName: `${game?.name} Season Pass`, skuId: game?.titleId }),
+      tx({
+        productName: game?.name ?? "",
+        skuId: game?.titleId,
+        amountMinor: 374,
+        originalPriceMinor: 4499,
+        discountMinor: 4125,
+      }),
+    ]);
+
+    expect(prompt).not.toContain(ADD_ON_SIGNAL_GUIDANCE);
+    expect(prompt).not.toContain(PRICE_CONTEXT_GUIDANCE);
+    expect(prompt).toContain("add-ons purchased: 1");
+    expect(prompt).toContain("bought: deep-sale (£3.74 of £44.99)");
+  });
 });
