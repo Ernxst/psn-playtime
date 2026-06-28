@@ -117,7 +117,11 @@ export function SidebarProvider({
     return isMobile ? setOpenMobile((open) => !open) : setOpen((open) => !open);
   }, [isMobile, setOpen]);
 
-  // Adds a keyboard shortcut to toggle the sidebar.
+  // Fire-and-forget global subscription: register a window keydown listener
+  // (a browser event system) for the Cmd/Ctrl+B shortcut for this provider's
+  // lifetime. Nothing here is read during render (so not useSyncExternalStore);
+  // the trigger is a global key combo on `window`, not an interaction on this
+  // component (so not a local event handler); there's nothing to derive.
   React.useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent): void => {
       if (event.key === SIDEBAR_KEYBOARD_SHORTCUT && (event.metaKey || event.ctrlKey)) {
