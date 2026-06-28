@@ -400,9 +400,7 @@ export function buildDataSummary(
       : []
   );
   const priceContexts = new Map<string, PriceContextSummary>(
-    transactions?.length
-      ? summarisePriceContext(data, transactions).map((c) => [c.titleId, c])
-      : []
+    transactions?.length ? summarisePriceContext(data, transactions).map((c) => [c.titleId, c]) : []
   );
 
   return [
@@ -564,9 +562,63 @@ const METRIC_RUBRIC_GROUPS = new Set<PromptGroup>([
   "More",
 ]);
 
+/** Sentinel selecting the no-lead "menu" mode in `buildPrompt`. */
+export const MENU_MODE = "menu" as const;
+
+/**
+ * The menu-mode lead instruction: instead of a `TASK:` analysis, the model
+ * introduces what it can tell from the data and presents the grouped menu,
+ * analysing nothing until the user picks a question.
+ */
+export const MENU_INSTRUCTION =
+  "Don't analyse anything yet. Briefly introduce what you can tell me from this data, then present a concise menu of what I could ask — grouped (Engagement & enjoyment, Completion & habits, Taste & preferences, Profile & personality, Recommendations, More) — and ask which I'd like to explore first.";
+
+/**
+ * The full grouped menu of questions, built from `PROMPT_VARIANTS` so it stays
+ * in sync as variants change. Unlike `buildFollowUps` it excludes nothing —
+ * there is no lead question in menu mode, so every question is on offer.
+ */
+export function buildMenu(): string {
+  const lines = ["MENU — the questions I could ask, grouped (pick one to start):"];
+  for (const group of PROMPT_GROUPS) {
+    const questions = PROMPT_VARIANTS.filter((v) => v.group === group);
+    if (questions.length === 0) continue;
+    lines.push(`${group}:`);
+    for (const v of questions) lines.push(`- ${v.question}`);
+  }
+  return lines.join("\n");
+}
+
+/**
+ * Build the no-lead "menu" prompt: the data summary once, then a menu
+ * instruction (no `TASK:` analysis) and the grouped question menu.
+ *
+ * Guidance choice (interacts with #115): menu mode has no group and runs NO
+ * analysis this turn, so it keeps the always-on global caveat and the genre
+ * play-pattern calibration (#94), but DEFERS the per-metric calibration rubric
+ * (trophy / playtime / completion / add-on / price) — front-loading that
+ * calibration before the user has picked a question is noise, so it waits until
+ * the user actually chooses an analysis.
+ */
+function buildMenuPrompt(data: DashboardData, transactions?: readonly TransactionRow[]): string {
+  return [
+    "You are a gaming analyst. I'm sharing a summary of my PlayStation playtime.",
+    "Weigh WHEN I played (recency and trends from each game's last/first played dates), not just total hours — a big total played years ago means something different from a smaller total I'm playing now.",
+    METRIC_GUIDANCE_CAVEAT,
+    PLAY_PATTERN_GUIDANCE,
+    "",
+    buildDataSummary(data, transactions),
+    "",
+    MENU_INSTRUCTION,
+    "",
+    buildMenu(),
+  ].join("\n");
+}
+
 /**
  * Build the full, ready-to-paste prompt: the data summary once, the chosen
- * lead question, then the rest as paste-able follow-ups.
+ * lead question, then the rest as paste-able follow-ups. Passing `MENU_MODE`
+ * instead of a variant produces the no-lead menu prompt (see `buildMenuPrompt`).
  *
  * The global caveat and the genre-interpretation block are always shown. The
  * per-metric calibration rubric is included only when the lead question's group
@@ -575,9 +627,10 @@ const METRIC_RUBRIC_GROUPS = new Set<PromptGroup>([
  */
 export function buildPrompt(
   data: DashboardData,
-  lead: PromptVariant,
+  lead: PromptVariant | typeof MENU_MODE,
   transactions?: readonly TransactionRow[]
 ): string {
+  if (lead === MENU_MODE) return buildMenuPrompt(data, transactions);
   const metricRubric = METRIC_RUBRIC_GROUPS.has(lead.group)
     ? [
         TROPHY_SIGNAL_GUIDANCE,
