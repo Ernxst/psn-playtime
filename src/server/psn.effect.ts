@@ -23,8 +23,9 @@
  * The pure name-matching/normalization helpers live here (rather than importing
  * the old `psn.ts`, which carries banned globals) so this file and everything it
  * value-imports stay compliant with the strict `@effect/language-service` rules.
- * `round` is inlined for the same reason — `@/lib/psn/util` cannot be imported
- * because its `yearOf` uses the banned `Date` global.
+ * `round` is value-imported from `@/lib/psn/round` (a `Date`-free module);
+ * `@/lib/psn/util` itself stays unimported because its `yearOf` uses the banned
+ * `Date` global.
  */
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
@@ -41,6 +42,7 @@ import {
 } from "psn-api";
 import type { AuthorizationPayload } from "psn-api";
 import { enrichTitle, platformOf } from "@/lib/psn/enrich";
+import { round } from "@/lib/psn/round";
 import type {
   DashboardData,
   DashboardMeta,
@@ -67,12 +69,6 @@ type TrophyTitle = Awaited<ReturnType<typeof getUserTitles>>["trophyTitles"][num
 // -----------------------------------------------------------------------------
 // Pure helpers (strict-rule compliant; moved verbatim from the old psn.ts)
 // -----------------------------------------------------------------------------
-
-/** Round `n` to `dp` decimal places. Inlined from `@/lib/psn/util` (see header). */
-function round(n: number, dp: number): number {
-  const f = 10 ** dp;
-  return Math.round(n * f) / f;
-}
 
 /** Convert an ISO-8601 duration like "PT123H4M5S" to decimal hours. */
 function hoursFromDuration(iso: string | undefined): number {

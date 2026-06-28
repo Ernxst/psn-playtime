@@ -4,11 +4,10 @@
  * single definition rather than being copy-pasted per module.
  */
 
-/** Round `n` to `dp` decimal places (default whole number). */
-export function round(n: number, dp = 0): number {
-  const f = 10 ** dp;
-  return Math.round(n * f) / f;
-}
+// `round` now lives in `./round` (a `Date`-free module the strict `*.effect.ts`
+// files can value-import); re-exported here so existing client callers that
+// reach for `@/lib/psn/util` are unchanged.
+export { round } from "./round";
 
 /** Year of an ISO/`YYYY-...` date, or `undefined` when unparseable. */
 export function yearOf(date: string): number | undefined {
