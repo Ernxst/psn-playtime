@@ -155,20 +155,29 @@ function normalizePlaytime(playtime: number | undefined): number | undefined {
   return playtime && playtime > 0 ? playtime : undefined;
 }
 
+/**
+ * Fetch and schema-validate a RAWG JSON payload, returning the parsed data or
+ * `undefined` when the request is non-ok, the body fails validation, or the
+ * request throws — so each caller just extracts its field with a fallback.
+ */
+async function fetchRawgJson<T>(url: string, schema: z.ZodType<T>): Promise<T | undefined> {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return undefined;
+    const parsed = schema.safeParse(await res.json());
+    return parsed.success ? parsed.data : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** Run a single RAWG search, extracting the genre and typical playtime. */
 async function searchRawgGameInfo(query: string, apiKey: string): Promise<RawgGameInfo> {
   const url = `${RAWG_ENDPOINT}?search=${encodeURIComponent(query)}&key=${apiKey}&page_size=1`;
-  try {
-    const res = await fetch(url);
-    if (!res.ok) return {};
-    const parsed = rawgResponseSchema.safeParse(await res.json());
-    if (!parsed.success) return {};
-    const first = parsed.data.results?.[0];
-    const genres = first?.genres?.map((g) => g.name) ?? [];
-    return { genre: mapRawgGenres(genres), playtime: normalizePlaytime(first?.playtime) };
-  } catch {
-    return {};
-  }
+  const data = await fetchRawgJson(url, rawgResponseSchema);
+  const first = data?.results?.[0];
+  const genres = first?.genres?.map((g) => g.name) ?? [];
+  return { genre: mapRawgGenres(genres), playtime: normalizePlaytime(first?.playtime) };
 }
 
 /**
@@ -220,29 +229,15 @@ async function searchRawgGame(
   apiKey: string
 ): Promise<{ id: number; name: string } | undefined> {
   const url = `${RAWG_ENDPOINT}?search=${encodeURIComponent(query)}&key=${apiKey}&page_size=1`;
-  try {
-    const res = await fetch(url);
-    if (!res.ok) return undefined;
-    const parsed = rawgSearchSchema.safeParse(await res.json());
-    if (!parsed.success) return undefined;
-    return parsed.data.results?.[0];
-  } catch {
-    return undefined;
-  }
+  const data = await fetchRawgJson(url, rawgSearchSchema);
+  return data?.results?.[0];
 }
 
 /** Fetch the names of the games RAWG groups into the same series as `id`. */
 async function fetchRawgSeriesNames(id: number, apiKey: string): Promise<string[]> {
   const url = `${RAWG_ENDPOINT}/${id}/game-series?key=${apiKey}`;
-  try {
-    const res = await fetch(url);
-    if (!res.ok) return [];
-    const parsed = rawgSeriesSchema.safeParse(await res.json());
-    if (!parsed.success) return [];
-    return parsed.data.results?.map((g) => g.name) ?? [];
-  } catch {
-    return [];
-  }
+  const data = await fetchRawgJson(url, rawgSeriesSchema);
+  return data?.results?.map((g) => g.name) ?? [];
 }
 
 /** Match a query to a RAWG game, then derive its franchise from the series. */
