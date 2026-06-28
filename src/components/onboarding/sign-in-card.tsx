@@ -298,6 +298,7 @@ function ContinueButton({
       className="h-auto flex-1 justify-start gap-3 py-2"
       onClick={onContinue}
       disabled={pending}
+      aria-label={`Continue as ${account.onlineId}`}
     >
       <Avatar className="size-9">
         <AvatarImage src={account.avatarUrl} alt={account.onlineId} />
