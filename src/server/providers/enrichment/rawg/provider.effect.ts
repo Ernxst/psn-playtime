@@ -14,10 +14,13 @@
  * Networking goes through `@effect/platform`'s fetch-based `HttpClient` (it lives
  * in core `effect/unstable/http` for the v4 beta line; `@effect/platform@4` is
  * not published). `FetchHttpClient.layer` uses `globalThis.fetch`, so it runs on
- * the Nitro/Cloudflare-Workers runtime as well as in Node/tests. The
- * request-scoped lookup cache is a `Ref<Map>` built per layer construction
- * (i.e. per `Effect.provide` at the handler boundary), replacing the Map that
- * `rawg.ts` used to receive by argument.
+ * the Nitro/Cloudflare-Workers runtime as well as in Node/tests. The lookup
+ * cache is a `Ref<Map>` built once per layer construction; this layer is folded
+ * into the app-scoped `ServerLayer` (`runtime.effect.ts`), so the cache is built
+ * once per worker process and lives for the runtime's lifetime, giving
+ * cross-request hits. RAWG metadata is effectively static, so there are no
+ * stale-data concerns, and the maps stay bounded by the distinct title names a
+ * worker ever sees, so no eviction is needed.
  */
 import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";

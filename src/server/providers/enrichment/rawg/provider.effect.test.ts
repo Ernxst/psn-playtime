@@ -1,8 +1,9 @@
 import * as ConfigProvider from "effect/ConfigProvider";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as ManagedRuntime from "effect/ManagedRuntime";
 import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import type { GameMetadata } from "@/server/providers/enrichment/contract.effect";
 import { EnrichmentProvider } from "@/server/providers/enrichment/contract.effect";
 import { EnrichmentProviderLayer } from "@/server/providers/enrichment/rawg/provider.effect";
@@ -302,5 +303,32 @@ describe(".fetchFranchise", () => {
     await expect(fetchFranchise("™®©")).resolves.toBeUndefined();
 
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe("process-lived cache across a shared runtime", () => {
+  it("reuses the cache between two separate runtime invocations (one network hit)", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(searchResponse({ genres: ["Racing"] }));
+
+    // One runtime built from the keyed layer, mirroring how `serverRuntime`
+    // (runtime.effect.ts) constructs `EnrichmentProviderLayer` once and shares
+    // it across requests. Two separate `runPromise` calls stand in for two
+    // sequential server-fn invocations against that long-lived runtime.
+    const runtime = ManagedRuntime.make(KEYED);
+    onTestFinished(() => runtime.dispose());
+
+    const lookup = metaProgram("Gran Turismo 7").pipe(
+      Effect.provideService(FetchHttpClient.Fetch, liveFetch)
+    );
+
+    const first = await runtime.runPromise(lookup);
+    const second = await runtime.runPromise(lookup);
+
+    expect(first.genre).toBe("Racing");
+    expect(second.genre).toBe("Racing");
+    // The Ref cache survived the first invocation, so the second hits no network.
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 });
