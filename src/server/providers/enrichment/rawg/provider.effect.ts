@@ -245,6 +245,19 @@ const recoverAbsent = <A>(absent: A) => ({
 });
 
 /**
+ * Run `fn` for each name at the shared lookup concurrency and collect the
+ * results into a `Map` keyed by name. `Effect.forEach`'s `concurrency` already
+ * caps in-flight lookups, so the prefetch builders share one batching loop.
+ */
+const batchLookup = <A>(
+  names: ReadonlyArray<string>,
+  fn: (name: string) => Effect.Effect<A>
+): Effect.Effect<Map<string, A>> =>
+  Effect.forEach(names, (name) => fn(name).pipe(Effect.map((value) => [name, value] as const)), {
+    concurrency: RAWG_LOOKUP_CONCURRENCY,
+  }).pipe(Effect.map((entries) => new Map(entries)));
+
+/**
  * Look up genre + typical playtime for each (already keyword-filtered) title
  * name, keyed by name. Each lookup independently falls back to absence on a
  * provider failure, so the batch always resolves — the server-fn boundary never
@@ -255,16 +268,11 @@ export const prefetchGameMetadata = (
 ): Effect.Effect<Map<string, GameMetadata>, never, EnrichmentProvider> =>
   Effect.gen(function* () {
     const provider = yield* EnrichmentProvider;
-    const entries = yield* Effect.forEach(
-      names,
-      (name) =>
-        provider.fetchGameMetadata(name).pipe(
-          Effect.catchTags(recoverAbsent<GameMetadata>(ABSENT_METADATA)),
-          Effect.map((metadata) => [name, metadata] as const)
-        ),
-      { concurrency: RAWG_LOOKUP_CONCURRENCY }
+    return yield* batchLookup(names, (name) =>
+      provider
+        .fetchGameMetadata(name)
+        .pipe(Effect.catchTags(recoverAbsent<GameMetadata>(ABSENT_METADATA)))
     );
-    return new Map(entries);
   });
 
 /**
@@ -276,14 +284,9 @@ export const prefetchFranchises = (
 ): Effect.Effect<Map<string, string | undefined>, never, EnrichmentProvider> =>
   Effect.gen(function* () {
     const provider = yield* EnrichmentProvider;
-    const entries = yield* Effect.forEach(
-      names,
-      (name) =>
-        provider.fetchFranchise(name).pipe(
-          Effect.catchTags(recoverAbsent<string | undefined>(NO_FRANCHISE)),
-          Effect.map((franchise) => [name, franchise] as const)
-        ),
-      { concurrency: RAWG_LOOKUP_CONCURRENCY }
+    return yield* batchLookup(names, (name) =>
+      provider
+        .fetchFranchise(name)
+        .pipe(Effect.catchTags(recoverAbsent<string | undefined>(NO_FRANCHISE)))
     );
-    return new Map(entries);
   });
