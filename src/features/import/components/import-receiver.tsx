@@ -1,9 +1,8 @@
 import { getRouteApi } from "@tanstack/react-router";
-import type * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { decodeHandoff, type HandoffPayload, type TransactionRow } from "@/domain/transactions";
-import { loadTransactionImport, saveTransactionImport } from "@/stores/transactions-store";
+import type { TransactionStore } from "@/stores/transactions-store";
 
 /** A running, de-duped accumulation of imported transactions. */
 interface Accumulator {
@@ -21,9 +20,9 @@ function mergeRow(acc: Accumulator, tx: TransactionRow): boolean {
 }
 
 /** Seed the accumulator from any already-persisted import so re-runs append. */
-function seedAccumulator(): Accumulator {
+function seedAccumulator(store: TransactionStore): Accumulator {
   const acc: Accumulator = { seen: new Set(), transactions: [], source: "" };
-  const existing = loadTransactionImport();
+  const existing = store.load();
   if (!existing) return acc;
   acc.source = existing.source;
   for (const tx of existing.transactions) mergeRow(acc, tx);
@@ -35,15 +34,11 @@ function seedAccumulator(): Accumulator {
  * {@link TransactionRow.key}, and persist the whole set. Returns the number of
  * newly added rows (0 when every row was already present).
  */
-function appendPayload(
-  registry: AtomRegistry.AtomRegistry,
-  acc: Accumulator,
-  payload: HandoffPayload
-): number {
+function appendPayload(store: TransactionStore, acc: Accumulator, payload: HandoffPayload): number {
   let added = 0;
   for (const tx of payload.transactions) if (mergeRow(acc, tx)) added += 1;
   if (acc.source === "") acc.source = payload.source;
-  saveTransactionImport(registry, {
+  store.save({
     transactions: acc.transactions,
     importedAt: new Date().toISOString(),
     source: acc.source,
@@ -69,14 +64,14 @@ type Settled = Exclude<HandoffResult, { status: "imported" }>["status"];
  * so the address bar's fragment is readable; `imported` tells the loader to
  * redirect to the dashboard.
  */
-export function receiveHandoff(registry: AtomRegistry.AtomRegistry): HandoffResult {
-  const acc = seedAccumulator();
+export function receiveHandoff(store: TransactionStore): HandoffResult {
+  const acc = seedAccumulator(store);
   const payload = decodeHandoff(window.location.hash);
 
   if (!payload) return { status: "empty" };
   if (payload.transactions.length === 0) return { status: "invalid" };
 
-  appendPayload(registry, acc, payload);
+  appendPayload(store, acc, payload);
   // Clear the (large) fragment from the address bar before redirecting.
   window.history.replaceState(null, "", window.location.pathname);
   return { status: "imported", count: acc.transactions.length };
