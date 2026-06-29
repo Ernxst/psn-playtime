@@ -58,8 +58,14 @@ function parse(raw: string): TransactionImport | null {
 /**
  * Read the persisted import directly from `localStorage`, or `null` when
  * absent/corrupt/unavailable. Kept as a synchronous read for the `/import`
- * route loader, which runs client-side before React renders; the atom's writes
- * keep `localStorage` authoritative, so a direct read always sees them.
+ * route loader, which runs client-side before React renders.
+ *
+ * The kvs write runs on a forked fiber (Atom `runtime.fn`), so
+ * `localStorage.setItem` flushes on a microtask rather than synchronously when
+ * `saveTransactionImport()` returns — an immediate read-after-write can be
+ * stale. That is safe here only because the sole direct-read consumer, the
+ * `/import` loader, reads before it writes within a single run, and re-runs are
+ * separated by navigation (which lets the prior write flush).
  */
 export function loadTransactionImport(): TransactionImport | null {
   if (typeof window === "undefined") return null;

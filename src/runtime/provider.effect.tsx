@@ -24,9 +24,13 @@ function makeRegistry(): AtomRegistry.AtomRegistry {
 
 /**
  * The registry imperative writers target, or `undefined` on the server (where
- * imperative writers never run). Lazily creates the client singleton so a write
- * issued before the provider first renders still lands in the very registry the
- * hooks go on to read.
+ * imperative writers never run). The lazy fallback only covers a write issued
+ * before any provider has mounted: it still persists to `localStorage`, but
+ * through a throwaway registry, not the hooks' one (the provider always makes a
+ * fresh registry — it never adopts this lazily-created instance). In the app
+ * this never matters: `EffectAtomProvider` mounts at the root above every
+ * imperative writer, so by the time one runs `clientRegistry` is already the
+ * provider's registry — the exact instance the hooks read.
  */
 export function getAppRegistry(): AtomRegistry.AtomRegistry | undefined {
   if (typeof window === "undefined") return undefined;
@@ -38,11 +42,12 @@ export function getAppRegistry(): AtomRegistry.AtomRegistry | undefined {
  * Supplies the atom `AtomRegistry` to a React subtree, mounted at the app root.
  *
  * We build the registry ourselves (rather than leaning on the library's
- * `RegistryProvider`) so imperative writers can publish to and read the same
- * instance via {@link getAppRegistry}. A `useRef` holds one registry per render
- * tree: on the server that is one per request (isolated, never published); on
- * the client we reuse the published singleton so hooks read exactly what
- * imperative writers mutate. No project-level `useEffect` is introduced, per
+ * `RegistryProvider`) so imperative writers can reach the same instance via
+ * {@link getAppRegistry}. A `useRef` holds one registry per render tree: on the
+ * server that is one per request (isolated, never published); on the client we
+ * publish this freshly-made registry as the client singleton. Because the
+ * provider mounts above every imperative writer, those writers read exactly what
+ * the hooks mutate. No project-level `useEffect` is introduced, per
  * docs/rules/effects.md.
  */
 export function EffectAtomProvider({ children }: { readonly children: ReactNode }) {
