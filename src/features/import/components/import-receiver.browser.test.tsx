@@ -17,12 +17,12 @@ import {
   type HandoffPayload,
   type TransactionRow,
 } from "@/domain/transactions";
+import { loadHandoff } from "@/routes/import";
 import {
   clearTransactionImport,
   loadTransactionImport,
   saveTransactionImport,
-} from "@/lib/transactions-store";
-import { loadHandoff } from "@/routes/import";
+} from "@/stores/transactions-store";
 import { multiProductPurchase } from "@/test/transaction-fixtures";
 import { ImportPending, ImportReceiver, receiveHandoff } from "./import-receiver";
 

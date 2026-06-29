@@ -13,7 +13,7 @@
  * provides for entry points — is disabled per-line for exactly this provide).
  * The npsso token is used transiently to fetch an account once; it is never
  * stored server-side. The derived `DashboardData` is cached client-side
- * (`@/lib/dashboard-store`), which is the source for revisits.
+ * (`@/stores/dashboard-store`), which is the source for revisits.
  */
 import { createServerFn } from "@tanstack/react-start";
 import * as Effect from "effect/Effect";

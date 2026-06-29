@@ -1,5 +1,5 @@
 import { createStartHandler, defaultStreamHandler } from "@tanstack/react-start/server";
-import { buildCsp } from "./lib/security/csp";
+import { buildCsp } from "./server/security/csp";
 
 // Overrides TanStack Start's default server entry so we can stamp a per-request
 // CSP nonce. The default entry is just `createStartHandler(defaultStreamHandler)`

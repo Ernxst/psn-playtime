@@ -9,8 +9,8 @@ import {
   rawgGenresQueryOptions,
   shouldPersistEnrichment,
 } from "@/features/dashboard/query";
-import { clearActiveAccount, saveDashboard, useActiveDashboard } from "@/lib/dashboard-store";
 import type { DashboardData, GamePlay, Genre } from "@/server/providers/account/snapshot";
+import { clearActiveAccount, saveDashboard, useActiveDashboard } from "@/stores/dashboard-store";
 
 /** Apply a title's deferred RAWG enrichment, leaving unknown fields untouched. */
 function enrichGame(

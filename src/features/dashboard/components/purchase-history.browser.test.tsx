@@ -3,7 +3,7 @@ import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
 import { demoDashboard } from "@/domain/mock";
 import type { TransactionRow } from "@/domain/transactions";
-import { clearTransactionImport, saveTransactionImport } from "@/lib/transactions-store";
+import { clearTransactionImport, saveTransactionImport } from "@/stores/transactions-store";
 import { PurchaseHistorySection } from "./purchase-history";
 
 /** The demo library as it would arrive for a real, signed-in account. */

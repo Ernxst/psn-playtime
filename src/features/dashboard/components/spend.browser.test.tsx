@@ -4,8 +4,8 @@ import { page } from "vitest/browser";
 import { demoDashboard } from "@/domain/mock";
 import { bookmarkletHref } from "@/domain/transaction-bookmarklet";
 import type { TransactionRow } from "@/domain/transactions";
-import { clearTransactionImport, saveTransactionImport } from "@/lib/transactions-store";
 import type { GamePlay } from "@/server/providers/account/snapshot";
+import { clearTransactionImport, saveTransactionImport } from "@/stores/transactions-store";
 import { AddOnsSection, SpendSection, SpentMostSection } from "./spend";
 
 afterEach(() => {
