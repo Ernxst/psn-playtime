@@ -4,6 +4,7 @@ import { HeadContent, Scripts, createRootRouteWithContext } from "@tanstack/reac
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import type * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
 import { EffectAtomProvider } from "@/runtime/provider.effect";
+import type { TransactionStore } from "@/stores/transactions-store";
 import { Toaster } from "../components/ui/sonner";
 import { TooltipProvider } from "../components/ui/tooltip";
 import TanStackQueryDevtools from "../integrations/tanstack-query/devtools";
@@ -12,7 +13,11 @@ import appCss from "../styles.css?url";
 
 interface MyRouterContext {
   queryClient: QueryClient;
+  // The raw registry stays on the context purely so `EffectAtomProvider` can
+  // seed `RegistryContext` at the root (that single seed is not drilling).
+  // Imperative writers use `transactionStore`, never the registry directly.
   atomRegistry: AtomRegistry.AtomRegistry;
+  transactionStore: TransactionStore;
 }
 
 const DEFAULT_TITLE = "PSN Playtime — your PlayStation history, visualised";
