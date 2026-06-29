@@ -2,13 +2,13 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo } from "react";
 import { toast } from "sonner";
-import { DashboardView } from "@/components/dashboard/dashboard-view";
+import { DashboardView } from "@/features/dashboard/components/dashboard-view";
+import { DashboardSkeleton } from "@/features/dashboard/components/states";
 import {
   rawgFranchisesQueryOptions,
   rawgGenresQueryOptions,
   shouldPersistEnrichment,
-} from "@/components/dashboard/query";
-import { DashboardSkeleton } from "@/components/dashboard/states";
+} from "@/features/dashboard/query";
 import { clearActiveAccount, saveDashboard, useActiveDashboard } from "@/lib/dashboard-store";
 import type { DashboardData, GamePlay, Genre } from "@/server/providers/account/snapshot";
 

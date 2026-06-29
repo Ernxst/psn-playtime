@@ -1,6 +1,10 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { ImportPending, ImportReceiver, receiveHandoff } from "@/components/import/import-receiver";
+import {
+  ImportPending,
+  ImportReceiver,
+  receiveHandoff,
+} from "@/features/import/components/import-receiver";
 
 /**
  * Read the bookmarklet handoff from this tab's URL fragment, persist it, then

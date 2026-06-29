@@ -23,9 +23,9 @@ import {
   hoursByYear,
   topFranchises,
   topGamesByHours,
-} from "@/lib/psn/analytics";
+} from "@/features/dashboard/analytics";
 import type { DashboardData } from "@/server/providers/account/snapshot";
-import { chartColor } from "./format";
+import { chartColor } from "../format";
 
 const hoursConfig = {
   hours: { label: "Hours", color: "var(--chart-1)" },

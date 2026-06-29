@@ -1,7 +1,7 @@
 import { Info } from "lucide-react";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip";
 import type { DashboardData } from "@/server/providers/account/snapshot";
-import { fmtRelative } from "./format";
+import { fmtRelative } from "../format";
 
 const CACHE_EXPLANATION =
   "Your data is cached in this browser from when you last signed in, so it may be behind your latest activity.";

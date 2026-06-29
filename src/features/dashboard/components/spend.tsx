@@ -1,21 +1,21 @@
 import { Banknote, Coins, ExternalLink, Gift, Trophy, Wallet } from "lucide-react";
 import type { ReactNode } from "react";
-import { useCopied } from "@/components/dashboard/copy-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { bookmarkletHref } from "@/domain/transaction-bookmarklet";
-import { useMediaQuery } from "@/hooks/use-media-query";
+import { useCopied } from "@/features/dashboard/components/copy-button";
 import {
   type AddOnSummary,
   type SpendSummary,
   summariseAddOns,
   summariseSpend,
   type TitleSpend,
-} from "@/lib/psn/spend";
+} from "@/features/dashboard/spend";
+import { useMediaQuery } from "@/hooks/use-media-query";
 import { useTransactionImport } from "@/lib/transactions-store";
 import type { DashboardData } from "@/server/providers/account/snapshot";
-import { fmtHours } from "./format";
+import { fmtHours } from "../format";
 
 function money(currency: string, value: number): string {
   const symbol = currency || "£";

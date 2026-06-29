@@ -1,3 +1,4 @@
+import type { TransactionRow } from "@/domain/transactions";
 /**
  * Build a ready-to-paste LLM prompt from a `DashboardData`.
  *
@@ -10,8 +11,7 @@
  * The summary is derived entirely from the existing `analytics.ts` selectors —
  * nothing here recomputes or duplicates that logic.
  */
-import { fmtDate } from "@/components/dashboard/format";
-import type { TransactionRow } from "@/domain/transactions";
+import { fmtDate } from "@/features/dashboard/format";
 import type { DashboardData, GamePlay } from "@/server/providers/account/snapshot";
 import {
   bingeVsDipIn,

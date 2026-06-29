@@ -24,7 +24,7 @@ import {
 import type { TransactionRow } from "@/domain/transactions";
 import { useTransactionImport } from "@/lib/transactions-store";
 import type { DashboardData } from "@/server/providers/account/snapshot";
-import { fmtDate, fmtNumber } from "./format";
+import { fmtDate, fmtNumber } from "../format";
 
 /** Format a minor-unit amount as money, falling back to "£" when no symbol is known. */
 function money(currency: string, minor: number): string {

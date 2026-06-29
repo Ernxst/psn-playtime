@@ -13,7 +13,7 @@ import {
   type PromptGroup,
   type PromptVariant,
   PROMPT_VARIANTS,
-} from "@/lib/psn/llm-prompt";
+} from "@/features/dashboard/llm-prompt";
 import { useTransactionImport } from "@/lib/transactions-store";
 import type { DashboardData } from "@/server/providers/account/snapshot";
 import { CopyButton } from "./copy-button";

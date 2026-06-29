@@ -2,7 +2,7 @@ import { expect, test } from "vitest";
 import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
 import { demoDashboard } from "@/domain/mock";
-import { genreBreakdown } from "@/lib/psn/analytics";
+import { genreBreakdown } from "@/features/dashboard/analytics";
 import { GenreChart } from "./charts";
 
 test("genre donut tooltip shows the genre name on hover", async () => {
