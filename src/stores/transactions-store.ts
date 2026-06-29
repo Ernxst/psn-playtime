@@ -8,6 +8,8 @@
  * `localStorage` so the spend view survives reloads, and expose a
  * `useSyncExternalStore` hook so the dashboard re-renders when an import lands.
  */
+import * as Option from "effect/Option";
+import * as Schema from "effect/Schema";
 import { useSyncExternalStore } from "react";
 import { type TransactionImport, transactionImportSchema } from "@/domain/transactions";
 
@@ -16,7 +18,7 @@ const TRANSACTIONS_STORAGE_KEY = "psn-playtime:transactions";
 /** Fired on the same tab after a write (the `storage` event only fires cross-tab). */
 const TRANSACTIONS_EVENT = "psn-playtime:transactions-changed";
 
-const importSchema = transactionImportSchema;
+const decodeImport = Schema.decodeUnknownOption(transactionImportSchema);
 
 // Cache the parsed snapshot keyed on the raw string so `getSnapshot` returns a
 // stable reference between renders (required by `useSyncExternalStore`).
@@ -25,8 +27,7 @@ let cachedValue: TransactionImport | null = null;
 
 function parse(raw: string): TransactionImport | null {
   try {
-    const parsed = importSchema.safeParse(JSON.parse(raw));
-    return parsed.success ? parsed.data : null;
+    return Option.getOrNull(decodeImport(JSON.parse(raw)));
   } catch {
     return null;
   }

@@ -11,10 +11,11 @@
  * inside the opened tab's own URL fragment — no cross-window messaging, so it
  * survives the app's `Cross-Origin-Opener-Policy: same-origin`.
  *
- * Keep this file dependency-light (zod only) so both the route and the store can
- * import it cheaply.
+ * Keep this file dependency-light (effect's `Schema` only) so both the route and
+ * the store can import it cheaply.
  */
-import { z } from "zod";
+import * as Option from "effect/Option";
+import * as Schema from "effect/Schema";
 
 /** A wallet/balance movement vs an actual product purchase/spend. */
 type TransactionKind = "top-up" | "purchase";
@@ -253,29 +254,31 @@ export function flattenApiTransactions(transactions: ApiTransaction[]): Transact
 }
 
 /** Schema for a persisted, flattened transaction row. */
-const transactionRowSchema = z.object({
-  transactionId: z.string(),
-  key: z.string(),
-  date: z.string(),
-  transactionType: z.string(),
-  kind: z.enum(["top-up", "purchase"]),
-  productName: z.string(),
-  skuId: z.string().optional(),
-  skuType: z.string().optional(),
-  quantity: z.number(),
-  amountMinor: z.number(),
-  currency: z.string(),
-  displayAmount: z.string(),
-  originalPriceMinor: z.number().optional(),
-  discountMinor: z.number().optional(),
+const transactionRowSchema = Schema.Struct({
+  transactionId: Schema.String,
+  key: Schema.String,
+  date: Schema.String,
+  transactionType: Schema.String,
+  kind: Schema.Literals(["top-up", "purchase"]),
+  productName: Schema.String,
+  skuId: Schema.optional(Schema.String),
+  skuType: Schema.optional(Schema.String),
+  quantity: Schema.Number,
+  amountMinor: Schema.Number,
+  currency: Schema.String,
+  displayAmount: Schema.String,
+  originalPriceMinor: Schema.optional(Schema.Number),
+  discountMinor: Schema.optional(Schema.Number),
 });
 
-const handoffSchema = z.object({
-  v: z.literal(HANDOFF_VERSION),
-  source: z.string(),
-  fetchedAt: z.string(),
-  transactions: z.array(transactionRowSchema),
+const handoffSchema = Schema.Struct({
+  v: Schema.Literal(HANDOFF_VERSION),
+  source: Schema.String,
+  fetchedAt: Schema.String,
+  transactions: Schema.mutable(Schema.Array(transactionRowSchema)),
 });
+
+const decodeHandoffPayload = Schema.decodeUnknownOption(handoffSchema);
 
 /** Encode a handoff payload into a `data=...` URL-fragment body. */
 export function encodeHandoff(payload: HandoffPayload): string {
@@ -296,8 +299,7 @@ function readFragment(hash: string): string | null {
 
 /** Validate an untrusted value as a handoff payload, or `null` when invalid. */
 export function safeParseHandoff(value: unknown): HandoffPayload | null {
-  const parsed = handoffSchema.safeParse(value);
-  return parsed.success ? parsed.data : null;
+  return Option.getOrNull(decodeHandoffPayload(value));
 }
 
 export function decodeHandoff(hash: string): HandoffPayload | null {
@@ -311,8 +313,8 @@ export function decodeHandoff(hash: string): HandoffPayload | null {
 }
 
 /** Schema for the persisted import envelope (shared with the store). */
-export const transactionImportSchema = z.object({
-  transactions: z.array(transactionRowSchema),
-  importedAt: z.string(),
-  source: z.string(),
+export const transactionImportSchema = Schema.Struct({
+  transactions: Schema.mutable(Schema.Array(transactionRowSchema)),
+  importedAt: Schema.String,
+  source: Schema.String,
 });
