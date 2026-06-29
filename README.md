@@ -115,3 +115,5 @@ cp .env.example .env   # then set RAWG_API_KEY
 | `src/components/dashboard/` | KPIs, charts, insights, games table                         |
 
 > Demo numbers are derived from a real PSN export and are illustrative.
+
+See [`docs/architecture.md`](./docs/architecture.md) for the full source map of every directory under `src/`.
