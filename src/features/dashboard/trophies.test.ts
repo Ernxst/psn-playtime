@@ -217,6 +217,34 @@ describe(".summariseTrophies", () => {
     expect(summary.platinums.map((game) => game.titleId)).toEqual(["new", "old"]);
   });
 
+  it("sorts platted games with no earned date last", () => {
+    const data = makeData([
+      makeGame({
+        titleId: "undated",
+        trophy: makeTrophy({ earned: { ...noTrophies, platinum: 1 } }),
+      }),
+      makeGame({
+        titleId: "dated",
+        trophy: makeTrophy({ earned: { ...noTrophies, platinum: 1 }, lastEarnedAt: "2024-04-04" }),
+      }),
+    ]);
+
+    const summary = summariseTrophies(data);
+
+    expect(summary.platinums.map((game) => game.titleId)).toEqual(["dated", "undated"]);
+  });
+
+  it("keeps platted games with no earned date on either side", () => {
+    const data = makeData([
+      makeGame({ titleId: "a", trophy: makeTrophy({ earned: { ...noTrophies, platinum: 1 } }) }),
+      makeGame({ titleId: "b", trophy: makeTrophy({ earned: { ...noTrophies, platinum: 1 } }) }),
+    ]);
+
+    const summary = summariseTrophies(data);
+
+    expect(summary.platinums.map((game) => game.titleId)).toEqual(["a", "b"]);
+  });
+
   it("sorts games with no earned date last in recency order", () => {
     const data = makeData([
       makeGame({ titleId: "dated", trophy: makeTrophy({ lastEarnedAt: "2024-02-02" }) }),
