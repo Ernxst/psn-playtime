@@ -4,11 +4,11 @@ import { page } from "vitest/browser";
 import { Toaster } from "@/components/ui/sonner";
 import { loadDashboard, saveDashboard } from "@/lib/dashboard-store";
 import { demoDashboard } from "@/lib/psn/mock";
-import { signInWithToken } from "@/server/psn";
+import { signInWithToken } from "@/server/handlers.effect";
 import { createHarness } from "@/test/harness";
 import { SignInCard } from "./sign-in-card";
 
-vi.mock("@/server/psn", () => ({
+vi.mock("@/server/handlers.effect", () => ({
   signInWithToken: vi.fn(),
 }));
 

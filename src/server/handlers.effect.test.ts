@@ -22,7 +22,7 @@ import type {
   UserPlayedGamesResponse,
   UserTitlesResponse,
 } from "psn-api";
-import { signInWithTokenHandler } from "@/server/psn";
+import { signInWithTokenHandler } from "@/server/handlers.effect";
 
 const mockExchangeNpsso = vi.mocked(exchangeNpssoForAccessCode);
 const mockExchangeTokens = vi.mocked(exchangeAccessCodeForAuthTokens);
