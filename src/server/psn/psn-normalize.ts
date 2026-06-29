@@ -15,15 +15,15 @@
 import * as DateTime from "effect/DateTime";
 import * as Option from "effect/Option";
 import type { ProfileFromUserNameResponse, TrophyTitle, UserPlayedGamesResponse } from "psn-api";
-import { enrichTitle, platformOf } from "@/lib/psn/enrich";
-import { round } from "@/lib/psn/round";
 import type {
   DashboardMeta,
   GamePlay,
   GameTrophy,
   ProfileSummary,
   TrophyCounts,
-} from "@/lib/psn/types";
+} from "@/lib/psn/contract.schema";
+import { enrichTitle, platformOf } from "@/lib/psn/enrich";
+import { round } from "@/lib/psn/round";
 
 export type PlayedTitle = UserPlayedGamesResponse["titles"][number];
 export type { TrophyTitle };

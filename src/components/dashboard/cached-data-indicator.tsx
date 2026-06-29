@@ -1,6 +1,6 @@
 import { Info } from "lucide-react";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip";
-import type { DashboardData } from "@/lib/psn/types";
+import type { DashboardData } from "@/lib/psn/contract.schema";
 import { fmtRelative } from "./format";
 
 const CACHE_EXPLANATION =
@@ -13,9 +13,7 @@ const CACHE_EXPLANATION =
  */
 export function CachedDataIndicator({ data }: { data: DashboardData }) {
   if (data.isDemo) {
-    return (
-      <span className="text-xs text-muted-foreground">Demo data, not a live PSN pull</span>
-    );
+    return <span className="text-xs text-muted-foreground">Demo data, not a live PSN pull</span>;
   }
 
   return (

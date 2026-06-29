@@ -3,7 +3,7 @@
  * a title is a non-game app (streaming/music/browser). Keyword-driven to mirror
  * the taxonomy baked into the demo dataset (`mock.ts`).
  */
-import type { Genre, Platform } from "./types";
+import type { Genre, Platform } from "./contract.schema";
 
 interface FranchiseRule {
   test: RegExp;

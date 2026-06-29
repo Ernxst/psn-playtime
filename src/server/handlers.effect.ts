@@ -17,12 +17,11 @@
 import { createServerFn } from "@tanstack/react-start";
 import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
-import { z } from "zod";
+import * as Schema from "effect/Schema";
 import { runServer } from "@/integrations/effect/runtime.effect";
+import { DashboardData, type Genre } from "@/lib/psn/contract.schema";
 import { enrichTitle } from "@/lib/psn/enrich";
-import type { DashboardData, Genre } from "@/lib/psn/types";
 import { AccountProvider, type AccountCredential } from "@/server/ports/account-provider.effect";
-import type { AccountProviderError } from "@/server/ports/errors.effect";
 import { PsnAccountProviderLayer } from "@/server/psn/psn-account-provider.effect";
 import {
   EnrichmentProviderLayer,
@@ -30,18 +29,23 @@ import {
   prefetchGameMetadata,
 } from "@/server/rawg.effect";
 
-const signInInput = z.object({
-  npsso: z.string().trim().min(1, "Paste your npsso token first."),
+const SignInInput = Schema.Struct({
+  npsso: Schema.Trim.check(Schema.isNonEmpty()),
 });
+const signInInput = Schema.toStandardSchemaV1(SignInInput);
+
+/** Validates the provider's snapshot against the `DashboardData` contract before it crosses the server-fn boundary. */
+const decodeDashboard = Schema.decodeUnknownEffect(DashboardData);
 
 /**
  * Fetch and normalize one account from a transient credential. Runs the PSN
- * `AccountProvider`, which is provided here as the entry-point layer.
+ * `AccountProvider`, which is provided here as the entry-point layer, then
+ * decodes the snapshot against the `DashboardData` contract before it goes over
+ * the wire (a pass-through for valid data).
  */
-const signInEffect = (
-  credential: AccountCredential
-): Effect.Effect<DashboardData, AccountProviderError> =>
+const signInEffect = (credential: AccountCredential) =>
   Effect.flatMap(AccountProvider, (provider) => provider.fetchSnapshot(credential)).pipe(
+    Effect.flatMap(decodeDashboard),
     // @effect-diagnostics-next-line strictEffectProvide:off
     Effect.provide(PsnAccountProviderLayer)
   );
@@ -52,7 +56,9 @@ const signInEffect = (
  * the client cache. Throws a friendly error when the token is rejected (or any
  * fetch fails), exactly as before.
  */
-export function signInWithTokenHandler(data: z.infer<typeof signInInput>): Promise<DashboardData> {
+export function signInWithTokenHandler(
+  data: Schema.Schema.Type<typeof SignInInput>
+): Promise<DashboardData> {
   const credential = Redacted.make(data.npsso);
   return credential.pipe(signInEffect, runServer).catch(() => {
     throw new Error(
@@ -61,17 +67,18 @@ export function signInWithTokenHandler(data: z.infer<typeof signInInput>): Promi
   });
 }
 
-const rawgGenreInput = z.object({
-  titles: z.array(
-    z.object({
-      titleId: z.string(),
-      name: z.string(),
-      category: z.string().optional(),
+const RawgGenreInput = Schema.Struct({
+  titles: Schema.Array(
+    Schema.Struct({
+      titleId: Schema.String,
+      name: Schema.String,
+      category: Schema.optional(Schema.String),
     })
   ),
 });
+const rawgGenreInput = Schema.toStandardSchemaV1(RawgGenreInput);
 
-type RawgInputTitle = z.infer<typeof rawgGenreInput>["titles"][number];
+type RawgInputTitle = Schema.Schema.Type<typeof RawgGenreInput>["titles"][number];
 
 /**
  * The unique title names a RAWG lookup should run for: keyword rules are the
@@ -79,7 +86,7 @@ type RawgInputTitle = z.infer<typeof rawgGenreInput>["titles"][number];
  * apps) fall through. Mirrors the previous prefetch filtering exactly.
  */
 function rawgLookupNames(
-  titles: Array<{ name: string; category?: string }>,
+  titles: ReadonlyArray<{ name: string; category?: string }>,
   needsLookup: (enriched: ReturnType<typeof enrichTitle>) => boolean
 ): string[] {
   const names = new Set<string>();
@@ -92,7 +99,7 @@ function rawgLookupNames(
 
 /** Run the RAWG genre/playtime lookup, providing the enrichment layer per request. */
 const rawgGenresEffect = (
-  titles: RawgInputTitle[]
+  titles: readonly RawgInputTitle[]
 ): Effect.Effect<Array<{ titleId: string; genre?: Genre; typicalPlaytime?: number }>> =>
   prefetchGameMetadata(rawgLookupNames(titles, (enriched) => enriched.genre === "Other")).pipe(
     // @effect-diagnostics-next-line strictEffectProvide:off
@@ -116,7 +123,7 @@ const rawgGenresEffect = (
 
 /** Run the RAWG franchise lookup, providing the enrichment layer per request. */
 const rawgFranchisesEffect = (
-  titles: RawgInputTitle[]
+  titles: readonly RawgInputTitle[]
 ): Effect.Effect<Array<{ titleId: string; franchise: string }>> =>
   prefetchFranchises(rawgLookupNames(titles, (enriched) => enriched.franchise === undefined)).pipe(
     // @effect-diagnostics-next-line strictEffectProvide:off

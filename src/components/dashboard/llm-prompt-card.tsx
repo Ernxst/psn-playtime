@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
+import type { DashboardData } from "@/lib/psn/contract.schema";
 import {
   buildPrompt,
   MENU_MODE,
@@ -14,7 +15,6 @@ import {
   type PromptVariant,
   PROMPT_VARIANTS,
 } from "@/lib/psn/llm-prompt";
-import type { DashboardData } from "@/lib/psn/types";
 import { useTransactionImport } from "@/lib/transactions-store";
 import { CopyButton } from "./copy-button";
 

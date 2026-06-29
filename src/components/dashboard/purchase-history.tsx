@@ -21,8 +21,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import type { DashboardData } from "@/lib/psn/contract.schema";
 import type { TransactionRow } from "@/lib/psn/transactions";
-import type { DashboardData } from "@/lib/psn/types";
 import { useTransactionImport } from "@/lib/transactions-store";
 import { fmtDate, fmtNumber } from "./format";
 

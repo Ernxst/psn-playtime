@@ -10,7 +10,7 @@ import {
 } from "@/components/dashboard/query";
 import { DashboardSkeleton } from "@/components/dashboard/states";
 import { clearActiveAccount, saveDashboard, useActiveDashboard } from "@/lib/dashboard-store";
-import type { DashboardData, GamePlay, Genre } from "@/lib/psn/types";
+import type { DashboardData, GamePlay, Genre } from "@/lib/psn/contract.schema";
 
 /** Apply a title's deferred RAWG enrichment, leaving unknown fields untouched. */
 function enrichGame(
@@ -19,11 +19,12 @@ function enrichGame(
   typicalPlaytime: number | undefined,
   franchise: string | undefined
 ): GamePlay {
-  const next: GamePlay = { ...game };
-  if (genre) next.genre = genre;
-  if (typicalPlaytime !== undefined) next.typicalPlaytime = typicalPlaytime;
-  if (franchise) next.franchise = franchise;
-  return next;
+  return {
+    ...game,
+    ...(genre ? { genre } : {}),
+    ...(typicalPlaytime !== undefined ? { typicalPlaytime } : {}),
+    ...(franchise ? { franchise } : {}),
+  };
 }
 
 /** Merge the deferred RAWG genre/playtime/franchise lookups into the games. */

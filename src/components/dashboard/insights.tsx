@@ -9,7 +9,7 @@ import {
   recency,
   valuePerGame,
 } from "@/lib/psn/analytics";
-import type { DashboardData } from "@/lib/psn/types";
+import type { DashboardData } from "@/lib/psn/contract.schema";
 import { fmtHours, fmtNumber } from "./format";
 
 /** Games with the longest first→last play span — the ones in your library the longest. */

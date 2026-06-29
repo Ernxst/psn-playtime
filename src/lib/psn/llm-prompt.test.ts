@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { fmtDate } from "@/components/dashboard/format";
 import { topGamesByHours } from "./analytics";
+import type { GamePlay } from "./contract.schema";
 import {
   ADD_ON_SIGNAL_GUIDANCE,
   buildDataSummary,
@@ -23,7 +24,6 @@ import {
 import { demoDashboard } from "./mock";
 import { summariseSpend } from "./spend";
 import type { TransactionRow } from "./transactions";
-import type { GamePlay } from "./types";
 
 function tx(overrides: Partial<TransactionRow>): TransactionRow {
   return {

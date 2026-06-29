@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Genre } from "@/lib/psn/types";
+import type { Genre } from "@/lib/psn/contract.schema";
 import { deriveFranchise, mapRawgGenres } from "@/server/rawg";
 
 describe(".mapRawgGenres", () => {

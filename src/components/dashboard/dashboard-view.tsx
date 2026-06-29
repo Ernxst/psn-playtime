@@ -13,7 +13,7 @@ import {
   defaultFilters,
   type Timeframe,
 } from "@/lib/psn/analytics";
-import type { DashboardData } from "@/lib/psn/types";
+import type { DashboardData } from "@/lib/psn/contract.schema";
 import { DashboardHeader } from "./dashboard-header";
 import { DashboardSidebar } from "./dashboard-sidebar";
 import { FilterBar } from "./filter-bar";

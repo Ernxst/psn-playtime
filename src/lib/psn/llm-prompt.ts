@@ -19,6 +19,7 @@ import {
   topFranchises,
   valuePerGame,
 } from "./analytics";
+import type { DashboardData, GamePlay } from "./contract.schema";
 import {
   summariseAddOns,
   summarisePriceContext,
@@ -27,7 +28,6 @@ import {
   type SpendSummary,
 } from "./spend";
 import type { TransactionRow } from "./transactions";
-import type { DashboardData, GamePlay } from "./types";
 
 /** The category a question belongs to, used to group the selector and follow-ups. */
 export type PromptGroup =

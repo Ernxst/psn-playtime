@@ -1,3 +1,4 @@
+import type { DashboardData, GamePlay } from "./contract.schema";
 /**
  * Joins imported PSN transactions to playtime (by title) to answer "what did
  * each game cost me per hour". Pure selectors over `DashboardData` + the parsed
@@ -8,7 +9,6 @@
  * Anything that fails to match is surfaced as `unmatchedSpend` rather than hidden.
  */
 import type { TransactionRow } from "./transactions";
-import type { DashboardData, GamePlay } from "./types";
 import { round, yearOf } from "./util";
 
 /** One game with its matched spend and resulting value. */
@@ -71,7 +71,7 @@ function normTitle(name: string): string {
 }
 
 /** Index library games by normalised name, keeping the first per name. */
-function indexByName(games: GamePlay[]): Map<string, GamePlay> {
+function indexByName(games: readonly GamePlay[]): Map<string, GamePlay> {
   const byName = new Map<string, GamePlay>();
   for (const game of games) {
     const key = normTitle(game.name);
@@ -81,7 +81,7 @@ function indexByName(games: GamePlay[]): Map<string, GamePlay> {
 }
 
 /** Match by skuId, which embeds the title id (e.g. `EP0006-PPSA06092_00-...`). */
-function matchBySku(skuId: string | undefined, games: GamePlay[]): GamePlay | undefined {
+function matchBySku(skuId: string | undefined, games: readonly GamePlay[]): GamePlay | undefined {
   if (!skuId) return undefined;
   return games.find((g) => g.titleId !== "" && skuId.includes(g.titleId));
 }
@@ -107,7 +107,7 @@ function containsWords(key: string, name: string): boolean {
  * wins, so a sequel/edition ("god of war ragnarok") is not absorbed by a
  * shorter base title ("god of war").
  */
-function matchByName(key: string, games: GamePlay[]): GamePlay | undefined {
+function matchByName(key: string, games: readonly GamePlay[]): GamePlay | undefined {
   let best: GamePlay | undefined;
   let bestLength = 0;
   for (const g of games) {
@@ -125,7 +125,7 @@ function matchByName(key: string, games: GamePlay[]): GamePlay | undefined {
  */
 function matchGame(
   tx: TransactionRow,
-  games: GamePlay[],
+  games: readonly GamePlay[],
   byName: Map<string, GamePlay>
 ): GamePlay | undefined {
   const bySku = matchBySku(tx.skuId, games);
@@ -246,7 +246,7 @@ function addToYear(acc: Acc, year: number, amount: number): void {
 function recordPurchase(
   acc: Acc,
   tx: TransactionRow,
-  games: GamePlay[],
+  games: readonly GamePlay[],
   byName: Map<string, GamePlay>
 ): void {
   const amount = tx.amountMinor / 100;
@@ -265,7 +265,7 @@ function recordPurchase(
 function recordTransaction(
   acc: Acc,
   tx: TransactionRow,
-  games: GamePlay[],
+  games: readonly GamePlay[],
   byName: Map<string, GamePlay>
 ): void {
   if (acc.currency === "" && tx.currency !== "") acc.currency = tx.currency;
@@ -280,7 +280,10 @@ function recordTransaction(
   recordPurchase(acc, tx, games, byName);
 }
 
-function buildLeaderboard(games: GamePlay[], spendByTitle: Map<string, number>): SpendLeader[] {
+function buildLeaderboard(
+  games: readonly GamePlay[],
+  spendByTitle: Map<string, number>
+): SpendLeader[] {
   const leaders: SpendLeader[] = [];
   for (const g of games) {
     const spend = spendByTitle.get(g.titleId);
@@ -302,7 +305,7 @@ function buildLeaderboard(games: GamePlay[], spendByTitle: Map<string, number>):
  * {@link buildLeaderboard}, which is filtered to `hours > 0`. Top-ups never
  * reach `spendByTitle`, so they are excluded by construction.
  */
-function buildByTitle(games: GamePlay[], spendByTitle: Map<string, number>): TitleSpend[] {
+function buildByTitle(games: readonly GamePlay[], spendByTitle: Map<string, number>): TitleSpend[] {
   const titles: TitleSpend[] = [];
   for (const g of games) {
     const spend = spendByTitle.get(g.titleId);
@@ -319,7 +322,7 @@ function buildByYear(byYear: Acc["byYear"]): YearSpend[] {
 }
 
 function countAddOns(
-  games: GamePlay[],
+  games: readonly GamePlay[],
   transactions: readonly TransactionRow[]
 ): Map<string, number> {
   const byName = indexByName(games);
@@ -333,7 +336,7 @@ function countAddOns(
 }
 
 function buildAddOnSummaries(
-  games: GamePlay[],
+  games: readonly GamePlay[],
   counts: ReadonlyMap<string, number>
 ): AddOnSummary[] {
   const summaries: AddOnSummary[] = [];
@@ -409,7 +412,7 @@ function isBaseGamePurchase(tx: TransactionRow, game: GamePlay | undefined): gam
 
 /** First base-game (non-add-on) purchase per matched title, keyed by titleId. */
 function priceContextByTitle(
-  games: GamePlay[],
+  games: readonly GamePlay[],
   transactions: readonly TransactionRow[]
 ): Map<string, PriceContextSummary> {
   const byName = indexByName(games);
