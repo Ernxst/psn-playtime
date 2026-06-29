@@ -1,6 +1,15 @@
 import { Link } from "@tanstack/react-router";
 import { Home, Info } from "lucide-react";
-import { lazy, Suspense, useCallback, useRef, useState, useSyncExternalStore } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useDeferredValue,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
@@ -257,7 +266,7 @@ function DashboardContent({
   filters: DashboardFilters;
   onClearFilters: () => void;
 }) {
-  const scoped = applyFilters(data, filters);
+  const scoped = useMemo(() => applyFilters(data, filters), [data, filters]);
   if (scoped.games.length === 0) {
     return data.games.length > 0 ? (
       <DashboardNoMatches onClear={onClearFilters} />
@@ -268,10 +277,21 @@ function DashboardContent({
   return <DashboardBody data={scoped} accountData={data} timeframe={filters.timeframe} />;
 }
 
+/**
+ * Defer only the free-text search so typing keeps the search input responsive (it stays
+ * bound to the immediate `filters`), while the expensive `applyFilters` re-filter lags
+ * behind to the settled term. Every other facet still applies immediately.
+ */
+function useDeferredFilters(filters: DashboardFilters): DashboardFilters {
+  const deferredSearch = useDeferredValue(filters.search);
+  return useMemo(() => ({ ...filters, search: deferredSearch }), [filters, deferredSearch]);
+}
+
 export function DashboardView({ data, onSignOut, signingOut }: Props) {
   const { profile } = data;
   const [filters, setFilters] = useState<DashboardFilters>(defaultFilters);
   const resetFilters = () => setFilters(defaultFilters);
+  const deferredFilters = useDeferredFilters(filters);
   return (
     <SidebarProvider>
       <DashboardSidebar />
@@ -301,7 +321,7 @@ export function DashboardView({ data, onSignOut, signingOut }: Props) {
             />
             <FilterBar data={data} filters={filters} onChange={setFilters} />
           </div>
-          <DashboardContent data={data} filters={filters} onClearFilters={resetFilters} />
+          <DashboardContent data={data} filters={deferredFilters} onClearFilters={resetFilters} />
         </div>
       </SidebarInset>
     </SidebarProvider>
