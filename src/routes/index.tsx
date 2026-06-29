@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { SignInCard } from "@/components/onboarding/sign-in-card";
+import { SignInCard } from "@/features/onboarding/components/sign-in-card";
 import { SITE_NAME, SITE_URL } from "@/lib/seo";
 
 const TITLE = "PSN Playtime — PlayStation Playtime Tracker & PSN Hours Visualizer";
