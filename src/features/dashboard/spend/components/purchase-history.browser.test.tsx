@@ -4,8 +4,7 @@ import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
 import { demoDashboard } from "@/domain/mock";
 import type { TransactionRow } from "@/domain/transactions";
-import { clearTransactionImport, saveTransactionImport } from "@/stores/transactions-store";
-import { TestAtomProvider, testRegistry } from "@/test/atom-registry";
+import { TestAtomProvider, testTransactionStore } from "@/test/atom-registry";
 import { PurchaseHistorySection } from "./purchase-history";
 
 /** Render under the atom provider so `useTransactionImport` shares the registry that imperative writes target. */
@@ -32,12 +31,12 @@ function row(overrides: Partial<TransactionRow> & Pick<TransactionRow, "key">): 
 }
 
 function seed(transactions: TransactionRow[]) {
-  saveTransactionImport(testRegistry, {
+  testTransactionStore.save({
     transactions,
     importedAt: "2024-01-01T00:00:00.000Z",
     source: "store.playstation.com",
   });
-  onTestFinished(() => clearTransactionImport(testRegistry));
+  onTestFinished(() => testTransactionStore.clear());
 }
 
 describe("PurchaseHistorySection", () => {

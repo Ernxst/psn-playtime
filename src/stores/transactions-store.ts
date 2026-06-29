@@ -62,12 +62,12 @@ function parse(raw: string): TransactionImport | null {
  *
  * The kvs write runs on a forked fiber (Atom `runtime.fn`), so
  * `localStorage.setItem` flushes on a microtask rather than synchronously when
- * `saveTransactionImport()` returns — an immediate read-after-write can be
- * stale. That is safe here only because the sole direct-read consumer, the
- * `/import` loader, reads before it writes within a single run, and re-runs are
- * separated by navigation (which lets the prior write flush).
+ * `store.save()` returns — an immediate read-after-write can be stale. That is
+ * safe here only because the sole direct-read consumer, the `/import` loader,
+ * reads before it writes within a single run, and re-runs are separated by
+ * navigation (which lets the prior write flush).
  */
-export function loadTransactionImport(): TransactionImport | null {
+function readPersistedImport(): TransactionImport | null {
   if (typeof window === "undefined") return null;
   const raw = window.localStorage.getItem(TRANSACTIONS_STORAGE_KEY);
   if (raw === cachedRaw) return cachedValue;
@@ -77,26 +77,43 @@ export function loadTransactionImport(): TransactionImport | null {
 }
 
 /**
- * Persist an import. The kvs write updates `localStorage` and notifies
- * subscribers. The caller passes the registry it shares with the React hooks
- * (the per-request one from router `context`), so a write reaches the same
- * instance `useTransactionImport` reads.
+ * Imperative read/write/clear surface over the persisted transaction import.
+ * Built per request from the router-context registry and threaded to imperative
+ * writers (the `/import` loader), so the raw {@link AtomRegistry} stays a
+ * private implementation detail rather than a prop-drilled state container.
  */
-export function saveTransactionImport(
-  registry: AtomRegistry.AtomRegistry,
-  value: TransactionImport
-): void {
-  if (typeof window === "undefined") return;
-  registry.set(transactionImportAtom, value);
+export interface TransactionStore {
+  /** Read the persisted import directly from `localStorage`, or `null`. */
+  load(): TransactionImport | null;
+  /** Persist an import; notifies {@link useTransactionImport} subscribers. */
+  save(value: TransactionImport): void;
+  /** Clear the persisted import so subsequent reads resolve to `null`. */
+  clear(): void;
 }
 
 /**
- * Clear the persisted import. Writes JSON `"null"` to the key (rather than
- * removing it); subsequent reads still resolve to `null`.
+ * Build a {@link TransactionStore} that closes over the per-request
+ * {@link AtomRegistry}. The registry is the same instance the React hooks read
+ * (seeded into `EffectAtomProvider` from the router context), so a `save`/`clear`
+ * reaches the instance `useTransactionImport` subscribes to.
+ *
+ * `save`/`clear` write through the kvs atom, updating `localStorage` and
+ * notifying subscribers; both keep the `typeof window` no-op guard so a server
+ * render never touches `localStorage`. `load` needs no registry but lives here
+ * for cohesion — the store is the single surface over the persisted import.
  */
-export function clearTransactionImport(registry: AtomRegistry.AtomRegistry): void {
-  if (typeof window === "undefined") return;
-  registry.set(transactionImportAtom, null);
+export function makeTransactionStore(registry: AtomRegistry.AtomRegistry): TransactionStore {
+  return {
+    load: () => readPersistedImport(),
+    save: (value) => {
+      if (typeof window === "undefined") return;
+      registry.set(transactionImportAtom, value);
+    },
+    clear: () => {
+      if (typeof window === "undefined") return;
+      registry.set(transactionImportAtom, null);
+    },
+  };
 }
 
 /**

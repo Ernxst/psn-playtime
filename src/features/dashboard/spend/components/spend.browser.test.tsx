@@ -6,8 +6,7 @@ import { demoDashboard } from "@/domain/mock";
 import { bookmarkletHref } from "@/domain/transaction-bookmarklet";
 import type { TransactionRow } from "@/domain/transactions";
 import type { GamePlay } from "@/server/providers/account/snapshot";
-import { clearTransactionImport, saveTransactionImport } from "@/stores/transactions-store";
-import { TestAtomProvider, testRegistry } from "@/test/atom-registry";
+import { TestAtomProvider, testTransactionStore } from "@/test/atom-registry";
 import { AddOnsSection, SpendSection, SpentMostSection } from "./spend";
 
 afterEach(() => {
@@ -41,12 +40,12 @@ function mockPointer(coarse: boolean) {
 }
 
 function seed(transactions: TransactionRow[]) {
-  saveTransactionImport(testRegistry, {
+  testTransactionStore.save({
     transactions,
     importedAt: "2024-01-01T00:00:00.000Z",
     source: "store.playstation.com",
   });
-  onTestFinished(() => clearTransactionImport(testRegistry));
+  onTestFinished(() => testTransactionStore.clear());
 }
 
 /** An add-on purchase matched to "FIFA 18" (titleId DEMO-1) in the demo library. */
@@ -109,7 +108,7 @@ function baseFor(titleId: string, amountMinor: number): TransactionRow {
 
 describe("SpendSection", () => {
   it("prompts for an import when no transactions are present", async () => {
-    onTestFinished(() => clearTransactionImport(testRegistry));
+    onTestFinished(() => testTransactionStore.clear());
 
     await renderWithAtoms(<SpendSection data={demoDashboard} />);
 
@@ -118,7 +117,7 @@ describe("SpendSection", () => {
   });
 
   it("tells coarse pointer users to copy the bookmark", async () => {
-    onTestFinished(() => clearTransactionImport(testRegistry));
+    onTestFinished(() => testTransactionStore.clear());
     mockPointer(true);
 
     await renderWithAtoms(<SpendSection data={demoDashboard} />);
@@ -129,7 +128,7 @@ describe("SpendSection", () => {
   });
 
   it("tells fine pointer users they can drag the bookmarklet", async () => {
-    onTestFinished(() => clearTransactionImport(testRegistry));
+    onTestFinished(() => testTransactionStore.clear());
     mockPointer(false);
 
     await renderWithAtoms(<SpendSection data={demoDashboard} />);
@@ -144,7 +143,7 @@ describe("SpendSection", () => {
   });
 
   it("copies the bookmarklet and flashes confirmation when Copy is clicked", async () => {
-    onTestFinished(() => clearTransactionImport(testRegistry));
+    onTestFinished(() => testTransactionStore.clear());
     const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
 
     await renderWithAtoms(<SpendSection data={demoDashboard} />);
@@ -156,7 +155,7 @@ describe("SpendSection", () => {
   });
 
   it("keeps the drag affordance out of the tab order and accessibility tree", async () => {
-    onTestFinished(() => clearTransactionImport(testRegistry));
+    onTestFinished(() => testTransactionStore.clear());
 
     await renderWithAtoms(<SpendSection data={demoDashboard} />);
 
@@ -170,7 +169,7 @@ describe("SpendSection", () => {
   });
 
   it("links to PlayStation order history in the import instructions", async () => {
-    onTestFinished(() => clearTransactionImport(testRegistry));
+    onTestFinished(() => testTransactionStore.clear());
 
     await renderWithAtoms(<SpendSection data={demoDashboard} />);
 
@@ -247,7 +246,7 @@ describe("AddOnsSection", () => {
   });
 
   it("hides the add-ons section when no transactions are imported", async () => {
-    onTestFinished(() => clearTransactionImport(testRegistry));
+    onTestFinished(() => testTransactionStore.clear());
 
     await renderWithAtoms(<AddOnsSection data={realDashboard} />);
 
@@ -294,7 +293,7 @@ describe("SpentMostSection", () => {
   });
 
   it("hides the spent-most section when no transactions are imported", async () => {
-    onTestFinished(() => clearTransactionImport(testRegistry));
+    onTestFinished(() => testTransactionStore.clear());
 
     await renderWithAtoms(<SpentMostSection data={realDashboard} />);
 
