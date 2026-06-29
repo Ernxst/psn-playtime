@@ -32,7 +32,7 @@ import {
   getUserTitles,
 } from "psn-api";
 import type { AuthorizationPayload } from "psn-api";
-import type { ProfileSummary } from "@/lib/psn/types";
+import type { ProfileSummary } from "@/lib/psn/contract.schema";
 import { paginateAll } from "@/server/paginate.effect";
 import type { AccountCredential } from "@/server/ports/account-provider.effect";
 import {

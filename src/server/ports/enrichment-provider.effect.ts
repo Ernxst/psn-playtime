@@ -1,6 +1,6 @@
 import * as Context from "effect/Context";
 import type * as Effect from "effect/Effect";
-import type { Genre } from "@/lib/psn/types";
+import type { Genre } from "@/lib/psn/contract.schema";
 import type { EnrichmentProviderError } from "./errors.effect";
 
 /**

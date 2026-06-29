@@ -8,7 +8,7 @@
  * Anything time-bucketed (see `hoursByYear`) uses a game's most-recent-play year
  * as a proxy and is labelled honestly in the UI as "by most-recent year".
  */
-import type { DashboardData, GamePlay, Genre, Platform } from "./types";
+import type { DashboardData, GamePlay, Genre, Platform } from "./contract.schema";
 import { round, yearOf } from "./util";
 
 const HOURS_PER_DAY = 24;

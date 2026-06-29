@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
+import type { Genre, Platform } from "./contract.schema";
 import { enrichTitle, platformOf } from "./enrich";
-import type { Genre, Platform } from "./types";
 
 describe(".enrichTitle", () => {
   it.each<[string, Genre, string | undefined]>([

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useMediaQuery } from "@/hooks/use-media-query";
+import type { DashboardData } from "@/lib/psn/contract.schema";
 import {
   type AddOnSummary,
   type SpendSummary,
@@ -13,7 +14,6 @@ import {
   type TitleSpend,
 } from "@/lib/psn/spend";
 import { bookmarkletHref } from "@/lib/psn/transaction-bookmarklet";
-import type { DashboardData } from "@/lib/psn/types";
 import { useTransactionImport } from "@/lib/transactions-store";
 import { fmtHours } from "./format";
 

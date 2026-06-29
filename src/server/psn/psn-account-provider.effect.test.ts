@@ -24,7 +24,7 @@ import type {
   UserPlayedGamesResponse,
   UserTitlesResponse,
 } from "psn-api";
-import type { DashboardData } from "@/lib/psn/types";
+import type { DashboardData } from "@/lib/psn/contract.schema";
 import { AccountProvider } from "@/server/ports/account-provider.effect";
 import type { AccountProviderError } from "@/server/ports/errors.effect";
 import { PsnAccountProviderLayer } from "@/server/psn/psn-account-provider.effect";

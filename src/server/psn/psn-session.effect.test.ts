@@ -12,7 +12,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import type { TrophyTitle, UserPlayedGamesResponse } from "psn-api";
 import { describe, expect, it } from "vitest";
-import type { DashboardData, ProfileSummary } from "@/lib/psn/types";
+import type { DashboardData, ProfileSummary } from "@/lib/psn/contract.schema";
 import { ProviderUnavailableError } from "@/server/ports/errors.effect";
 import { buildSnapshot } from "@/server/psn/psn-account-provider.effect";
 import { PsnSession, type PsnSessionShape } from "@/server/psn/psn-session.effect";

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
+import type { DashboardData, GamePlay } from "./contract.schema";
 import { isAddOnPurchase, summariseAddOns, summarisePriceContext, summariseSpend } from "./spend";
 import type { TransactionRow } from "./transactions";
-import type { DashboardData, GamePlay } from "./types";
 
 function game(name: string, hours: number, titleId = name): GamePlay {
   return {

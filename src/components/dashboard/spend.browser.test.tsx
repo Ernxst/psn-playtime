@@ -1,10 +1,10 @@
 import { afterEach, expect, onTestFinished, test, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
+import type { GamePlay } from "@/lib/psn/contract.schema";
 import { demoDashboard } from "@/lib/psn/mock";
 import { bookmarkletHref } from "@/lib/psn/transaction-bookmarklet";
 import type { TransactionRow } from "@/lib/psn/transactions";
-import type { GamePlay } from "@/lib/psn/types";
 import { clearTransactionImport, saveTransactionImport } from "@/lib/transactions-store";
 import { AddOnsSection, SpendSection, SpentMostSection } from "./spend";
 

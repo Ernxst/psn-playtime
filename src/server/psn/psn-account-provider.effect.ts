@@ -26,7 +26,7 @@
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import type { DashboardData } from "@/lib/psn/types";
+import type { DashboardData } from "@/lib/psn/contract.schema";
 import {
   AccountProvider,
   type AccountCredential,

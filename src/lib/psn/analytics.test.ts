@@ -15,8 +15,8 @@ import {
   topGamesByHours,
   valuePerGame,
 } from "./analytics";
+import type { DashboardData } from "./contract.schema";
 import { demoDashboard } from "./mock";
-import type { DashboardData } from "./types";
 
 /** Small hand-built library with exactly-known aggregates. */
 const sample: DashboardData = {
