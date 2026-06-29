@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { demoDashboard } from "@/domain/mock";
 import type { TransactionRow } from "@/domain/transactions";
+import { topGamesByHours } from "@/features/dashboard/filters/analytics";
 import { fmtDate } from "@/features/dashboard/format";
 import type { GamePlay } from "@/server/providers/account/snapshot";
-import { topGamesByHours } from "./analytics";
 import { buildDataSummary, buildFollowUps, buildMenu, buildPrompt } from "./llm-prompt";
 import {
   ADD_ON_SIGNAL_GUIDANCE,

@@ -21,10 +21,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { gameRows } from "@/features/dashboard/analytics";
-import type { GameRow } from "@/features/dashboard/analytics";
+import { gameRows } from "@/features/dashboard/filters/analytics";
+import type { GameRow } from "@/features/dashboard/filters/analytics";
+import { fmtDate, fmtHours, fmtNumber } from "@/features/dashboard/format";
 import type { DashboardData } from "@/server/providers/account/snapshot";
-import { fmtDate, fmtHours, fmtNumber } from "../format";
 
 declare module "@tanstack/react-table" {
   interface ColumnMeta<TData extends unknown, TValue> {

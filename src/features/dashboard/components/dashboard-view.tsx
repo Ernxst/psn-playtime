@@ -12,14 +12,20 @@ import {
   type DashboardFilters,
   defaultFilters,
   type Timeframe,
-} from "@/features/dashboard/analytics";
+} from "@/features/dashboard/filters/analytics";
+import { FilterBar } from "@/features/dashboard/filters/components/filter-bar";
+import { GamesTable } from "@/features/dashboard/filters/components/games-table";
+import {
+  AppsExcludedNote,
+  ComebacksCard,
+  LifespansCard,
+  RecencyCard,
+  ValueCard,
+} from "@/features/dashboard/filters/components/insights";
+import { KpiCards } from "@/features/dashboard/filters/components/kpi-cards";
 import type { DashboardData } from "@/server/providers/account/snapshot";
 import { DashboardHeader } from "./dashboard-header";
 import { DashboardSidebar } from "./dashboard-sidebar";
-import { FilterBar } from "./filter-bar";
-import { GamesTable } from "./games-table";
-import { AppsExcludedNote, ComebacksCard, LifespansCard, RecencyCard, ValueCard } from "./insights";
-import { KpiCards } from "./kpi-cards";
 import { LlmPromptCard } from "./llm-prompt-card";
 import { PurchaseHistorySection } from "./purchase-history";
 import { AddOnsSection, SpendSection, SpentMostSection } from "./spend";

@@ -1,6 +1,12 @@
+import {
+  FranchiseChart,
+  GenreChart,
+  SessionChart,
+  TopGamesChart,
+  YearChart,
+} from "@/features/dashboard/filters/components/charts";
 import type { DashboardData } from "@/server/providers/account/snapshot";
 import { ChartCard } from "./chart-card";
-import { FranchiseChart, GenreChart, SessionChart, TopGamesChart, YearChart } from "./charts";
 
 export function TopGamesSection({ data }: { data: DashboardData }) {
   return (

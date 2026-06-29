@@ -1,6 +1,4 @@
 import type { TransactionRow } from "@/domain/transactions";
-import { fmtDate } from "@/features/dashboard/format";
-import type { DashboardData, GamePlay } from "@/server/providers/account/snapshot";
 import {
   bingeVsDipIn,
   genreBreakdown,
@@ -8,7 +6,9 @@ import {
   recency,
   topFranchises,
   valuePerGame,
-} from "./analytics";
+} from "@/features/dashboard/filters/analytics";
+import { fmtDate } from "@/features/dashboard/format";
+import type { DashboardData, GamePlay } from "@/server/providers/account/snapshot";
 import {
   ADD_ON_SIGNAL_GUIDANCE,
   COMPLETION_INTERPRETATION_GUIDANCE,
