@@ -2,12 +2,9 @@
 
 import { Field as FieldPrimitive } from "@base-ui/react/field";
 import type React from "react";
-import { cn } from "#/lib/utils.ts";
+import { cn } from "@/lib/utils";
 
-export function Field({
-  className,
-  ...props
-}: FieldPrimitive.Root.Props): React.ReactElement {
+export function Field({ className, ...props }: FieldPrimitive.Root.Props): React.ReactElement {
   return (
     <FieldPrimitive.Root
       className={cn("flex flex-col items-start gap-2", className)}
@@ -25,7 +22,7 @@ export function FieldLabel({
     <FieldPrimitive.Label
       className={cn(
         "inline-flex items-center gap-2 font-medium text-base/4.5 text-foreground data-disabled:opacity-64 sm:text-sm/4",
-        className,
+        className
       )}
       data-slot="field-label"
       {...props}
@@ -33,16 +30,9 @@ export function FieldLabel({
   );
 }
 
-export function FieldItem({
-  className,
-  ...props
-}: FieldPrimitive.Item.Props): React.ReactElement {
+export function FieldItem({ className, ...props }: FieldPrimitive.Item.Props): React.ReactElement {
   return (
-    <FieldPrimitive.Item
-      className={cn("flex", className)}
-      data-slot="field-item"
-      {...props}
-    />
+    <FieldPrimitive.Item className={cn("flex", className)} data-slot="field-item" {...props} />
   );
 }
 
@@ -72,9 +62,7 @@ export function FieldError({
   );
 }
 
-export const FieldControl: typeof FieldPrimitive.Control =
-  FieldPrimitive.Control;
-export const FieldValidity: typeof FieldPrimitive.Validity =
-  FieldPrimitive.Validity;
+export const FieldControl: typeof FieldPrimitive.Control = FieldPrimitive.Control;
+export const FieldValidity: typeof FieldPrimitive.Validity = FieldPrimitive.Validity;
 
 export { FieldPrimitive };

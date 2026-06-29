@@ -45,7 +45,7 @@ Shared client-state stores backed by SSR-safe `localStorage` (via `useSyncExtern
 
 ## `components/ui/`
 
-Vendored shadcn/ui primitives. Treated as third-party: not restructured, and they keep the `#/` import alias. Do not hand-edit these as if they were our components.
+Vendored shadcn/ui primitives. Treated as third-party: not restructured. Do not hand-edit these as if they were our components.
 
 ## `hooks/`
 
@@ -63,4 +63,4 @@ Shared test helpers and fixtures (e.g. the in-memory Web Storage stub). Excluded
 
 - **File naming:** the only infixes are `.effect.` (modules inside the strict Effect glob) and `.test.` / `.browser.test.`. Everything else is plain kebab-case `.ts`.
 - **Tests are co-located** with the module they cover.
-- **Import alias:** `@/` maps to `src/`. The legacy `#/` alias survives only in `components/ui/` pending standardisation (#161).
+- **Import alias:** `@/` maps to `src/`.

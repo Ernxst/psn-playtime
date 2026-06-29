@@ -2,8 +2,8 @@
 
 import { Check, Copy } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { cn } from "#/lib/utils.ts";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 /** How long the copied-confirmation state is shown before reverting. */
 const CONFIRM_MS = 2000;
