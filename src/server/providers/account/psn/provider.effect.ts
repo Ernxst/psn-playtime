@@ -9,9 +9,9 @@
  *
  * Structure after the #165 hardening:
  * - The authenticated PSN session is a `PsnSession` `Context.Service`
- *   (`./psn-session.effect`): it does the npsso→token exchange once and captures
+ *   (`./session.effect`): it does the npsso→token exchange once and captures
  *   `auth` in closure, so `auth` is never threaded as a parameter here.
- * - The pure normalization/name-matching helpers live in `./psn-normalize`
+ * - The pure normalization/name-matching helpers live in `./normalize`
  *   (Date-free, Effect-workflow-free), value-imported below.
  * - `buildSnapshot` `yield*`s `PsnSession`, fetches the three session effects in
  *   parallel (a trophy failure is swallowed to `[]`, exactly as the old
@@ -31,15 +31,15 @@ import {
   AccountProvider,
   type AccountCredential,
   type AccountProviderShape,
-} from "@/server/ports/account-provider.effect";
-import type { AccountProviderError } from "@/server/ports/errors.effect";
+} from "@/server/providers/account/contract.effect";
 import {
   buildTrophyMap,
   computeMeta,
   partitionTitles,
   type TrophyTitle,
-} from "@/server/psn/psn-normalize";
-import { PsnSession } from "@/server/psn/psn-session.effect";
+} from "@/server/providers/account/psn/normalize";
+import { PsnSession } from "@/server/providers/account/psn/session.effect";
+import type { AccountProviderError } from "@/server/providers/errors.effect";
 
 /**
  * Fetch and normalize one account into the un-enriched `DashboardData`. Profile,

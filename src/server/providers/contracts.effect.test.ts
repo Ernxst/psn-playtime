@@ -3,8 +3,8 @@ import * as Layer from "effect/Layer";
 import * as Redacted from "effect/Redacted";
 import { describe, expect, it } from "vitest";
 import { demoDashboard } from "@/lib/psn/mock";
-import { AccountProvider, type AccountCredential } from "./account-provider.effect";
-import { type GameMetadata, EnrichmentProvider } from "./enrichment-provider.effect";
+import { AccountProvider, type AccountCredential } from "./account/contract.effect";
+import { type GameMetadata, EnrichmentProvider } from "./enrichment/contract.effect";
 import {
   CredentialRejectedError,
   ProviderRateLimitedError,

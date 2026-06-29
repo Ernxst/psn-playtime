@@ -25,9 +25,9 @@ import type {
   UserTitlesResponse,
 } from "psn-api";
 import type { DashboardData } from "@/lib/psn/contract.schema";
-import { AccountProvider } from "@/server/ports/account-provider.effect";
-import type { AccountProviderError } from "@/server/ports/errors.effect";
-import { PsnAccountProviderLayer } from "@/server/psn/psn-account-provider.effect";
+import { AccountProvider } from "@/server/providers/account/contract.effect";
+import { PsnAccountProviderLayer } from "@/server/providers/account/psn/provider.effect";
+import type { AccountProviderError } from "@/server/providers/errors.effect";
 
 const mockExchangeNpsso = vi.mocked(exchangeNpssoForAccessCode);
 const mockExchangeTokens = vi.mocked(exchangeAccessCodeForAuthTokens);

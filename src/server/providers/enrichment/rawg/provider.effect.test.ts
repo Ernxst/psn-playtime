@@ -3,9 +3,9 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { GameMetadata } from "@/server/ports/enrichment-provider.effect";
-import { EnrichmentProvider } from "@/server/ports/enrichment-provider.effect";
-import { EnrichmentProviderLayer } from "@/server/rawg.effect";
+import type { GameMetadata } from "@/server/providers/enrichment/contract.effect";
+import { EnrichmentProvider } from "@/server/providers/enrichment/contract.effect";
+import { EnrichmentProviderLayer } from "@/server/providers/enrichment/rawg/provider.effect";
 
 /**
  * Provider-level port of the old `rawg.ts` network tests (no-key gate, genre

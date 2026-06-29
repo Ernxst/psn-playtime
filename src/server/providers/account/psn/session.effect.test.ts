@@ -5,7 +5,7 @@
  * concrete psn-api transport — by providing a hand-built fake `PsnSession` layer
  * (no psn-api, no mocks) and asserting the assembled `DashboardData` reflects
  * exactly what the fake session returned. This is the seam a future provider, or
- * a contract test, plugs into. It complements `psn-account-provider.effect.test`
+ * a contract test, plugs into. It complements `provider.effect.test`
  * (which drives the *real* session with mocked psn-api for byte-parity).
  */
 import * as Effect from "effect/Effect";
@@ -13,9 +13,9 @@ import * as Layer from "effect/Layer";
 import type { TrophyTitle, UserPlayedGamesResponse } from "psn-api";
 import { describe, expect, it } from "vitest";
 import type { DashboardData, ProfileSummary } from "@/lib/psn/contract.schema";
-import { ProviderUnavailableError } from "@/server/ports/errors.effect";
-import { buildSnapshot } from "@/server/psn/psn-account-provider.effect";
-import { PsnSession, type PsnSessionShape } from "@/server/psn/psn-session.effect";
+import { buildSnapshot } from "@/server/providers/account/psn/provider.effect";
+import { PsnSession, type PsnSessionShape } from "@/server/providers/account/psn/session.effect";
+import { ProviderUnavailableError } from "@/server/providers/errors.effect";
 
 type PlayedTitle = UserPlayedGamesResponse["titles"][number];
 

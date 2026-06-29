@@ -17,7 +17,7 @@ import {
   setActiveAccount,
   useCachedAccounts,
 } from "@/lib/dashboard-store";
-import { signInWithToken } from "@/server/handlers.effect";
+import { signInWithToken } from "@/server/api/account.effect";
 
 /**
  * Reduce a pasted npsso value to the bare token.

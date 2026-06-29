@@ -1,14 +1,14 @@
 /**
  * The contract between the data layer and the UI, modelled as `Schema`.
  *
- * The server (`src/server/psn/psn-account-provider.effect.ts`) fetches from PSN via psn-api and normalizes
+ * The server (`src/server/providers/account/psn/provider.effect.ts`) fetches from PSN via psn-api and normalizes
  * everything into a single `DashboardData` object. The UI (`src/lib/psn/analytics.ts`
  * + components) only ever consumes `DashboardData` — it never touches psn-api.
  *
  * This module is the single source of truth for the contract shape. It is the
  * decode/encode seam: `DashboardData` crosses the server-fn boundary AND is
  * persisted in the client localStorage cache, so a `Schema` lets us validate it
- * at those seams (see `decodeDashboard` in `@/server/handlers.effect`).
+ * at those seams (see `decodeDashboard` in `@/server/api/account.effect`).
  *
  * Kept PURE — Date-free and Effect-workflow-free — so it stays out of the
  * `*.effect.ts` strict glob and can be imported cheaply by both sides. Importing

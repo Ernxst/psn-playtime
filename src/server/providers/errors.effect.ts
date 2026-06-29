@@ -3,8 +3,8 @@ import * as Data from "effect/Data";
 /**
  * Tagged-error model for the platform-agnostic service ports (phase E3).
  *
- * Every failure mode here is grounded in what `src/server/psn/psn-account-provider.effect.ts` and
- * `src/server/rawg.ts` can actually surface today — no speculative cases. The
+ * Every failure mode here is grounded in what `src/server/providers/account/psn/provider.effect.ts` and
+ * `src/server/providers/enrichment/rawg/client.ts` can actually surface today — no speculative cases. The
  * port interfaces (account-provider, enrichment-provider) return these on the
  * Effect error channel; the PSN/RAWG implementations (E5/E4) raise them and the
  * server functions recover with `Effect.catchTag`/`catchTags`.
