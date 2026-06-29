@@ -6,7 +6,6 @@ import {
   Outlet,
   RouterProvider,
 } from "@tanstack/react-router";
-import type * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
 import { toast } from "sonner";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { render } from "vitest-browser-react";
@@ -19,12 +18,8 @@ import {
   type TransactionRow,
 } from "@/domain/transactions";
 import { loadHandoff } from "@/routes/import";
-import {
-  clearTransactionImport,
-  loadTransactionImport,
-  saveTransactionImport,
-} from "@/stores/transactions-store";
-import { testRegistry } from "@/test/atom-registry";
+import type { TransactionStore } from "@/stores/transactions-store";
+import { testTransactionStore } from "@/test/atom-registry";
 import { multiProductPurchase } from "@/test/transaction-fixtures";
 import { ImportPending, ImportReceiver, receiveHandoff } from "./import-receiver";
 
@@ -41,7 +36,7 @@ function payloadOf(transactions: TransactionRow[]): HandoffPayload {
 }
 
 function seedPrior(transactions: TransactionRow[]) {
-  saveTransactionImport(testRegistry, {
+  testTransactionStore.save({
     transactions,
     importedAt: "2024-01-01T00:00:00.000Z",
     source: "www.playstation.com",
@@ -49,13 +44,13 @@ function seedPrior(transactions: TransactionRow[]) {
 }
 
 function cleanUp() {
-  clearTransactionImport(testRegistry);
+  testTransactionStore.clear();
   window.location.hash = "";
 }
 
 /** Render the real `/import` route (client loader + components) at `/import`. */
 function renderImportRoute() {
-  const rootRoute = createRootRouteWithContext<{ atomRegistry: AtomRegistry.AtomRegistry }>()({
+  const rootRoute = createRootRouteWithContext<{ transactionStore: TransactionStore }>()({
     component: () => <Outlet />,
   });
   const importRoute = createRoute({
@@ -73,7 +68,7 @@ function renderImportRoute() {
   const router = createRouter({
     routeTree: rootRoute.addChildren([importRoute, dashboardRoute]),
     history: createMemoryHistory({ initialEntries: ["/import"] }),
-    context: { atomRegistry: testRegistry },
+    context: { transactionStore: testTransactionStore },
   });
 
   return render(<RouterProvider router={router} />);
@@ -84,17 +79,17 @@ describe(".receiveHandoff", () => {
     onTestFinished(cleanUp);
     window.location.hash = `#${encodeHandoff(payloadOf(rows))}`;
 
-    const result = receiveHandoff(testRegistry);
+    const result = receiveHandoff(testTransactionStore);
 
     expect(result).toEqual({ status: "imported", count: 2 });
-    expect(loadTransactionImport()?.transactions).toHaveLength(2);
+    expect(testTransactionStore.load()?.transactions).toHaveLength(2);
   });
 
   it("clears the URL fragment after a successful import", () => {
     onTestFinished(cleanUp);
     window.location.hash = `#${encodeHandoff(payloadOf(rows))}`;
 
-    receiveHandoff(testRegistry);
+    receiveHandoff(testTransactionStore);
 
     expect(window.location.hash).toBe("");
   });
@@ -104,28 +99,28 @@ describe(".receiveHandoff", () => {
     seedPrior([rows[0]!]);
     window.location.hash = `#${encodeHandoff(payloadOf(rows))}`;
 
-    const result = receiveHandoff(testRegistry);
+    const result = receiveHandoff(testTransactionStore);
 
     // The prior row repeats and only the second row is appended.
     expect(result).toEqual({ status: "imported", count: 2 });
-    expect(loadTransactionImport()?.transactions).toHaveLength(2);
+    expect(testTransactionStore.load()?.transactions).toHaveLength(2);
   });
 
   it("reports an empty handoff and persists nothing when the fragment is absent", () => {
     onTestFinished(cleanUp);
     window.location.hash = "";
 
-    const result = receiveHandoff(testRegistry);
+    const result = receiveHandoff(testTransactionStore);
 
     expect(result).toEqual({ status: "empty" });
-    expect(loadTransactionImport()).toBeNull();
+    expect(testTransactionStore.load()).toBeNull();
   });
 
   it("reports an invalid handoff when the fragment carries no rows", () => {
     onTestFinished(cleanUp);
     window.location.hash = `#${encodeHandoff(payloadOf([]))}`;
 
-    const result = receiveHandoff(testRegistry);
+    const result = receiveHandoff(testTransactionStore);
 
     expect(result).toEqual({ status: "invalid" });
   });
@@ -134,10 +129,10 @@ describe(".receiveHandoff", () => {
     onTestFinished(cleanUp);
     window.location.hash = `#data=${encodeURIComponent(JSON.stringify({ v: 99, transactions: "nope" }))}`;
 
-    const result = receiveHandoff(testRegistry);
+    const result = receiveHandoff(testTransactionStore);
 
     expect(result).toEqual({ status: "empty" });
-    expect(loadTransactionImport()).toBeNull();
+    expect(testTransactionStore.load()).toBeNull();
   });
 });
 
@@ -150,7 +145,7 @@ describe("ImportReceiver", () => {
     await renderImportRoute();
 
     await expect.element(page.getByText("dashboard view")).toBeVisible();
-    expect(loadTransactionImport()?.transactions).toHaveLength(2);
+    expect(testTransactionStore.load()?.transactions).toHaveLength(2);
     expect(success).toHaveBeenCalledExactlyOnceWith(
       "Imported 2 transactions from your PlayStation history."
     );

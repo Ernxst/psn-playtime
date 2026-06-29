@@ -24,36 +24,41 @@ const validImport: TransactionImport = {
   source: "store.playstation.com",
 };
 
-/** Import the store fresh so its module-level snapshot cache never leaks across tests. */
+/**
+ * Build the store from a fresh module import so its module-level snapshot cache
+ * never leaks across tests. The registry is unused by `load` and a no-op for the
+ * windowless `save`/`clear` guards, so a bare registry suffices here.
+ */
 async function importStore() {
-  return import("./transactions-store");
+  const { makeTransactionStore } = await import("./transactions-store");
+  return makeTransactionStore(AtomRegistry.make());
 }
 
 afterEach(() => {
   vi.resetModules();
 });
 
-describe(".loadTransactionImport", () => {
+describe(".load", () => {
   it("returns null during server render when there is no window", async () => {
-    const { loadTransactionImport } = await importStore();
+    const store = await importStore();
 
-    expect(loadTransactionImport()).toBeNull();
+    expect(store.load()).toBeNull();
   });
 
   it("returns null when no import has been persisted", async () => {
     vi.stubGlobal("window", createWindowStub());
-    const { loadTransactionImport } = await importStore();
+    const store = await importStore();
 
-    expect(loadTransactionImport()).toBeNull();
+    expect(store.load()).toBeNull();
   });
 
   it("returns the decoded import when valid data is persisted", async () => {
     const win = createWindowStub();
     win.localStorage.setItem(STORAGE_KEY, JSON.stringify(validImport));
     vi.stubGlobal("window", win);
-    const { loadTransactionImport } = await importStore();
+    const store = await importStore();
 
-    expect(loadTransactionImport()).toEqual(validImport);
+    expect(store.load()).toEqual(validImport);
   });
 
   it("decodes a persisted import that has no transactions", async () => {
@@ -61,46 +66,46 @@ describe(".loadTransactionImport", () => {
     const win = createWindowStub();
     win.localStorage.setItem(STORAGE_KEY, JSON.stringify(empty));
     vi.stubGlobal("window", win);
-    const { loadTransactionImport } = await importStore();
+    const store = await importStore();
 
-    expect(loadTransactionImport()).toEqual(empty);
+    expect(store.load()).toEqual(empty);
   });
 
   it("returns null when the persisted JSON is malformed", async () => {
     const win = createWindowStub();
     win.localStorage.setItem(STORAGE_KEY, "{ not valid json");
     vi.stubGlobal("window", win);
-    const { loadTransactionImport } = await importStore();
+    const store = await importStore();
 
-    expect(loadTransactionImport()).toBeNull();
+    expect(store.load()).toBeNull();
   });
 
   it("returns null when the persisted JSON does not match the import schema", async () => {
     const win = createWindowStub();
     win.localStorage.setItem(STORAGE_KEY, JSON.stringify({ transactions: "nope", importedAt: 1 }));
     vi.stubGlobal("window", win);
-    const { loadTransactionImport } = await importStore();
+    const store = await importStore();
 
-    expect(loadTransactionImport()).toBeNull();
+    expect(store.load()).toBeNull();
   });
 
   it("returns null when the persisted JSON is the literal null written by a clear", async () => {
     const win = createWindowStub();
     win.localStorage.setItem(STORAGE_KEY, "null");
     vi.stubGlobal("window", win);
-    const { loadTransactionImport } = await importStore();
+    const store = await importStore();
 
-    expect(loadTransactionImport()).toBeNull();
+    expect(store.load()).toBeNull();
   });
 
   it("returns the cached reference when the raw string is unchanged between reads", async () => {
     const win = createWindowStub();
     win.localStorage.setItem(STORAGE_KEY, JSON.stringify(validImport));
     vi.stubGlobal("window", win);
-    const { loadTransactionImport } = await importStore();
+    const store = await importStore();
 
-    const first = loadTransactionImport();
-    const second = loadTransactionImport();
+    const first = store.load();
+    const second = store.load();
 
     expect(second).toBe(first);
   });
@@ -109,31 +114,31 @@ describe(".loadTransactionImport", () => {
     const win = createWindowStub();
     win.localStorage.setItem(STORAGE_KEY, JSON.stringify(validImport));
     vi.stubGlobal("window", win);
-    const { loadTransactionImport } = await importStore();
+    const store = await importStore();
 
-    const first = loadTransactionImport();
+    const first = store.load();
 
     const next: TransactionImport = { ...validImport, source: "another.host" };
     win.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    const second = loadTransactionImport();
+    const second = store.load();
 
     expect(first).toEqual(validImport);
     expect(second).toEqual(next);
   });
 });
 
-describe(".saveTransactionImport", () => {
+describe(".save", () => {
   it("does nothing during server render when there is no window", async () => {
-    const { saveTransactionImport } = await importStore();
+    const store = await importStore();
 
-    expect(() => saveTransactionImport(AtomRegistry.make(), validImport)).not.toThrow();
+    expect(() => store.save(validImport)).not.toThrow();
   });
 });
 
-describe(".clearTransactionImport", () => {
+describe(".clear", () => {
   it("does nothing during server render when there is no window", async () => {
-    const { clearTransactionImport } = await importStore();
+    const store = await importStore();
 
-    expect(() => clearTransactionImport(AtomRegistry.make())).not.toThrow();
+    expect(() => store.clear()).not.toThrow();
   });
 });
