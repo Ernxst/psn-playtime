@@ -15,7 +15,7 @@ export interface AppConfigShape {
 }
 
 export class AppConfig extends Context.Service<AppConfig>()(
-  "psn-playtime/integrations/effect/services.effect/AppConfig",
+  "psn-playtime/runtime/services.effect/AppConfig",
   {
     make: Effect.succeed<AppConfigShape>({ appName: "psn-playtime" }),
   }
