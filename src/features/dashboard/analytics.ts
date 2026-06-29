@@ -8,6 +8,7 @@
  * Anything time-bucketed (see `hoursByYear`) uses a game's most-recent-play year
  * as a proxy and is labelled honestly in the UI as "by most-recent year".
  */
+import { computeTotals } from "@/domain/totals";
 import type { DashboardData, GamePlay, Genre, Platform } from "@/server/providers/account/snapshot";
 import { round, yearOf } from "./util";
 
@@ -80,22 +81,17 @@ export function filterByTimeframe(data: DashboardData, range: Timeframe): Dashbo
  * for that subset. `profile` is left untouched.
  */
 function recompute(data: DashboardData, games: GamePlay[]): DashboardData {
-  const { firsts, lasts } = splitPlayDates(games);
-  const firstEverPlayed = earliest(firsts);
-
+  const totals = computeTotals(games);
   return {
     ...data,
     games,
     meta: {
       ...data.meta,
-      totalGames: games.length,
-      totalHours: round(
-        games.reduce((sum, g) => sum + g.hours, 0),
-        2
-      ),
-      totalSessions: games.reduce((sum, g) => sum + g.playCount, 0),
-      firstEverPlayed,
-      span: { from: firstEverPlayed, to: latest(lasts) },
+      totalGames: totals.totalGames,
+      totalHours: totals.totalHours,
+      totalSessions: totals.totalSessions,
+      firstEverPlayed: totals.firstEverPlayed,
+      span: totals.span,
     },
   };
 }
@@ -290,24 +286,6 @@ function inWindow(lastPlayed: string | undefined, from: number): boolean {
   if (!lastPlayed) return false;
   const t = new Date(lastPlayed).getTime();
   return !Number.isNaN(t) && t >= from;
-}
-
-function splitPlayDates(games: GamePlay[]): { firsts: string[]; lasts: string[] } {
-  const firsts: string[] = [];
-  const lasts: string[] = [];
-  for (const g of games) {
-    if (g.firstPlayed) firsts.push(g.firstPlayed);
-    if (g.lastPlayed) lasts.push(g.lastPlayed);
-  }
-  return { firsts, lasts };
-}
-
-function earliest(dates: string[]): string | undefined {
-  return dates.length === 0 ? undefined : dates.reduce((a, b) => (b < a ? b : a));
-}
-
-function latest(dates: string[]): string | undefined {
-  return dates.length === 0 ? undefined : dates.reduce((a, b) => (b > a ? b : a));
 }
 
 export interface HeadlineTotals {

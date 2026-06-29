@@ -30,11 +30,15 @@ export interface Totals {
   span: { from: string | undefined; to: string | undefined };
 }
 
-function earlier(current: string | undefined, candidate: string): string {
+/** Keep the lexicographically smaller ISO date, ignoring absent/empty candidates. */
+function earlier(current: string | undefined, candidate: string | undefined): string | undefined {
+  if (candidate === undefined || candidate.length === 0) return current;
   return current === undefined || candidate < current ? candidate : current;
 }
 
-function later(current: string | undefined, candidate: string): string {
+/** Keep the lexicographically larger ISO date, ignoring absent/empty candidates. */
+function later(current: string | undefined, candidate: string | undefined): string | undefined {
+  if (candidate === undefined || candidate.length === 0) return current;
   return current === undefined || candidate > current ? candidate : current;
 }
 
@@ -47,8 +51,8 @@ export function computeTotals(games: ReadonlyArray<TotalsInput>): Totals {
   for (const g of games) {
     totalHours += g.hours;
     totalSessions += g.playCount;
-    if (g.firstPlayed) firstEverPlayed = earlier(firstEverPlayed, g.firstPlayed);
-    if (g.lastPlayed) lastEverPlayed = later(lastEverPlayed, g.lastPlayed);
+    firstEverPlayed = earlier(firstEverPlayed, g.firstPlayed);
+    lastEverPlayed = later(lastEverPlayed, g.lastPlayed);
   }
   return {
     totalGames: games.length,
