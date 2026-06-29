@@ -8,9 +8,9 @@ import {
   lifespans,
   recency,
   valuePerGame,
-} from "@/features/dashboard/analytics";
+} from "@/features/dashboard/filters/analytics";
+import { fmtHours, fmtNumber } from "@/features/dashboard/format";
 import type { DashboardData } from "@/server/providers/account/snapshot";
-import { fmtHours, fmtNumber } from "../format";
 
 /** Games with the longest first→last play span — the ones in your library the longest. */
 export function LifespansCard({ data }: { data: DashboardData }) {

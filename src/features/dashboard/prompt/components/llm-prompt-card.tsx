@@ -5,18 +5,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
-import { buildPrompt } from "@/features/dashboard/llm-prompt";
+import { CopyButton } from "@/features/dashboard/components/copy-button";
+import { buildPrompt } from "@/features/dashboard/prompt/llm-prompt";
 import {
   MENU_MODE,
   PROMPT_GROUPS,
   type PromptGroup,
   type PromptVariant,
   PROMPT_VARIANTS,
-} from "@/features/dashboard/llm-prompt-catalogue";
+} from "@/features/dashboard/prompt/llm-prompt-catalogue";
 import { cn } from "@/lib/utils";
 import type { DashboardData } from "@/server/providers/account/snapshot";
 import { useTransactionImport } from "@/stores/transactions-store";
-import { CopyButton } from "./copy-button";
 
 interface VariantGroup {
   group: PromptGroup;

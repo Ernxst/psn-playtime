@@ -9,8 +9,8 @@
  * as a proxy and is labelled honestly in the UI as "by most-recent year".
  */
 import { computeTotals } from "@/domain/totals";
+import { round, yearOf } from "@/features/dashboard/util";
 import type { DashboardData, GamePlay, Genre, Platform } from "@/server/providers/account/snapshot";
-import { round, yearOf } from "./util";
 
 const HOURS_PER_DAY = 24;
 const DAYS_PER_YEAR = 365;

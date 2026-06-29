@@ -6,9 +6,9 @@ import {
   headlineTotals,
   LIFETIME_HOURS_CAVEAT,
   LIFETIME_HOURS_NOTE,
-} from "@/features/dashboard/analytics";
+} from "@/features/dashboard/filters/analytics";
+import { fmtDuration, fmtHours, fmtNumber } from "@/features/dashboard/format";
 import type { DashboardData } from "@/server/providers/account/snapshot";
-import { fmtDuration, fmtHours, fmtNumber } from "../format";
 
 interface Kpi {
   label: string;
