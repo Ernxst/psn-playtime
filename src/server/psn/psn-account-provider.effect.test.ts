@@ -218,6 +218,11 @@ describe("PsnAccountProvider.fetchSnapshot", () => {
     const cod = result.games[0]!;
     expect(cod.hours).toBe(100.5);
     expect(cod.firstPlayed).toBe("2020-01-01");
+    // RAWG is the sole enrichment source (merged client-side), so the snapshot
+    // is un-enriched: a baseline "Other" genre and no franchise, even for a
+    // well-known title that the old keyword table would have classified.
+    expect(cod.genre).toBe("Other");
+    expect(cod.franchise).toBeUndefined();
     expect(cod.trophy).toEqual({
       progress: 90,
       earned: { platinum: 1, gold: 5, silver: 10, bronze: 20 },
@@ -225,6 +230,42 @@ describe("PsnAccountProvider.fetchSnapshot", () => {
       hasPlatinum: true,
       lastEarnedAt: "2021-06-10T00:00:00Z",
     });
+  });
+
+  it("derives each game's platform and excludes non-game apps", async () => {
+    mockExchangeNpsso.mockResolvedValue("access-code");
+    mockExchangeTokens.mockResolvedValue(authTokens);
+    mockGetProfile.mockResolvedValue(profile());
+    mockGetPlayed.mockResolvedValue(
+      playedPage(
+        [
+          // Platform comes from the psn-api category.
+          played({ titleId: "ps5", name: "A PS5 Game", category: "ps5_native_game" }),
+          // No category token: platform falls back to the title name.
+          played({ titleId: "named", name: "Some Game (PlayStation®4)", category: "unknown" }),
+          // Neither category nor name carries a token: platform is OTHER.
+          played({ titleId: "other", name: "Plain Title", category: "unknown" }),
+          // Excluded by the psn-api media-app category.
+          played({ titleId: "netflix", name: "Netflix", category: "ps4_native_media_app" }),
+          // Excluded by name even though the category looks like a game.
+          played({ titleId: "spotify", name: "Spotify", category: "ps4_game" }),
+          // "Max" is a streaming app, but "Mad Max" is a game (word-boundary guard).
+          played({ titleId: "madmax", name: "Mad Max", category: "ps4_game" }),
+        ],
+        6
+      )
+    );
+    mockGetTitles.mockResolvedValue(trophyPage([], 0));
+
+    const result = await fetchSnapshot();
+
+    expect(result.games.map((g) => [g.titleId, g.platform])).toEqual([
+      ["ps5", "PS5"],
+      ["named", "PS4"],
+      ["other", "OTHER"],
+      ["madmax", "PS4"],
+    ]);
+    expect(result.meta.appsExcluded.map((a) => a.name)).toEqual(["Netflix", "Spotify"]);
   });
 
   it("fails with CredentialRejectedError when the npsso exchange is rejected", async () => {

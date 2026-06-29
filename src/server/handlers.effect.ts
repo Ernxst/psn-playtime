@@ -20,7 +20,6 @@ import * as Redacted from "effect/Redacted";
 import * as Schema from "effect/Schema";
 import { runServer } from "@/integrations/effect/runtime.effect";
 import { DashboardData, type Genre } from "@/lib/psn/contract.schema";
-import { enrichTitle } from "@/lib/psn/enrich";
 import { AccountProvider, type AccountCredential } from "@/server/ports/account-provider.effect";
 import { PsnAccountProviderLayer } from "@/server/psn/psn-account-provider.effect";
 import {
@@ -81,27 +80,19 @@ const rawgGenreInput = Schema.toStandardSchemaV1(RawgGenreInput);
 type RawgInputTitle = Schema.Schema.Type<typeof RawgGenreInput>["titles"][number];
 
 /**
- * The unique title names a RAWG lookup should run for: keyword rules are the
- * fast path, so only titles they leave matching `needsLookup` (and that aren't
- * apps) fall through. Mirrors the previous prefetch filtering exactly.
+ * The unique title names a RAWG lookup should run for. RAWG is the sole
+ * enrichment source and apps are already excluded from the snapshot's games, so
+ * every game needs a lookup — just dedupe by name.
  */
-function rawgLookupNames(
-  titles: ReadonlyArray<{ name: string; category?: string }>,
-  needsLookup: (enriched: ReturnType<typeof enrichTitle>) => boolean
-): string[] {
-  const names = new Set<string>();
-  for (const title of titles) {
-    const enriched = enrichTitle(title.name, title.category);
-    if (!enriched.isApp && needsLookup(enriched)) names.add(title.name);
-  }
-  return Array.from(names);
+function rawgLookupNames(titles: ReadonlyArray<{ name: string }>): string[] {
+  return Array.from(new Set(titles.map((title) => title.name)));
 }
 
 /** Run the RAWG genre/playtime lookup, providing the enrichment layer per request. */
 const rawgGenresEffect = (
   titles: readonly RawgInputTitle[]
 ): Effect.Effect<Array<{ titleId: string; genre?: Genre; typicalPlaytime?: number }>> =>
-  prefetchGameMetadata(rawgLookupNames(titles, (enriched) => enriched.genre === "Other")).pipe(
+  prefetchGameMetadata(rawgLookupNames(titles)).pipe(
     // @effect-diagnostics-next-line strictEffectProvide:off
     Effect.provide(EnrichmentProviderLayer),
     Effect.map((metadata) =>
@@ -125,7 +116,7 @@ const rawgGenresEffect = (
 const rawgFranchisesEffect = (
   titles: readonly RawgInputTitle[]
 ): Effect.Effect<Array<{ titleId: string; franchise: string }>> =>
-  prefetchFranchises(rawgLookupNames(titles, (enriched) => enriched.franchise === undefined)).pipe(
+  prefetchFranchises(rawgLookupNames(titles)).pipe(
     // @effect-diagnostics-next-line strictEffectProvide:off
     Effect.provide(EnrichmentProviderLayer),
     Effect.map((rawgFranchises) =>

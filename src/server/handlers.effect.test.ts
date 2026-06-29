@@ -297,7 +297,12 @@ describe(".signInWithTokenHandler", () => {
       lastEarnedAt: undefined,
     });
 
-    // Unmatched + unknown-name title keeps its keyword "Other" genre, no trophy.
+    // RAWG is the sole enrichment source and runs client-side, so every game
+    // leaves the snapshot with the baseline "Other" genre and no franchise —
+    // even a well-known title like Call of Duty is no longer keyword-classified.
+    expect(result.games.every((g) => g.genre === "Other" && g.franchise === undefined)).toBe(true);
+
+    // Unmatched + unknown-name title has the baseline "Other" genre, no trophy.
     const unknown = result.games.find((g) => g.titleId === "unknown")!;
     expect(unknown.genre).toBe("Other");
     expect(unknown.trophy).toBeUndefined();
