@@ -2,18 +2,18 @@
  * Enrichment server-fn entry points. Wrap the RAWG genre/playtime and franchise
  * lookups in `createServerFn` handlers.
  *
- * These handlers are application entry points, so each composes its own layer
- * and provides it here per request (the `strictEffectProvide` diagnostic — which
- * reserves Layer provides for entry points — is disabled per-line for exactly
- * these provides).
+ * `EnrichmentProvider` is supplied by the process-lived `ServerLayer` (see
+ * `runtime.effect.ts`), so these handlers no longer provide it per request —
+ * the RAWG caches survive across requests. The effects just require
+ * `EnrichmentProvider` from the ambient runtime, satisfied by `runServer`.
  */
 import { createServerFn } from "@tanstack/react-start";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import { runServer } from "@/runtime/runtime.effect";
 import { type Genre } from "@/server/providers/account/snapshot";
+import { type EnrichmentProvider } from "@/server/providers/enrichment/contract.effect";
 import {
-  EnrichmentProviderLayer,
   prefetchFranchises,
   prefetchGameMetadata,
 } from "@/server/providers/enrichment/rawg/provider.effect";
@@ -40,13 +40,15 @@ function rawgLookupNames(titles: ReadonlyArray<{ name: string }>): string[] {
   return Array.from(new Set(titles.map((title) => title.name)));
 }
 
-/** Run the RAWG genre/playtime lookup, providing the enrichment layer per request. */
+/** Run the RAWG genre/playtime lookup against the ambient, process-lived provider. */
 const rawgGenresEffect = (
   titles: readonly RawgInputTitle[]
-): Effect.Effect<Array<{ titleId: string; genre?: Genre; typicalPlaytime?: number }>> =>
+): Effect.Effect<
+  Array<{ titleId: string; genre?: Genre; typicalPlaytime?: number }>,
+  never,
+  EnrichmentProvider
+> =>
   prefetchGameMetadata(rawgLookupNames(titles)).pipe(
-    // @effect-diagnostics-next-line strictEffectProvide:off
-    Effect.provide(EnrichmentProviderLayer),
     Effect.map((metadata) =>
       titles.flatMap((title) => {
         const info = metadata.get(title.name);
@@ -64,13 +66,11 @@ const rawgGenresEffect = (
     )
   );
 
-/** Run the RAWG franchise lookup, providing the enrichment layer per request. */
+/** Run the RAWG franchise lookup against the ambient, process-lived provider. */
 const rawgFranchisesEffect = (
   titles: readonly RawgInputTitle[]
-): Effect.Effect<Array<{ titleId: string; franchise: string }>> =>
+): Effect.Effect<Array<{ titleId: string; franchise: string }>, never, EnrichmentProvider> =>
   prefetchFranchises(rawgLookupNames(titles)).pipe(
-    // @effect-diagnostics-next-line strictEffectProvide:off
-    Effect.provide(EnrichmentProviderLayer),
     Effect.map((rawgFranchises) =>
       titles.flatMap((title) => {
         const franchise = rawgFranchises.get(title.name);
