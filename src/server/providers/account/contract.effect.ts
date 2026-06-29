@@ -1,8 +1,8 @@
 import * as Context from "effect/Context";
 import type * as Effect from "effect/Effect";
 import type * as Redacted from "effect/Redacted";
-import type { DashboardData } from "@/lib/psn/contract.schema";
 import type { AccountProviderError } from "../errors.effect";
+import type { DashboardData } from "./snapshot";
 
 /**
  * `AccountProvider` — the platform-agnostic seam (phase E3) between the

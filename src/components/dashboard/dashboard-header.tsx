@@ -3,7 +3,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import type { DashboardData } from "@/lib/psn/contract.schema";
+import type { DashboardData } from "@/server/providers/account/snapshot";
 import { CachedDataIndicator } from "./cached-data-indicator";
 import { fmtNumber } from "./format";
 

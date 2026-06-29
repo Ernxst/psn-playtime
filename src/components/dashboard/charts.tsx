@@ -24,7 +24,7 @@ import {
   topFranchises,
   topGamesByHours,
 } from "@/lib/psn/analytics";
-import type { DashboardData } from "@/lib/psn/contract.schema";
+import type { DashboardData } from "@/server/providers/account/snapshot";
 import { chartColor } from "./format";
 
 const hoursConfig = {

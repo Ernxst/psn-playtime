@@ -1,8 +1,8 @@
 import { expect, test } from "vitest";
 import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
-import type { GamePlay } from "@/lib/psn/contract.schema";
 import { demoDashboard } from "@/lib/psn/mock";
+import type { GamePlay } from "@/server/providers/account/snapshot";
 import { GamesTable } from "./games-table";
 
 test("lists played game names from the data", async () => {

@@ -12,10 +12,10 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import type { TrophyTitle, UserPlayedGamesResponse } from "psn-api";
 import { describe, expect, it } from "vitest";
-import type { DashboardData, ProfileSummary } from "@/lib/psn/contract.schema";
 import { buildSnapshot } from "@/server/providers/account/psn/provider.effect";
 import { PsnSession, type PsnSessionShape } from "@/server/providers/account/psn/session.effect";
 import { ProviderUnavailableError } from "@/server/providers/errors.effect";
+import type { DashboardData, ProfileSummary } from "../snapshot";
 
 type PlayedTitle = UserPlayedGamesResponse["titles"][number];
 

@@ -21,9 +21,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { DashboardData } from "@/lib/psn/contract.schema";
 import type { TransactionRow } from "@/lib/psn/transactions";
 import { useTransactionImport } from "@/lib/transactions-store";
+import type { DashboardData } from "@/server/providers/account/snapshot";
 import { fmtDate, fmtNumber } from "./format";
 
 /** Format a minor-unit amount as money, falling back to "£" when no symbol is known. */

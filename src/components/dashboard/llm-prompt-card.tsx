@@ -6,7 +6,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
-import type { DashboardData } from "@/lib/psn/contract.schema";
 import {
   buildPrompt,
   MENU_MODE,
@@ -16,6 +15,7 @@ import {
   PROMPT_VARIANTS,
 } from "@/lib/psn/llm-prompt";
 import { useTransactionImport } from "@/lib/transactions-store";
+import type { DashboardData } from "@/server/providers/account/snapshot";
 import { CopyButton } from "./copy-button";
 
 interface VariantGroup {

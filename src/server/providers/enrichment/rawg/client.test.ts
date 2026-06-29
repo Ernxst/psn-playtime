@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { Genre } from "@/lib/psn/contract.schema";
 import { deriveFranchise, mapRawgGenres } from "@/server/providers/enrichment/rawg/client";
+import type { Genre } from "../../account/snapshot";
 
 describe(".mapRawgGenres", () => {
   it.each<[string[], Genre]>([

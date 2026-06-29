@@ -11,6 +11,7 @@
  * nothing here recomputes or duplicates that logic.
  */
 import { fmtDate } from "@/components/dashboard/format";
+import type { DashboardData, GamePlay } from "@/server/providers/account/snapshot";
 import {
   bingeVsDipIn,
   genreBreakdown,
@@ -19,7 +20,6 @@ import {
   topFranchises,
   valuePerGame,
 } from "./analytics";
-import type { DashboardData, GamePlay } from "./contract.schema";
 import {
   summariseAddOns,
   summarisePriceContext,

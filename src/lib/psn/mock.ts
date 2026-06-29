@@ -3,7 +3,7 @@
  * Used as a fallback so the dashboard renders without a live token.
  * Do not edit by hand — regenerate via scripts/gen-mock if the shape changes.
  */
-import type { DashboardData } from "./contract.schema";
+import type { DashboardData } from "@/server/providers/account/snapshot";
 
 export const demoDashboard: DashboardData = {
   profile: {

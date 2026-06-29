@@ -1,7 +1,7 @@
 import type { QueryStatus } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
-import type { DashboardData, GamePlay } from "@/lib/psn/contract.schema";
 import { demoDashboard } from "@/lib/psn/mock";
+import type { DashboardData, GamePlay } from "@/server/providers/account/snapshot";
 import {
   rawgFranchisesQueryOptions,
   rawgGenresQueryOptions,

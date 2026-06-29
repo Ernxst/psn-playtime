@@ -24,10 +24,10 @@ import type {
   UserPlayedGamesResponse,
   UserTitlesResponse,
 } from "psn-api";
-import type { DashboardData } from "@/lib/psn/contract.schema";
 import { AccountProvider } from "@/server/providers/account/contract.effect";
 import { PsnAccountProviderLayer } from "@/server/providers/account/psn/provider.effect";
 import type { AccountProviderError } from "@/server/providers/errors.effect";
+import type { DashboardData } from "../snapshot";
 
 const mockExchangeNpsso = vi.mocked(exchangeNpssoForAccessCode);
 const mockExchangeTokens = vi.mocked(exchangeAccessCodeForAuthTokens);

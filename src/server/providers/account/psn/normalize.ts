@@ -15,6 +15,7 @@
 import * as DateTime from "effect/DateTime";
 import * as Option from "effect/Option";
 import type { ProfileFromUserNameResponse, TrophyTitle, UserPlayedGamesResponse } from "psn-api";
+import { round } from "@/lib/psn/round";
 import type {
   DashboardMeta,
   GamePlay,
@@ -22,8 +23,7 @@ import type {
   Platform,
   ProfileSummary,
   TrophyCounts,
-} from "@/lib/psn/contract.schema";
-import { round } from "@/lib/psn/round";
+} from "../snapshot";
 
 export type PlayedTitle = UserPlayedGamesResponse["titles"][number];
 export type { TrophyTitle };
