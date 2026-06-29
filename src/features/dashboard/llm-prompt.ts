@@ -28,30 +28,13 @@ import {
 } from "./llm-prompt-catalogue";
 import {
   buildPromptTransactionContext,
+  hasTransactionHistory,
   type PromptTransactionContext,
 } from "./llm-transaction-context";
 import type { SpendSummary } from "./spend";
 
-export {
-  ADD_ON_SIGNAL_GUIDANCE,
-  COMPLETION_INTERPRETATION_GUIDANCE,
-  MENU_INSTRUCTION,
-  MENU_MODE,
-  METRIC_GUIDANCE_CAVEAT,
-  PLAY_PATTERN_GUIDANCE,
-  PLAYTIME_SIGNAL_GUIDANCE,
-  PRICE_CONTEXT_GUIDANCE,
-  PROMPT_GROUPS,
-  PROMPT_VARIANTS,
-  SPEND_SIGNAL_GUIDANCE,
-  SPEND_VARIANTS,
-  TROPHY_SIGNAL_GUIDANCE,
-  type PromptGroup,
-  type PromptVariant,
-} from "./llm-prompt-catalogue";
-
-function availableVariants(ctx: PromptTransactionContext): readonly PromptVariant[] {
-  return ctx.hasTransactions ? [...PROMPT_VARIANTS, ...SPEND_VARIANTS] : PROMPT_VARIANTS;
+function availableVariants(hasTransactions: boolean): readonly PromptVariant[] {
+  return hasTransactions ? [...PROMPT_VARIANTS, ...SPEND_VARIANTS] : PROMPT_VARIANTS;
 }
 
 function gameTiming(g: GamePlay): string {
@@ -220,12 +203,14 @@ export function buildDataSummary(
   return buildDataSummaryFromContext(data, buildPromptTransactionContext(data, transactions));
 }
 
-function buildFollowUpsFromContext(lead: PromptVariant, ctx: PromptTransactionContext): string {
+function buildFollowUpsFromContext(lead: PromptVariant, hasTransactions: boolean): string {
   const lines = [
     "FOLLOW-UP QUESTIONS — paste any of these into this chat afterwards; you already have my data above, so don't ask me to resend it:",
   ];
   for (const group of PROMPT_GROUPS) {
-    const questions = availableVariants(ctx).filter((v) => v.group === group && v.id !== lead.id);
+    const questions = availableVariants(hasTransactions).filter(
+      (v) => v.group === group && v.id !== lead.id
+    );
     if (questions.length === 0) continue;
     lines.push(`${group}:`);
     for (const v of questions) lines.push(`- ${v.question}`);
@@ -237,11 +222,7 @@ export function buildFollowUps(
   lead: PromptVariant,
   transactions?: readonly TransactionRow[]
 ): string {
-  const ctx = buildPromptTransactionContext(
-    { games: [] } as unknown as DashboardData,
-    transactions
-  );
-  return buildFollowUpsFromContext(lead, ctx);
+  return buildFollowUpsFromContext(lead, hasTransactionHistory(transactions));
 }
 
 function menuInstruction(ctx: PromptTransactionContext): string {
@@ -252,10 +233,10 @@ function menuInstruction(ctx: PromptTransactionContext): string {
   );
 }
 
-function buildMenuFromContext(ctx: PromptTransactionContext): string {
+function buildMenuFromContext(hasTransactions: boolean): string {
   const lines = ["MENU — the questions I could ask, grouped (pick one to start):"];
   for (const group of PROMPT_GROUPS) {
-    const questions = availableVariants(ctx).filter((v) => v.group === group);
+    const questions = availableVariants(hasTransactions).filter((v) => v.group === group);
     if (questions.length === 0) continue;
     lines.push(`${group}:`);
     for (const v of questions) lines.push(`- ${v.question}`);
@@ -264,11 +245,7 @@ function buildMenuFromContext(ctx: PromptTransactionContext): string {
 }
 
 export function buildMenu(transactions?: readonly TransactionRow[]): string {
-  const ctx = buildPromptTransactionContext(
-    { games: [] } as unknown as DashboardData,
-    transactions
-  );
-  return buildMenuFromContext(ctx);
+  return buildMenuFromContext(hasTransactionHistory(transactions));
 }
 
 function metricGuidance(lead: PromptVariant, ctx: PromptTransactionContext): string[] {
@@ -294,7 +271,7 @@ function buildMenuPrompt(data: DashboardData, ctx: PromptTransactionContext): st
     "",
     menuInstruction(ctx),
     "",
-    buildMenuFromContext(ctx),
+    buildMenuFromContext(ctx.hasTransactions),
   ].join("\n");
 }
 
@@ -316,6 +293,6 @@ export function buildPrompt(
     "",
     `TASK: ${lead.instruction}`,
     "",
-    buildFollowUpsFromContext(lead, ctx),
+    buildFollowUpsFromContext(lead, ctx.hasTransactions),
   ].join("\n");
 }

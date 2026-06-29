@@ -18,6 +18,14 @@ export interface PromptTransactionContext {
   spend?: SpendSummary;
 }
 
+/**
+ * Whether imported transaction history is present. The transaction-only signal
+ * needed to fold in the spend questions, available without a `DashboardData`.
+ */
+export function hasTransactionHistory(transactions?: readonly TransactionRow[]): boolean {
+  return Boolean(transactions && transactions.length > 0);
+}
+
 export function buildPromptTransactionContext(
   data: DashboardData,
   transactions?: readonly TransactionRow[]
