@@ -1,3 +1,4 @@
+import { useAtomValue } from "@effect/atom-react";
 /**
  * Client-side persistence for imported PSN transactions.
  *
@@ -14,10 +15,9 @@
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import * as Atom from "effect/unstable/reactivity/Atom";
-import { useAtomValue } from "@effect/atom-react";
+import type * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
 import { type TransactionImport, transactionImportSchema } from "@/domain/transactions";
 import { kvsRuntime } from "@/runtime/kvs.effect";
-import { getAppRegistry } from "@/runtime/provider.effect";
 
 const TRANSACTIONS_STORAGE_KEY = "psn-playtime:transactions";
 
@@ -76,19 +76,27 @@ export function loadTransactionImport(): TransactionImport | null {
   return cachedValue;
 }
 
-/** Persist an import. The kvs write updates `localStorage` and notifies subscribers. */
-export function saveTransactionImport(value: TransactionImport): void {
+/**
+ * Persist an import. The kvs write updates `localStorage` and notifies
+ * subscribers. The caller passes the registry it shares with the React hooks
+ * (the per-request one from router `context`), so a write reaches the same
+ * instance `useTransactionImport` reads.
+ */
+export function saveTransactionImport(
+  registry: AtomRegistry.AtomRegistry,
+  value: TransactionImport
+): void {
   if (typeof window === "undefined") return;
-  getAppRegistry()?.set(transactionImportAtom, value);
+  registry.set(transactionImportAtom, value);
 }
 
 /**
  * Clear the persisted import. Writes JSON `"null"` to the key (rather than
  * removing it); subsequent reads still resolve to `null`.
  */
-export function clearTransactionImport(): void {
+export function clearTransactionImport(registry: AtomRegistry.AtomRegistry): void {
   if (typeof window === "undefined") return;
-  getAppRegistry()?.set(transactionImportAtom, null);
+  registry.set(transactionImportAtom, null);
 }
 
 /**

@@ -2,7 +2,7 @@ import { describe, expect, it, onTestFinished } from "vitest";
 import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
 import type { TransactionImport } from "@/domain/transactions";
-import { EffectAtomProvider } from "@/runtime/provider.effect";
+import { TestAtomProvider, testRegistry } from "@/test/atom-registry";
 import {
   clearTransactionImport,
   loadTransactionImport,
@@ -39,11 +39,11 @@ describe(".useTransactionImport", () => {
   it("re-renders with the imported transactions after a save", async () => {
     onTestFinished(() => localStorage.clear());
 
-    await render(<ImportedCount />, { wrapper: EffectAtomProvider });
+    await render(<ImportedCount />, { wrapper: TestAtomProvider });
 
     await expect.element(page.getByText("no import")).toBeVisible();
 
-    saveTransactionImport(validImport);
+    saveTransactionImport(testRegistry, validImport);
 
     await expect.element(page.getByText("1 imported")).toBeVisible();
   });
@@ -51,12 +51,12 @@ describe(".useTransactionImport", () => {
   it("re-renders back to no import after a clear", async () => {
     onTestFinished(() => localStorage.clear());
 
-    await render(<ImportedCount />, { wrapper: EffectAtomProvider });
-    saveTransactionImport(validImport);
+    await render(<ImportedCount />, { wrapper: TestAtomProvider });
+    saveTransactionImport(testRegistry, validImport);
 
     await expect.element(page.getByText("1 imported")).toBeVisible();
 
-    clearTransactionImport();
+    clearTransactionImport(testRegistry);
 
     await expect.element(page.getByText("no import")).toBeVisible();
   });
@@ -66,9 +66,9 @@ describe(".saveTransactionImport", () => {
   it("persists the import so a direct read sees it", async () => {
     onTestFinished(() => localStorage.clear());
 
-    await render(<ImportedCount />, { wrapper: EffectAtomProvider });
+    await render(<ImportedCount />, { wrapper: TestAtomProvider });
 
-    saveTransactionImport(validImport);
+    saveTransactionImport(testRegistry, validImport);
 
     await expect.element(page.getByText("1 imported")).toBeVisible();
     expect(loadTransactionImport()).toEqual(validImport);
@@ -79,12 +79,12 @@ describe(".clearTransactionImport", () => {
   it("leaves a direct read returning null", async () => {
     onTestFinished(() => localStorage.clear());
 
-    await render(<ImportedCount />, { wrapper: EffectAtomProvider });
-    saveTransactionImport(validImport);
+    await render(<ImportedCount />, { wrapper: TestAtomProvider });
+    saveTransactionImport(testRegistry, validImport);
 
     await expect.element(page.getByText("1 imported")).toBeVisible();
 
-    clearTransactionImport();
+    clearTransactionImport(testRegistry);
 
     await expect.element(page.getByText("no import")).toBeVisible();
     expect(loadTransactionImport()).toBeNull();

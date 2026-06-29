@@ -1,64 +1,24 @@
-import { RegistryContext, scheduleTask } from "@effect/atom-react";
-import * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
-import { type ReactNode, useRef } from "react";
-
-/**
- * Client-only singleton `AtomRegistry`.
- *
- * The browser renders exactly one tree, so a single registry is correct there;
- * imperative writers (e.g. `saveTransactionImport`) reach it via
- * {@link getAppRegistry} without going through React context. This is why the
- * accessor is safe: there is no per-request state to confuse on the client.
- * SSR-stateful atoms would instead need a per-request registry threaded through
- * a `HydrationBoundary` — out of scope for this POC, whose only atom
- * (`transactionImportAtom`) is client-only (`localStorage`).
- *
- * Never created on the server: each SSR request gets its own throwaway registry
- * from {@link EffectAtomProvider} below, kept isolated and never published here.
- */
-let clientRegistry: AtomRegistry.AtomRegistry | undefined;
-
-function makeRegistry(): AtomRegistry.AtomRegistry {
-  return AtomRegistry.make({ scheduleTask, defaultIdleTTL: 400 });
-}
-
-/**
- * The registry imperative writers target, or `undefined` on the server (where
- * imperative writers never run). The lazy fallback only covers a write issued
- * before any provider has mounted: it still persists to `localStorage`, but
- * through a throwaway registry, not the hooks' one (the provider always makes a
- * fresh registry — it never adopts this lazily-created instance). In the app
- * this never matters: `EffectAtomProvider` mounts at the root above every
- * imperative writer, so by the time one runs `clientRegistry` is already the
- * provider's registry — the exact instance the hooks read.
- */
-export function getAppRegistry(): AtomRegistry.AtomRegistry | undefined {
-  if (typeof window === "undefined") return undefined;
-  clientRegistry ??= makeRegistry();
-  return clientRegistry;
-}
+import { RegistryContext } from "@effect/atom-react";
+import type * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
+import type { ReactNode } from "react";
 
 /**
  * Supplies the atom `AtomRegistry` to a React subtree, mounted at the app root.
  *
- * We build the registry ourselves (rather than leaning on the library's
- * `RegistryProvider`) so imperative writers can reach the same instance via
- * {@link getAppRegistry}. A `useRef` holds one registry per render tree: on the
- * server that is one per request (isolated, never published); on the client we
- * publish this freshly-made registry as the client singleton. Because the
- * provider mounts above every imperative writer, those writers read exactly what
- * the hooks mutate. No project-level `useEffect` is introduced, per
- * docs/rules/effects.md.
+ * The registry is created once per request in the router context factory
+ * (`getContext`) and threaded in via the `registry` prop, so the React hooks
+ * that read through `RegistryContext` and the imperative writers that receive
+ * the same instance from a loader's `context` share one registry. On the server
+ * that instance is per-request (router instances are not shared across
+ * requests); in the browser it is the single app registry. No module singleton,
+ * and no project-level `useEffect`, per docs/rules/effects.md.
  */
-export function EffectAtomProvider({ children }: { readonly children: ReactNode }) {
-  const ref = useRef<AtomRegistry.AtomRegistry | null>(null);
-  if (ref.current === null) {
-    ref.current = makeRegistry();
-    // Publish on the client during render (never on the server, where requests
-    // must stay isolated). The latest-mounted tree wins, which is exactly the
-    // one render tree the browser ever has.
-    if (typeof window !== "undefined") clientRegistry = ref.current;
-  }
-
-  return <RegistryContext.Provider value={ref.current}>{children}</RegistryContext.Provider>;
+export function EffectAtomProvider({
+  registry,
+  children,
+}: {
+  readonly registry: AtomRegistry.AtomRegistry;
+  readonly children: ReactNode;
+}) {
+  return <RegistryContext.Provider value={registry}>{children}</RegistryContext.Provider>;
 }

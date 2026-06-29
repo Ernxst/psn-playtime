@@ -1,3 +1,4 @@
+import * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { TransactionImport } from "@/domain/transactions";
 import { createWindowStub } from "@/test/web-storage";
@@ -125,7 +126,7 @@ describe(".saveTransactionImport", () => {
   it("does nothing during server render when there is no window", async () => {
     const { saveTransactionImport } = await importStore();
 
-    expect(() => saveTransactionImport(validImport)).not.toThrow();
+    expect(() => saveTransactionImport(AtomRegistry.make(), validImport)).not.toThrow();
   });
 });
 
@@ -133,6 +134,6 @@ describe(".clearTransactionImport", () => {
   it("does nothing during server render when there is no window", async () => {
     const { clearTransactionImport } = await importStore();
 
-    expect(() => clearTransactionImport()).not.toThrow();
+    expect(() => clearTransactionImport(AtomRegistry.make())).not.toThrow();
   });
 });

@@ -4,6 +4,7 @@ import { page } from "vitest/browser";
 import { demoDashboard } from "@/domain/mock";
 import type { TransactionRow } from "@/domain/transactions";
 import { clearTransactionImport, saveTransactionImport } from "@/stores/transactions-store";
+import { testRegistry } from "@/test/atom-registry";
 import { createHarness } from "@/test/harness";
 import { DashboardView } from "./dashboard-view";
 
@@ -123,12 +124,12 @@ describe("DashboardView", () => {
 
   it("keeps account-wide spend totals when a filter narrows the library", async () => {
     // A real, signed-in account: spend joins to the library and is account-wide.
-    saveTransactionImport({
+    saveTransactionImport(testRegistry, {
       transactions: [baseFor("DEMO-8", 3000), baseFor("DEMO-6", 2000)],
       importedAt: "2024-01-01T00:00:00.000Z",
       source: "store.playstation.com",
     });
-    onTestFinished(clearTransactionImport);
+    onTestFinished(() => clearTransactionImport(testRegistry));
 
     const { element } = createHarness(
       <DashboardView
