@@ -115,10 +115,20 @@ const EMPTY_ACCOUNTS: CachedAccount[] = [];
 let accountsCacheKey: string | null = null;
 let accountsCacheValue: CachedAccount[] = EMPTY_ACCOUNTS;
 
-function toCachedAccount(key: string): CachedAccount | null {
-  if (!key.startsWith(KEY_PREFIX)) return null;
-  const data = parse(window.localStorage.getItem(key));
-  if (data === null) return null;
+// Per-entry parse cache keyed by localStorage key. Avoids re-parsing (JSON.parse +
+// Schema decode) an account whose raw string is unchanged between snapshot reads;
+// a real write changes the raw string, forcing a re-parse of just that entry.
+const entryCache = new Map<string, { raw: string; parsed: DashboardData | null }>();
+
+function parseEntry(key: string, raw: string): DashboardData | null {
+  const cached = entryCache.get(key);
+  if (cached !== undefined && cached.raw === raw) return cached.parsed;
+  const parsed = parse(raw);
+  entryCache.set(key, { raw, parsed });
+  return parsed;
+}
+
+function toCachedAccount(data: DashboardData): CachedAccount {
   return {
     accountId: data.profile.accountId,
     onlineId: data.profile.onlineId,
@@ -127,13 +137,33 @@ function toCachedAccount(key: string): CachedAccount | null {
   };
 }
 
+// Read one account key via the per-entry cache, recording it in `seen` so its cache
+// entry survives eviction. Returns `null` for non-account keys and absent/corrupt entries.
+function readAccount(key: string, seen: Set<string>): CachedAccount | null {
+  if (!key.startsWith(KEY_PREFIX)) return null;
+  const raw = window.localStorage.getItem(key);
+  if (raw === null) return null;
+  seen.add(key);
+  const data = parseEntry(key, raw);
+  return data === null ? null : toCachedAccount(data);
+}
+
+// Evict cache entries for account keys that no longer exist so removed accounts do not leak.
+function evictRemoved(seen: Set<string>): void {
+  for (const key of entryCache.keys()) {
+    if (!seen.has(key)) entryCache.delete(key);
+  }
+}
+
 function collectAccounts(): CachedAccount[] {
   const accounts: CachedAccount[] = [];
+  const seen = new Set<string>();
   for (let i = 0; i < window.localStorage.length; i++) {
     const key = window.localStorage.key(i);
-    const account = key === null ? null : toCachedAccount(key);
+    const account = key === null ? null : readAccount(key, seen);
     if (account) accounts.push(account);
   }
+  evictRemoved(seen);
   accounts.sort((a, b) => a.onlineId.localeCompare(b.onlineId));
   return accounts;
 }
