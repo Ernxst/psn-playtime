@@ -1,6 +1,5 @@
 import { Search, Sparkles } from "lucide-react";
 import { useMemo, useState } from "react";
-import { cn } from "#/lib/utils.ts";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,6 +13,7 @@ import {
   type PromptVariant,
   PROMPT_VARIANTS,
 } from "@/features/dashboard/llm-prompt-catalogue";
+import { cn } from "@/lib/utils";
 import type { DashboardData } from "@/server/providers/account/snapshot";
 import { useTransactionImport } from "@/stores/transactions-store";
 import { CopyButton } from "./copy-button";
