@@ -3,6 +3,7 @@ import { demoDashboard } from "@/domain/mock";
 import type { TransactionRow } from "@/domain/transactions";
 import { topGamesByHours } from "@/features/dashboard/filters/analytics";
 import { fmtDate } from "@/features/dashboard/format";
+import { summariseSpend } from "@/features/dashboard/spend/spend";
 import type { GamePlay } from "@/server/providers/account/snapshot";
 import { buildDataSummary, buildFollowUps, buildMenu, buildPrompt } from "./llm-prompt";
 import {
@@ -20,7 +21,6 @@ import {
   SPEND_VARIANTS,
   TROPHY_SIGNAL_GUIDANCE,
 } from "./llm-prompt-catalogue";
-import { summariseSpend } from "./spend";
 
 function tx(overrides: Partial<TransactionRow>): TransactionRow {
   return {

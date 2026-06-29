@@ -8,6 +8,7 @@ import {
   valuePerGame,
 } from "@/features/dashboard/filters/analytics";
 import { fmtDate } from "@/features/dashboard/format";
+import type { SpendSummary } from "@/features/dashboard/spend/spend";
 import type { DashboardData, GamePlay } from "@/server/providers/account/snapshot";
 import {
   ADD_ON_SIGNAL_GUIDANCE,
@@ -31,7 +32,6 @@ import {
   hasTransactionHistory,
   type PromptTransactionContext,
 } from "./llm-transaction-context";
-import type { SpendSummary } from "./spend";
 
 function availableVariants(hasTransactions: boolean): readonly PromptVariant[] {
   return hasTransactions ? [...PROMPT_VARIANTS, ...SPEND_VARIANTS] : PROMPT_VARIANTS;

@@ -23,12 +23,16 @@ import {
   ValueCard,
 } from "@/features/dashboard/filters/components/insights";
 import { KpiCards } from "@/features/dashboard/filters/components/kpi-cards";
+import { PurchaseHistorySection } from "@/features/dashboard/spend/components/purchase-history";
+import {
+  AddOnsSection,
+  SpendSection,
+  SpentMostSection,
+} from "@/features/dashboard/spend/components/spend";
 import type { DashboardData } from "@/server/providers/account/snapshot";
 import { DashboardHeader } from "./dashboard-header";
 import { DashboardSidebar } from "./dashboard-sidebar";
 import { LlmPromptCard } from "./llm-prompt-card";
-import { PurchaseHistorySection } from "./purchase-history";
-import { AddOnsSection, SpendSection, SpentMostSection } from "./spend";
 import { DashboardEmpty, DashboardNoMatches } from "./states";
 import { TrophySection } from "./trophies";
 

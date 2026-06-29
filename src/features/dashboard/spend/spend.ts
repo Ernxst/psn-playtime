@@ -8,8 +8,8 @@
  * Anything that fails to match is surfaced as `unmatchedSpend` rather than hidden.
  */
 import type { TransactionRow } from "@/domain/transactions";
+import { round, yearOf } from "@/features/dashboard/util";
 import type { DashboardData, GamePlay } from "@/server/providers/account/snapshot";
-import { round, yearOf } from "./util";
 
 /** One game with its matched spend and resulting value. */
 interface SpendLeader {
