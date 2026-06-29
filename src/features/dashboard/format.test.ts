@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { chartColor, fmtDate, fmtDuration, fmtHours, fmtNumber } from "./format";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
+import { chartColor, fmtDate, fmtDuration, fmtHours, fmtNumber, fmtRelative } from "./format";
 
 describe(".fmtHours", () => {
   it("keeps one decimal for small totals", () => {
@@ -32,6 +32,26 @@ describe(".fmtDate", () => {
 
   it("returns a dash for an unparseable value", () => {
     expect(fmtDate("not-a-date")).toBe("—");
+  });
+});
+
+describe(".fmtRelative", () => {
+  it("renders a relative label with a suffix", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2022-09-18T00:00:00Z"));
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+
+    expect(fmtRelative("2022-09-15T00:00:00Z")).toBe("3 days ago");
+  });
+
+  it("returns a dash for a missing value", () => {
+    expect(fmtRelative()).toBe("—");
+  });
+
+  it("returns a dash for an unparseable value", () => {
+    expect(fmtRelative("not-a-date")).toBe("—");
   });
 });
 

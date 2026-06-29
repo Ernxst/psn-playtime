@@ -57,6 +57,10 @@ describe(".rawgGenresQueryOptions", () => {
       "2020-01-01",
     ]);
   });
+
+  it("never lets the lookup go stale", () => {
+    expect(rawgGenresQueryOptions(data()).staleTime).toBe(Infinity);
+  });
 });
 
 describe(".rawgFranchisesQueryOptions", () => {
@@ -92,6 +96,10 @@ describe(".rawgFranchisesQueryOptions", () => {
       "rawg-franchises",
       "2020-01-01",
     ]);
+  });
+
+  it("never lets the lookup go stale", () => {
+    expect(rawgFranchisesQueryOptions(data()).staleTime).toBe(Infinity);
   });
 });
 
