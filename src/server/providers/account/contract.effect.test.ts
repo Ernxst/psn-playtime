@@ -23,7 +23,7 @@ const accountTestLayer = Layer.succeed(AccountProvider, {
       : Effect.fail(new CredentialRejectedError({ reason: "rejected" })),
 });
 
-describe("E3 service ports", () => {
+describe("AccountProvider", () => {
   it("resolves a DashboardData through the AccountProvider port", async () => {
     const program = Effect.gen(function* () {
       const provider = yield* AccountProvider;

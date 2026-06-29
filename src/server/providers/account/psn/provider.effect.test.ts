@@ -167,8 +167,8 @@ afterEach(() => {
   mockGetTitles.mockReset();
 });
 
-describe("PsnAccountProvider.fetchSnapshot", () => {
-  it("normalizes a live PSN account into an un-enriched snapshot", async () => {
+describe(".fetchSnapshot", () => {
+  it("normalises a live PSN account into an un-enriched snapshot", async () => {
     mockExchangeNpsso.mockResolvedValue("access-code");
     mockExchangeTokens.mockResolvedValue(authTokens);
     mockGetProfile.mockResolvedValue(profile());

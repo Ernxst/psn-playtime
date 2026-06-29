@@ -91,7 +91,7 @@ function snapshotWith(shape: Partial<PsnSessionShape>): Promise<DashboardData> {
   return Effect.runPromise(buildSnapshot.pipe(Effect.provide(fakePsnSession(shape))));
 }
 
-describe("buildSnapshot DI seam", () => {
+describe(".buildSnapshot", () => {
   it("assembles the snapshot from an injected fake PsnSession", async () => {
     const result = await snapshotWith({
       profile: Effect.succeed(profileSummary),

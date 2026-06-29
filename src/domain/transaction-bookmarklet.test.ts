@@ -306,7 +306,7 @@ describe(".bookmarkletHref", () => {
   });
 });
 
-describe("progress overlay", () => {
+describe(".mountImportOverlay", () => {
   it("embeds the overlay helpers, mounts them, and wires progress/done/error", () => {
     const body = bookmarkletBody("https://psn.example.dev");
 
