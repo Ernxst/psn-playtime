@@ -189,6 +189,24 @@ describe("DashboardView", () => {
     await expect.element(page.getByText(/98 titles in total/)).toBeVisible();
   });
 
+  it("keeps the search input responsive while the deferred filter settles", async () => {
+    const { element } = createHarness(
+      <DashboardView data={demoDashboard} onSignOut={vi.fn()} signingOut={false} />
+    );
+
+    await render(element);
+
+    const searchbox = page.getByRole("searchbox", { name: "Search games by name" });
+    await searchbox.fill("Forza");
+
+    // The input reflects the typed term immediately (it stays bound to the live filters)…
+    await expect.element(searchbox).toHaveValue("Forza");
+
+    // …and the deferred re-filter eventually settles the scoped library to the matches.
+    await expect.element(page.getByText(/98 titles in total/)).not.toBeInTheDocument();
+    await expect.element(page.getByText(/titles in total/)).toBeVisible();
+  });
+
   it("searching by name narrows the scoped library", async () => {
     const { element } = createHarness(
       <DashboardView data={demoDashboard} onSignOut={vi.fn()} signingOut={false} />
