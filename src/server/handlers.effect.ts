@@ -18,8 +18,8 @@ import { createServerFn } from "@tanstack/react-start";
 import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
 import * as Schema from "effect/Schema";
-import { runServer } from "@/integrations/effect/runtime.effect";
 import { DashboardData, type Genre } from "@/lib/psn/contract.schema";
+import { runServer } from "@/runtime/runtime.effect";
 import { AccountProvider, type AccountCredential } from "@/server/ports/account-provider.effect";
 import { PsnAccountProviderLayer } from "@/server/psn/psn-account-provider.effect";
 import {
