@@ -3,8 +3,8 @@ import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
 import { Toaster } from "@/components/ui/sonner";
 import { demoDashboard } from "@/domain/mock";
-import { loadDashboard, saveDashboard } from "@/lib/dashboard-store";
 import { signInWithToken } from "@/server/api/account.effect";
+import { loadDashboard, saveDashboard } from "@/stores/dashboard-store";
 import { createHarness } from "@/test/harness";
 import { SignInCard } from "./sign-in-card";
 

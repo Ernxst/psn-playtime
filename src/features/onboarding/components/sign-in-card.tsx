@@ -11,13 +11,13 @@ import { Field, FieldControl, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
+import { signInWithToken } from "@/server/api/account.effect";
 import {
   type CachedAccount,
   saveDashboard,
   setActiveAccount,
   useCachedAccounts,
-} from "@/lib/dashboard-store";
-import { signInWithToken } from "@/server/api/account.effect";
+} from "@/stores/dashboard-store";
 
 /**
  * Reduce a pasted npsso value to the bare token.

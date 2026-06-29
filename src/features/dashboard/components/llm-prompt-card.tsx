@@ -14,8 +14,8 @@ import {
   type PromptVariant,
   PROMPT_VARIANTS,
 } from "@/features/dashboard/llm-prompt";
-import { useTransactionImport } from "@/lib/transactions-store";
 import type { DashboardData } from "@/server/providers/account/snapshot";
+import { useTransactionImport } from "@/stores/transactions-store";
 import { CopyButton } from "./copy-button";
 
 interface VariantGroup {
