@@ -33,14 +33,18 @@ import {
 } from "psn-api";
 import type { AuthorizationPayload } from "psn-api";
 import type { ProfileSummary } from "@/lib/psn/contract.schema";
-import { paginateAll } from "@/server/paginate.effect";
-import type { AccountCredential } from "@/server/ports/account-provider.effect";
+import type { AccountCredential } from "@/server/providers/account/contract.effect";
+import {
+  toProfileSummary,
+  type PlayedTitle,
+  type TrophyTitle,
+} from "@/server/providers/account/psn/normalize";
+import { paginateAll } from "@/server/providers/account/psn/paginate.effect";
 import {
   CredentialRejectedError,
   providerError,
   type AccountProviderError,
-} from "@/server/ports/errors.effect";
-import { toProfileSummary, type PlayedTitle, type TrophyTitle } from "@/server/psn/psn-normalize";
+} from "@/server/providers/errors.effect";
 
 const PLAYED_PAGE_LIMIT = 200;
 const TROPHY_PAGE_LIMIT = 800;
@@ -154,6 +158,6 @@ const makePsnSession = Effect.fn("PsnSession.make")(function* (credential: Accou
 });
 
 export class PsnSession extends Context.Service<PsnSession, PsnSessionShape>()(
-  "psn-playtime/server/psn/psn-session.effect/PsnSession",
+  "psn-playtime/server/providers/account/psn/session.effect/PsnSession",
   { make: makePsnSession }
 ) {}

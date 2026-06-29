@@ -1,7 +1,7 @@
 import * as Context from "effect/Context";
 import type * as Effect from "effect/Effect";
 import type { Genre } from "@/lib/psn/contract.schema";
-import type { EnrichmentProviderError } from "./errors.effect";
+import type { EnrichmentProviderError } from "../errors.effect";
 
 /**
  * `EnrichmentProvider` — the platform-agnostic seam (phase E3) for the
@@ -45,4 +45,4 @@ export interface EnrichmentProviderShape {
 export class EnrichmentProvider extends Context.Service<
   EnrichmentProvider,
   EnrichmentProviderShape
->()("psn-playtime/server/ports/enrichment-provider.effect/EnrichmentProvider") {}
+>()("psn-playtime/server/providers/enrichment/contract.effect/EnrichmentProvider") {}

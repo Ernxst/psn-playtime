@@ -2,7 +2,7 @@ import * as Context from "effect/Context";
 import type * as Effect from "effect/Effect";
 import type * as Redacted from "effect/Redacted";
 import type { DashboardData } from "@/lib/psn/contract.schema";
-import type { AccountProviderError } from "./errors.effect";
+import type { AccountProviderError } from "../errors.effect";
 
 /**
  * `AccountProvider` — the platform-agnostic seam (phase E3) between the
@@ -37,5 +37,5 @@ export interface AccountProviderShape {
 }
 
 export class AccountProvider extends Context.Service<AccountProvider, AccountProviderShape>()(
-  "psn-playtime/server/ports/account-provider.effect/AccountProvider"
+  "psn-playtime/server/providers/account/contract.effect/AccountProvider"
 ) {}

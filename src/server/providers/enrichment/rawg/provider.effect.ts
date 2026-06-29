@@ -32,14 +32,14 @@ import {
   EnrichmentProvider,
   type EnrichmentProviderShape,
   type GameMetadata,
-} from "@/server/ports/enrichment-provider.effect";
-import { ProviderRateLimitedError } from "@/server/ports/errors.effect";
+} from "@/server/providers/enrichment/contract.effect";
 import {
   deriveFranchise,
   mapRawgGenres,
   normalizeForSearch,
   normalizePlaytime,
-} from "@/server/rawg";
+} from "@/server/providers/enrichment/rawg/client";
+import { ProviderRateLimitedError } from "@/server/providers/errors.effect";
 
 const RAWG_ENDPOINT = "https://api.rawg.io/api/games";
 
