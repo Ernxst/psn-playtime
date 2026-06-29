@@ -4,12 +4,9 @@ import type { TransactionRow } from "@/domain/transactions";
 import { fmtDate } from "@/features/dashboard/format";
 import type { GamePlay } from "@/server/providers/account/snapshot";
 import { topGamesByHours } from "./analytics";
+import { buildDataSummary, buildFollowUps, buildMenu, buildPrompt } from "./llm-prompt";
 import {
   ADD_ON_SIGNAL_GUIDANCE,
-  buildDataSummary,
-  buildFollowUps,
-  buildMenu,
-  buildPrompt,
   COMPLETION_INTERPRETATION_GUIDANCE,
   MENU_INSTRUCTION,
   MENU_MODE,
@@ -22,7 +19,7 @@ import {
   SPEND_SIGNAL_GUIDANCE,
   SPEND_VARIANTS,
   TROPHY_SIGNAL_GUIDANCE,
-} from "./llm-prompt";
+} from "./llm-prompt-catalogue";
 import { summariseSpend } from "./spend";
 
 function tx(overrides: Partial<TransactionRow>): TransactionRow {
