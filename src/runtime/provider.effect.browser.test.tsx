@@ -1,6 +1,6 @@
 import { useAtomValue } from "@effect/atom-react";
 import * as AsyncResult from "effect/unstable/reactivity/AsyncResult";
-import { expect, test } from "vitest";
+import { describe, expect, it } from "vitest";
 import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
 import { appNameAtom } from "./atoms.effect";
@@ -14,12 +14,14 @@ function AppName() {
   return <p>{appName}</p>;
 }
 
-test("the atom provider resolves the example service through an atom", async () => {
-  await render(
-    <EffectAtomProvider>
-      <AppName />
-    </EffectAtomProvider>
-  );
+describe("EffectAtomProvider", () => {
+  it("the atom provider resolves the example service through an atom", async () => {
+    await render(
+      <EffectAtomProvider>
+        <AppName />
+      </EffectAtomProvider>
+    );
 
-  await expect.element(page.getByText("psn-playtime")).toBeVisible();
+    await expect.element(page.getByText("psn-playtime")).toBeVisible();
+  });
 });
