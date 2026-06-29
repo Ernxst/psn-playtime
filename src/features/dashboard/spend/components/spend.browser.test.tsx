@@ -5,9 +5,9 @@ import { page } from "vitest/browser";
 import { demoDashboard } from "@/domain/mock";
 import { bookmarkletHref } from "@/domain/transaction-bookmarklet";
 import type { TransactionRow } from "@/domain/transactions";
-import { EffectAtomProvider } from "@/runtime/provider.effect";
 import type { GamePlay } from "@/server/providers/account/snapshot";
 import { clearTransactionImport, saveTransactionImport } from "@/stores/transactions-store";
+import { TestAtomProvider, testRegistry } from "@/test/atom-registry";
 import { AddOnsSection, SpendSection, SpentMostSection } from "./spend";
 
 afterEach(() => {
@@ -16,7 +16,7 @@ afterEach(() => {
 
 /** Render under the atom provider so `useTransactionImport` shares the registry that imperative writes target. */
 function renderWithAtoms(ui: ReactNode) {
-  return render(ui, { wrapper: EffectAtomProvider });
+  return render(ui, { wrapper: TestAtomProvider });
 }
 
 /** The demo library as it would arrive for a real, signed-in account. */
@@ -41,12 +41,12 @@ function mockPointer(coarse: boolean) {
 }
 
 function seed(transactions: TransactionRow[]) {
-  saveTransactionImport({
+  saveTransactionImport(testRegistry, {
     transactions,
     importedAt: "2024-01-01T00:00:00.000Z",
     source: "store.playstation.com",
   });
-  onTestFinished(clearTransactionImport);
+  onTestFinished(() => clearTransactionImport(testRegistry));
 }
 
 /** An add-on purchase matched to "FIFA 18" (titleId DEMO-1) in the demo library. */
@@ -109,7 +109,7 @@ function baseFor(titleId: string, amountMinor: number): TransactionRow {
 
 describe("SpendSection", () => {
   it("prompts for an import when no transactions are present", async () => {
-    onTestFinished(clearTransactionImport);
+    onTestFinished(() => clearTransactionImport(testRegistry));
 
     await renderWithAtoms(<SpendSection data={demoDashboard} />);
 
@@ -118,7 +118,7 @@ describe("SpendSection", () => {
   });
 
   it("tells coarse pointer users to copy the bookmark", async () => {
-    onTestFinished(clearTransactionImport);
+    onTestFinished(() => clearTransactionImport(testRegistry));
     mockPointer(true);
 
     await renderWithAtoms(<SpendSection data={demoDashboard} />);
@@ -129,7 +129,7 @@ describe("SpendSection", () => {
   });
 
   it("tells fine pointer users they can drag the bookmarklet", async () => {
-    onTestFinished(clearTransactionImport);
+    onTestFinished(() => clearTransactionImport(testRegistry));
     mockPointer(false);
 
     await renderWithAtoms(<SpendSection data={demoDashboard} />);
@@ -144,7 +144,7 @@ describe("SpendSection", () => {
   });
 
   it("copies the bookmarklet and flashes confirmation when Copy is clicked", async () => {
-    onTestFinished(clearTransactionImport);
+    onTestFinished(() => clearTransactionImport(testRegistry));
     const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
 
     await renderWithAtoms(<SpendSection data={demoDashboard} />);
@@ -156,7 +156,7 @@ describe("SpendSection", () => {
   });
 
   it("keeps the drag affordance out of the tab order and accessibility tree", async () => {
-    onTestFinished(clearTransactionImport);
+    onTestFinished(() => clearTransactionImport(testRegistry));
 
     await renderWithAtoms(<SpendSection data={demoDashboard} />);
 
@@ -170,7 +170,7 @@ describe("SpendSection", () => {
   });
 
   it("links to PlayStation order history in the import instructions", async () => {
-    onTestFinished(clearTransactionImport);
+    onTestFinished(() => clearTransactionImport(testRegistry));
 
     await renderWithAtoms(<SpendSection data={demoDashboard} />);
 
@@ -247,7 +247,7 @@ describe("AddOnsSection", () => {
   });
 
   it("hides the add-ons section when no transactions are imported", async () => {
-    onTestFinished(clearTransactionImport);
+    onTestFinished(() => clearTransactionImport(testRegistry));
 
     await renderWithAtoms(<AddOnsSection data={realDashboard} />);
 
@@ -294,7 +294,7 @@ describe("SpentMostSection", () => {
   });
 
   it("hides the spent-most section when no transactions are imported", async () => {
-    onTestFinished(clearTransactionImport);
+    onTestFinished(() => clearTransactionImport(testRegistry));
 
     await renderWithAtoms(<SpentMostSection data={realDashboard} />);
 

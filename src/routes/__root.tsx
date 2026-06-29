@@ -2,6 +2,7 @@ import { TanStackDevtools } from "@tanstack/react-devtools";
 import type { QueryClient } from "@tanstack/react-query";
 import { HeadContent, Scripts, createRootRouteWithContext } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
+import type * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
 import { EffectAtomProvider } from "@/runtime/provider.effect";
 import { Toaster } from "../components/ui/sonner";
 import { TooltipProvider } from "../components/ui/tooltip";
@@ -11,6 +12,7 @@ import appCss from "../styles.css?url";
 
 interface MyRouterContext {
   queryClient: QueryClient;
+  atomRegistry: AtomRegistry.AtomRegistry;
 }
 
 const DEFAULT_TITLE = "PSN Playtime — your PlayStation history, visualised";
@@ -57,6 +59,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 });
 
 function RootDocument({ children }: { children: React.ReactNode }) {
+  const { atomRegistry } = Route.useRouteContext();
   return (
     <html lang="en" className="dark">
       <head>
@@ -64,7 +67,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       </head>
       <body>
         <TooltipProvider>
-          <EffectAtomProvider>{children}</EffectAtomProvider>
+          <EffectAtomProvider registry={atomRegistry}>{children}</EffectAtomProvider>
         </TooltipProvider>
         <Toaster richColors position="top-center" />
         <TanStackDevtools

@@ -1,11 +1,12 @@
 import {
   createMemoryHistory,
-  createRootRoute,
+  createRootRouteWithContext,
   createRoute,
   createRouter,
   Outlet,
   RouterProvider,
 } from "@tanstack/react-router";
+import type * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
 import { toast } from "sonner";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { render } from "vitest-browser-react";
@@ -23,6 +24,7 @@ import {
   loadTransactionImport,
   saveTransactionImport,
 } from "@/stores/transactions-store";
+import { testRegistry } from "@/test/atom-registry";
 import { multiProductPurchase } from "@/test/transaction-fixtures";
 import { ImportPending, ImportReceiver, receiveHandoff } from "./import-receiver";
 
@@ -39,7 +41,7 @@ function payloadOf(transactions: TransactionRow[]): HandoffPayload {
 }
 
 function seedPrior(transactions: TransactionRow[]) {
-  saveTransactionImport({
+  saveTransactionImport(testRegistry, {
     transactions,
     importedAt: "2024-01-01T00:00:00.000Z",
     source: "www.playstation.com",
@@ -47,13 +49,15 @@ function seedPrior(transactions: TransactionRow[]) {
 }
 
 function cleanUp() {
-  clearTransactionImport();
+  clearTransactionImport(testRegistry);
   window.location.hash = "";
 }
 
 /** Render the real `/import` route (client loader + components) at `/import`. */
 function renderImportRoute() {
-  const rootRoute = createRootRoute({ component: () => <Outlet /> });
+  const rootRoute = createRootRouteWithContext<{ atomRegistry: AtomRegistry.AtomRegistry }>()({
+    component: () => <Outlet />,
+  });
   const importRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/import",
@@ -69,6 +73,7 @@ function renderImportRoute() {
   const router = createRouter({
     routeTree: rootRoute.addChildren([importRoute, dashboardRoute]),
     history: createMemoryHistory({ initialEntries: ["/import"] }),
+    context: { atomRegistry: testRegistry },
   });
 
   return render(<RouterProvider router={router} />);
@@ -79,7 +84,7 @@ describe(".receiveHandoff", () => {
     onTestFinished(cleanUp);
     window.location.hash = `#${encodeHandoff(payloadOf(rows))}`;
 
-    const result = receiveHandoff();
+    const result = receiveHandoff(testRegistry);
 
     expect(result).toEqual({ status: "imported", count: 2 });
     expect(loadTransactionImport()?.transactions).toHaveLength(2);
@@ -89,7 +94,7 @@ describe(".receiveHandoff", () => {
     onTestFinished(cleanUp);
     window.location.hash = `#${encodeHandoff(payloadOf(rows))}`;
 
-    receiveHandoff();
+    receiveHandoff(testRegistry);
 
     expect(window.location.hash).toBe("");
   });
@@ -99,7 +104,7 @@ describe(".receiveHandoff", () => {
     seedPrior([rows[0]!]);
     window.location.hash = `#${encodeHandoff(payloadOf(rows))}`;
 
-    const result = receiveHandoff();
+    const result = receiveHandoff(testRegistry);
 
     // The prior row repeats and only the second row is appended.
     expect(result).toEqual({ status: "imported", count: 2 });
@@ -110,7 +115,7 @@ describe(".receiveHandoff", () => {
     onTestFinished(cleanUp);
     window.location.hash = "";
 
-    const result = receiveHandoff();
+    const result = receiveHandoff(testRegistry);
 
     expect(result).toEqual({ status: "empty" });
     expect(loadTransactionImport()).toBeNull();
@@ -120,7 +125,7 @@ describe(".receiveHandoff", () => {
     onTestFinished(cleanUp);
     window.location.hash = `#${encodeHandoff(payloadOf([]))}`;
 
-    const result = receiveHandoff();
+    const result = receiveHandoff(testRegistry);
 
     expect(result).toEqual({ status: "invalid" });
   });
@@ -129,7 +134,7 @@ describe(".receiveHandoff", () => {
     onTestFinished(cleanUp);
     window.location.hash = `#data=${encodeURIComponent(JSON.stringify({ v: 99, transactions: "nope" }))}`;
 
-    const result = receiveHandoff();
+    const result = receiveHandoff(testRegistry);
 
     expect(result).toEqual({ status: "empty" });
     expect(loadTransactionImport()).toBeNull();
