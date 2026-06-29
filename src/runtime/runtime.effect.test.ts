@@ -4,7 +4,7 @@ import { describe, expect, it, onTestFinished } from "vitest";
 import { AppLayer, appRuntime, runServer } from "./runtime.effect";
 import { AppConfig, requireAppName } from "./services.effect";
 
-describe("effect runtime foundation", () => {
+describe("appRuntime", () => {
   it("resolves the example service through the app runtime", async () => {
     const appName = await appRuntime.runPromise(
       Effect.gen(function* () {
@@ -12,12 +12,6 @@ describe("effect runtime foundation", () => {
         return config.appName;
       })
     );
-
-    expect(appName).toBe("psn-playtime");
-  });
-
-  it("runs effects inside a server handler via runServer", async () => {
-    const appName = await runServer(requireAppName("psn-playtime"));
 
     expect(appName).toBe("psn-playtime");
   });
@@ -37,6 +31,14 @@ describe("effect runtime foundation", () => {
     onTestFinished(() => runtime.dispose());
 
     const appName = await runtime.runPromise(requireAppName("psn-playtime"));
+
+    expect(appName).toBe("psn-playtime");
+  });
+});
+
+describe(".runServer", () => {
+  it("runs effects inside a server handler", async () => {
+    const appName = await runServer(requireAppName("psn-playtime"));
 
     expect(appName).toBe("psn-playtime");
   });

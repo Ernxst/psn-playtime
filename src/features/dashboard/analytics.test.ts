@@ -139,6 +139,16 @@ describe(".genreBreakdown", () => {
       { genre: "Other", hours: 0, games: 1, share: 0 },
     ]);
   });
+
+  it("guards the share denominator when no hours are logged", () => {
+    const zero: DashboardData = {
+      ...sample,
+      games: [{ ...sample.games[3]! }],
+      meta: { ...sample.meta, totalHours: 0 },
+    };
+
+    expect(genreBreakdown(zero)).toEqual([{ genre: "Other", hours: 0, games: 1, share: 0 }]);
+  });
 });
 
 describe(".topFranchises", () => {
@@ -157,6 +167,16 @@ describe(".hoursByYear", () => {
       { year: 2021, hours: 100, games: 1 },
       { year: 2022, hours: 50, games: 1 },
     ]);
+  });
+
+  it("treats a game with an unparseable lastPlayed as having no year", () => {
+    const broken: DashboardData = {
+      ...sample,
+      games: [{ ...sample.games[0]!, titleId: "BAD", lastPlayed: "not-a-date" }],
+    };
+
+    expect(hoursByYear(broken)).toEqual([]);
+    expect(recency(broken).dormantGames).toBe(1);
   });
 });
 
@@ -399,6 +419,10 @@ describe(".filterByTimeframe", () => {
       span: { from: undefined, to: undefined },
     });
   });
+
+  it("scopes to the last twelve months", () => {
+    expect(filterByTimeframe(sample, "last-12-months").games.map((g) => g.titleId)).toEqual(["C"]);
+  });
 });
 
 describe(".applyFilters", () => {
@@ -578,6 +602,36 @@ describe(".applyFilters", () => {
     });
     expect(scoped.profile).toBe(sample.profile);
   });
+
+  it("ignores an unparseable custom from-date and keeps the whole library", () => {
+    expect(applyFilters(sample, { ...defaultFilters, lastPlayedFrom: "nonsense" })).toBe(sample);
+  });
+
+  it("ignores an unparseable custom to-date and keeps the whole library", () => {
+    expect(applyFilters(sample, { ...defaultFilters, lastPlayedTo: "nonsense" })).toBe(sample);
+  });
+
+  it("excludes games with an unparseable lastPlayed from a date-bounded filter", () => {
+    const mixed: DashboardData = {
+      ...sample,
+      games: [
+        { ...sample.games[0]!, titleId: "OK", lastPlayed: "2021-06-01" },
+        { ...sample.games[1]!, titleId: "BAD", lastPlayed: "not-a-date" },
+      ],
+    };
+
+    const scoped = applyFilters(mixed, {
+      ...defaultFilters,
+      lastPlayedFrom: "2020-01-01",
+      lastPlayedTo: "2022-01-01",
+    });
+
+    expect(scoped.games.map((g) => g.titleId)).toEqual(["OK"]);
+  });
+
+  it("returns the original data when an active filter still matches every game", () => {
+    expect(applyFilters(sample, { ...defaultFilters, minHours: 0 })).toBe(sample);
+  });
 });
 
 describe(".valuePerGame", () => {
@@ -654,61 +708,5 @@ describe(".gameRows", () => {
 
     expect(tracked).toHaveLength(95);
     expect(untracked).toHaveLength(3);
-  });
-});
-
-describe("analytics edge branches", () => {
-  it("filterByTimeframe scopes to the last twelve months", () => {
-    expect(filterByTimeframe(sample, "last-12-months").games.map((g) => g.titleId)).toEqual(["C"]);
-  });
-
-  it("genreBreakdown guards the share denominator when no hours are logged", () => {
-    const zero: DashboardData = {
-      ...sample,
-      games: [{ ...sample.games[3]! }],
-      meta: { ...sample.meta, totalHours: 0 },
-    };
-
-    expect(genreBreakdown(zero)).toEqual([{ genre: "Other", hours: 0, games: 1, share: 0 }]);
-  });
-
-  it("treats a game with an unparseable lastPlayed as having no year", () => {
-    const broken: DashboardData = {
-      ...sample,
-      games: [{ ...sample.games[0]!, titleId: "BAD", lastPlayed: "not-a-date" }],
-    };
-
-    expect(hoursByYear(broken)).toEqual([]);
-    expect(recency(broken).dormantGames).toBe(1);
-  });
-
-  it("ignores an unparseable custom from-date and keeps the whole library", () => {
-    expect(applyFilters(sample, { ...defaultFilters, lastPlayedFrom: "nonsense" })).toBe(sample);
-  });
-
-  it("ignores an unparseable custom to-date and keeps the whole library", () => {
-    expect(applyFilters(sample, { ...defaultFilters, lastPlayedTo: "nonsense" })).toBe(sample);
-  });
-
-  it("excludes games with an unparseable lastPlayed from a date-bounded filter", () => {
-    const mixed: DashboardData = {
-      ...sample,
-      games: [
-        { ...sample.games[0]!, titleId: "OK", lastPlayed: "2021-06-01" },
-        { ...sample.games[1]!, titleId: "BAD", lastPlayed: "not-a-date" },
-      ],
-    };
-
-    const scoped = applyFilters(mixed, {
-      ...defaultFilters,
-      lastPlayedFrom: "2020-01-01",
-      lastPlayedTo: "2022-01-01",
-    });
-
-    expect(scoped.games.map((g) => g.titleId)).toEqual(["OK"]);
-  });
-
-  it("returns the original data when an active filter still matches every game", () => {
-    expect(applyFilters(sample, { ...defaultFilters, minHours: 0 })).toBe(sample);
   });
 });

@@ -27,7 +27,7 @@ const enrichmentTestLayer = Layer.succeed(EnrichmentProvider, {
   fetchFranchise: () => Effect.succeed(undefined),
 });
 
-describe("E3 service ports", () => {
+describe("EnrichmentProvider", () => {
   it("resolves a GameMetadata through the EnrichmentProvider port", async () => {
     const program = Effect.gen(function* () {
       const provider = yield* EnrichmentProvider;
