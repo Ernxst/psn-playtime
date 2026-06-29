@@ -16,6 +16,7 @@ import * as DateTime from "effect/DateTime";
 import * as Option from "effect/Option";
 import type { ProfileFromUserNameResponse, TrophyTitle, UserPlayedGamesResponse } from "psn-api";
 import { round } from "@/domain/round";
+import { computeTotals } from "@/domain/totals";
 import type {
   DashboardMeta,
   GamePlay,
@@ -305,24 +306,13 @@ export function computeMeta(
   games: GamePlay[],
   appsExcluded: Partitioned["appsExcluded"]
 ): DashboardMeta {
-  const firstDates = games
-    .map((g) => g.firstPlayed)
-    .filter((d): d is string => Boolean(d))
-    .sort();
-  const lastDates = games
-    .map((g) => g.lastPlayed)
-    .filter((d): d is string => Boolean(d))
-    .sort();
-  const firstEverPlayed = firstDates[0];
+  const totals = computeTotals(games);
   return {
-    totalGames: games.length,
-    totalHours: round(
-      games.reduce((sum, g) => sum + g.hours, 0),
-      2
-    ),
-    totalSessions: games.reduce((sum, g) => sum + g.playCount, 0),
+    totalGames: totals.totalGames,
+    totalHours: totals.totalHours,
+    totalSessions: totals.totalSessions,
     appsExcluded,
-    firstEverPlayed,
-    span: { from: firstEverPlayed, to: lastDates.at(-1) },
+    firstEverPlayed: totals.firstEverPlayed,
+    span: totals.span,
   };
 }
