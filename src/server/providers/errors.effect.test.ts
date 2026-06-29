@@ -44,12 +44,15 @@ describe(".providerError", () => {
     ["too many requests, slow down"],
     ["upstream rate limit reached"],
     ["RATE LIMIT exceeded"],
-  ])("classifies a message signalling rate limiting (%s) as ProviderRateLimitedError", (message) => {
-    const error = providerError("psn")(new Error(message));
+  ])(
+    "classifies a message signalling rate limiting (%s) as ProviderRateLimitedError",
+    (message) => {
+      const error = providerError("psn")(new Error(message));
 
-    expect(error).toBeInstanceOf(ProviderRateLimitedError);
-    expect(error).toMatchObject({ _tag: "ProviderRateLimitedError", provider: "psn" });
-  });
+      expect(error).toBeInstanceOf(ProviderRateLimitedError);
+      expect(error).toMatchObject({ _tag: "ProviderRateLimitedError", provider: "psn" });
+    }
+  );
 
   it("classifies an unrelated failure as ProviderUnavailableError carrying the message", () => {
     const error = providerError("rawg")(new Error("connection refused"));
