@@ -16,7 +16,7 @@ import {
   HANDOFF_VERSION,
   type HandoffPayload,
   type TransactionRow,
-} from "@/lib/psn/transactions";
+} from "@/domain/transactions";
 import {
   clearTransactionImport,
   loadTransactionImport,

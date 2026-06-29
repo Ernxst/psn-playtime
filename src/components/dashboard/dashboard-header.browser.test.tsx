@@ -1,7 +1,7 @@
 import { expect, test, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
-import { demoDashboard } from "@/lib/psn/mock";
+import { demoDashboard } from "@/domain/mock";
 import { DashboardHeader } from "./dashboard-header";
 
 test("demo header shows the demo badge and hides the sign-out button", async () => {

@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
-import { demoDashboard } from "@/lib/psn/mock";
+import { demoDashboard } from "@/domain/mock";
 import type { GamePlay } from "@/server/providers/account/snapshot";
 import { GamesTable } from "./games-table";
 

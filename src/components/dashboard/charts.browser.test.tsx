@@ -1,7 +1,7 @@
 import { beforeEach, expect, test } from "vitest";
 import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
-import { demoDashboard } from "@/lib/psn/mock";
+import { demoDashboard } from "@/domain/mock";
 import { FranchiseChart, SessionChart, TopGamesChart, YearChart } from "./charts";
 
 const named = [

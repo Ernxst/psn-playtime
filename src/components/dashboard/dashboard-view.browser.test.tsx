@@ -1,8 +1,8 @@
 import { beforeEach, expect, onTestFinished, test, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
-import { demoDashboard } from "@/lib/psn/mock";
-import type { TransactionRow } from "@/lib/psn/transactions";
+import { demoDashboard } from "@/domain/mock";
+import type { TransactionRow } from "@/domain/transactions";
 import { clearTransactionImport, saveTransactionImport } from "@/lib/transactions-store";
 import { createHarness } from "@/test/harness";
 import { DashboardView } from "./dashboard-view";

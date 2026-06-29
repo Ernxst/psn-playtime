@@ -11,6 +11,7 @@
  * nothing here recomputes or duplicates that logic.
  */
 import { fmtDate } from "@/components/dashboard/format";
+import type { TransactionRow } from "@/domain/transactions";
 import type { DashboardData, GamePlay } from "@/server/providers/account/snapshot";
 import {
   bingeVsDipIn,
@@ -27,7 +28,6 @@ import {
   type PriceContextSummary,
   type SpendSummary,
 } from "./spend";
-import type { TransactionRow } from "./transactions";
 
 /** The category a question belongs to, used to group the selector and follow-ups. */
 export type PromptGroup =

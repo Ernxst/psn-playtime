@@ -11,8 +11,8 @@
  * No TTL, no refresh, no clear UI: clearing is a manual browser-storage action.
  */
 import { useSyncExternalStore } from "react";
+import { demoDashboard } from "@/domain/mock";
 import type { DashboardData } from "@/server/providers/account/snapshot";
-import { demoDashboard } from "./psn/mock";
 
 /** One cache entry per account: `psn-playtime:dashboard:<accountId>`. */
 const KEY_PREFIX = "psn-playtime:dashboard:";

@@ -1,4 +1,3 @@
-import type { DashboardData, GamePlay } from "@/server/providers/account/snapshot";
 /**
  * Joins imported PSN transactions to playtime (by title) to answer "what did
  * each game cost me per hour". Pure selectors over `DashboardData` + the parsed
@@ -8,7 +7,8 @@ import type { DashboardData, GamePlay } from "@/server/providers/account/snapsho
  * name, so DLC, bundles and renamed re-releases may not line up perfectly.
  * Anything that fails to match is surfaced as `unmatchedSpend` rather than hidden.
  */
-import type { TransactionRow } from "./transactions";
+import type { TransactionRow } from "@/domain/transactions";
+import type { DashboardData, GamePlay } from "@/server/providers/account/snapshot";
 import { round, yearOf } from "./util";
 
 /** One game with its matched spend and resulting value. */

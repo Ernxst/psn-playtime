@@ -3,7 +3,7 @@
  * parses. Shapes mirror the live GraphQL response (see the project's
  * `transactions.json` capture) without real account data.
  */
-import type { ApiTransaction } from "@/lib/psn/transactions";
+import type { ApiTransaction } from "@/domain/transactions";
 
 /** A purchase carrying two product lines (base game + add-on). */
 export const multiProductPurchase: ApiTransaction = {

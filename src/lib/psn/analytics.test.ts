@@ -1,4 +1,5 @@
 import { describe, expect, it, onTestFinished, vi } from "vitest";
+import { demoDashboard } from "@/domain/mock";
 import type { DashboardData } from "@/server/providers/account/snapshot";
 import {
   applyFilters,
@@ -16,7 +17,6 @@ import {
   topGamesByHours,
   valuePerGame,
 } from "./analytics";
-import { demoDashboard } from "./mock";
 
 /** Small hand-built library with exactly-known aggregates. */
 const sample: DashboardData = {
