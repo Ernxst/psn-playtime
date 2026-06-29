@@ -81,7 +81,10 @@ function trophy(overrides: Partial<TrophyTitle>): TrophyTitle {
 }
 
 /** The first (highest-hours) game produced for a single played title. */
-function gameFor(title: PlayedTitle, trophies: TrophyTitle[] = []): ReturnType<typeof partitionTitles>["games"][number] {
+function gameFor(
+  title: PlayedTitle,
+  trophies: TrophyTitle[] = []
+): ReturnType<typeof partitionTitles>["games"][number] {
   return partitionTitles([title], buildTrophyMap(trophies)).games[0]!;
 }
 
@@ -195,11 +198,31 @@ describe(".partitionTitles", () => {
   });
 
   it.each([
-    { scenario: "derives PS5 from the category", category: "ps5_native_game", name: "X", expected: "PS5" },
+    {
+      scenario: "derives PS5 from the category",
+      category: "ps5_native_game",
+      name: "X",
+      expected: "PS5",
+    },
     { scenario: "derives PS3 from the category", category: "ps3_game", name: "X", expected: "PS3" },
-    { scenario: "derives PSVITA from the category", category: "psvita_game", name: "X", expected: "PSVITA" },
-    { scenario: "falls back to the name when the category has no token", category: "unknown", name: "Some Game (PlayStation®4)", expected: "PS4" },
-    { scenario: "yields OTHER when neither category nor name carries a token", category: "unknown", name: "Plain Title", expected: "OTHER" },
+    {
+      scenario: "derives PSVITA from the category",
+      category: "psvita_game",
+      name: "X",
+      expected: "PSVITA",
+    },
+    {
+      scenario: "falls back to the name when the category has no token",
+      category: "unknown",
+      name: "Some Game (PlayStation®4)",
+      expected: "PS4",
+    },
+    {
+      scenario: "yields OTHER when neither category nor name carries a token",
+      category: "unknown",
+      name: "Plain Title",
+      expected: "OTHER",
+    },
   ])("$scenario", ({ category, name, expected }) => {
     expect(gameFor(played({ category, name })).platform).toBe(expected);
   });
@@ -216,7 +239,11 @@ describe(".partitionTitles", () => {
   });
 
   it.each([
-    { scenario: "reduces a valid ISO timestamp to a date", value: "2020-01-01T10:00:00Z", expected: "2020-01-01" },
+    {
+      scenario: "reduces a valid ISO timestamp to a date",
+      value: "2020-01-01T10:00:00Z",
+      expected: "2020-01-01",
+    },
     { scenario: "drops an invalid timestamp", value: "not-a-date", expected: undefined },
     { scenario: "drops an empty timestamp", value: "", expected: undefined },
   ])("$scenario", ({ value, expected }) => {
@@ -244,6 +271,7 @@ describe(".partitionTitles", () => {
       trophy({
         trophyTitleName: "Call of Duty Modern Warfare",
         progress: 90,
+        definedTrophies: { bronze: 40, silver: 10, gold: 5, platinum: 1 },
         earnedTrophies: { bronze: 20, silver: 10, gold: 5, platinum: 1 },
         lastUpdatedDateTime: "2021-06-10T00:00:00Z",
       }),
@@ -258,9 +286,28 @@ describe(".partitionTitles", () => {
     });
   });
 
+  it("keeps platinum eligibility when the platinum is available but unearned", () => {
+    const game = gameFor(played({ name: "Fresh Start" }), [
+      trophy({
+        trophyTitleName: "Fresh Start",
+        progress: 80,
+        definedTrophies: { bronze: 40, silver: 10, gold: 5, platinum: 1 },
+        earnedTrophies: { bronze: 20, silver: 10, gold: 5, platinum: 0 },
+      }),
+    ]);
+
+    expect(game.trophy).toMatchObject({
+      earned: { platinum: 0, gold: 5, silver: 10, bronze: 20 },
+      hasPlatinum: true,
+    });
+  });
+
   it("matches a trophy list via the concept name when the store name differs", () => {
     const game = gameFor(
-      played({ name: "GTAV Premium Edition", concept: { ...basePlayed.concept, name: "Grand Theft Auto V" } }),
+      played({
+        name: "GTAV Premium Edition",
+        concept: { ...basePlayed.concept, name: "Grand Theft Auto V" },
+      }),
       [trophy({ trophyTitleName: "Grand Theft Auto V", progress: 50 })]
     );
 
@@ -268,9 +315,10 @@ describe(".partitionTitles", () => {
   });
 
   it("matches a brand-prefixed trophy list via the trailing-token subset", () => {
-    const game = gameFor(played({ name: "The Division 2", concept: { ...basePlayed.concept, name: "" } }), [
-      trophy({ trophyTitleName: "Tom Clancy's The Division®2", progress: 65 }),
-    ]);
+    const game = gameFor(
+      played({ name: "The Division 2", concept: { ...basePlayed.concept, name: "" } }),
+      [trophy({ trophyTitleName: "Tom Clancy's The Division®2", progress: 65 })]
+    );
 
     expect(game.trophy?.progress).toBe(65);
   });
@@ -293,7 +341,11 @@ describe(".partitionTitles", () => {
 
   it("omits the last-earned date when no trophies have been earned", () => {
     const game = gameFor(played({ name: "Fresh Start" }), [
-      trophy({ trophyTitleName: "Fresh Start", progress: 0, lastUpdatedDateTime: "2021-06-10T00:00:00Z" }),
+      trophy({
+        trophyTitleName: "Fresh Start",
+        progress: 0,
+        lastUpdatedDateTime: "2021-06-10T00:00:00Z",
+      }),
     ]);
 
     expect(game.trophy).toEqual({

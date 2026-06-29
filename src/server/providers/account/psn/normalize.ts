@@ -241,7 +241,7 @@ function trophyFor(map: Map<string, TrophyTitle>, names: string[]): GameTrophy |
     progress: title.progress,
     earned,
     total,
-    hasPlatinum: earned.platinum > 0,
+    hasPlatinum: title.definedTrophies.platinum > 0,
     lastEarnedAt: total > 0 ? title.lastUpdatedDateTime : undefined,
   };
 }
