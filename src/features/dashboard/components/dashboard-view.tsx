@@ -29,12 +29,12 @@ import {
   SpendSection,
   SpentMostSection,
 } from "@/features/dashboard/spend/components/spend";
+import { TrophySection } from "@/features/dashboard/trophies/components/trophies";
 import type { DashboardData } from "@/server/providers/account/snapshot";
 import { DashboardHeader } from "./dashboard-header";
 import { DashboardSidebar } from "./dashboard-sidebar";
 import { LlmPromptCard } from "./llm-prompt-card";
 import { DashboardEmpty, DashboardNoMatches } from "./states";
-import { TrophySection } from "./trophies";
 
 const LazyTopGamesSection = lazy(() =>
   import("./chart-sections").then((module) => ({ default: module.TopGamesSection }))
