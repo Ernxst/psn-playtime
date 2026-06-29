@@ -198,6 +198,7 @@ describe(".fetchSnapshot", () => {
           trophy({
             trophyTitleName: "Call of Duty Modern Warfare",
             progress: 90,
+            definedTrophies: { bronze: 40, silver: 10, gold: 5, platinum: 1 },
             earnedTrophies: { bronze: 20, silver: 10, gold: 5, platinum: 1 },
             lastUpdatedDateTime: "2021-06-10T00:00:00Z",
           }),

@@ -189,6 +189,7 @@ const trophyTitles: TrophyTitle[] = [
   trophy({
     trophyTitleName: "Call of Duty: Modern Warfare!",
     progress: 90,
+    definedTrophies: { bronze: 40, silver: 10, gold: 5, platinum: 1 },
     earnedTrophies: { bronze: 20, silver: 10, gold: 5, platinum: 1 },
     lastUpdatedDateTime: "2021-06-10T00:00:00Z",
   }),
@@ -341,6 +342,7 @@ describe(".signInWithTokenHandler", () => {
           trophy({
             trophyTitleName: "God of War Ragnarök",
             progress: 73,
+            definedTrophies: { bronze: 30, silver: 8, gold: 3, platinum: 1 },
             earnedTrophies: { bronze: 20, silver: 5, gold: 2, platinum: 1 },
             lastUpdatedDateTime: "2023-02-01T00:00:00Z",
           }),
