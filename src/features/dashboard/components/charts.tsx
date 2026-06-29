@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useMemo } from "react";
 // Charts are deliberately server-rendered for first paint, so recharts is a
 // static import rather than a lazy chunk.
@@ -36,6 +37,59 @@ function chartLabel(title: string, parts: string[]): string {
   return `${title}: ${parts.join(", ")}.`;
 }
 
+type HorizontalBarChartProps = {
+  label: string;
+  className: string;
+  data: unknown[];
+  margin: { left: number; right: number };
+  valueKey: string;
+  categoryKey: string;
+  yAxisWidth: number;
+  categoryTickFormatter?: (value: string) => string;
+  fill: string;
+  tooltip: ReactNode;
+  labelFormatter: (value: unknown) => string;
+};
+
+/** Shared scaffold for the three horizontal bar charts (issue #150). */
+function HorizontalBarChart(props: HorizontalBarChartProps) {
+  const { valueKey } = props;
+  return (
+    <ChartContainer
+      config={hoursConfig}
+      className={props.className}
+      // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role
+      role="img"
+      aria-label={props.label}
+    >
+      <BarChart accessibilityLayer data={props.data} layout="vertical" margin={props.margin}>
+        <XAxis type="number" dataKey={valueKey} hide />
+        <YAxis
+          type="category"
+          dataKey={props.categoryKey}
+          width={props.yAxisWidth}
+          tickLine={false}
+          axisLine={false}
+          tick={{ fontSize: 11 }}
+          tickFormatter={props.categoryTickFormatter}
+        />
+        {props.tooltip}
+        <Bar dataKey={valueKey} fill={props.fill} radius={4}>
+          <LabelList
+            dataKey={valueKey}
+            position="right"
+            className="fill-muted-foreground"
+            fontSize={11}
+            formatter={props.labelFormatter}
+          />
+        </Bar>
+      </BarChart>
+    </ChartContainer>
+  );
+}
+
+const truncateCategory = (v: string) => (v.length > 20 ? `${v.slice(0, 19)}…` : v);
+
 const topGamesTooltip = (
   <ChartTooltip
     content={
@@ -52,36 +106,19 @@ export function TopGamesChart({ data }: { data: DashboardData }) {
     rows.map((r) => `${r.name} ${r.hours.toLocaleString()} hours`)
   );
   return (
-    <ChartContainer
-      config={hoursConfig}
+    <HorizontalBarChart
+      label={label}
       className="aspect-auto h-[320px] w-full"
-      // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role
-      role="img"
-      aria-label={label}
-    >
-      <BarChart accessibilityLayer data={rows} layout="vertical" margin={{ left: 8, right: 32 }}>
-        <XAxis type="number" dataKey="hours" hide />
-        <YAxis
-          type="category"
-          dataKey="name"
-          width={150}
-          tickLine={false}
-          axisLine={false}
-          tick={{ fontSize: 11 }}
-          tickFormatter={(v: string) => (v.length > 20 ? `${v.slice(0, 19)}…` : v)}
-        />
-        {topGamesTooltip}
-        <Bar dataKey="hours" fill="var(--color-hours)" radius={4}>
-          <LabelList
-            dataKey="hours"
-            position="right"
-            className="fill-muted-foreground"
-            fontSize={11}
-            formatter={(v) => `${Math.round(Number(v)).toLocaleString()}h`}
-          />
-        </Bar>
-      </BarChart>
-    </ChartContainer>
+      data={rows}
+      margin={{ left: 8, right: 32 }}
+      valueKey="hours"
+      categoryKey="name"
+      yAxisWidth={150}
+      categoryTickFormatter={truncateCategory}
+      fill="var(--color-hours)"
+      tooltip={topGamesTooltip}
+      labelFormatter={(v) => `${Math.round(Number(v)).toLocaleString()}h`}
+    />
   );
 }
 
@@ -187,35 +224,18 @@ export function FranchiseChart({ data }: { data: DashboardData }) {
     rows.map((r) => `${r.franchise} ${r.hours.toLocaleString()} hours across ${r.games} games`)
   );
   return (
-    <ChartContainer
-      config={hoursConfig}
+    <HorizontalBarChart
+      label={label}
       className="aspect-auto h-[300px] w-full"
-      // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role
-      role="img"
-      aria-label={label}
-    >
-      <BarChart accessibilityLayer data={rows} layout="vertical" margin={{ left: 8, right: 32 }}>
-        <XAxis type="number" dataKey="hours" hide />
-        <YAxis
-          type="category"
-          dataKey="franchise"
-          width={120}
-          tickLine={false}
-          axisLine={false}
-          tick={{ fontSize: 11 }}
-        />
-        {franchiseTooltip}
-        <Bar dataKey="hours" fill="var(--chart-2)" radius={4}>
-          <LabelList
-            dataKey="hours"
-            position="right"
-            className="fill-muted-foreground"
-            fontSize={11}
-            formatter={(v) => `${Math.round(Number(v)).toLocaleString()}h`}
-          />
-        </Bar>
-      </BarChart>
-    </ChartContainer>
+      data={rows}
+      margin={{ left: 8, right: 32 }}
+      valueKey="hours"
+      categoryKey="franchise"
+      yAxisWidth={120}
+      fill="var(--chart-2)"
+      tooltip={franchiseTooltip}
+      labelFormatter={(v) => `${Math.round(Number(v)).toLocaleString()}h`}
+    />
   );
 }
 
@@ -289,35 +309,18 @@ export function SessionChart({ data }: { data: DashboardData }) {
     )
   );
   return (
-    <ChartContainer
-      config={hoursConfig}
+    <HorizontalBarChart
+      label={label}
       className="aspect-auto h-[340px] w-full"
-      // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role
-      role="img"
-      aria-label={label}
-    >
-      <BarChart accessibilityLayer data={rows} layout="vertical" margin={{ left: 8, right: 40 }}>
-        <XAxis type="number" dataKey="hoursPerSession" hide />
-        <YAxis
-          type="category"
-          dataKey="name"
-          width={150}
-          tickLine={false}
-          axisLine={false}
-          tick={{ fontSize: 11 }}
-          tickFormatter={(v: string) => (v.length > 20 ? `${v.slice(0, 19)}…` : v)}
-        />
-        {sessionTooltip}
-        <Bar dataKey="hoursPerSession" fill="var(--chart-4)" radius={4}>
-          <LabelList
-            dataKey="hoursPerSession"
-            position="right"
-            className="fill-muted-foreground"
-            fontSize={11}
-            formatter={(v) => `${Number(v)}h`}
-          />
-        </Bar>
-      </BarChart>
-    </ChartContainer>
+      data={rows}
+      margin={{ left: 8, right: 40 }}
+      valueKey="hoursPerSession"
+      categoryKey="name"
+      yAxisWidth={150}
+      categoryTickFormatter={truncateCategory}
+      fill="var(--chart-4)"
+      tooltip={sessionTooltip}
+      labelFormatter={(v) => `${Number(v)}h`}
+    />
   );
 }
