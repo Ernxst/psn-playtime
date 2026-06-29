@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
 import { demoDashboard } from "@/domain/mock";
-import { genreBreakdown } from "@/features/dashboard/analytics";
+import { genreBreakdown } from "@/features/dashboard/filters/analytics";
 import { GenreChart } from "./charts";
 
 describe("GenreChart", () => {

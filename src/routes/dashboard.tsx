@@ -8,7 +8,7 @@ import {
   rawgFranchisesQueryOptions,
   rawgGenresQueryOptions,
   shouldPersistEnrichment,
-} from "@/features/dashboard/query";
+} from "@/features/dashboard/enrichment/query";
 import type { DashboardData, GamePlay, Genre } from "@/server/providers/account/snapshot";
 import { clearActiveAccount, saveDashboard, useActiveDashboard } from "@/stores/dashboard-store";
 

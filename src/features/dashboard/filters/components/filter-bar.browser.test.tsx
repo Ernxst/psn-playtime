@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import { page, userEvent } from "vitest/browser";
 import { demoDashboard } from "@/domain/mock";
-import { type DashboardFilters, defaultFilters } from "@/features/dashboard/analytics";
+import { type DashboardFilters, defaultFilters } from "@/features/dashboard/filters/analytics";
 import type { GamePlay } from "@/server/providers/account/snapshot";
 import { FilterBar } from "./filter-bar";
 

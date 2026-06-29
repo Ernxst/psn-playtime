@@ -1,5 +1,4 @@
 import type { TransactionRow } from "@/domain/transactions";
-import type { DashboardData } from "@/server/providers/account/snapshot";
 import {
   summariseAddOns,
   summarisePriceContext,
@@ -7,7 +6,8 @@ import {
   type AddOnSummary,
   type PriceContextSummary,
   type SpendSummary,
-} from "./spend";
+} from "@/features/dashboard/spend/spend";
+import type { DashboardData } from "@/server/providers/account/snapshot";
 
 export interface PromptTransactionContext {
   hasTransactions: boolean;

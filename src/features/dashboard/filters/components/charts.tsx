@@ -24,9 +24,9 @@ import {
   hoursByYear,
   topFranchises,
   topGamesByHours,
-} from "@/features/dashboard/analytics";
+} from "@/features/dashboard/filters/analytics";
+import { chartColor } from "@/features/dashboard/format";
 import type { DashboardData } from "@/server/providers/account/snapshot";
-import { chartColor } from "../format";
 
 const hoursConfig = {
   hours: { label: "Hours", color: "var(--chart-1)" },

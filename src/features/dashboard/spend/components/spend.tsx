@@ -5,17 +5,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Separator } from "@/components/ui/separator";
 import { bookmarkletHref } from "@/domain/transaction-bookmarklet";
 import { useCopied } from "@/features/dashboard/components/copy-button";
+import { fmtHours } from "@/features/dashboard/format";
 import {
   type AddOnSummary,
   type SpendSummary,
   summariseAddOns,
   summariseSpend,
   type TitleSpend,
-} from "@/features/dashboard/spend";
+} from "@/features/dashboard/spend/spend";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import type { DashboardData } from "@/server/providers/account/snapshot";
 import { useTransactionImport } from "@/stores/transactions-store";
-import { fmtHours } from "../format";
 
 function money(currency: string, value: number): string {
   const symbol = currency || "£";

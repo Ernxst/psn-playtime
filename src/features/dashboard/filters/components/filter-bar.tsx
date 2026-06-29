@@ -13,7 +13,7 @@ import {
   type Activity,
   type DashboardFilters,
   defaultFilters,
-} from "@/features/dashboard/analytics";
+} from "@/features/dashboard/filters/analytics";
 import type { DashboardData, GamePlay, Genre, Platform } from "@/server/providers/account/snapshot";
 
 type Setter = (patch: Partial<DashboardFilters>) => void;

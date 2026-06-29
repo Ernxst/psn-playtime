@@ -1,3 +1,4 @@
+import { round } from "@/features/dashboard/util";
 /**
  * Pure trophy selectors over `DashboardData`. Nothing here touches the network
  * or React — it takes the already-fetched data and returns plain, chart-ready
@@ -21,7 +22,6 @@ import type {
   GameTrophy,
   TrophyCounts,
 } from "@/server/providers/account/snapshot";
-import { round } from "./util";
 
 /** Completion at or above which a plat-capable game counts as "within reach". */
 const REACH_THRESHOLD = 80;

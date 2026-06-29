@@ -22,9 +22,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { TransactionRow } from "@/domain/transactions";
+import { fmtDate, fmtNumber } from "@/features/dashboard/format";
 import type { DashboardData } from "@/server/providers/account/snapshot";
 import { useTransactionImport } from "@/stores/transactions-store";
-import { fmtDate, fmtNumber } from "../format";
 
 /** Format a minor-unit amount as money, falling back to "£" when no symbol is known. */
 function money(currency: string, minor: number): string {
