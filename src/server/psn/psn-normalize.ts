@@ -19,15 +19,53 @@ import type {
   DashboardMeta,
   GamePlay,
   GameTrophy,
+  Platform,
   ProfileSummary,
   TrophyCounts,
 } from "@/lib/psn/contract.schema";
-import { enrichTitle, platformOf } from "@/lib/psn/enrich";
 import { round } from "@/lib/psn/round";
 
 export type PlayedTitle = UserPlayedGamesResponse["titles"][number];
 export type { TrophyTitle };
 type ProfileBody = ProfileFromUserNameResponse["profile"];
+
+/** Streaming / music / browser apps that should be excluded from play stats. */
+const APP_RULE =
+  /youtube|netflix|spotify|disney\s?\+|disney plus|prime video|amazon prime|bbc iplayer|apple tv|apple music|\btwitch\b|\bplex\b|\bnow\b|channel\s?4|sky go|\bhulu\b|crunchyroll|\bhbo\b|^max$|\bdazn\b|\btidal\b|deezer|peacock|paramount\s?\+|funimation|web browser|internet browser/i;
+
+/**
+ * Whether a played title is a non-game app (streaming/music/browser) the
+ * `AccountProvider` excludes from play stats. PSN-specific: the `media_app`
+ * category check keys off psn-api's category vocabulary.
+ */
+function isApp(name: string, category?: string): boolean {
+  if (category !== undefined && /media_app|_app\b/i.test(category)) return true;
+  return APP_RULE.test(name);
+}
+
+/** Token → platform, tested against the category first, then the title name. */
+const PLATFORM_TOKENS: Array<[RegExp, Platform]> = [
+  [/ps5|playstation®5/i, "PS5"],
+  [/ps4|playstation®4/i, "PS4"],
+  [/ps3|playstation®3/i, "PS3"],
+  [/vita/i, "PSVITA"],
+];
+
+function platformFromText(text: string): Platform | undefined {
+  for (const [test, platform] of PLATFORM_TOKENS) {
+    if (test.test(text)) return platform;
+  }
+  return undefined;
+}
+
+/**
+ * Derive a console platform from the psn-api `category` (preferred) or title
+ * name. PSN-specific: it parses PSN's category vocabulary, so it stays private
+ * to this provider.
+ */
+function platformOf(category: string | undefined, name: string): Platform {
+  return platformFromText(category ?? "") ?? platformFromText(name) ?? "OTHER";
+}
 
 /** Convert an ISO-8601 duration like "PT123H4M5S" to decimal hours. */
 function hoursFromDuration(iso: string | undefined): number {
@@ -211,7 +249,6 @@ function trophyFor(map: Map<string, TrophyTitle>, names: string[]): GameTrophy |
 function toGamePlay(
   title: PlayedTitle,
   hours: number,
-  enriched: ReturnType<typeof enrichTitle>,
   trophyMap: Map<string, TrophyTitle>
 ): GamePlay {
   return {
@@ -224,8 +261,10 @@ function toGamePlay(
     firstPlayed: isoDate(title.firstPlayedDateTime),
     lastPlayed: isoDate(title.lastPlayedDateTime),
     category: title.category,
-    genre: enriched.genre,
-    franchise: enriched.franchise,
+    // RAWG is the sole enrichment source and runs client-side after this
+    // snapshot, so the baseline genre is "Other" and the franchise unset.
+    genre: "Other",
+    franchise: undefined,
     isApp: false,
     trophy: trophyFor(trophyMap, [title.name, title.concept?.name ?? ""]),
   };
@@ -238,9 +277,10 @@ export interface Partitioned {
 
 /**
  * Split played titles into games and excluded apps, joining each game to its
- * trophy list. Genres stay keyword-only here — RAWG enrichment is the separate,
- * deferred `EnrichmentProvider` concern merged client-side, so the snapshot this
- * port returns is honestly un-enriched.
+ * trophy list. Genres are not classified here — RAWG is the sole enrichment
+ * source, a separate deferred `EnrichmentProvider` concern merged client-side,
+ * so every game leaves this port with the baseline "Other" genre and no
+ * franchise; the snapshot is honestly un-enriched.
  */
 export function partitionTitles(
   playedTitles: PlayedTitle[],
@@ -250,12 +290,11 @@ export function partitionTitles(
   const appsExcluded: Partitioned["appsExcluded"] = [];
   for (const title of playedTitles) {
     const hours = round(hoursFromDuration(title.playDuration), 2);
-    const enriched = enrichTitle(title.name, title.category);
-    if (enriched.isApp) {
+    if (isApp(title.name, title.category)) {
       appsExcluded.push({ name: title.name, hours });
       continue;
     }
-    games.push(toGamePlay(title, hours, enriched, trophyMap));
+    games.push(toGamePlay(title, hours, trophyMap));
   }
   games.sort((a, b) => b.hours - a.hours);
   appsExcluded.sort((a, b) => b.hours - a.hours);
