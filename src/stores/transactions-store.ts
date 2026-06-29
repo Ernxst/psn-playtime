@@ -3,25 +3,47 @@
  *
  * The dashboard playtime data comes from the server (npsso token POSTed per-fetch,
  * never stored, then discarded → react-query), but transactions are scraped in the
- * browser by the bookmarklet and handed off
- * via the URL fragment — they never touch the server. We persist them in
- * `localStorage` so the spend view survives reloads, and expose a
- * `useSyncExternalStore` hook so the dashboard re-renders when an import lands.
+ * browser by the bookmarklet and handed off via the URL fragment — they never
+ * touch the server. We persist them in `localStorage` through an `@effect/atom`
+ * `Atom.kvs`, and expose a `useTransactionImport` hook so the dashboard
+ * re-renders when an import lands.
+ *
+ * Single-tab only: unlike the previous hand-rolled store, there is no `storage`
+ * event listener, so a write in another tab does not refresh this one.
  */
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
-import { useSyncExternalStore } from "react";
+import * as Atom from "effect/unstable/reactivity/Atom";
+import { useAtomValue } from "@effect/atom-react";
 import { type TransactionImport, transactionImportSchema } from "@/domain/transactions";
+import { kvsRuntime } from "@/runtime/kvs.effect";
+import { getAppRegistry } from "@/runtime/provider.effect";
 
 const TRANSACTIONS_STORAGE_KEY = "psn-playtime:transactions";
 
-/** Fired on the same tab after a write (the `storage` event only fires cross-tab). */
-const TRANSACTIONS_EVENT = "psn-playtime:transactions-changed";
-
 const decodeImport = Schema.decodeUnknownOption(transactionImportSchema);
 
-// Cache the parsed snapshot keyed on the raw string so `getSnapshot` returns a
-// stable reference between renders (required by `useSyncExternalStore`).
+/**
+ * `localStorage`-backed atom for the imported transactions. `NullOr` preserves
+ * the `TransactionImport | null` contract: an absent/decoded-away key resolves
+ * to `null`, a valid key to the decoded import.
+ *
+ * `mode: "sync"` (not "async") because `localStorage` is synchronous and we want
+ * the atom's value to BE `TransactionImport | null`. Under `"async"` the writable
+ * stores the raw value on a `set` while the read type stays `AsyncResult`, so a
+ * post-write read no longer looks like a `Success` and reactivity breaks; sync
+ * mode keeps reads and writes on the same plain `TransactionImport | null` type.
+ */
+const transactionImportAtom = Atom.kvs({
+  runtime: kvsRuntime,
+  key: TRANSACTIONS_STORAGE_KEY,
+  schema: Schema.NullOr(transactionImportSchema),
+  defaultValue: () => null,
+  mode: "sync",
+});
+
+// Cache the parsed snapshot keyed on the raw string so repeated direct reads
+// return a stable reference.
 let cachedRaw: string | null = null;
 let cachedValue: TransactionImport | null = null;
 
@@ -33,7 +55,18 @@ function parse(raw: string): TransactionImport | null {
   }
 }
 
-/** Read the persisted import, or `null` when absent/corrupt/unavailable. */
+/**
+ * Read the persisted import directly from `localStorage`, or `null` when
+ * absent/corrupt/unavailable. Kept as a synchronous read for the `/import`
+ * route loader, which runs client-side before React renders.
+ *
+ * The kvs write runs on a forked fiber (Atom `runtime.fn`), so
+ * `localStorage.setItem` flushes on a microtask rather than synchronously when
+ * `saveTransactionImport()` returns — an immediate read-after-write can be
+ * stale. That is safe here only because the sole direct-read consumer, the
+ * `/import` loader, reads before it writes within a single run, and re-runs are
+ * separated by navigation (which lets the prior write flush).
+ */
 export function loadTransactionImport(): TransactionImport | null {
   if (typeof window === "undefined") return null;
   const raw = window.localStorage.getItem(TRANSACTIONS_STORAGE_KEY);
@@ -43,33 +76,26 @@ export function loadTransactionImport(): TransactionImport | null {
   return cachedValue;
 }
 
-/** Persist an import and notify same-tab subscribers. */
+/** Persist an import. The kvs write updates `localStorage` and notifies subscribers. */
 export function saveTransactionImport(value: TransactionImport): void {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(TRANSACTIONS_STORAGE_KEY, JSON.stringify(value));
-  window.dispatchEvent(new Event(TRANSACTIONS_EVENT));
+  getAppRegistry()?.set(transactionImportAtom, value);
 }
 
-/** Remove the persisted import and notify same-tab subscribers. */
+/**
+ * Clear the persisted import. Writes JSON `"null"` to the key (rather than
+ * removing it); subsequent reads still resolve to `null`.
+ */
 export function clearTransactionImport(): void {
   if (typeof window === "undefined") return;
-  window.localStorage.removeItem(TRANSACTIONS_STORAGE_KEY);
-  window.dispatchEvent(new Event(TRANSACTIONS_EVENT));
-}
-
-function subscribe(onChange: () => void): () => void {
-  window.addEventListener(TRANSACTIONS_EVENT, onChange);
-  window.addEventListener("storage", onChange);
-  return () => {
-    window.removeEventListener(TRANSACTIONS_EVENT, onChange);
-    window.removeEventListener("storage", onChange);
-  };
+  getAppRegistry()?.set(transactionImportAtom, null);
 }
 
 /**
  * Subscribe to the persisted import. Returns `null` on the server and until the
- * first client read, so SSR and the initial client render agree.
+ * runtime resolves the first `localStorage` read, so SSR and the initial client
+ * render agree.
  */
 export function useTransactionImport(): TransactionImport | null {
-  return useSyncExternalStore(subscribe, loadTransactionImport, () => null);
+  return useAtomValue(transactionImportAtom);
 }

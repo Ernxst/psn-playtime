@@ -8,6 +8,7 @@ import {
   RouterProvider,
 } from "@tanstack/react-router";
 import type { ReactNode } from "react";
+import { EffectAtomProvider } from "@/runtime/provider.effect";
 
 interface HarnessOptions {
   /** Initial history entry the memory router boots at. */
@@ -65,7 +66,9 @@ export function createHarness(ui: ReactNode, options: HarnessOptions = {}): Harn
     queryClient,
     element: (
       <QueryClientProvider client={queryClient}>
-        <RouterProvider router={router} />
+        <EffectAtomProvider>
+          <RouterProvider router={router} />
+        </EffectAtomProvider>
       </QueryClientProvider>
     ),
   };
