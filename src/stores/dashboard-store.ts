@@ -1,3 +1,4 @@
+import * as Schema from "effect/Schema";
 /**
  * Client-side cache of dashboard data, keyed by PSN account.
  *
@@ -12,7 +13,7 @@
  */
 import { useSyncExternalStore } from "react";
 import { demoDashboard } from "@/domain/mock";
-import type { DashboardData } from "@/server/providers/account/snapshot";
+import { DashboardData } from "@/server/providers/account/snapshot";
 
 /** One cache entry per account: `psn-playtime:dashboard:<accountId>`. */
 const KEY_PREFIX = "psn-playtime:dashboard:";
@@ -22,6 +23,8 @@ const ACTIVE_KEY = "psn-playtime:dashboard-active";
 
 /** Fired on the same tab after a write (the `storage` event only fires cross-tab). */
 const STORE_EVENT = "psn-playtime:dashboard-changed";
+
+const decodeDashboard = Schema.decodeUnknownSync(DashboardData);
 
 /** Lightweight account identity used to drive the onboarding selector. */
 export interface CachedAccount {
@@ -38,9 +41,8 @@ function dataKey(accountId: string): string {
 function parse(raw: string | null): DashboardData | null {
   if (raw === null) return null;
   try {
-    // The persisted JSON is data we wrote ourselves; its type is the contract.
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-    return JSON.parse(raw) as DashboardData;
+    const data: unknown = JSON.parse(raw);
+    return decodeDashboard(data);
   } catch {
     return null;
   }
