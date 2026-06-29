@@ -53,6 +53,15 @@ describe(".loadDashboard", () => {
 
     expect(loadDashboard("demo")).toBeNull();
   });
+
+  it("returns null when the cached dashboard has an invalid shape", async () => {
+    const win = createWindowStub();
+    win.localStorage.setItem(dataKey("demo"), JSON.stringify({ profile: { accountId: "demo" } }));
+    vi.stubGlobal("window", win);
+    const { loadDashboard } = await importStore();
+
+    expect(loadDashboard("demo")).toBeNull();
+  });
 });
 
 describe(".saveDashboard", () => {
