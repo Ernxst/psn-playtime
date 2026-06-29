@@ -1,4 +1,4 @@
-import { expect, onTestFinished, test } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
 import { demoDashboard } from "@/domain/mock";
@@ -33,142 +33,150 @@ function seed(transactions: TransactionRow[]) {
   onTestFinished(clearTransactionImport);
 }
 
-test("lists imported transactions with product, amount and type", async () => {
-  seed([row({ key: "t1", productName: "Hollow Knight", amountMinor: 1099, currency: "£" })]);
+describe("PurchaseHistorySection", () => {
+  it("lists imported transactions with product, amount and type", async () => {
+    seed([row({ key: "t1", productName: "Hollow Knight", amountMinor: 1099, currency: "£" })]);
 
-  await render(<PurchaseHistorySection data={realDashboard} />);
+    await render(<PurchaseHistorySection data={realDashboard} />);
 
-  await expect.element(page.getByText("Your purchase history")).toBeVisible();
-  await expect.element(page.getByText("Hollow Knight")).toBeVisible();
-  await expect.element(page.getByText("£10.99")).toBeVisible();
-  await expect.element(page.getByText("Purchase", { exact: true })).toBeVisible();
-});
+    await expect.element(page.getByText("Your purchase history")).toBeVisible();
+    await expect.element(page.getByText("Hollow Knight")).toBeVisible();
+    await expect.element(page.getByText("£10.99")).toBeVisible();
+    await expect.element(page.getByText("Purchase", { exact: true })).toBeVisible();
+  });
 
-test("shows the original price and discount in their own columns when present", async () => {
-  seed([
-    row({
-      key: "t1",
-      productName: "Elden Ring",
-      amountMinor: 4000,
-      originalPriceMinor: 5000,
-      discountMinor: 1000,
-    }),
-  ]);
+  it("shows the original price and discount in their own columns when present", async () => {
+    seed([
+      row({
+        key: "t1",
+        productName: "Elden Ring",
+        amountMinor: 4000,
+        originalPriceMinor: 5000,
+        discountMinor: 1000,
+      }),
+    ]);
 
-  await render(<PurchaseHistorySection data={realDashboard} />);
+    await render(<PurchaseHistorySection data={realDashboard} />);
 
-  await expect.element(page.getByRole("button", { name: "Sort by Original" })).toBeVisible();
-  await expect.element(page.getByRole("button", { name: "Sort by Discount" })).toBeVisible();
-  await expect.element(page.getByText("£50.00")).toBeVisible();
-  await expect.element(page.getByText("−£10.00")).toBeVisible();
-});
+    await expect.element(page.getByRole("button", { name: "Sort by Original" })).toBeVisible();
+    await expect.element(page.getByRole("button", { name: "Sort by Discount" })).toBeVisible();
+    await expect.element(page.getByText("£50.00")).toBeVisible();
+    await expect.element(page.getByText("−£10.00")).toBeVisible();
+  });
 
-test("clicking the Original header re-sorts the rows and sinks rows without an original price", async () => {
-  seed([
-    row({ key: "plain", productName: "Plain Game", date: "2022-06-01" }),
-    row({
-      key: "low",
-      productName: "Low Original",
-      date: "2022-02-01",
-      originalPriceMinor: 2000,
-    }),
-    row({
-      key: "high",
-      productName: "High Original",
-      date: "2022-01-01",
-      originalPriceMinor: 9000,
-    }),
-  ]);
+  it("clicking the Original header re-sorts the rows and sinks rows without an original price", async () => {
+    seed([
+      row({ key: "plain", productName: "Plain Game", date: "2022-06-01" }),
+      row({
+        key: "low",
+        productName: "Low Original",
+        date: "2022-02-01",
+        originalPriceMinor: 2000,
+      }),
+      row({
+        key: "high",
+        productName: "High Original",
+        date: "2022-01-01",
+        originalPriceMinor: 9000,
+      }),
+    ]);
 
-  const { container } = await render(<PurchaseHistorySection data={realDashboard} />);
+    const { container } = await render(<PurchaseHistorySection data={realDashboard} />);
 
-  // Descending by original price: the highest leads, the row without data sinks last.
-  await page.getByRole("button", { name: "Sort by Original" }).click();
+    // Descending by original price: the highest leads, the row without data sinks last.
+    await page.getByRole("button", { name: "Sort by Original" }).click();
 
-  await expect
-    .poll(() => container.querySelector("tbody tr")?.textContent)
-    .toContain("High Original");
-  await expect
-    .poll(() => container.querySelector("tbody tr:last-child")?.textContent)
-    .toContain("Plain Game");
+    await expect
+      .poll(() => container.querySelector("tbody tr")?.textContent)
+      .toContain("High Original");
+    await expect
+      .poll(() => container.querySelector("tbody tr:last-child")?.textContent)
+      .toContain("Plain Game");
 
-  // Ascending: the lowest leads, the row without data still sinks last.
-  await page.getByRole("button", { name: "Sort by Original" }).click();
+    // Ascending: the lowest leads, the row without data still sinks last.
+    await page.getByRole("button", { name: "Sort by Original" }).click();
 
-  await expect
-    .poll(() => container.querySelector("tbody tr")?.textContent)
-    .toContain("Low Original");
-  await expect
-    .poll(() => container.querySelector("tbody tr:last-child")?.textContent)
-    .toContain("Plain Game");
-});
+    await expect
+      .poll(() => container.querySelector("tbody tr")?.textContent)
+      .toContain("Low Original");
+    await expect
+      .poll(() => container.querySelector("tbody tr:last-child")?.textContent)
+      .toContain("Plain Game");
+  });
 
-test("clicking the Discount header re-sorts the rows and sinks rows without a discount", async () => {
-  seed([
-    row({ key: "plain", productName: "Plain Game", date: "2022-06-01" }),
-    row({
-      key: "small",
-      productName: "Small Discount",
-      date: "2022-02-01",
-      discountMinor: 500,
-    }),
-    row({
-      key: "big",
-      productName: "Big Discount",
-      date: "2022-01-01",
-      discountMinor: 4000,
-    }),
-  ]);
+  it("clicking the Discount header re-sorts the rows and sinks rows without a discount", async () => {
+    seed([
+      row({ key: "plain", productName: "Plain Game", date: "2022-06-01" }),
+      row({
+        key: "small",
+        productName: "Small Discount",
+        date: "2022-02-01",
+        discountMinor: 500,
+      }),
+      row({
+        key: "big",
+        productName: "Big Discount",
+        date: "2022-01-01",
+        discountMinor: 4000,
+      }),
+    ]);
 
-  const { container } = await render(<PurchaseHistorySection data={realDashboard} />);
+    const { container } = await render(<PurchaseHistorySection data={realDashboard} />);
 
-  // Descending by discount: the largest leads, the row without data sinks last.
-  await page.getByRole("button", { name: "Sort by Discount" }).click();
+    // Descending by discount: the largest leads, the row without data sinks last.
+    await page.getByRole("button", { name: "Sort by Discount" }).click();
 
-  await expect
-    .poll(() => container.querySelector("tbody tr")?.textContent)
-    .toContain("Big Discount");
-  await expect
-    .poll(() => container.querySelector("tbody tr:last-child")?.textContent)
-    .toContain("Plain Game");
+    await expect
+      .poll(() => container.querySelector("tbody tr")?.textContent)
+      .toContain("Big Discount");
+    await expect
+      .poll(() => container.querySelector("tbody tr:last-child")?.textContent)
+      .toContain("Plain Game");
 
-  // Ascending: the smallest leads, the row without data still sinks last.
-  await page.getByRole("button", { name: "Sort by Discount" }).click();
+    // Ascending: the smallest leads, the row without data still sinks last.
+    await page.getByRole("button", { name: "Sort by Discount" }).click();
 
-  await expect
-    .poll(() => container.querySelector("tbody tr")?.textContent)
-    .toContain("Small Discount");
-  await expect
-    .poll(() => container.querySelector("tbody tr:last-child")?.textContent)
-    .toContain("Plain Game");
-});
+    await expect
+      .poll(() => container.querySelector("tbody tr")?.textContent)
+      .toContain("Small Discount");
+    await expect
+      .poll(() => container.querySelector("tbody tr:last-child")?.textContent)
+      .toContain("Plain Game");
+  });
 
-test("renders nothing for the demo dashboard even when an import exists", async () => {
-  seed([row({ key: "t1" })]);
+  it("renders nothing for the demo dashboard even when an import exists", async () => {
+    seed([row({ key: "t1" })]);
 
-  await render(<PurchaseHistorySection data={demoDashboard} />);
+    await render(<PurchaseHistorySection data={demoDashboard} />);
 
-  await expect.element(page.getByText("Your purchase history")).not.toBeInTheDocument();
-});
+    await expect.element(page.getByText("Your purchase history")).not.toBeInTheDocument();
+  });
 
-test("clicking the Amount paid header re-sorts the rows in both directions", async () => {
-  seed([
-    row({ key: "cheap", productName: "Cheap Game", amountMinor: 500, date: "2022-01-01" }),
-    row({ key: "dear", productName: "Dear Game", amountMinor: 6000, date: "2022-06-01" }),
-  ]);
+  it("clicking the Amount paid header re-sorts the rows in both directions", async () => {
+    seed([
+      row({ key: "cheap", productName: "Cheap Game", amountMinor: 500, date: "2022-01-01" }),
+      row({ key: "dear", productName: "Dear Game", amountMinor: 6000, date: "2022-06-01" }),
+    ]);
 
-  const { container } = await render(<PurchaseHistorySection data={realDashboard} />);
+    const { container } = await render(<PurchaseHistorySection data={realDashboard} />);
 
-  // Default sort is date-descending: the June purchase leads.
-  await expect.poll(() => container.querySelector("tbody tr")?.textContent).toContain("Dear Game");
+    // Default sort is date-descending: the June purchase leads.
+    await expect
+      .poll(() => container.querySelector("tbody tr")?.textContent)
+      .toContain("Dear Game");
 
-  // First click sorts amount descending — the dearest still leads.
-  await page.getByRole("button", { name: "Sort by Amount paid" }).click();
+    // First click sorts amount descending — the dearest still leads.
+    await page.getByRole("button", { name: "Sort by Amount paid" }).click();
 
-  await expect.poll(() => container.querySelector("tbody tr")?.textContent).toContain("Dear Game");
+    await expect
+      .poll(() => container.querySelector("tbody tr")?.textContent)
+      .toContain("Dear Game");
 
-  // Second click flips to ascending — the cheapest leads instead.
-  await page.getByRole("button", { name: "Sort by Amount paid" }).click();
+    // Second click flips to ascending — the cheapest leads instead.
+    await page.getByRole("button", { name: "Sort by Amount paid" }).click();
 
-  await expect.poll(() => container.querySelector("tbody tr")?.textContent).toContain("Cheap Game");
+    await expect
+      .poll(() => container.querySelector("tbody tr")?.textContent)
+      .toContain("Cheap Game");
+  });
 });

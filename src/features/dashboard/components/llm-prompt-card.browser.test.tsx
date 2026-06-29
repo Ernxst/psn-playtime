@@ -1,4 +1,4 @@
-import { afterEach, expect, test, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import { page, userEvent } from "vitest/browser";
 import { demoDashboard } from "@/domain/mock";
@@ -12,76 +12,80 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-test("renders the searchable question picker and a prompt preview", async () => {
-  await render(<LlmPromptCard data={demoDashboard} />);
+describe("LlmPromptCard", () => {
+  it("renders the searchable question picker and a prompt preview", async () => {
+    await render(<LlmPromptCard data={demoDashboard} />);
 
-  await expect.element(page.getByText("Ask an AI about your playtime")).toBeVisible();
-  await expect.element(page.getByRole("searchbox", { name: "Search questions" })).toBeVisible();
-  await expect.element(page.getByRole("button", { name: LEAD_QUESTION })).toBeVisible();
-  await expect.element(page.getByRole("textbox", { name: "Prompt preview" })).toBeVisible();
-});
+    await expect.element(page.getByText("Ask an AI about your playtime")).toBeVisible();
+    await expect.element(page.getByRole("searchbox", { name: "Search questions" })).toBeVisible();
+    await expect.element(page.getByRole("button", { name: LEAD_QUESTION })).toBeVisible();
+    await expect.element(page.getByRole("textbox", { name: "Prompt preview" })).toBeVisible();
+  });
 
-test("copies the prompt leading with the default question plus follow-ups", async () => {
-  const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+  it("copies the prompt leading with the default question plus follow-ups", async () => {
+    const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
 
-  await render(<LlmPromptCard data={demoDashboard} />);
+    await render(<LlmPromptCard data={demoDashboard} />);
 
-  await page.getByRole("button", { name: "Copy prompt" }).click();
+    await page.getByRole("button", { name: "Copy prompt" }).click();
 
-  expect(writeText).toHaveBeenCalledExactlyOnceWith(
-    expect.stringContaining("TASK: Work out which games gave me the most enjoyment")
-  );
-  expect(writeText).toHaveBeenCalledExactlyOnceWith(expect.stringContaining("FOLLOW-UP QUESTIONS"));
-});
+    expect(writeText).toHaveBeenCalledExactlyOnceWith(
+      expect.stringContaining("TASK: Work out which games gave me the most enjoyment")
+    );
+    expect(writeText).toHaveBeenCalledExactlyOnceWith(
+      expect.stringContaining("FOLLOW-UP QUESTIONS")
+    );
+  });
 
-test("choosing a different lead question changes the copied prompt", async () => {
-  const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+  it("choosing a different lead question changes the copied prompt", async () => {
+    const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
 
-  await render(<LlmPromptCard data={demoDashboard} />);
+    await render(<LlmPromptCard data={demoDashboard} />);
 
-  await page.getByRole("button", { name: SIGNATURE_QUESTION }).click();
-  await page.getByRole("button", { name: "Copy prompt" }).click();
+    await page.getByRole("button", { name: SIGNATURE_QUESTION }).click();
+    await page.getByRole("button", { name: "Copy prompt" }).click();
 
-  expect(writeText).toHaveBeenCalledExactlyOnceWith(
-    expect.stringContaining("TASK: Tell me my signature genre")
-  );
-});
+    expect(writeText).toHaveBeenCalledExactlyOnceWith(
+      expect.stringContaining("TASK: Tell me my signature genre")
+    );
+  });
 
-test("searching filters the question list", async () => {
-  await render(<LlmPromptCard data={demoDashboard} />);
+  it("searching filters the question list", async () => {
+    await render(<LlmPromptCard data={demoDashboard} />);
 
-  await userEvent.fill(page.getByRole("searchbox", { name: "Search questions" }), "signature");
+    await userEvent.fill(page.getByRole("searchbox", { name: "Search questions" }), "signature");
 
-  await expect.element(page.getByRole("button", { name: SIGNATURE_QUESTION })).toBeVisible();
-  await expect.element(page.getByRole("button", { name: LEAD_QUESTION })).not.toBeInTheDocument();
-});
+    await expect.element(page.getByRole("button", { name: SIGNATURE_QUESTION })).toBeVisible();
+    await expect.element(page.getByRole("button", { name: LEAD_QUESTION })).not.toBeInTheDocument();
+  });
 
-const MENU_OPTION = "Let the AI ask me (no specific question)";
+  const MENU_OPTION = "Let the AI ask me (no specific question)";
 
-test("choosing the menu option copies a no-lead menu prompt", async () => {
-  const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+  it("choosing the menu option copies a no-lead menu prompt", async () => {
+    const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
 
-  await render(<LlmPromptCard data={demoDashboard} />);
+    await render(<LlmPromptCard data={demoDashboard} />);
 
-  await page.getByRole("button", { name: MENU_OPTION }).click();
-  await page.getByRole("button", { name: "Copy prompt" }).click();
+    await page.getByRole("button", { name: MENU_OPTION }).click();
+    await page.getByRole("button", { name: "Copy prompt" }).click();
 
-  expect(writeText).toHaveBeenCalledExactlyOnceWith(
-    expect.stringContaining("Don't analyse anything yet.")
-  );
-  expect(writeText).toHaveBeenCalledExactlyOnceWith(expect.not.stringContaining("TASK:"));
-});
+    expect(writeText).toHaveBeenCalledExactlyOnceWith(
+      expect.stringContaining("Don't analyse anything yet.")
+    );
+    expect(writeText).toHaveBeenCalledExactlyOnceWith(expect.not.stringContaining("TASK:"));
+  });
 
-test("picking a question after the menu option restores a lead prompt", async () => {
-  const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+  it("picking a question after the menu option restores a lead prompt", async () => {
+    const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
 
-  await render(<LlmPromptCard data={demoDashboard} />);
+    await render(<LlmPromptCard data={demoDashboard} />);
 
-  await page.getByRole("button", { name: MENU_OPTION }).click();
-  await page.getByRole("button", { name: SIGNATURE_QUESTION }).click();
-  await page.getByRole("button", { name: "Copy prompt" }).click();
+    await page.getByRole("button", { name: MENU_OPTION }).click();
+    await page.getByRole("button", { name: SIGNATURE_QUESTION }).click();
+    await page.getByRole("button", { name: "Copy prompt" }).click();
 
-  expect(writeText).toHaveBeenCalledExactlyOnceWith(
-    expect.stringContaining("TASK: Tell me my signature genre")
-  );
+    expect(writeText).toHaveBeenCalledExactlyOnceWith(
+      expect.stringContaining("TASK: Tell me my signature genre")
+    );
+  });
 });

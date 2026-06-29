@@ -65,6 +65,7 @@ You MUST follow existing testing patterns. Test: initial render, user interactio
 - Group by **public API surface**
 - Function tests: top-level `describe` must be `.functionName` e.g. `describe(".hashThumbnail")`
 - Constant tests: a module that exports only constants (no functions) groups its constants under a single descriptive `describe` for that surface, e.g. `describe("seo constants")`
+- Component/browser tests (`*.browser.test.tsx`): wrap cases in a top-level `describe` named for the **component under test** (the component/export name, e.g. `describe("KpiCards")`). A file covering several exported components uses one `describe` per component. Components are a non-function surface, so they use a descriptive component-name `describe` rather than the leading-dot `.functionName` form reserved for function tests. Use `it(...)` for cases, never bare `test(...)`; `it` names follow the same complete-sentence, British-English, no-full-stop rule as above.
 
 ---
 
