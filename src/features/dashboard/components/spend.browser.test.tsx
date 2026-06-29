@@ -1,9 +1,11 @@
+import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
 import { demoDashboard } from "@/domain/mock";
 import { bookmarkletHref } from "@/domain/transaction-bookmarklet";
 import type { TransactionRow } from "@/domain/transactions";
+import { EffectAtomProvider } from "@/runtime/provider.effect";
 import type { GamePlay } from "@/server/providers/account/snapshot";
 import { clearTransactionImport, saveTransactionImport } from "@/stores/transactions-store";
 import { AddOnsSection, SpendSection, SpentMostSection } from "./spend";
@@ -11,6 +13,11 @@ import { AddOnsSection, SpendSection, SpentMostSection } from "./spend";
 afterEach(() => {
   vi.restoreAllMocks();
 });
+
+/** Render under the atom provider so `useTransactionImport` shares the registry that imperative writes target. */
+function renderWithAtoms(ui: ReactNode) {
+  return render(ui, { wrapper: EffectAtomProvider });
+}
 
 /** The demo library as it would arrive for a real, signed-in account. */
 const realDashboard = { ...demoDashboard, isDemo: false };
@@ -104,7 +111,7 @@ describe("SpendSection", () => {
   it("prompts for an import when no transactions are present", async () => {
     onTestFinished(clearTransactionImport);
 
-    await render(<SpendSection data={demoDashboard} />);
+    await renderWithAtoms(<SpendSection data={demoDashboard} />);
 
     await expect.element(page.getByText("Add your spend")).toBeVisible();
     await expect.element(page.getByText("Import PSN spend")).toBeVisible();
@@ -114,7 +121,7 @@ describe("SpendSection", () => {
     onTestFinished(clearTransactionImport);
     mockPointer(true);
 
-    await render(<SpendSection data={demoDashboard} />);
+    await renderWithAtoms(<SpendSection data={demoDashboard} />);
 
     await expect
       .element(page.getByText("Click Copy bookmark and save it as a new bookmark."))
@@ -125,7 +132,7 @@ describe("SpendSection", () => {
     onTestFinished(clearTransactionImport);
     mockPointer(false);
 
-    await render(<SpendSection data={demoDashboard} />);
+    await renderWithAtoms(<SpendSection data={demoDashboard} />);
 
     await expect
       .element(
@@ -140,7 +147,7 @@ describe("SpendSection", () => {
     onTestFinished(clearTransactionImport);
     const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
 
-    await render(<SpendSection data={demoDashboard} />);
+    await renderWithAtoms(<SpendSection data={demoDashboard} />);
 
     await page.getByRole("button", { name: "Copy bookmarklet" }).click();
 
@@ -151,7 +158,7 @@ describe("SpendSection", () => {
   it("keeps the drag affordance out of the tab order and accessibility tree", async () => {
     onTestFinished(clearTransactionImport);
 
-    await render(<SpendSection data={demoDashboard} />);
+    await renderWithAtoms(<SpendSection data={demoDashboard} />);
 
     const affordance = page.getByText("Import PSN spend");
 
@@ -165,7 +172,7 @@ describe("SpendSection", () => {
   it("links to PlayStation order history in the import instructions", async () => {
     onTestFinished(clearTransactionImport);
 
-    await render(<SpendSection data={demoDashboard} />);
+    await renderWithAtoms(<SpendSection data={demoDashboard} />);
 
     const link = page.getByRole("link", { name: "Open PlayStation" });
 
@@ -190,7 +197,7 @@ describe("SpendSection", () => {
       },
     ]);
 
-    await render(<SpendSection data={realDashboard} />);
+    await renderWithAtoms(<SpendSection data={realDashboard} />);
 
     await expect.element(page.getByText("Best value per hour")).toBeVisible();
     await expect.element(page.getByText("What you've spent")).toBeVisible();
@@ -213,7 +220,7 @@ describe("SpendSection", () => {
       },
     ]);
 
-    await render(<SpendSection data={demoDashboard} />);
+    await renderWithAtoms(<SpendSection data={demoDashboard} />);
 
     await expect.element(page.getByText("Add your spend")).toBeVisible();
     await expect.element(page.getByText("Best value per hour")).not.toBeInTheDocument();
@@ -224,7 +231,7 @@ describe("AddOnsSection", () => {
   it("ranks games by how many add-ons were bought once transactions are imported", async () => {
     seed([addOn("a1"), addOn("a2")]);
 
-    await render(<AddOnsSection data={realDashboard} />);
+    await renderWithAtoms(<AddOnsSection data={realDashboard} />);
 
     await expect.element(page.getByText("Spent extra on")).toBeVisible();
     await expect.element(page.getByText("FIFA 18")).toBeVisible();
@@ -234,7 +241,7 @@ describe("AddOnsSection", () => {
   it("hides the add-ons section for the demo dashboard", async () => {
     seed([addOn("a1")]);
 
-    await render(<AddOnsSection data={demoDashboard} />);
+    await renderWithAtoms(<AddOnsSection data={demoDashboard} />);
 
     await expect.element(page.getByText("Spent extra on")).not.toBeInTheDocument();
   });
@@ -242,7 +249,7 @@ describe("AddOnsSection", () => {
   it("hides the add-ons section when no transactions are imported", async () => {
     onTestFinished(clearTransactionImport);
 
-    await render(<AddOnsSection data={realDashboard} />);
+    await renderWithAtoms(<AddOnsSection data={realDashboard} />);
 
     await expect.element(page.getByText("Spent extra on")).not.toBeInTheDocument();
   });
@@ -255,7 +262,7 @@ describe("AddOnsSection", () => {
     // the eleventh and twelfth titles would be dropped by a `.slice(0, 10)`.
     seed(games.map((g) => addOnFor(g.titleId, 1)));
 
-    await render(<AddOnsSection data={{ ...realDashboard, games }} />);
+    await renderWithAtoms(<AddOnsSection data={{ ...realDashboard, games }} />);
 
     await expect.element(page.getByText("Spent extra on")).toBeVisible();
     await expect.element(page.getByText("Game 11")).toBeVisible();
@@ -271,7 +278,7 @@ describe("SpentMostSection", () => {
       addOnFor("CYBER", 1), // 999 add-on → £29.98 total
     ]);
 
-    await render(<SpentMostSection data={{ ...realDashboard, games: [cyberpunk] }} />);
+    await renderWithAtoms(<SpentMostSection data={{ ...realDashboard, games: [cyberpunk] }} />);
 
     await expect.element(page.getByText("Spent the most on")).toBeVisible();
     await expect.element(page.getByText("Cyberpunk 2077")).toBeVisible();
@@ -281,7 +288,7 @@ describe("SpentMostSection", () => {
   it("hides the spent-most section for the demo dashboard", async () => {
     seed([baseFor("DEMO-8", 1999)]);
 
-    await render(<SpentMostSection data={demoDashboard} />);
+    await renderWithAtoms(<SpentMostSection data={demoDashboard} />);
 
     await expect.element(page.getByText("Spent the most on")).not.toBeInTheDocument();
   });
@@ -289,7 +296,7 @@ describe("SpentMostSection", () => {
   it("hides the spent-most section when no transactions are imported", async () => {
     onTestFinished(clearTransactionImport);
 
-    await render(<SpentMostSection data={realDashboard} />);
+    await renderWithAtoms(<SpentMostSection data={realDashboard} />);
 
     await expect.element(page.getByText("Spent the most on")).not.toBeInTheDocument();
   });

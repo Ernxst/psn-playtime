@@ -1,10 +1,17 @@
+import type { ReactNode } from "react";
 import { describe, expect, it, onTestFinished } from "vitest";
 import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
 import { demoDashboard } from "@/domain/mock";
 import type { TransactionRow } from "@/domain/transactions";
+import { EffectAtomProvider } from "@/runtime/provider.effect";
 import { clearTransactionImport, saveTransactionImport } from "@/stores/transactions-store";
 import { PurchaseHistorySection } from "./purchase-history";
+
+/** Render under the atom provider so `useTransactionImport` shares the registry that imperative writes target. */
+function renderWithAtoms(ui: ReactNode) {
+  return render(ui, { wrapper: EffectAtomProvider });
+}
 
 /** The demo library as it would arrive for a real, signed-in account. */
 const realDashboard = { ...demoDashboard, isDemo: false };
@@ -37,7 +44,7 @@ describe("PurchaseHistorySection", () => {
   it("lists imported transactions with product, amount and type", async () => {
     seed([row({ key: "t1", productName: "Hollow Knight", amountMinor: 1099, currency: "£" })]);
 
-    await render(<PurchaseHistorySection data={realDashboard} />);
+    await renderWithAtoms(<PurchaseHistorySection data={realDashboard} />);
 
     await expect.element(page.getByText("Your purchase history")).toBeVisible();
     await expect.element(page.getByText("Hollow Knight")).toBeVisible();
@@ -56,7 +63,7 @@ describe("PurchaseHistorySection", () => {
       }),
     ]);
 
-    await render(<PurchaseHistorySection data={realDashboard} />);
+    await renderWithAtoms(<PurchaseHistorySection data={realDashboard} />);
 
     await expect.element(page.getByRole("button", { name: "Sort by Original" })).toBeVisible();
     await expect.element(page.getByRole("button", { name: "Sort by Discount" })).toBeVisible();
@@ -81,7 +88,7 @@ describe("PurchaseHistorySection", () => {
       }),
     ]);
 
-    const { container } = await render(<PurchaseHistorySection data={realDashboard} />);
+    const { container } = await renderWithAtoms(<PurchaseHistorySection data={realDashboard} />);
 
     // Descending by original price: the highest leads, the row without data sinks last.
     await page.getByRole("button", { name: "Sort by Original" }).click();
@@ -121,7 +128,7 @@ describe("PurchaseHistorySection", () => {
       }),
     ]);
 
-    const { container } = await render(<PurchaseHistorySection data={realDashboard} />);
+    const { container } = await renderWithAtoms(<PurchaseHistorySection data={realDashboard} />);
 
     // Descending by discount: the largest leads, the row without data sinks last.
     await page.getByRole("button", { name: "Sort by Discount" }).click();
@@ -147,7 +154,7 @@ describe("PurchaseHistorySection", () => {
   it("renders nothing for the demo dashboard even when an import exists", async () => {
     seed([row({ key: "t1" })]);
 
-    await render(<PurchaseHistorySection data={demoDashboard} />);
+    await renderWithAtoms(<PurchaseHistorySection data={demoDashboard} />);
 
     await expect.element(page.getByText("Your purchase history")).not.toBeInTheDocument();
   });
@@ -158,7 +165,7 @@ describe("PurchaseHistorySection", () => {
       row({ key: "dear", productName: "Dear Game", amountMinor: 6000, date: "2022-06-01" }),
     ]);
 
-    const { container } = await render(<PurchaseHistorySection data={realDashboard} />);
+    const { container } = await renderWithAtoms(<PurchaseHistorySection data={realDashboard} />);
 
     // Default sort is date-descending: the June purchase leads.
     await expect

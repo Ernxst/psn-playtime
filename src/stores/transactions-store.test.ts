@@ -3,7 +3,6 @@ import type { TransactionImport } from "@/domain/transactions";
 import { createWindowStub } from "@/test/web-storage";
 
 const STORAGE_KEY = "psn-playtime:transactions";
-const CHANGE_EVENT = "psn-playtime:transactions-changed";
 
 const validImport: TransactionImport = {
   transactions: [
@@ -84,6 +83,15 @@ describe(".loadTransactionImport", () => {
     expect(loadTransactionImport()).toBeNull();
   });
 
+  it("returns null when the persisted JSON is the literal null written by a clear", async () => {
+    const win = createWindowStub();
+    win.localStorage.setItem(STORAGE_KEY, "null");
+    vi.stubGlobal("window", win);
+    const { loadTransactionImport } = await importStore();
+
+    expect(loadTransactionImport()).toBeNull();
+  });
+
   it("returns the cached reference when the raw string is unchanged between reads", async () => {
     const win = createWindowStub();
     win.localStorage.setItem(STORAGE_KEY, JSON.stringify(validImport));
@@ -114,28 +122,6 @@ describe(".loadTransactionImport", () => {
 });
 
 describe(".saveTransactionImport", () => {
-  it("persists the import as JSON under the transactions key", async () => {
-    const win = createWindowStub();
-    vi.stubGlobal("window", win);
-    const { saveTransactionImport } = await importStore();
-
-    saveTransactionImport(validImport);
-
-    expect(JSON.parse(win.localStorage.getItem(STORAGE_KEY) ?? "null")).toEqual(validImport);
-  });
-
-  it("notifies same-tab subscribers of the change", async () => {
-    const onChange = vi.fn();
-    const win = createWindowStub();
-    win.addEventListener(CHANGE_EVENT, onChange);
-    vi.stubGlobal("window", win);
-    const { saveTransactionImport } = await importStore();
-
-    saveTransactionImport(validImport);
-
-    expect(onChange).toHaveBeenCalledTimes(1);
-  });
-
   it("does nothing during server render when there is no window", async () => {
     const { saveTransactionImport } = await importStore();
 
@@ -144,29 +130,6 @@ describe(".saveTransactionImport", () => {
 });
 
 describe(".clearTransactionImport", () => {
-  it("removes the persisted import", async () => {
-    const win = createWindowStub();
-    win.localStorage.setItem(STORAGE_KEY, JSON.stringify(validImport));
-    vi.stubGlobal("window", win);
-    const { clearTransactionImport } = await importStore();
-
-    clearTransactionImport();
-
-    expect(win.localStorage.getItem(STORAGE_KEY)).toBeNull();
-  });
-
-  it("notifies same-tab subscribers of the change", async () => {
-    const onChange = vi.fn();
-    const win = createWindowStub();
-    win.addEventListener(CHANGE_EVENT, onChange);
-    vi.stubGlobal("window", win);
-    const { clearTransactionImport } = await importStore();
-
-    clearTransactionImport();
-
-    expect(onChange).toHaveBeenCalledTimes(1);
-  });
-
   it("does nothing during server render when there is no window", async () => {
     const { clearTransactionImport } = await importStore();
 
