@@ -9,7 +9,7 @@
  * `useSyncExternalStore` hook so the dashboard re-renders when an import lands.
  */
 import { useSyncExternalStore } from "react";
-import { type TransactionImport, transactionImportSchema } from "./psn/transactions";
+import { type TransactionImport, transactionImportSchema } from "@/domain/transactions";
 
 const TRANSACTIONS_STORAGE_KEY = "psn-playtime:transactions";
 

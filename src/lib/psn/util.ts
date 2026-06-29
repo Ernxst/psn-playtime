@@ -7,7 +7,7 @@
 // `round` now lives in `./round` (a `Date`-free module the strict `*.effect.ts`
 // files can value-import); re-exported here so existing client callers that
 // reach for `@/lib/psn/util` are unchanged.
-export { round } from "./round";
+export { round } from "@/domain/round";
 
 /** Year of an ISO/`YYYY-...` date, or `undefined` when unparseable. */
 export function yearOf(date: string): number | undefined {

@@ -4,6 +4,7 @@ import { useCopied } from "@/components/dashboard/copy-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { bookmarkletHref } from "@/domain/transaction-bookmarklet";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import {
   type AddOnSummary,
@@ -12,7 +13,6 @@ import {
   summariseSpend,
   type TitleSpend,
 } from "@/lib/psn/spend";
-import { bookmarkletHref } from "@/lib/psn/transaction-bookmarklet";
 import { useTransactionImport } from "@/lib/transactions-store";
 import type { DashboardData } from "@/server/providers/account/snapshot";
 import { fmtHours } from "./format";

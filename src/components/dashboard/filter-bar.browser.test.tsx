@@ -2,8 +2,8 @@ import { useState } from "react";
 import { beforeEach, expect, test, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import { page, userEvent } from "vitest/browser";
+import { demoDashboard } from "@/domain/mock";
 import { type DashboardFilters, defaultFilters } from "@/lib/psn/analytics";
-import { demoDashboard } from "@/lib/psn/mock";
 import type { GamePlay } from "@/server/providers/account/snapshot";
 import { FilterBar } from "./filter-bar";
 

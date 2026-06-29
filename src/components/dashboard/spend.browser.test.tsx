@@ -1,9 +1,9 @@
 import { afterEach, expect, onTestFinished, test, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
-import { demoDashboard } from "@/lib/psn/mock";
-import { bookmarkletHref } from "@/lib/psn/transaction-bookmarklet";
-import type { TransactionRow } from "@/lib/psn/transactions";
+import { demoDashboard } from "@/domain/mock";
+import { bookmarkletHref } from "@/domain/transaction-bookmarklet";
+import type { TransactionRow } from "@/domain/transactions";
 import { clearTransactionImport, saveTransactionImport } from "@/lib/transactions-store";
 import type { GamePlay } from "@/server/providers/account/snapshot";
 import { AddOnsSection, SpendSection, SpentMostSection } from "./spend";

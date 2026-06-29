@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
-import { demoDashboard } from "@/lib/psn/mock";
+import { demoDashboard } from "@/domain/mock";
 import { CachedDataIndicator } from "./cached-data-indicator";
 
 const DAY_MS = 24 * 60 * 60 * 1000;

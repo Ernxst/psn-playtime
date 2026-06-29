@@ -1,7 +1,7 @@
 import { getRouteApi } from "@tanstack/react-router";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
-import { decodeHandoff, type HandoffPayload, type TransactionRow } from "@/lib/psn/transactions";
+import { decodeHandoff, type HandoffPayload, type TransactionRow } from "@/domain/transactions";
 import { loadTransactionImport, saveTransactionImport } from "@/lib/transactions-store";
 
 /** A running, de-duped accumulation of imported transactions. */

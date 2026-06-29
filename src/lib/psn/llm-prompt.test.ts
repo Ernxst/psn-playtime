@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { fmtDate } from "@/components/dashboard/format";
+import { demoDashboard } from "@/domain/mock";
+import type { TransactionRow } from "@/domain/transactions";
 import type { GamePlay } from "@/server/providers/account/snapshot";
 import { topGamesByHours } from "./analytics";
 import {
@@ -21,9 +23,7 @@ import {
   SPEND_VARIANTS,
   TROPHY_SIGNAL_GUIDANCE,
 } from "./llm-prompt";
-import { demoDashboard } from "./mock";
 import { summariseSpend } from "./spend";
-import type { TransactionRow } from "./transactions";
 
 function tx(overrides: Partial<TransactionRow>): TransactionRow {
   return {

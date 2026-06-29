@@ -1,7 +1,7 @@
 import { afterEach, expect, test, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import { page, userEvent } from "vitest/browser";
-import { demoDashboard } from "@/lib/psn/mock";
+import { demoDashboard } from "@/domain/mock";
 import { LlmPromptCard } from "./llm-prompt-card";
 
 const LEAD_QUESTION = "Which games gave me the most enjoyment relative to time played?";
@@ -66,10 +66,10 @@ test("choosing the menu option copies a no-lead menu prompt", async () => {
   await page.getByRole("button", { name: MENU_OPTION }).click();
   await page.getByRole("button", { name: "Copy prompt" }).click();
 
-  expect(writeText).toHaveBeenCalledExactlyOnceWith(expect.stringContaining("Don't analyse anything yet."));
   expect(writeText).toHaveBeenCalledExactlyOnceWith(
-    expect.not.stringContaining("TASK:")
+    expect.stringContaining("Don't analyse anything yet.")
   );
+  expect(writeText).toHaveBeenCalledExactlyOnceWith(expect.not.stringContaining("TASK:"));
 });
 
 test("picking a question after the menu option restores a lead prompt", async () => {

@@ -15,7 +15,7 @@
 import * as DateTime from "effect/DateTime";
 import * as Option from "effect/Option";
 import type { ProfileFromUserNameResponse, TrophyTitle, UserPlayedGamesResponse } from "psn-api";
-import { round } from "@/lib/psn/round";
+import { round } from "@/domain/round";
 import type {
   DashboardMeta,
   GamePlay,

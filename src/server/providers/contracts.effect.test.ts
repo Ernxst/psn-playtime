@@ -2,7 +2,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Redacted from "effect/Redacted";
 import { describe, expect, it } from "vitest";
-import { demoDashboard } from "@/lib/psn/mock";
+import { demoDashboard } from "@/domain/mock";
 import { AccountProvider, type AccountCredential } from "./account/contract.effect";
 import { type GameMetadata, EnrichmentProvider } from "./enrichment/contract.effect";
 import {
