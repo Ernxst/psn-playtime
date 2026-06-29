@@ -79,7 +79,6 @@ describe(".useCachedAccounts", () => {
     parseSpy.mockClear();
     await page.getByRole("button", { name: "Update" }).click();
 
-    expect(parseSpy).toHaveBeenCalledTimes(1);
-    expect(parseSpy).toHaveBeenCalledWith(JSON.stringify(updatedDashboard));
+    expect(parseSpy).toHaveBeenCalledExactlyOnceWith(JSON.stringify(updatedDashboard));
   });
 });
