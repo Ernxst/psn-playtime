@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/table";
 import { gameRows } from "@/lib/psn/analytics";
 import type { GameRow } from "@/lib/psn/analytics";
-import type { DashboardData } from "@/lib/psn/contract.schema";
+import type { DashboardData } from "@/server/providers/account/snapshot";
 import { fmtDate, fmtHours, fmtNumber } from "./format";
 
 declare module "@tanstack/react-table" {

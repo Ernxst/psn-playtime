@@ -10,7 +10,7 @@ import {
 } from "@/components/dashboard/query";
 import { DashboardSkeleton } from "@/components/dashboard/states";
 import { clearActiveAccount, saveDashboard, useActiveDashboard } from "@/lib/dashboard-store";
-import type { DashboardData, GamePlay, Genre } from "@/lib/psn/contract.schema";
+import type { DashboardData, GamePlay, Genre } from "@/server/providers/account/snapshot";
 
 /** Apply a title's deferred RAWG enrichment, leaving unknown fields untouched. */
 function enrichGame(

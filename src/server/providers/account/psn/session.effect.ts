@@ -32,7 +32,6 @@ import {
   getUserTitles,
 } from "psn-api";
 import type { AuthorizationPayload } from "psn-api";
-import type { ProfileSummary } from "@/lib/psn/contract.schema";
 import type { AccountCredential } from "@/server/providers/account/contract.effect";
 import {
   toProfileSummary,
@@ -45,6 +44,7 @@ import {
   providerError,
   type AccountProviderError,
 } from "@/server/providers/errors.effect";
+import type { ProfileSummary } from "../snapshot";
 
 const PLAYED_PAGE_LIMIT = 200;
 const TROPHY_PAGE_LIMIT = 800;

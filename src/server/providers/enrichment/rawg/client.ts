@@ -7,7 +7,7 @@
  * request-scoped cache now live in `rawg.effect.ts`. This module is deliberately
  * side-effect-free so the mapping/derivation rules stay trivially testable.
  */
-import type { Genre } from "@/lib/psn/contract.schema";
+import type { Genre } from "../../account/snapshot";
 
 /** RAWG genre name (lowercased) → our coarse `Genre` bucket. */
 const GENRE_MAP: Record<string, Genre> = {

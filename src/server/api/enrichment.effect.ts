@@ -10,8 +10,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
-import { type Genre } from "@/lib/psn/contract.schema";
 import { runServer } from "@/runtime/runtime.effect";
+import { type Genre } from "@/server/providers/account/snapshot";
 import {
   EnrichmentProviderLayer,
   prefetchFranchises,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { DashboardData, GamePlay } from "./contract.schema";
+import type { DashboardData, GamePlay } from "@/server/providers/account/snapshot";
 import { isAddOnPurchase, summariseAddOns, summarisePriceContext, summariseSpend } from "./spend";
 import type { TransactionRow } from "./transactions";
 

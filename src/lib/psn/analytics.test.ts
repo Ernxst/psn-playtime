@@ -1,4 +1,5 @@
 import { describe, expect, it, onTestFinished, vi } from "vitest";
+import type { DashboardData } from "@/server/providers/account/snapshot";
 import {
   applyFilters,
   bingeVsDipIn,
@@ -15,7 +16,6 @@ import {
   topGamesByHours,
   valuePerGame,
 } from "./analytics";
-import type { DashboardData } from "./contract.schema";
 import { demoDashboard } from "./mock";
 
 /** Small hand-built library with exactly-known aggregates. */

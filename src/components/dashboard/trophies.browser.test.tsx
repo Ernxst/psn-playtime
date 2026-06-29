@@ -1,8 +1,8 @@
 import { expect, test } from "vitest";
 import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
-import type { DashboardData, GamePlay } from "@/lib/psn/contract.schema";
 import { demoDashboard } from "@/lib/psn/mock";
+import type { DashboardData, GamePlay } from "@/server/providers/account/snapshot";
 import { TrophySection } from "./trophies";
 
 function game(overrides: Partial<GamePlay>): GamePlay {

@@ -1,4 +1,4 @@
-import type { DashboardData } from "@/lib/psn/contract.schema";
+import type { DashboardData } from "@/server/providers/account/snapshot";
 import { ChartCard } from "./chart-card";
 import { FranchiseChart, GenreChart, SessionChart, TopGamesChart, YearChart } from "./charts";
 

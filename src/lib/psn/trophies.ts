@@ -15,7 +15,12 @@
  * implies rarity. `progress` is per trophy list; stacked PS4/PS5 lists collapse
  * to the more-progressed set upstream.
  */
-import type { DashboardData, GamePlay, GameTrophy, TrophyCounts } from "./contract.schema";
+import type {
+  DashboardData,
+  GamePlay,
+  GameTrophy,
+  TrophyCounts,
+} from "@/server/providers/account/snapshot";
 import { round } from "./util";
 
 /** Completion at or above which a plat-capable game counts as "within reach". */

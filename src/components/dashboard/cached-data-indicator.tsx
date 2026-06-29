@@ -1,6 +1,6 @@
 import { Info } from "lucide-react";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip";
-import type { DashboardData } from "@/lib/psn/contract.schema";
+import type { DashboardData } from "@/server/providers/account/snapshot";
 import { fmtRelative } from "./format";
 
 const CACHE_EXPLANATION =

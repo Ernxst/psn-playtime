@@ -10,7 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { Slider } from "@/components/ui/slider";
 import { Tabs, TabsList, TabsTab } from "@/components/ui/tabs";
 import { type Activity, type DashboardFilters, defaultFilters } from "@/lib/psn/analytics";
-import type { DashboardData, GamePlay, Genre, Platform } from "@/lib/psn/contract.schema";
+import type { DashboardData, GamePlay, Genre, Platform } from "@/server/providers/account/snapshot";
 
 type Setter = (patch: Partial<DashboardFilters>) => void;
 

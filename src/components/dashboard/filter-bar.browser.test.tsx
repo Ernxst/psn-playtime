@@ -3,8 +3,8 @@ import { beforeEach, expect, test, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import { page, userEvent } from "vitest/browser";
 import { type DashboardFilters, defaultFilters } from "@/lib/psn/analytics";
-import type { GamePlay } from "@/lib/psn/contract.schema";
 import { demoDashboard } from "@/lib/psn/mock";
+import type { GamePlay } from "@/server/providers/account/snapshot";
 import { FilterBar } from "./filter-bar";
 
 // FilterBar is a controlled component; this drives it the way DashboardView does

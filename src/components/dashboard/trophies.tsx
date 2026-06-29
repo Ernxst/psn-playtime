@@ -7,8 +7,8 @@ import { Bar, BarChart, Cell, LabelList, XAxis, YAxis } from "recharts";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import type { ChartConfig } from "@/components/ui/chart";
-import type { DashboardData } from "@/lib/psn/contract.schema";
 import { summariseTrophies, type TrophyGame, type TrophySummary } from "@/lib/psn/trophies";
+import type { DashboardData } from "@/server/providers/account/snapshot";
 import { fmtNumber, fmtRelative } from "./format";
 
 /** Plain-English "based on N of M games" denominator the per-game cards share. */

@@ -1,4 +1,4 @@
-import type { DashboardData, GamePlay } from "./contract.schema";
+import type { DashboardData, GamePlay } from "@/server/providers/account/snapshot";
 /**
  * Joins imported PSN transactions to playtime (by title) to answer "what did
  * each game cost me per hour". Pure selectors over `DashboardData` + the parsed
