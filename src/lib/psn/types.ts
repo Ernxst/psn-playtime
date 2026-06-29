@@ -1,7 +1,7 @@
 /**
  * The contract between the data layer and the UI.
  *
- * The server (`src/server/psn.ts`) fetches from PSN via psn-api and normalizes
+ * The server (`src/server/psn/psn-account-provider.effect.ts`) fetches from PSN via psn-api and normalizes
  * everything into a single `DashboardData` object. The UI (`src/lib/psn/analytics.ts`
  * + components) only ever consumes `DashboardData` — it never touches psn-api.
  *

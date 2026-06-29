@@ -1,6 +1,6 @@
 import { queryOptions, type QueryStatus } from "@tanstack/react-query";
 import type { DashboardData } from "@/lib/psn/types";
-import { getRawgFranchises, getRawgGenres } from "@/server/psn";
+import { getRawgFranchises, getRawgGenres } from "@/server/handlers.effect";
 
 /** Whether any game still lacks a recognised genre and needs a RAWG lookup. */
 function needsGenreLookup(data: DashboardData): boolean {

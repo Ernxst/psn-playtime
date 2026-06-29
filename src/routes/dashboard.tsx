@@ -91,7 +91,7 @@ function DashboardCachedView({ data }: { data: DashboardData }) {
   // triggers it — it fires on async query settlement, not an event (so not an
   // event handler); and writing to localStorage during render would be an impure
   // side effect (so not render-time derivation). Moving the write into the query
-  // layer was attempted but is not viable: the `@/server/psn` server functions
+  // layer was attempted but is not viable: the `@/server/handlers.effect` server functions
   // require the TanStack Start server runtime and cannot be driven at the query
   // layer in tests without mocking our own wrapper, which docs/rules/testing.md
   // forbids.
