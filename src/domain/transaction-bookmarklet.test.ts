@@ -32,7 +32,7 @@ async function minifiedBookmarkletBody(origin: string): Promise<string> {
     write: false,
     platform: "node",
   });
-  // Import the minified bundle as a real module (zod is bundled in, so a self
+  // Import the minified bundle as a real module (deps are bundled in, so a self
   // contained `data:` URL needs no resolution and bypasses Vite's transform) and
   // generate from it, so `bookmarkletHref` embeds the renamed helper bindings.
   const [output] = outputFiles ?? [];
