@@ -2,9 +2,13 @@ import { Clock, Gamepad2, Hourglass, Info, Sparkles, Trophy } from "lucide-react
 import { type ComponentType, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip";
-import { headlineTotals, LIFETIME_HOURS_CAVEAT, LIFETIME_HOURS_NOTE } from "@/lib/psn/analytics";
+import {
+  headlineTotals,
+  LIFETIME_HOURS_CAVEAT,
+  LIFETIME_HOURS_NOTE,
+} from "@/features/dashboard/analytics";
 import type { DashboardData } from "@/server/providers/account/snapshot";
-import { fmtDuration, fmtHours, fmtNumber } from "./format";
+import { fmtDuration, fmtHours, fmtNumber } from "../format";
 
 interface Kpi {
   label: string;

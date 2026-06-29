@@ -12,7 +12,7 @@ import {
   type DashboardFilters,
   defaultFilters,
   type Timeframe,
-} from "@/lib/psn/analytics";
+} from "@/features/dashboard/analytics";
 import type { DashboardData } from "@/server/providers/account/snapshot";
 import { DashboardHeader } from "./dashboard-header";
 import { DashboardSidebar } from "./dashboard-sidebar";

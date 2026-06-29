@@ -8,9 +8,9 @@ import {
   lifespans,
   recency,
   valuePerGame,
-} from "@/lib/psn/analytics";
+} from "@/features/dashboard/analytics";
 import type { DashboardData } from "@/server/providers/account/snapshot";
-import { fmtHours, fmtNumber } from "./format";
+import { fmtHours, fmtNumber } from "../format";
 
 /** Games with the longest first→last play span — the ones in your library the longest. */
 export function LifespansCard({ data }: { data: DashboardData }) {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { fmtDate } from "@/components/dashboard/format";
 import { demoDashboard } from "@/domain/mock";
 import type { TransactionRow } from "@/domain/transactions";
+import { fmtDate } from "@/features/dashboard/format";
 import type { GamePlay } from "@/server/providers/account/snapshot";
 import { topGamesByHours } from "./analytics";
 import {
