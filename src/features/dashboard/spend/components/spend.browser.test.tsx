@@ -125,17 +125,11 @@ describe("SpendSection", () => {
     await expect
       .element(
         page.getByText(
-          "Edit that bookmark — clear out the URL, paste the copied bookmarklet, and save."
+          "Edit that bookmark — give it a short name you'll remember, clear out the URL, paste the copied bookmarklet, and save."
         )
       )
       .toBeVisible();
-    await expect
-      .element(
-        page.getByText(
-          "Open the bookmark you just saved while on the PlayStation site — it fetches your full purchase history and sends it back here. No navigating or scrolling."
-        )
-      )
-      .toBeVisible();
+    await expect.element(page.getByText("don't press Enter")).toBeVisible();
   });
 
   it("tells fine pointer users they can drag the bookmarklet", async () => {

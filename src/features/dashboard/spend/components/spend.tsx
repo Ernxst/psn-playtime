@@ -38,6 +38,21 @@ const openPlayStation = {
   linkText: "Open PlayStation",
 };
 
+/**
+ * Mobile run step: a `javascript:` bookmark can't be launched by tapping it in
+ * the bookmarks list on Chrome/Android — it has to be invoked from the address
+ * bar suggestions on the active tab.
+ */
+const runOnPsTab: ReactNode = (
+  <>
+    {
+      "On the PlayStation tab, type that bookmark's name in the address bar and tap it in the suggestions — "
+    }
+    <strong>don't press Enter</strong>. It runs on the page, fetches your full purchase history, and
+    sends it back here.
+  </>
+);
+
 function steps(
   canDragBookmarklet: boolean
 ): Array<{ text: ReactNode; href?: string; linkText?: string }> {
@@ -69,11 +84,11 @@ function steps(
       ),
     },
     {
-      text: "Edit that bookmark — clear out the URL, paste the copied bookmarklet, and save.",
+      text: "Edit that bookmark — give it a short name you'll remember, clear out the URL, paste the copied bookmarklet, and save.",
     },
     openPlayStation,
     {
-      text: "Open the bookmark you just saved while on the PlayStation site — it fetches your full purchase history and sends it back here. No navigating or scrolling.",
+      text: runOnPsTab,
     },
   ];
 }
