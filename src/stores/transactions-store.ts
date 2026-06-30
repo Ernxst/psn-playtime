@@ -8,18 +8,9 @@ import { useAtomValue } from "@effect/atom-react";
  * touch the server. We persist them in `localStorage` through an `@effect/atom`
  * `Atom.kvs`, and expose a `useTransactionImport` hook so the dashboard
  * re-renders when an import lands.
- *
- * Cross-tab sync is restored via {@link startCrossTabSync}: the `window`
- * `storage` listener is modelled as a scoped {@link crossTabSyncAtom} resource
- * (`Effect.acquireRelease`) mounted on the registry, so the registry's own scope
- * owns acquire/release and node identity makes registration idempotent — no
- * module-level bookkeeping. A write made in another tab is pushed into this tab's
- * registry so subscribers re-render.
  */
-import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
-import * as Scope from "effect/Scope";
 import * as Atom from "effect/unstable/reactivity/Atom";
 import type * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
 import { type TransactionImport, transactionImportSchema } from "@/domain/transactions";
@@ -28,19 +19,12 @@ import { kvsRuntime } from "@/runtime/kvs.effect";
 const TRANSACTIONS_STORAGE_KEY = "psn-playtime:transactions";
 
 /**
- * The persisted shape: a valid import or `null` (absent/decoded-away key). Shared
- * by the kvs atom and the cross-tab bridge so both encode the same contract.
+ * The persisted shape: a valid import or `null` (absent/decoded-away key). Used
+ * by the kvs atom so an empty/cleared key decodes to `null`.
  */
 const persistedSchema = Schema.NullOr(transactionImportSchema);
 
 const decodeImport = Schema.decodeUnknownOption(transactionImportSchema);
-
-/**
- * Structural equality over the persisted value, derived from the same schema.
- * The cross-tab bridge uses it to skip a no-op push (and the re-persist it would
- * trigger), so a `storage`-driven update cannot echo-cascade across tabs.
- */
-const persistedEquivalence = Schema.toEquivalence(persistedSchema);
 
 /**
  * `localStorage`-backed atom for the imported transactions. `NullOr` preserves
@@ -133,90 +117,6 @@ export function makeTransactionStore(registry: AtomRegistry.AtomRegistry): Trans
       registry.set(transactionImportAtom, null);
     },
   };
-}
-
-/**
- * Apply a cross-tab `storage` event to the registry. Fires only in tabs OTHER
- * than the writer, so it bridges another tab's write into this tab's atom.
- *
- * Ignores events for other keys. A removed key (`newValue === null`) maps to
- * `null`; a present key is decoded through the store's own {@link parse}
- * (decode-or-`null`, never throws on malformed input).
- *
- * Echo guard: the registry's cached value is stale here (a cross-tab write does
- * not invalidate the kvs node), so it still holds the pre-event value. If the
- * incoming value equals it, the push is skipped — otherwise `registry.set`
- * re-persists to `localStorage`, which can re-fire `storage` in further tabs.
- * Once every tab holds the new value its cached value matches the incoming one,
- * the guard skips, no re-persist happens, and the cascade terminates.
- */
-function syncFromStorageEvent(registry: AtomRegistry.AtomRegistry, event: StorageEvent): void {
-  if (event.key !== TRANSACTIONS_STORAGE_KEY) return;
-  const next = event.newValue === null ? null : parse(event.newValue);
-  if (persistedEquivalence(registry.get(transactionImportAtom), next)) return;
-  registry.set(transactionImportAtom, next);
-}
-
-/**
- * Acquire side of the cross-tab resource: add the `storage` listener that
- * bridges another tab's write into `registry` and return its handle so the
- * release can remove exactly that listener.
- */
-function addStorageListener(registry: AtomRegistry.AtomRegistry): (event: StorageEvent) => void {
-  const handler = (event: StorageEvent) => syncFromStorageEvent(registry, event);
-  window.addEventListener("storage", handler);
-  return handler;
-}
-
-/** Release side of the cross-tab resource: remove the listener acquired above. */
-const removeStorageListener = (handler: (event: StorageEvent) => void): Effect.Effect<void> =>
-  Effect.sync(() => window.removeEventListener("storage", handler));
-
-/**
- * Build the cross-tab `storage` listener as a scoped `Effect.acquireRelease`
- * resource bound to `registry`: acquire adds the listener, release removes it
- * when the surrounding scope closes. A `typeof window` guard makes it a no-op
- * during SSR (returning `Effect.void`), where no `storage` events exist and
- * `window` is absent, so SSR never touches `window`.
- */
-function acquireCrossTabListener(
-  registry: AtomRegistry.AtomRegistry
-): Effect.Effect<void, never, Scope.Scope> {
-  if (typeof window === "undefined") return Effect.void;
-  return Effect.acquireRelease(
-    Effect.sync(() => addStorageListener(registry)),
-    removeStorageListener
-  );
-}
-
-/**
- * The cross-tab listener modelled as an effect atom so the registry that mounts
- * it owns the lifetime: the `acquireRelease` release runs when the node's scope
- * closes (registry `dispose`, or the last mount handle unmounting past its idle
- * TTL). The bridge writes through `get.registry` — the very registry running
- * this atom, the same instance the React hooks read — so a cross-tab write
- * reaches the subscribers. Ownership is the `Scope`, not a returned function or
- * module-level map; idempotency falls out of the registry caching one node per
- * atom, so mounting twice acquires exactly one listener.
- */
-const crossTabSyncAtom = Atom.make((get) => acquireCrossTabListener(get.registry));
-
-/**
- * Mount {@link crossTabSyncAtom} on the registry so the `storage` listener that
- * keeps {@link useTransactionImport} subscribers in sync with other tabs is
- * acquired, and return the registry's unmount handle. Wired once at client boot,
- * over the browser's single app-lifetime registry (created in `getAtomRegistry`)
- * — so repeated router-context reconstructions reuse that registry rather than
- * stacking a fresh listener. The listener's removal is owned by that registry's
- * scope (`dispose`), not the returned handle.
- *
- * Idempotent per registry: the registry caches one node per atom, so a second
- * mount over the same registry reuses that node — `acquireRelease` acquire runs
- * once and exactly one listener is added. SSR is a no-op (the atom's `window`
- * guard skips acquire). Returns the unmount handle for explicit teardown/tests.
- */
-export function startCrossTabSync(registry: AtomRegistry.AtomRegistry): () => void {
-  return registry.mount(crossTabSyncAtom);
 }
 
 /**

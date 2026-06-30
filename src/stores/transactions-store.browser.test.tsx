@@ -3,28 +3,11 @@ import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
 import type { TransactionImport } from "@/domain/transactions";
 import { TestAtomProvider, testRegistry } from "@/test/atom-registry";
-import {
-  makeTransactionStore,
-  startCrossTabSync,
-  useTransactionImport,
-} from "./transactions-store";
+import { makeTransactionStore, useTransactionImport } from "./transactions-store";
 
 // Build the store from the same registry TestAtomProvider seeds, so imperative
 // writes notify the hook rendered under that provider.
 const store = makeTransactionStore(testRegistry);
-
-// Register the app-lifetime `storage` listener over the shared test registry,
-// mirroring the single client-boot registration in `getContext`.
-startCrossTabSync(testRegistry);
-
-// Mirrors TRANSACTIONS_STORAGE_KEY in transactions-store.ts — the localStorage
-// slot another tab writes to, which a cross-tab `storage` event carries.
-const TRANSACTIONS_STORAGE_KEY = "psn-playtime:transactions";
-
-/** Simulate another tab's localStorage write landing as a `storage` event here. */
-function dispatchCrossTabWrite(newValue: string | null) {
-  window.dispatchEvent(new StorageEvent("storage", { key: TRANSACTIONS_STORAGE_KEY, newValue }));
-}
 
 const validImport: TransactionImport = {
   transactions: [
@@ -73,45 +56,6 @@ describe(".useTransactionImport", () => {
     await expect.element(page.getByText("1 imported")).toBeVisible();
 
     store.clear();
-
-    await expect.element(page.getByText("no import")).toBeVisible();
-  });
-});
-
-describe(".startCrossTabSync", () => {
-  it("re-renders with another tab's import when a storage event lands", async () => {
-    onTestFinished(() => localStorage.clear());
-
-    await render(<ImportedCount />, { wrapper: TestAtomProvider });
-
-    await expect.element(page.getByText("no import")).toBeVisible();
-
-    dispatchCrossTabWrite(JSON.stringify(validImport));
-
-    await expect.element(page.getByText("1 imported")).toBeVisible();
-  });
-
-  it("clears the import when another tab removes the key", async () => {
-    onTestFinished(() => localStorage.clear());
-
-    await render(<ImportedCount />, { wrapper: TestAtomProvider });
-    dispatchCrossTabWrite(JSON.stringify(validImport));
-
-    await expect.element(page.getByText("1 imported")).toBeVisible();
-
-    dispatchCrossTabWrite(null);
-
-    await expect.element(page.getByText("no import")).toBeVisible();
-  });
-
-  it("ignores a malformed storage payload, leaving no import", async () => {
-    onTestFinished(() => localStorage.clear());
-
-    await render(<ImportedCount />, { wrapper: TestAtomProvider });
-
-    await expect.element(page.getByText("no import")).toBeVisible();
-
-    dispatchCrossTabWrite("{ not valid json");
 
     await expect.element(page.getByText("no import")).toBeVisible();
   });
