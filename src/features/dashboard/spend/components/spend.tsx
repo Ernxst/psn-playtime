@@ -1,4 +1,13 @@
-import { Banknote, Coins, ExternalLink, Gift, Info, Trophy, Wallet } from "lucide-react";
+import {
+  Banknote,
+  ChevronDown,
+  Coins,
+  ExternalLink,
+  Gift,
+  Info,
+  Trophy,
+  Wallet,
+} from "lucide-react";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -261,11 +270,17 @@ function ReimportCard() {
   return (
     <Card className="lg:col-span-3">
       <CardContent>
-        <details className="group space-y-4">
-          <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium">
-            <Coins className="size-4" /> Re-import or update your data
+        <details className="group">
+          <summary className="-m-1 flex cursor-pointer list-none items-center gap-2 rounded-md p-1 text-sm font-medium transition-colors hover:bg-muted [&::-webkit-details-marker]:hidden">
+            <Coins className="size-4 shrink-0" /> Re-import or update your data
+            <ChevronDown
+              className="ml-auto size-4 shrink-0 transition-transform group-open:rotate-180"
+              aria-hidden="true"
+            />
           </summary>
-          <ImportInstructions />
+          <div className="mt-4">
+            <ImportInstructions />
+          </div>
         </details>
       </CardContent>
     </Card>

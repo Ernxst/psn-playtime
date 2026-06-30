@@ -274,7 +274,12 @@ describe("SpendSection", () => {
 
     await renderWithAtoms(<SpendSection data={realDashboard} />);
 
-    await page.getByText("Re-import or update your data").click();
+    const summary = page.getByText("Re-import or update your data");
+    // A chevron affordance signals the section is expandable and is wired to rotate when open.
+    const chevron = summary.element().querySelector("svg.lucide-chevron-down");
+    expect(chevron).toHaveClass("group-open:rotate-180");
+
+    await summary.click();
 
     await expect.element(page.getByRole("button", { name: "Copy bookmarklet" })).toBeVisible();
   });
