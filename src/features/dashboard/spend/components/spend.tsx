@@ -1,7 +1,13 @@
-import { Banknote, Coins, ExternalLink, Gift, Trophy, Wallet } from "lucide-react";
+import { Banknote, Coins, ExternalLink, Gift, Info, Trophy, Wallet } from "lucide-react";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Popover,
+  PopoverContent,
+  PopoverDescription,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
 import { bookmarkletHref } from "@/domain/transaction-bookmarklet";
 import { useCopied } from "@/features/dashboard/components/copy-button";
@@ -198,6 +204,34 @@ function ImportInstructions() {
   );
 }
 
+/** Why importing takes a manual step — surfaced from the info popover by the heading. */
+const whyImportNeeded =
+  "Your purchase and play history lives in your PlayStation account, which offers no export — it can only be read from a page you're signed into. That read needs an action from you, which is all the bookmarklet automates once you run it; it does nothing on its own until you choose to import.";
+
+/** Tap-triggered explanation of why the import is a few steps, not one button. */
+function WhyImportInfo() {
+  return (
+    <Popover>
+      <PopoverTrigger
+        render={
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            aria-label="Why an import step is needed"
+            className="text-muted-foreground"
+          />
+        }
+      >
+        <Info className="size-4" />
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-80 max-w-[calc(100vw-2rem)]">
+        <PopoverDescription>{whyImportNeeded}</PopoverDescription>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 /** Prompt shown until the user imports their transaction history. */
 function ImportSpendCard() {
   return (
@@ -205,6 +239,7 @@ function ImportSpendCard() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <Coins className="size-4" /> Add your spend
+          <WhyImportInfo />
         </CardTitle>
         <CardDescription>
           See £-per-hour value by importing your PlayStation transaction history. No file export,

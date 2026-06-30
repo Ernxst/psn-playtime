@@ -157,6 +157,29 @@ describe("SpendSection", () => {
     expect(dontPressEnter.element().tagName).toBe("STRONG");
   });
 
+  it("explains why an import step is needed when the info control is activated", async () => {
+    onTestFinished(() => testTransactionStore.clear());
+
+    await renderWithAtoms(<SpendSection data={demoDashboard} />);
+
+    const info = page.getByRole("button", { name: "Why an import step is needed" });
+    await expect.element(info).toBeVisible();
+    // The explanation is disclosed on activation, not shown up front.
+    await expect
+      .element(
+        page.getByText("it can only be read from a page you're signed into", { exact: false })
+      )
+      .not.toBeInTheDocument();
+
+    await info.click();
+
+    await expect
+      .element(
+        page.getByText("it can only be read from a page you're signed into", { exact: false })
+      )
+      .toBeVisible();
+  });
+
   it("tells fine pointer users they can drag the bookmarklet", async () => {
     onTestFinished(() => testTransactionStore.clear());
     mockPointer(false);
