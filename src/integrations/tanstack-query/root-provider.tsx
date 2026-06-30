@@ -15,10 +15,13 @@ export function getContext() {
   const transactionStore = makeTransactionStore(atomRegistry);
   const dashboardStore = makeDashboardStore(atomRegistry);
 
-  // Client boot only (this factory runs once per router): register the
-  // app-lifetime `storage` listener over the single browser registry so a
+  // Register the `storage` listener over this request's registry so a
   // transactions write in another tab refreshes `useTransactionImport` here.
-  // `startCrossTabSync` no-ops on the server (no `window`), keeping SSR untouched.
+  // Idempotent per registry, so a repeated router construction or HMR pass over
+  // the browser registry re-uses the one listener rather than stacking another;
+  // `startCrossTabSync` no-ops on the server (no `window`), keeping SSR
+  // untouched. The returned teardown is unused here — the browser registry lives
+  // for the app's lifetime, and the per-registry guard prevents duplicates.
   startCrossTabSync(atomRegistry);
 
   return {

@@ -9,9 +9,11 @@ import { useAtomValue } from "@effect/atom-react";
  * `Atom.kvs`, and expose a `useTransactionImport` hook so the dashboard
  * re-renders when an import lands.
  *
- * Cross-tab sync is restored via {@link startCrossTabSync}: a single
- * app-lifetime `window` `storage` listener, registered at client boot, pushes a
- * write made in another tab into this tab's registry so subscribers re-render.
+ * Cross-tab sync is restored via {@link startCrossTabSync}: a `window` `storage`
+ * listener, registered once per registry at client boot, pushes a write made in
+ * another tab into this tab's registry so subscribers re-render. Registration is
+ * idempotent per registry and returns a teardown, so the listener lifetime is
+ * explicit rather than convention-only.
  */
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
@@ -153,15 +155,40 @@ function syncFromStorageEvent(registry: AtomRegistry.AtomRegistry, event: Storag
 }
 
 /**
- * Register the app-lifetime `storage` listener that keeps {@link
- * useTransactionImport} subscribers in sync with writes from other tabs. Wired
- * once at client boot (the CLIENT path of the router-context factory) over the
- * single app registry, so it needs no teardown; a `typeof window` guard makes it
- * a no-op on the server, where no `storage` events exist.
+ * Maps each registry that already owns a `storage` listener to its teardown, so
+ * a repeat call with the same registry returns the existing unsubscribe rather
+ * than stacking a second listener over the same registry (a duplicate router
+ * construction, HMR pass, or test setup would otherwise double-fire every
+ * event). A `WeakMap` keeps the entry from pinning a registry past its own life.
  */
-export function startCrossTabSync(registry: AtomRegistry.AtomRegistry): void {
-  if (typeof window === "undefined") return;
-  window.addEventListener("storage", (event) => syncFromStorageEvent(registry, event));
+const crossTabTeardowns = new WeakMap<AtomRegistry.AtomRegistry, () => void>();
+
+/**
+ * Register the `storage` listener that keeps {@link useTransactionImport}
+ * subscribers in sync with writes from other tabs, and return a teardown that
+ * removes it. Wired at client boot (the CLIENT path of the router-context
+ * factory) over the single app registry; a `typeof window` guard makes it a
+ * no-op (returning a no-op teardown) on the server, where no `storage` events
+ * exist.
+ *
+ * Idempotent per registry: a second call with the same registry adds no further
+ * listener and returns the same teardown, so the lifetime is explicit rather
+ * than convention-only — the listener is registered exactly once per registry
+ * and a single teardown removes it.
+ */
+export function startCrossTabSync(registry: AtomRegistry.AtomRegistry): () => void {
+  if (typeof window === "undefined") return () => {};
+  const existing = crossTabTeardowns.get(registry);
+  if (existing !== undefined) return existing;
+
+  const handler = (event: StorageEvent) => syncFromStorageEvent(registry, event);
+  window.addEventListener("storage", handler);
+  const teardown = () => {
+    window.removeEventListener("storage", handler);
+    crossTabTeardowns.delete(registry);
+  };
+  crossTabTeardowns.set(registry, teardown);
+  return teardown;
 }
 
 /**

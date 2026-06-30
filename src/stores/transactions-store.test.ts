@@ -142,3 +142,66 @@ describe(".clear", () => {
     expect(() => store.clear()).not.toThrow();
   });
 });
+
+describe(".startCrossTabSync", () => {
+  it("registers exactly one storage listener across repeat calls with the same registry", async () => {
+    const win = createWindowStub();
+    const addEventListener = vi.spyOn(win, "addEventListener");
+    vi.stubGlobal("window", win);
+    const { startCrossTabSync } = await import("./transactions-store");
+    const registry = AtomRegistry.make();
+
+    startCrossTabSync(registry);
+    startCrossTabSync(registry);
+
+    expect(addEventListener).toHaveBeenCalledExactlyOnceWith("storage", expect.any(Function));
+  });
+
+  it("returns the same teardown when called twice with the same registry", async () => {
+    vi.stubGlobal("window", createWindowStub());
+    const { startCrossTabSync } = await import("./transactions-store");
+    const registry = AtomRegistry.make();
+
+    const first = startCrossTabSync(registry);
+    const second = startCrossTabSync(registry);
+
+    expect(second).toBe(first);
+  });
+
+  it("removes the registered listener when the returned teardown runs", async () => {
+    const win = createWindowStub();
+    const addEventListener = vi.spyOn(win, "addEventListener");
+    const removeEventListener = vi.spyOn(win, "removeEventListener");
+    vi.stubGlobal("window", win);
+    const { startCrossTabSync } = await import("./transactions-store");
+    const registry = AtomRegistry.make();
+
+    const stop = startCrossTabSync(registry);
+    const handler = addEventListener.mock.calls[0]?.[1];
+    stop();
+
+    expect(removeEventListener).toHaveBeenCalledExactlyOnceWith("storage", handler);
+  });
+
+  it("registers a fresh listener after a teardown so sync can be restarted on the same registry", async () => {
+    const win = createWindowStub();
+    const addEventListener = vi.spyOn(win, "addEventListener");
+    vi.stubGlobal("window", win);
+    const { startCrossTabSync } = await import("./transactions-store");
+    const registry = AtomRegistry.make();
+
+    startCrossTabSync(registry)();
+    startCrossTabSync(registry);
+
+    expect(addEventListener).toHaveBeenCalledTimes(2);
+  });
+
+  it("returns a no-op teardown during server render when there is no window", async () => {
+    const { startCrossTabSync } = await import("./transactions-store");
+
+    const stop = startCrossTabSync(AtomRegistry.make());
+
+    expect(stop).toBeTypeOf("function");
+    expect(() => stop()).not.toThrow();
+  });
+});
