@@ -11,6 +11,10 @@
     // (`@effect/language-service` is traced via tsconfig.effect.json's
     // `plugins`; `@effect/tsgo`'s `effect-tsgo` bin via the `prepare` script.)
     "@tanstack/router-plugin",
+    // Browser-mode runner: enabled via `test.browser` in vitest.config.ts and a
+    // peer of `@vitest/browser-playwright`, but not statically imported. Was only
+    // trace-resolved through `@vitest/coverage-v8`'s peer graph before its removal.
+    "@vitest/browser",
     "seroval",
     "seroval-plugins",
     "oxlint-plugin-react-doctor",
