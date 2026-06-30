@@ -116,14 +116,25 @@ describe("SpendSection", () => {
     await expect.element(page.getByText("Import PSN spend")).toBeVisible();
   });
 
-  it("tells coarse pointer users to copy the bookmark", async () => {
+  it("walks coarse pointer users through bookmarking and editing the URL", async () => {
     onTestFinished(() => testTransactionStore.clear());
     mockPointer(true);
 
     await renderWithAtoms(<SpendSection data={demoDashboard} />);
 
     await expect
-      .element(page.getByText("Click Copy bookmark and save it as a new bookmark."))
+      .element(
+        page.getByText(
+          "Edit that bookmark — clear out the URL, paste the copied bookmarklet, and save."
+        )
+      )
+      .toBeVisible();
+    await expect
+      .element(
+        page.getByText(
+          "Open the bookmark you just saved while on the PlayStation site — it fetches your full purchase history and sends it back here. No navigating or scrolling."
+        )
+      )
       .toBeVisible();
   });
 
