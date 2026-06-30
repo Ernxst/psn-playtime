@@ -11,7 +11,12 @@ import type {
 import { describe, expect, it } from "vitest";
 import { DashboardSource } from "@/server/providers/account/contract.effect";
 import { PsnDashboardSourceLayer } from "@/server/providers/account/psn/provider.effect";
-import { PsnTransport, PsnTransportError } from "@/server/providers/account/psn/transport.effect";
+import { acquirePsnSession } from "@/server/providers/account/psn/session.effect";
+import {
+  PsnTransport,
+  PsnTransportError,
+  type PsnTransportShape,
+} from "@/server/providers/account/psn/transport.effect";
 import type { DashboardSourceError } from "@/server/providers/errors.effect";
 import type { DashboardData } from "../snapshot";
 
@@ -170,7 +175,49 @@ function loadDashboardTag(transport: Layer.Layer<PsnTransport>): Promise<string>
   );
 }
 
+/**
+ * A fake `PsnTransport` that counts npsso exchanges through `counter.count`, so a
+ * test can assert how often the credential is authenticated (one acquire per
+ * scope).
+ */
+function countingTransport(counter: { count: number }): Layer.Layer<PsnTransport> {
+  const shape: PsnTransportShape = {
+    exchangeNpssoForAccessCode: () => {
+      counter.count += 1;
+      return Effect.succeed("access-code");
+    },
+    exchangeAccessCodeForAuthTokens: () => Effect.succeed(authTokens),
+    getProfile: () => Effect.succeed(profile()),
+    getPlayedGames: () => Effect.succeed(playedPage([], 0)),
+    getUserTitles: () => Effect.succeed(trophyPage([], 0)),
+  };
+  return Layer.succeed(PsnTransport, shape);
+}
+
+describe(".acquirePsnSession", () => {
+  it("authenticates the credential once when the scope opens, then releases it on close", async () => {
+    const counter = { count: 0 };
+    await Effect.runPromise(
+      acquirePsnSession(Redacted.make("npsso-token")).pipe(
+        Effect.asVoid,
+        Effect.scoped,
+        Effect.provide(countingTransport(counter))
+      )
+    );
+    expect(counter.count).toBe(1);
+  });
+});
+
 describe(".loadDashboard", () => {
+  it("acquires the session once per request, re-authenticating each call", async () => {
+    const counter = { count: 0 };
+    const transport = countingTransport(counter);
+    await loadDashboard(transport);
+    expect(counter.count).toBe(1);
+    await loadDashboard(transport);
+    expect(counter.count).toBe(2);
+  });
+
   it("normalises a live PSN account into an un-enriched snapshot", async () => {
     const result = await loadDashboard(
       fakeTransport({

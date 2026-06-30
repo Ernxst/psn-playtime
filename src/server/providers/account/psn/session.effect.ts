@@ -1,12 +1,16 @@
 /**
- * `PsnSession` — an authenticated PSN session as a `Context.Service`.
+ * `PsnSession` — an authenticated PSN session as a scoped resource.
  *
- * `make(credential)` performs the npsso → access-code → access-token exchange
- * once, then returns a shape whose `profile` / `playedGames` / `trophyTitles`
- * effects each capture the resulting `auth`, so `auth` is never threaded as a
- * parameter; callers read the three effects, which authenticate themselves.
+ * `acquirePsnSession(credential)` is an `Effect.acquireRelease` whose acquire
+ * performs the npsso → access-code → access-token exchange against the ambient
+ * `PsnTransport`; the resulting `auth` is the acquired resource and the
+ * surrounding `Scope` owns its lifetime. The credential is a per-request
+ * resource — acquired once per scope, released when the scope closes — so its
+ * lifetime lives in the `Scope` of the type, not in closures or call-site
+ * wiring. The session's `profile` / `playedGames` / `trophyTitles` are the
+ * operations available for that lifetime.
  *
- * Failure model: a rejected npsso/access-code exchange fails `make` with
+ * Failure model: a rejected npsso/access-code exchange fails the acquire with
  * `CredentialRejectedError`; a profile/played/trophy fetch fails with
  * `RateLimitedError` on a detected HTTP 429 or `UpstreamUnavailableError`
  * otherwise. Paging goes through the shared `paginateAll` helper.
@@ -18,6 +22,7 @@
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
+import type * as Scope from "effect/Scope";
 import type { AccountCredential } from "@/server/providers/account/contract.effect";
 import {
   toProfileSummary,
@@ -116,30 +121,43 @@ const fetchTrophyTitles = (
     )
   );
 
-/** The shape a `PsnSession` exposes: three `auth`-captured session effects. */
+/** The capability a `PsnSession` exposes: the three session operations. */
 export interface PsnSessionShape {
   readonly profile: Effect.Effect<ProfileSummary, DashboardSourceError>;
   readonly playedGames: Effect.Effect<PlayedTitle[], DashboardSourceError>;
   readonly trophyTitles: Effect.Effect<TrophyTitle[], DashboardSourceError>;
 }
 
+export class PsnSession extends Context.Service<PsnSession, PsnSessionShape>()(
+  "psn-playtime/server/providers/account/psn/session.effect/PsnSession"
+) {}
+
 /**
- * `PsnSession.make(credential)` authenticates the credential against the ambient
- * `PsnTransport`, then returns the three session effects with `transport` and
- * `auth` captured. Fails with `CredentialRejectedError` when the exchange is
- * rejected.
+ * Build the session operations once `auth` is acquired: each operation binds the
+ * `transport` and `auth` it authenticates with.
  */
-const makePsnSession = Effect.fn("PsnSession.make")(function* (credential: AccountCredential) {
-  const transport = yield* PsnTransport;
-  const auth = yield* authenticate(transport, credential);
-  return {
-    profile: fetchProfile(transport, auth),
-    playedGames: fetchAllPlayedGames(transport, auth),
-    trophyTitles: fetchTrophyTitles(transport, auth),
-  } satisfies PsnSessionShape;
+const sessionOf = (transport: PsnTransportShape, auth: AuthorizationPayload): PsnSessionShape => ({
+  profile: fetchProfile(transport, auth),
+  playedGames: fetchAllPlayedGames(transport, auth),
+  trophyTitles: fetchTrophyTitles(transport, auth),
 });
 
-export class PsnSession extends Context.Service<PsnSession, PsnSessionShape>()(
-  "psn-playtime/server/providers/account/psn/session.effect/PsnSession",
-  { make: makePsnSession }
-) {}
+/**
+ * Acquire a `PsnSession` as a scoped resource: the npsso → token exchange is the
+ * acquire step (`auth` is the acquired resource), and the surrounding `Scope`
+ * owns its lifetime — released when the scope closes. The credential is a
+ * per-request resource, acquired once per scope; failing the acquire with
+ * `CredentialRejectedError` when the exchange is rejected. The `Scope` in the
+ * type — not a comment — is where the lifetime now lives.
+ */
+export const acquirePsnSession = (
+  credential: AccountCredential
+): Effect.Effect<PsnSessionShape, CredentialRejectedError, PsnTransport | Scope.Scope> =>
+  Effect.acquireRelease(
+    Effect.gen(function* () {
+      const transport = yield* PsnTransport;
+      const auth = yield* authenticate(transport, credential);
+      return sessionOf(transport, auth);
+    }).pipe(Effect.withSpan("PsnSession.acquire")),
+    () => Effect.void
+  );

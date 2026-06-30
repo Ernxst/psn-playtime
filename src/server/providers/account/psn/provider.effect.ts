@@ -3,14 +3,14 @@
  * npsso credential, fetch the profile, played games, and trophies, and normalize
  * them into the un-enriched `DashboardData` contract.
  *
- * - The authenticated session is the `PsnSession` `Context.Service`
- *   (`./session.effect`): it performs the npsso→token exchange once and captures
- *   `auth`, so `auth` is not threaded through this module.
+ * - The authenticated session is the scoped `PsnSession` capability
+ *   (`./session.effect`): its acquire performs the npsso→token exchange once,
+ *   and the scope owns `auth`, so `auth` is not threaded through this module.
  * - The pure normalization/name-matching helpers live in `./normalize`.
- * - `buildSnapshot` reads `PsnSession`, fetches the three session effects in
+ * - `buildSnapshot` reads `PsnSession`, invokes the three session methods in
  *   parallel (a trophy failure degrades to `[]`), stamps `fetchedAt`, and
- *   assembles the contract. `loadDashboard` acquires a per-request `PsnSession`
- *   from the credential and provides it to `buildSnapshot`.
+ *   assembles the contract. `loadDashboard` provides a per-request
+ *   `psnSessionLayer` whose scope owns the credential's lifetime.
  */
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
@@ -26,7 +26,7 @@ import {
   partitionTitles,
   type TrophyTitle,
 } from "@/server/providers/account/psn/normalize";
-import { PsnSession } from "@/server/providers/account/psn/session.effect";
+import { acquirePsnSession, PsnSession } from "@/server/providers/account/psn/session.effect";
 import { PsnTransport } from "@/server/providers/account/psn/transport.effect";
 import type { DashboardSourceError } from "@/server/providers/errors.effect";
 import type { DashboardData } from "../snapshot";
@@ -66,8 +66,10 @@ export const buildSnapshot: Effect.Effect<DashboardData, DashboardSourceError, P
 
 /**
  * The PSN `DashboardSource` layer, requiring `PsnTransport`. `loadDashboard`
- * acquires a per-request `PsnSession` from the credential; a rejected credential
- * surfaces as `CredentialRejectedError`.
+ * opens a per-request `Effect.scoped` boundary, acquires the credential-bound
+ * `PsnSession` within it, and runs `buildSnapshot` against it; the scope owns the
+ * session lifetime, so the credential is released when the snapshot completes. A
+ * rejected credential surfaces as `CredentialRejectedError`.
  */
 export const PsnDashboardSourceLayer: Layer.Layer<DashboardSource, never, PsnTransport> =
   Layer.effect(
@@ -76,7 +78,9 @@ export const PsnDashboardSourceLayer: Layer.Layer<DashboardSource, never, PsnTra
       PsnTransport,
       (transport): DashboardSourceShape => ({
         loadDashboard: (credential: AccountCredential) =>
-          Effect.provideServiceEffect(buildSnapshot, PsnSession, PsnSession.make(credential)).pipe(
+          acquirePsnSession(credential).pipe(
+            Effect.flatMap((session) => Effect.provideService(buildSnapshot, PsnSession, session)),
+            Effect.scoped,
             Effect.provideService(PsnTransport, transport)
           ),
       })
