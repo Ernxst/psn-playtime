@@ -1,11 +1,11 @@
 /**
- * Pure RAWG helpers shared by the Effect `TitleEnrichment` implementation
- * (`rawg.effect.ts`): genre mapping, query normalization, playtime
- * normalization, and franchise derivation.
+ * Pure RAWG mapping helpers used by the RAWG `TitleEnrichment` provider: genre
+ * mapping, query normalization, playtime normalization, and franchise
+ * derivation.
  *
- * All networking, the `RAWG_API_KEY` gate, response decoding, and the
- * request-scoped cache now live in `rawg.effect.ts`. This module is deliberately
- * side-effect-free so the mapping/derivation rules stay trivially testable.
+ * The provider owns all networking, the `RAWG_API_KEY` gate, response decoding,
+ * and the lookup caches. This module is deliberately side-effect-free so the
+ * mapping/derivation rules stay trivially testable.
  */
 import type { Genre } from "../../account/snapshot";
 
