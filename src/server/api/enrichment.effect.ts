@@ -9,6 +9,7 @@
  */
 import { createServerFn } from "@tanstack/react-start";
 import * as Effect from "effect/Effect";
+import type * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 import { runServer } from "@/runtime/runtime.effect";
 import { type Genre } from "@/server/providers/account/snapshot";
@@ -81,10 +82,40 @@ const rawgFranchisesEffect = (
     )
   );
 
+/**
+ * Run the genre lookup for a validated request. Mirrors
+ * `signInWithTokenHandler`'s injectable-layer seam: production passes no
+ * `enrichment`, so the effect runs against the process-lived `TitleEnrichment`
+ * the ambient `runServer` runtime supplies (preserving the cross-request RAWG
+ * caches); a test passes a fake `TitleEnrichment` layer to drive the lookup
+ * deterministically. The result still degrades to blank enrichment on a provider
+ * failure because `prefetchGameMetadata` already recovers the typed failures.
+ */
+export function getRawgGenresHandler(
+  titles: readonly RawgInputTitle[],
+  enrichment?: Layer.Layer<TitleEnrichment>
+): Promise<Array<{ titleId: string; genre?: Genre; typicalPlaytime?: number }>> {
+  const effect = rawgGenresEffect(titles);
+  // The handler is the server-fn entry point; a test injects a fake layer here.
+  // @effect-diagnostics-next-line strictEffectProvide:off
+  return runServer(enrichment === undefined ? effect : Effect.provide(effect, enrichment));
+}
+
+/** Franchise counterpart to {@link getRawgGenresHandler}, sharing the same seam. */
+export function getRawgFranchisesHandler(
+  titles: readonly RawgInputTitle[],
+  enrichment?: Layer.Layer<TitleEnrichment>
+): Promise<Array<{ titleId: string; franchise: string }>> {
+  const effect = rawgFranchisesEffect(titles);
+  // The handler is the server-fn entry point; a test injects a fake layer here.
+  // @effect-diagnostics-next-line strictEffectProvide:off
+  return runServer(enrichment === undefined ? effect : Effect.provide(effect, enrichment));
+}
+
 export const getRawgGenres = createServerFn({ method: "POST" })
   .validator(rawgGenreInput)
-  .handler(({ data }) => runServer(rawgGenresEffect(data.titles)));
+  .handler(({ data }) => getRawgGenresHandler(data.titles));
 
 export const getRawgFranchises = createServerFn({ method: "POST" })
   .validator(rawgGenreInput)
-  .handler(({ data }) => runServer(rawgFranchisesEffect(data.titles)));
+  .handler(({ data }) => getRawgFranchisesHandler(data.titles));
