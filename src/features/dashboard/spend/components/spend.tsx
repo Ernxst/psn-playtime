@@ -145,10 +145,24 @@ function BookmarkletActions() {
   );
 }
 
-/** Prompt shown until the user imports their transaction history. */
-function ImportSpendCard() {
+/** The numbered install steps plus the copy/drag actions — the import how-to. */
+function ImportInstructions() {
   const canDragBookmarklet = !useMediaQuery("coarse-pointer");
 
+  return (
+    <div className="space-y-4 text-sm">
+      <ol className="space-y-3 text-muted-foreground">
+        {steps(canDragBookmarklet).map((step, i) => (
+          <Step key={step.linkText ?? i} index={i} {...step} />
+        ))}
+      </ol>
+      <BookmarkletActions />
+    </div>
+  );
+}
+
+/** Prompt shown until the user imports their transaction history. */
+function ImportSpendCard() {
   return (
     <Card>
       <CardHeader>
@@ -160,13 +174,27 @@ function ImportSpendCard() {
           one click.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4 text-sm">
-        <ol className="space-y-3 text-muted-foreground">
-          {steps(canDragBookmarklet).map((step, i) => (
-            <Step key={step.linkText ?? i} index={i} {...step} />
-          ))}
-        </ol>
-        <BookmarkletActions />
+      <CardContent>
+        <ImportInstructions />
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Collapsed re-import affordance shown alongside the spend summary, so an
+ * already-imported user can run the bookmarklet again to update their data.
+ */
+function ReimportCard() {
+  return (
+    <Card className="lg:col-span-3">
+      <CardContent>
+        <details className="group space-y-4">
+          <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium">
+            <Coins className="size-4" /> Re-import or update your data
+          </summary>
+          <ImportInstructions />
+        </details>
       </CardContent>
     </Card>
   );
@@ -306,6 +334,7 @@ export function SpendSection({ data }: { data: DashboardData }) {
       <TotalsCard summary={summary} />
       <ByYearCard summary={summary} />
       <LeaderboardCard summary={summary} />
+      <ReimportCard />
     </div>
   );
 }

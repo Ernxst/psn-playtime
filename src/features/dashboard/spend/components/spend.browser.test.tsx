@@ -214,6 +214,29 @@ describe("SpendSection", () => {
     await expect.element(page.getByText("Satisfactory")).toBeVisible();
   });
 
+  it("offers a re-import affordance with the install instructions once imported", async () => {
+    seed([
+      {
+        transactionId: "t1",
+        key: "t1",
+        date: "2022-05-12",
+        transactionType: "PRODUCT_PURCHASE",
+        kind: "purchase",
+        productName: "Satisfactory",
+        quantity: 1,
+        amountMinor: 3300,
+        currency: "£",
+        displayAmount: "£33.00",
+      },
+    ]);
+
+    await renderWithAtoms(<SpendSection data={realDashboard} />);
+
+    await page.getByText("Re-import or update your data").click();
+
+    await expect.element(page.getByRole("button", { name: "Copy bookmarklet" })).toBeVisible();
+  });
+
   it("shows the import prompt on the demo dashboard even when an import exists", async () => {
     seed([
       {
