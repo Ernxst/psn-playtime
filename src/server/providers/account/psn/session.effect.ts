@@ -1,12 +1,14 @@
 /**
- * `PsnSession` — an authenticated PSN session as a `Context.Service`.
+ * `PsnSession` — the authenticated PSN session, a psn-module-internal value.
  *
- * `make(credential)` performs the npsso → access-code → access-token exchange
- * once, then returns a shape whose `profile` / `playedGames` / `trophyTitles`
- * effects each capture the resulting `auth`, so `auth` is never threaded as a
- * parameter; callers read the three effects, which authenticate themselves.
+ * `authenticatePsnSession(credential)` exchanges the transient credential
+ * against the ambient `PsnTransport` once and returns the session it authorises
+ * (`profile` / `playedGames` / `trophyTitles`). The session is a private
+ * intermediate of `loadDashboard`: it is not part of the public
+ * `DashboardSource` surface and is never the result of any operation exposed
+ * upward — the only public operation, `loadDashboard`, returns `DashboardData`.
  *
- * Failure model: a rejected npsso/access-code exchange fails `make` with
+ * Failure model: a rejected npsso/access-code exchange fails with
  * `CredentialRejectedError`; a profile/played/trophy fetch fails with
  * `RateLimitedError` on a detected HTTP 429 or `UpstreamUnavailableError`
  * otherwise. Paging goes through the shared `paginateAll` helper.
@@ -15,7 +17,6 @@
  * hand to the transport, never logged; `CredentialRejectedError.reason` is a
  * fixed string, so the secret can never leak into an error.
  */
-import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
 import type { AccountCredential } from "@/server/providers/account/contract.effect";
@@ -116,7 +117,11 @@ const fetchTrophyTitles = (
     )
   );
 
-/** The shape a `PsnSession` exposes: three `auth`-captured session effects. */
+/**
+ * The PSN session operations. Internal to the psn module: it is a private
+ * intermediate of `loadDashboard`, never part of the public `DashboardSource`
+ * surface and never the result of any operation exposed upward.
+ */
 export interface PsnSessionShape {
   readonly profile: Effect.Effect<ProfileSummary, DashboardSourceError>;
   readonly playedGames: Effect.Effect<PlayedTitle[], DashboardSourceError>;
@@ -124,22 +129,27 @@ export interface PsnSessionShape {
 }
 
 /**
- * `PsnSession.make(credential)` authenticates the credential against the ambient
- * `PsnTransport`, then returns the three session effects with `transport` and
- * `auth` captured. Fails with `CredentialRejectedError` when the exchange is
- * rejected.
+ * Build the session operations once `auth` is acquired: each operation binds the
+ * `transport` and `auth` it authenticates with.
  */
-const makePsnSession = Effect.fn("PsnSession.make")(function* (credential: AccountCredential) {
-  const transport = yield* PsnTransport;
-  const auth = yield* authenticate(transport, credential);
-  return {
-    profile: fetchProfile(transport, auth),
-    playedGames: fetchAllPlayedGames(transport, auth),
-    trophyTitles: fetchTrophyTitles(transport, auth),
-  } satisfies PsnSessionShape;
+const sessionOf = (transport: PsnTransportShape, auth: AuthorizationPayload): PsnSessionShape => ({
+  profile: fetchProfile(transport, auth),
+  playedGames: fetchAllPlayedGames(transport, auth),
+  trophyTitles: fetchTrophyTitles(transport, auth),
 });
 
-export class PsnSession extends Context.Service<PsnSession, PsnSessionShape>()(
-  "psn-playtime/server/providers/account/psn/session.effect/PsnSession",
-  { make: makePsnSession }
-) {}
+/**
+ * Authenticate `credential` against the ambient `PsnTransport` and return the
+ * session it authorises. The credential is transient — exchanged once per
+ * request and never stored. Fails with `CredentialRejectedError` when the
+ * exchange is rejected. This is psn-module-internal plumbing for
+ * `loadDashboard`; the returned session is not exposed on the public capability.
+ */
+export const authenticatePsnSession = (
+  credential: AccountCredential
+): Effect.Effect<PsnSessionShape, CredentialRejectedError, PsnTransport> =>
+  Effect.gen(function* () {
+    const transport = yield* PsnTransport;
+    const auth = yield* authenticate(transport, credential);
+    return sessionOf(transport, auth);
+  }).pipe(Effect.withSpan("PsnSession.authenticate"));

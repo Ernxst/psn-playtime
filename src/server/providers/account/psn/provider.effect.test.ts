@@ -11,7 +11,11 @@ import type {
 import { describe, expect, it } from "vitest";
 import { DashboardSource } from "@/server/providers/account/contract.effect";
 import { PsnDashboardSourceLayer } from "@/server/providers/account/psn/provider.effect";
-import { PsnTransport, PsnTransportError } from "@/server/providers/account/psn/transport.effect";
+import {
+  PsnTransport,
+  PsnTransportError,
+  type PsnTransportShape,
+} from "@/server/providers/account/psn/transport.effect";
 import type { DashboardSourceError } from "@/server/providers/errors.effect";
 import type { DashboardData } from "../snapshot";
 
@@ -170,7 +174,49 @@ function loadDashboardTag(transport: Layer.Layer<PsnTransport>): Promise<string>
   );
 }
 
+/** Per-operation call counts a `countingTransport` records. */
+interface TransportCalls {
+  exchanges: number;
+  fetches: number;
+}
+
+/**
+ * A fake `PsnTransport` that records how often the credential is exchanged
+ * (`exchanges`) and how often a snapshot fetch runs (`fetches`), so a test can
+ * assert per-request authentication and that a rejected credential never fetches.
+ */
+function countingTransport(
+  calls: TransportCalls,
+  overrides: { exchangeNpsso?: Effect.Effect<string, PsnTransportError> } = {}
+): Layer.Layer<PsnTransport> {
+  const fetch = <A>(value: A): Effect.Effect<A, PsnTransportError> =>
+    Effect.sync(() => {
+      calls.fetches += 1;
+      return value;
+    });
+  const shape: PsnTransportShape = {
+    exchangeNpssoForAccessCode: () => {
+      calls.exchanges += 1;
+      return overrides.exchangeNpsso ?? Effect.succeed("access-code");
+    },
+    exchangeAccessCodeForAuthTokens: () => Effect.succeed(authTokens),
+    getProfile: () => fetch(profile()),
+    getPlayedGames: () => fetch(playedPage([], 0)),
+    getUserTitles: () => fetch(trophyPage([], 0)),
+  };
+  return Layer.succeed(PsnTransport, shape);
+}
+
 describe(".loadDashboard", () => {
+  it("authenticates the credential once per request, re-authenticating each call", async () => {
+    const calls: TransportCalls = { exchanges: 0, fetches: 0 };
+    const transport = countingTransport(calls);
+    await loadDashboard(transport);
+    expect(calls.exchanges).toBe(1);
+    await loadDashboard(transport);
+    expect(calls.exchanges).toBe(2);
+  });
+
   it("normalises a live PSN account into an un-enriched snapshot", async () => {
     const result = await loadDashboard(
       fakeTransport({
@@ -269,10 +315,12 @@ describe(".loadDashboard", () => {
     expect(result.meta.appsExcluded.map((a) => a.name)).toEqual(["Netflix", "Spotify"]);
   });
 
-  it("fails with CredentialRejectedError when the npsso exchange is rejected", async () => {
-    expect(await loadDashboardTag(fakeTransport({ exchangeNpsso: psnFailure("nope") }))).toBe(
-      "CredentialRejectedError"
-    );
+  it("fails with CredentialRejectedError before any snapshot fetch runs when the npsso exchange is rejected", async () => {
+    const calls: TransportCalls = { exchanges: 0, fetches: 0 };
+    expect(
+      await loadDashboardTag(countingTransport(calls, { exchangeNpsso: psnFailure("nope") }))
+    ).toBe("CredentialRejectedError");
+    expect(calls.fetches).toBe(0);
   });
 
   it("fails with RateLimitedError when PSN signals HTTP 429", async () => {
