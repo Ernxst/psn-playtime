@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
 import { demoDashboard } from "@/domain/mock";
@@ -24,14 +24,6 @@ function baseFor(titleId: string, amountMinor: number): TransactionRow {
     displayAmount: "",
   };
 }
-
-// Give the chart surfaces a real size so Recharts renders inside the compose.
-beforeEach(() => {
-  document.head.insertAdjacentHTML(
-    "beforeend",
-    `<style>[data-slot="chart"]{width:360px;height:300px}</style>`
-  );
-});
 
 describe("DashboardView", () => {
   it("composes the header, KPIs, chart sections and games table from the data", async () => {

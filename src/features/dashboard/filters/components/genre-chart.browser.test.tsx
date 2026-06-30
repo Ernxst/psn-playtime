@@ -7,13 +7,6 @@ import { GenreChart } from "./charts";
 
 describe("GenreChart", () => {
   it("genre donut tooltip shows the genre name on hover", async () => {
-    // Tailwind CSS isn't loaded in the browser test, so the chart's `h-[300px]`
-    // class resolves to height 0 and Recharts renders nothing — give it a size.
-    document.head.insertAdjacentHTML(
-      "beforeend",
-      `<style>[data-slot="chart"]{width:300px;height:300px}</style>`
-    );
-
     const topSlice = genreBreakdown(demoDashboard)[0];
     if (!topSlice) throw new Error("expected at least one genre slice");
     const topGenre = topSlice.genre;

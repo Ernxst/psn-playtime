@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
 import { demoDashboard } from "@/domain/mock";
@@ -10,15 +10,6 @@ const named = [
   { Chart: YearChart, prefix: "Lifetime hours by most-recent-play year:" },
   { Chart: SessionChart, prefix: "Average session length per game:" },
 ] as const;
-
-// Tailwind isn't loaded in browser tests, so the chart height classes resolve
-// to 0 and Recharts renders nothing — give every chart surface a real size.
-beforeEach(() => {
-  document.head.insertAdjacentHTML(
-    "beforeend",
-    `<style>[data-slot="chart"]{width:400px;height:360px}</style>`
-  );
-});
 
 describe("TopGamesChart", () => {
   it("top-games chart plots a bar for each of the most-played titles", async () => {
