@@ -27,6 +27,7 @@ import {
   type TrophyTitle,
 } from "@/server/providers/account/psn/normalize";
 import { PsnSession } from "@/server/providers/account/psn/session.effect";
+import { PsnTransport } from "@/server/providers/account/psn/transport.effect";
 import type { DashboardSourceError } from "@/server/providers/errors.effect";
 import type { DashboardData } from "../snapshot";
 
@@ -64,22 +65,22 @@ export const buildSnapshot: Effect.Effect<DashboardData, DashboardSourceError, P
   });
 
 /**
- * Load one account's dashboard from a transient credential: acquire a per-request
- * `PsnSession` from the credential and provide it to `buildSnapshot`. A rejected
- * credential surfaces as `CredentialRejectedError`.
+ * The PSN `DashboardSource` layer. Built from the ambient `PsnTransport`, which
+ * it captures once and provides into each per-request `PsnSession`:
+ * `loadDashboard` acquires its own session from the credential, so the transient
+ * credential and its session never outlive a single call. A rejected credential
+ * surfaces as `CredentialRejectedError`.
  */
-const loadDashboard = (
-  credential: AccountCredential
-): Effect.Effect<DashboardData, DashboardSourceError> =>
-  Effect.provideServiceEffect(buildSnapshot, PsnSession, PsnSession.make(credential));
-
-/**
- * The PSN `DashboardSource` layer. `loadDashboard` acquires its own per-request
- * `PsnSession`, so a handler provides only this layer.
- */
-export const PsnDashboardSourceLayer: Layer.Layer<DashboardSource> = Layer.succeed(
-  DashboardSource,
-  {
-    loadDashboard,
-  } satisfies DashboardSourceShape
-);
+export const PsnDashboardSourceLayer: Layer.Layer<DashboardSource, never, PsnTransport> =
+  Layer.effect(
+    DashboardSource,
+    Effect.map(
+      PsnTransport,
+      (transport): DashboardSourceShape => ({
+        loadDashboard: (credential: AccountCredential) =>
+          Effect.provideServiceEffect(buildSnapshot, PsnSession, PsnSession.make(credential)).pipe(
+            Effect.provideService(PsnTransport, transport)
+          ),
+      })
+    )
+  );

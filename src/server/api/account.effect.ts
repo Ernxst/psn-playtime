@@ -12,6 +12,7 @@
  */
 import { createServerFn } from "@tanstack/react-start";
 import * as Effect from "effect/Effect";
+import type * as Layer from "effect/Layer";
 import * as Redacted from "effect/Redacted";
 import * as Schema from "effect/Schema";
 import { runServer } from "@/runtime/runtime.effect";
@@ -20,6 +21,10 @@ import {
   type AccountCredential,
 } from "@/server/providers/account/contract.effect";
 import { PsnDashboardSourceLayer } from "@/server/providers/account/psn/provider.effect";
+import {
+  PsnTransportLive,
+  type PsnTransport,
+} from "@/server/providers/account/psn/transport.effect";
 import { DashboardData } from "@/server/providers/account/snapshot";
 
 const SignInInput = Schema.Struct({
@@ -32,9 +37,10 @@ const decodeDashboard = Schema.decodeUnknownEffect(DashboardData);
 
 /**
  * Fetch and normalize one account from a transient credential. Runs the PSN
- * `DashboardSource`, which is provided here as the entry-point layer, then
- * decodes the snapshot against the `DashboardData` contract before it goes over
- * the wire (a pass-through for valid data).
+ * `DashboardSource`, then decodes the snapshot against the `DashboardData`
+ * contract before it goes over the wire (a pass-through for valid data). The
+ * `PsnTransport` the source needs stays open here, satisfied by the layer the
+ * handler provides.
  */
 const signInEffect = (credential: AccountCredential) =>
   Effect.flatMap(DashboardSource, (provider) => provider.loadDashboard(credential)).pipe(
@@ -48,16 +54,25 @@ const signInEffect = (credential: AccountCredential) =>
  * never stored server-side; the caller persists the returned `DashboardData` in
  * the client cache. Throws a friendly error when the token is rejected (or any
  * fetch fails), exactly as before.
+ *
+ * `transport` is the PSN transport `Layer`, defaulting to the live `psn-api`
+ * binding; it is the seam where a fake transport substitutes in tests.
  */
 export function signInWithTokenHandler(
-  data: Schema.Schema.Type<typeof SignInInput>
+  data: Schema.Schema.Type<typeof SignInInput>,
+  transport: Layer.Layer<PsnTransport> = PsnTransportLive
 ): Promise<DashboardData> {
   const credential = Redacted.make(data.npsso);
-  return credential.pipe(signInEffect, runServer).catch(() => {
-    throw new Error(
-      "That token didn't work — it may be expired. Grab a fresh npsso and try again."
-    );
-  });
+  return (
+    signInEffect(credential)
+      // @effect-diagnostics-next-line strictEffectProvide:off
+      .pipe(Effect.provide(transport), runServer)
+      .catch(() => {
+        throw new Error(
+          "That token didn't work — it may be expired. Grab a fresh npsso and try again."
+        );
+      })
+  );
 }
 
 export const signInWithToken = createServerFn({ method: "POST" })
