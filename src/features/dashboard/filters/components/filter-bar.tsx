@@ -350,7 +350,7 @@ export function FilterBar({ data, filters, onChange }: Props) {
         placeholder="Search games…"
         value={filters.search}
         onChange={(event) => set({ search: event.target.value })}
-        className="w-full max-w-xs"
+        className="w-full sm:max-w-xs"
       />
       <Popover>
         <PopoverTrigger render={<FilterTrigger count={activeCount} />} />
