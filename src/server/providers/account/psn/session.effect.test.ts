@@ -1,18 +1,17 @@
 /**
  * DI test for the PSN provider.
  *
- * Proves that `buildSnapshot` depends on the `PsnSession` *service* — not the
- * concrete psn-api transport — by providing a hand-built fake `PsnSession` layer
- * (no psn-api, no mocks) and asserting the assembled `DashboardData` reflects
- * exactly what the fake session returned. It complements `provider.effect.test`,
- * which drives the real session with mocked psn-api.
+ * Proves that `buildSnapshot` depends only on the in-hand `PsnSessionShape` —
+ * not the concrete psn-api transport — by passing a hand-built fake session (no
+ * psn-api, no mocks) and asserting the assembled `DashboardData` reflects exactly
+ * what the fake session returned. It complements `provider.effect.test`, which
+ * drives the real session through a fake `PsnTransport`.
  */
 import * as Effect from "effect/Effect";
-import * as Layer from "effect/Layer";
 import type { TrophyTitle, UserPlayedGamesResponse } from "psn-api";
 import { describe, expect, it } from "vitest";
 import { buildSnapshot } from "@/server/providers/account/psn/provider.effect";
-import { PsnSession } from "@/server/providers/account/psn/session.effect";
+import type { PsnSessionShape } from "@/server/providers/account/psn/session.effect";
 import {
   UpstreamUnavailableError,
   type DashboardSourceError,
@@ -21,7 +20,7 @@ import type { DashboardData, ProfileSummary } from "../snapshot";
 
 type PlayedTitle = UserPlayedGamesResponse["titles"][number];
 
-/** The canned effects a fake session method should return. */
+/** The canned effects a fake session operation should return. */
 interface SessionCanned {
   profile?: Effect.Effect<ProfileSummary, DashboardSourceError>;
   playedGames?: Effect.Effect<PlayedTitle[], DashboardSourceError>;
@@ -86,18 +85,18 @@ const trophy = (overrides: Partial<TrophyTitle>): TrophyTitle => ({
   ...overrides,
 });
 
-/** A fake `PsnSession` layer that serves canned session data — the DI boundary. */
-function fakePsnSession(canned: SessionCanned): Layer.Layer<PsnSession> {
-  return Layer.succeed(PsnSession, {
+/** A fake session serving canned data — the boundary `buildSnapshot` consumes. */
+function fakePsnSession(canned: SessionCanned): PsnSessionShape {
+  return {
     profile: canned.profile ?? Effect.succeed(profileSummary),
     playedGames: canned.playedGames ?? Effect.succeed([]),
     trophyTitles: canned.trophyTitles ?? Effect.succeed([]),
-  });
+  };
 }
 
-/** Run `buildSnapshot` with an injected fake `PsnSession`. */
+/** Run `buildSnapshot` with an injected fake session. */
 function snapshotWith(canned: SessionCanned): Promise<DashboardData> {
-  return Effect.runPromise(buildSnapshot.pipe(Effect.provide(fakePsnSession(canned))));
+  return Effect.runPromise(buildSnapshot(fakePsnSession(canned)));
 }
 
 describe(".buildSnapshot", () => {

@@ -11,7 +11,10 @@ import type {
 import { describe, expect, it } from "vitest";
 import { DashboardSource } from "@/server/providers/account/contract.effect";
 import { PsnDashboardSourceLayer } from "@/server/providers/account/psn/provider.effect";
-import { acquirePsnSession } from "@/server/providers/account/psn/session.effect";
+import {
+  withPsnSession,
+  type PsnSessionShape,
+} from "@/server/providers/account/psn/session.effect";
 import {
   PsnTransport,
   PsnTransportError,
@@ -194,17 +197,34 @@ function countingTransport(counter: { count: number }): Layer.Layer<PsnTransport
   return Layer.succeed(PsnTransport, shape);
 }
 
-describe(".acquirePsnSession", () => {
-  it("authenticates the credential once when the scope opens, then releases it on close", async () => {
+describe(".withPsnSession", () => {
+  it("authenticates the credential once and hands the session only to the use callback", async () => {
     const counter = { count: 0 };
-    await Effect.runPromise(
-      acquirePsnSession(Redacted.make("npsso-token")).pipe(
-        Effect.asVoid,
-        Effect.scoped,
-        Effect.provide(countingTransport(counter))
+    let received: PsnSessionShape | undefined;
+    const reached = await Effect.runPromise(
+      withPsnSession(Redacted.make("npsso-token"), (session) => {
+        received = session;
+        return Effect.succeed("used" as const);
+      }).pipe(Effect.provide(countingTransport(counter)))
+    );
+    expect(reached).toBe("used");
+    expect(received).toBeDefined();
+    expect(counter.count).toBe(1);
+  });
+
+  it("fails with CredentialRejectedError without invoking use when the npsso exchange is rejected", async () => {
+    let invoked = false;
+    const tag = await Effect.runPromise(
+      withPsnSession(Redacted.make("npsso-token"), () => {
+        invoked = true;
+        return Effect.void;
+      }).pipe(
+        Effect.match({ onFailure: (error) => error._tag, onSuccess: () => "ok" }),
+        Effect.provide(fakeTransport({ exchangeNpsso: psnFailure("nope") }))
       )
     );
-    expect(counter.count).toBe(1);
+    expect(tag).toBe("CredentialRejectedError");
+    expect(invoked).toBe(false);
   });
 });
 
