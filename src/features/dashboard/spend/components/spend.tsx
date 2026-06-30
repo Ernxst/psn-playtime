@@ -1,7 +1,22 @@
-import { Banknote, Coins, ExternalLink, Gift, Trophy, Wallet } from "lucide-react";
+import {
+  Banknote,
+  ChevronDown,
+  Coins,
+  ExternalLink,
+  Gift,
+  Info,
+  Trophy,
+  Wallet,
+} from "lucide-react";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Popover,
+  PopoverContent,
+  PopoverDescription,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
 import { bookmarkletHref } from "@/domain/transaction-bookmarklet";
 import { useCopied } from "@/features/dashboard/components/copy-button";
@@ -39,23 +54,37 @@ const openPlayStation = {
 };
 
 /**
- * Mobile run step: a `javascript:` bookmark can't be launched by tapping it in
- * the bookmarks list on Chrome/Android — it has to be invoked from the address
- * bar suggestions on the active tab.
+ * Mobile run step: how you launch a `javascript:` bookmark differs by platform,
+ * so the run instruction splits into labelled per-platform sub-steps (no UA
+ * detection — both are shown). On iOS Safari you tap the saved bookmark in the
+ * Bookmarks list and it runs; on Chrome/Android tapping it does nothing, so it
+ * has to be invoked from the address-bar suggestions on the active tab.
  */
-const runOnPsTab: ReactNode = (
-  <>
+const runOnPsTab = {
+  text: "Run it on the PlayStation tab:",
+  subSteps: [
     {
-      "On the PlayStation tab, type that bookmark's name in the address bar and tap it in the suggestions — "
-    }
-    <strong>don't press Enter</strong>. It runs on the page, fetches your full purchase history, and
-    sends it back here.
-  </>
-);
+      label: "iPhone/iPad (Safari)",
+      text: "open your Bookmarks and tap the one you saved — it runs on this page.",
+    },
+    {
+      label: "Android (Chrome)",
+      text: (
+        <>
+          {"type that bookmark's name in the address bar and tap it in the suggestions — "}
+          <strong>don't press Enter</strong>.
+        </>
+      ),
+    },
+  ],
+};
 
-function steps(
-  canDragBookmarklet: boolean
-): Array<{ text: ReactNode; href?: string; linkText?: string }> {
+function steps(canDragBookmarklet: boolean): Array<{
+  text: ReactNode;
+  href?: string;
+  linkText?: string;
+  subSteps?: Array<{ label: string; text: ReactNode }>;
+}> {
   if (canDragBookmarklet) {
     return [
       {
@@ -87,9 +116,7 @@ function steps(
       text: "Edit that bookmark — give it a short name you'll remember, clear out the URL, paste the copied bookmarklet, and save.",
     },
     openPlayStation,
-    {
-      text: runOnPsTab,
-    },
+    runOnPsTab,
   ];
 }
 
@@ -99,6 +126,7 @@ function Step({
   text,
   href,
   linkText,
+  subSteps,
 }: ReturnType<typeof steps>[number] & { index: number }) {
   return (
     <li className="flex gap-3">
@@ -107,6 +135,15 @@ function Step({
       </span>
       <div className="space-y-1">
         <p>{text}</p>
+        {subSteps ? (
+          <ul className="ml-1 space-y-1 border-l border-border pl-3">
+            {subSteps.map((sub) => (
+              <li key={sub.label}>
+                <strong>{sub.label}:</strong> {sub.text}
+              </li>
+            ))}
+          </ul>
+        ) : null}
         {href ? (
           <a
             href={href}
@@ -176,6 +213,34 @@ function ImportInstructions() {
   );
 }
 
+/** Why importing takes a manual step — surfaced from the info popover by the heading. */
+const whyImportNeeded =
+  "Your purchase and play history lives in your PlayStation account, which offers no export — it can only be read from a page you're signed into. That read needs an action from you, which is all the bookmarklet automates once you run it; it does nothing on its own until you choose to import.";
+
+/** Tap-triggered explanation of why the import is a few steps, not one button. */
+function WhyImportInfo() {
+  return (
+    <Popover>
+      <PopoverTrigger
+        render={
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            aria-label="Why an import step is needed"
+            className="text-muted-foreground"
+          />
+        }
+      >
+        <Info className="size-4" />
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-80 max-w-[calc(100vw-2rem)]">
+        <PopoverDescription>{whyImportNeeded}</PopoverDescription>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 /** Prompt shown until the user imports their transaction history. */
 function ImportSpendCard() {
   return (
@@ -183,6 +248,7 @@ function ImportSpendCard() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <Coins className="size-4" /> Add your spend
+          <WhyImportInfo />
         </CardTitle>
         <CardDescription>
           See £-per-hour value by importing your PlayStation transaction history. No file export,
@@ -204,11 +270,17 @@ function ReimportCard() {
   return (
     <Card className="lg:col-span-3">
       <CardContent>
-        <details className="group space-y-4">
-          <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium">
-            <Coins className="size-4" /> Re-import or update your data
+        <details className="group">
+          <summary className="-m-1 flex cursor-pointer list-none items-center gap-2 rounded-md p-1 text-sm font-medium transition-colors hover:bg-muted [&::-webkit-details-marker]:hidden">
+            <Coins className="size-4 shrink-0" /> Re-import or update your data
+            <ChevronDown
+              className="ml-auto size-4 shrink-0 transition-transform group-open:rotate-180"
+              aria-hidden="true"
+            />
           </summary>
-          <ImportInstructions />
+          <div className="mt-4">
+            <ImportInstructions />
+          </div>
         </details>
       </CardContent>
     </Card>
