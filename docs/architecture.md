@@ -8,7 +8,7 @@ What each top-level directory under `src/` is for. The shape follows two ideas: 
 
 ## `runtime/`
 
-The Effect runtime and client-state wiring: the server runtime (`runtime.effect.ts`), the browser `localStorage` atom runtime (`kvs.effect.ts`), and the `@effect/atom` registry setup (`provider.effect.tsx`). This is the seam where Effect programs are actually executed.
+The Effect runtime and client-state wiring: the server runtime (`runtime.effect.ts`), the browser `localStorage` atom runtime (`kvs.effect.ts`), and the `@effect/atom` registry setup (`provider.effect.tsx`). This is where Effect programs are actually executed.
 
 ## `integrations/`
 
@@ -20,8 +20,8 @@ Server-only code. Never imported by the client except through the typed server-f
 
 - `api/` — the `createServerFn` handlers, split by concept (`account.effect.ts`, `enrichment.effect.ts`). The only surface the client calls.
 - `providers/` — ports & adapters, grouped **by concept**. Each concept owns an agnostic contract plus its return type at the root, with provider implementations nested beneath:
-  - `account/` — `contract.effect.ts` (the `AccountProvider` port), `snapshot.ts` (the `DashboardData` contract it returns), and `psn/` (the PlayStation implementation: session, provider, normalisation, pagination). A future Xbox provider would be `account/xbox/`.
-  - `enrichment/` — `contract.effect.ts` (the `EnrichmentProvider` port) and `rawg/` (the RAWG implementation). RAWG is the sole enrichment source.
+  - `account/` — `contract.effect.ts` (the `DashboardSource` port), `snapshot.ts` (the `DashboardData` contract it returns), and `psn/` (the PlayStation implementation: session, provider, normalisation, pagination).
+  - `enrichment/` — `contract.effect.ts` (the `TitleEnrichment` port) and `rawg/` (the RAWG implementation). RAWG is the sole enrichment source.
   - `errors.effect.ts` — the shared provider-error vocabulary.
 - `security/` — server security concerns (e.g. `csp.ts`).
 

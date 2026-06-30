@@ -1,41 +1,32 @@
 import * as Context from "effect/Context";
 import type * as Effect from "effect/Effect";
 import type * as Redacted from "effect/Redacted";
-import type { AccountProviderError } from "../errors.effect";
+import type { DashboardSourceError } from "../errors.effect";
 import type { DashboardData } from "./snapshot";
 
 /**
- * `AccountProvider` — the platform-agnostic seam (phase E3) between the
- * dashboard and a concrete account source (PSN today; the Xbox seam later).
- *
- * Shaped strictly by what the app needs TODAY: `signInWithTokenHandler` takes a
- * transient secret and produces one `DashboardData`. No PSN naming leaks across
- * this boundary — npsso tokens, psn-api endpoints, and the played-games ⇄
- * trophy name-matching all stay inside the E5 PSN implementation.
+ * `DashboardSource` — the capability that loads one account's normalized
+ * dashboard from a transient credential, independent of any concrete account
+ * source.
  */
 
 /**
- * A transient account secret (PSN's npsso today). `Redacted` keeps it out of
- * logs/errors and reflects that it is used once and never stored server-side.
+ * A transient account secret. `Redacted` keeps it out of logs and errors; it is
+ * used once to load a dashboard and never stored.
  */
 export type AccountCredential = Redacted.Redacted<string>;
 
-export interface AccountProviderShape {
+export interface DashboardSourceShape {
   /**
-   * Fetch and normalize one account into the `DashboardData` contract, given a
-   * transient credential.
-   *
-   * This is the whole of `psn.ts`'s `authenticate` + `buildDashboard`: profile,
-   * played games, and trophies, joined and partitioned into the contract. The
-   * result is UN-enriched (keyword genres only, no `enriched` flag) — RAWG
-   * genre/franchise/playtime is the separate, deferred {@link EnrichmentProvider}
-   * concern, exactly as today's client-side merge keeps it.
+   * Load one account's dashboard from a credential. The result is un-enriched;
+   * genre/franchise/playtime enrichment is the separate {@link TitleEnrichment}
+   * capability.
    */
-  readonly fetchSnapshot: (
+  readonly loadDashboard: (
     credential: AccountCredential
-  ) => Effect.Effect<DashboardData, AccountProviderError>;
+  ) => Effect.Effect<DashboardData, DashboardSourceError>;
 }
 
-export class AccountProvider extends Context.Service<AccountProvider, AccountProviderShape>()(
-  "psn-playtime/server/providers/account/contract.effect/AccountProvider"
+export class DashboardSource extends Context.Service<DashboardSource, DashboardSourceShape>()(
+  "psn-playtime/server/providers/account/contract.effect/DashboardSource"
 ) {}

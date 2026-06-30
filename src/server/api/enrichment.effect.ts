@@ -2,17 +2,17 @@
  * Enrichment server-fn entry points. Wrap the RAWG genre/playtime and franchise
  * lookups in `createServerFn` handlers.
  *
- * `EnrichmentProvider` is supplied by the process-lived `ServerLayer` (see
+ * `TitleEnrichment` is supplied by the process-lived `ServerLayer` (see
  * `runtime.effect.ts`), so these handlers no longer provide it per request —
  * the RAWG caches survive across requests. The effects just require
- * `EnrichmentProvider` from the ambient runtime, satisfied by `runServer`.
+ * `TitleEnrichment` from the ambient runtime, satisfied by `runServer`.
  */
 import { createServerFn } from "@tanstack/react-start";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import { runServer } from "@/runtime/runtime.effect";
 import { type Genre } from "@/server/providers/account/snapshot";
-import { type EnrichmentProvider } from "@/server/providers/enrichment/contract.effect";
+import { type TitleEnrichment } from "@/server/providers/enrichment/contract.effect";
 import {
   prefetchFranchises,
   prefetchGameMetadata,
@@ -46,7 +46,7 @@ const rawgGenresEffect = (
 ): Effect.Effect<
   Array<{ titleId: string; genre?: Genre; typicalPlaytime?: number }>,
   never,
-  EnrichmentProvider
+  TitleEnrichment
 > =>
   prefetchGameMetadata(rawgLookupNames(titles)).pipe(
     Effect.map((metadata) =>
@@ -69,7 +69,7 @@ const rawgGenresEffect = (
 /** Run the RAWG franchise lookup against the ambient, process-lived provider. */
 const rawgFranchisesEffect = (
   titles: readonly RawgInputTitle[]
-): Effect.Effect<Array<{ titleId: string; franchise: string }>, never, EnrichmentProvider> =>
+): Effect.Effect<Array<{ titleId: string; franchise: string }>, never, TitleEnrichment> =>
   prefetchFranchises(rawgLookupNames(titles)).pipe(
     Effect.map((rawgFranchises) =>
       titles.flatMap((title) => {

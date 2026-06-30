@@ -1,21 +1,17 @@
 import * as Context from "effect/Context";
 import type * as Effect from "effect/Effect";
 import type { Genre } from "../account/snapshot";
-import type { EnrichmentProviderError } from "../errors.effect";
+import type { TitleEnrichmentError } from "../errors.effect";
 
 /**
- * `EnrichmentProvider` — the platform-agnostic seam (phase E3) for the
- * genre/franchise/typical-playtime enrichment that `rawg.ts` provides today.
- *
- * Keeps RAWG specifics (endpoints, the API-key gate, query normalization) out
- * of the boundary; the E4 RAWG implementation supplies the layer. Lookups are
- * by title name, matching the current `lookupRawg*` functions.
+ * `TitleEnrichment` — the capability that enriches a game title, looked up by
+ * name, with genre, franchise, and typical playtime. Missing data is a
+ * successful absence, never a failure.
  */
 
 /**
- * Genre + typical hours-to-complete for one title. Both ride a single upstream
- * lookup today (`rawg.effect.ts`'s game search), so they are returned together.
- * Absent fields mean "no usable data" — the caller keeps its fallback.
+ * Genre and typical hours-to-complete for one title. An absent field means "no
+ * usable data"; the caller keeps its own fallback.
  */
 export interface GameMetadata {
   readonly genre?: Genre;
@@ -23,26 +19,14 @@ export interface GameMetadata {
   readonly typicalPlaytime?: number;
 }
 
-export interface EnrichmentProviderShape {
-  /**
-   * Fetch a title's coarse genre and typical playtime in one request. Both ride
-   * a single cached RAWG game search. Missing data is a successful empty
-   * result, not an error.
-   */
-  readonly fetchGameMetadata: (
-    title: string
-  ) => Effect.Effect<GameMetadata, EnrichmentProviderError>;
+export interface TitleEnrichmentShape {
+  /** Genre and typical playtime for a title; absence is a successful empty result. */
+  readonly metadataFor: (title: string) => Effect.Effect<GameMetadata, TitleEnrichmentError>;
 
-  /**
-   * Fetch a title's franchise/series label. `undefined` means "no franchise" (a
-   * successful absence), not an error.
-   */
-  readonly fetchFranchise: (
-    title: string
-  ) => Effect.Effect<string | undefined, EnrichmentProviderError>;
+  /** The franchise/series label for a title, or `undefined` when it has none. */
+  readonly franchiseFor: (title: string) => Effect.Effect<string | undefined, TitleEnrichmentError>;
 }
 
-export class EnrichmentProvider extends Context.Service<
-  EnrichmentProvider,
-  EnrichmentProviderShape
->()("psn-playtime/server/providers/enrichment/contract.effect/EnrichmentProvider") {}
+export class TitleEnrichment extends Context.Service<TitleEnrichment, TitleEnrichmentShape>()(
+  "psn-playtime/server/providers/enrichment/contract.effect/TitleEnrichment"
+) {}

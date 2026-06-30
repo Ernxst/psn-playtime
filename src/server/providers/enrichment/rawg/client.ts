@@ -1,5 +1,5 @@
 /**
- * Pure RAWG helpers shared by the Effect `EnrichmentProvider` implementation
+ * Pure RAWG helpers shared by the Effect `TitleEnrichment` implementation
  * (`rawg.effect.ts`): genre mapping, query normalization, playtime
  * normalization, and franchise derivation.
  *

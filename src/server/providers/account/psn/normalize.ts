@@ -1,16 +1,11 @@
 /**
  * Pure normalization for the PSN account provider.
  *
- * Everything here is a plain function over psn-api shapes — the played-games ⇄
- * trophy name-matching, profile/game normalization, paging-stop logic, and
- * snapshot meta. No Effect *workflows* (no `Effect`/`Layer`/`Stream`, no
- * services), and crucially no banned `Date` global, so the strict
- * `*.effect.ts` files can value-import it without the language-service rules
- * cascading a violation. `isoDate` uses the sanctioned pure `DateTime`
- * functions (not the `Date` global) precisely so it stays cascade-safe while
- * keeping the old UTC-normalizing behaviour byte-for-byte.
- *
- * Moved verbatim out of `psn.effect.ts` (PR #212); behaviour is unchanged.
+ * Plain functions over psn-api shapes — the played-games ⇄ trophy name-matching,
+ * profile/game normalization, paging-stop logic, and snapshot meta. No Effect
+ * workflows (no `Effect`/`Layer`/`Stream`, no services) and no `Date` global
+ * (`isoDate` uses pure `DateTime` functions), so the strict `*.effect.ts`
+ * modules can value-import it.
  */
 import * as DateTime from "effect/DateTime";
 import * as Option from "effect/Option";
@@ -36,7 +31,7 @@ const APP_RULE =
 
 /**
  * Whether a played title is a non-game app (streaming/music/browser) the
- * `AccountProvider` excludes from play stats. PSN-specific: the `media_app`
+ * `DashboardSource` excludes from play stats. PSN-specific: the `media_app`
  * category check keys off psn-api's category vocabulary.
  */
 function isApp(name: string, category?: string): boolean {
@@ -279,7 +274,7 @@ export interface Partitioned {
 /**
  * Split played titles into games and excluded apps, joining each game to its
  * trophy list. Genres are not classified here — RAWG is the sole enrichment
- * source, a separate deferred `EnrichmentProvider` concern merged client-side,
+ * source, a separate deferred `TitleEnrichment` concern merged client-side,
  * so every game leaves this port with the baseline "Other" genre and no
  * franchise; the snapshot is honestly un-enriched.
  */

@@ -1,12 +1,11 @@
 /**
- * DI-seam test for the PSN provider.
+ * DI test for the PSN provider.
  *
  * Proves that `buildSnapshot` depends on the `PsnSession` *service* — not the
  * concrete psn-api transport — by providing a hand-built fake `PsnSession` layer
  * (no psn-api, no mocks) and asserting the assembled `DashboardData` reflects
- * exactly what the fake session returned. This is the seam a future provider, or
- * a contract test, plugs into. It complements `provider.effect.test`
- * (which drives the *real* session with mocked psn-api for byte-parity).
+ * exactly what the fake session returned. It complements `provider.effect.test`,
+ * which drives the real session with mocked psn-api.
  */
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -14,7 +13,7 @@ import type { TrophyTitle, UserPlayedGamesResponse } from "psn-api";
 import { describe, expect, it } from "vitest";
 import { buildSnapshot } from "@/server/providers/account/psn/provider.effect";
 import { PsnSession, type PsnSessionShape } from "@/server/providers/account/psn/session.effect";
-import { ProviderUnavailableError } from "@/server/providers/errors.effect";
+import { UpstreamUnavailableError } from "@/server/providers/errors.effect";
 import type { DashboardData, ProfileSummary } from "../snapshot";
 
 type PlayedTitle = UserPlayedGamesResponse["titles"][number];
@@ -77,7 +76,7 @@ const trophy = (overrides: Partial<TrophyTitle>): TrophyTitle => ({
   ...overrides,
 });
 
-/** A fake `PsnSession` layer that serves canned session data — the DI seam. */
+/** A fake `PsnSession` layer that serves canned session data — the DI boundary. */
 function fakePsnSession(shape: Partial<PsnSessionShape>): Layer.Layer<PsnSession> {
   return Layer.succeed(PsnSession, {
     profile: shape.profile ?? Effect.succeed(profileSummary),
@@ -141,7 +140,7 @@ describe(".buildSnapshot", () => {
         }),
       ]),
       trophyTitles: Effect.fail(
-        new ProviderUnavailableError({ provider: "psn", reason: "upstream_error" })
+        new UpstreamUnavailableError({ provider: "psn", reason: "upstream_error" })
       ),
     });
 

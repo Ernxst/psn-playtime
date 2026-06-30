@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   CredentialRejectedError,
-  ProviderRateLimitedError,
-  ProviderUnavailableError,
+  RateLimitedError,
+  UpstreamUnavailableError,
   providerError,
 } from "./errors.effect";
 
@@ -19,21 +19,21 @@ describe("CredentialRejectedError", () => {
   });
 });
 
-describe("ProviderUnavailableError", () => {
+describe("UpstreamUnavailableError", () => {
   it("carries its tag, provider and a stable sanitised reason code", () => {
-    const error = new ProviderUnavailableError({ provider: "psn", reason: "upstream_error" });
+    const error = new UpstreamUnavailableError({ provider: "psn", reason: "upstream_error" });
 
-    expect(error._tag).toBe("ProviderUnavailableError");
+    expect(error._tag).toBe("UpstreamUnavailableError");
     expect(error.provider).toBe("psn");
     expect(error.reason).toBe("upstream_error");
   });
 });
 
-describe("ProviderRateLimitedError", () => {
+describe("RateLimitedError", () => {
   it("carries its tag and provider", () => {
-    const error = new ProviderRateLimitedError({ provider: "rawg" });
+    const error = new RateLimitedError({ provider: "rawg" });
 
-    expect(error._tag).toBe("ProviderRateLimitedError");
+    expect(error._tag).toBe("RateLimitedError");
     expect(error.provider).toBe("rawg");
   });
 });
@@ -44,22 +44,19 @@ describe(".providerError", () => {
     ["too many requests, slow down"],
     ["upstream rate limit reached"],
     ["RATE LIMIT exceeded"],
-  ])(
-    "classifies a message signalling rate limiting (%s) as ProviderRateLimitedError",
-    (message) => {
-      const error = providerError("psn")(new Error(message));
+  ])("classifies a message signalling rate limiting (%s) as RateLimitedError", (message) => {
+    const error = providerError("psn")(new Error(message));
 
-      expect(error).toBeInstanceOf(ProviderRateLimitedError);
-      expect(error).toMatchObject({ _tag: "ProviderRateLimitedError", provider: "psn" });
-    }
-  );
+    expect(error).toBeInstanceOf(RateLimitedError);
+    expect(error).toMatchObject({ _tag: "RateLimitedError", provider: "psn" });
+  });
 
-  it("classifies an unrelated failure as ProviderUnavailableError with the stable reason code", () => {
+  it("classifies an unrelated failure as UpstreamUnavailableError with the stable reason code", () => {
     const error = providerError("rawg")(new Error("connection refused"));
 
-    expect(error).toBeInstanceOf(ProviderUnavailableError);
+    expect(error).toBeInstanceOf(UpstreamUnavailableError);
     expect(error).toMatchObject({
-      _tag: "ProviderUnavailableError",
+      _tag: "UpstreamUnavailableError",
       provider: "rawg",
       reason: "upstream_error",
     });
@@ -70,8 +67,8 @@ describe(".providerError", () => {
     const leaky = new Error(`GET https://api.example.com?token=${secret} failed: 500`);
     const error = providerError("psn")(leaky);
 
-    expect(error).toBeInstanceOf(ProviderUnavailableError);
-    if (!(error instanceof ProviderUnavailableError)) throw new Error("expected unavailable");
+    expect(error).toBeInstanceOf(UpstreamUnavailableError);
+    if (!(error instanceof UpstreamUnavailableError)) throw new Error("expected unavailable");
     expect(error.reason).toBe("upstream_error");
 
     // The raw thrown value must appear NOWHERE on the typed error — not in
@@ -86,8 +83,8 @@ describe(".providerError", () => {
   it("discards a non-Error thrown value rather than surfacing it on the error", () => {
     const error = providerError("psn")("plain string failure");
 
-    expect(error).toBeInstanceOf(ProviderUnavailableError);
-    if (!(error instanceof ProviderUnavailableError)) throw new Error("expected unavailable");
+    expect(error).toBeInstanceOf(UpstreamUnavailableError);
+    if (!(error instanceof UpstreamUnavailableError)) throw new Error("expected unavailable");
     expect(error.reason).toBe("upstream_error");
     expect(error).not.toHaveProperty("cause");
     expect(JSON.stringify(Object.entries(error))).not.toContain("plain string failure");
@@ -101,7 +98,7 @@ describe(".providerError", () => {
       reason: "upstream_error",
     });
     expect(classify(new Error("429"))).toMatchObject({
-      _tag: "ProviderRateLimitedError",
+      _tag: "RateLimitedError",
       provider: "psn",
     });
   });

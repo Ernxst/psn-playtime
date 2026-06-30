@@ -5,14 +5,13 @@ import * as ManagedRuntime from "effect/ManagedRuntime";
 import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import type { GameMetadata } from "@/server/providers/enrichment/contract.effect";
-import { EnrichmentProvider } from "@/server/providers/enrichment/contract.effect";
-import { EnrichmentProviderLayer } from "@/server/providers/enrichment/rawg/provider.effect";
+import { TitleEnrichment } from "@/server/providers/enrichment/contract.effect";
+import { TitleEnrichmentLayer } from "@/server/providers/enrichment/rawg/provider.effect";
 
 /**
- * Provider-level port of the old `rawg.ts` network tests (no-key gate, genre
- * mapping, caching, every-failure-to-absent fallback, empty-query skip) plus the
- * new behaviour the Effect port adds: a genuine HTTP 429 surfaces as a
- * `ProviderRateLimitedError` on the typed channel.
+ * Tests the RAWG `TitleEnrichment` provider: the no-key gate, genre mapping,
+ * caching, every-failure-to-absent fallback, empty-query skip, and a genuine
+ * HTTP 429 surfacing as `RateLimitedError` on the typed channel.
  *
  * The `RAWG_API_KEY` gate is read through `Config`. Rather than mutate
  * `process.env` (the default provider snapshots it once), each run supplies the
@@ -22,13 +21,13 @@ import { EnrichmentProviderLayer } from "@/server/providers/enrichment/rawg/prov
 
 /** A RAWG layer whose `Config` sees `RAWG_API_KEY` set to `test-key`. */
 const KEYED = Layer.provide(
-  EnrichmentProviderLayer,
+  TitleEnrichmentLayer,
   ConfigProvider.layer(ConfigProvider.fromUnknown({ RAWG_API_KEY: "test-key" }))
 );
 
 /** A RAWG layer whose `Config` sees no `RAWG_API_KEY` (the no-op gate). */
 const NO_KEY = Layer.provide(
-  EnrichmentProviderLayer,
+  TitleEnrichmentLayer,
   ConfigProvider.layer(ConfigProvider.fromUnknown({}))
 );
 
@@ -57,35 +56,35 @@ function seriesResponse(names: string[]): Response {
  */
 const liveFetch: typeof globalThis.fetch = (...args) => globalThis.fetch(...args);
 
-const runKeyed = <A, E>(effect: Effect.Effect<A, E, EnrichmentProvider>): Promise<A> =>
+const runKeyed = <A, E>(effect: Effect.Effect<A, E, TitleEnrichment>): Promise<A> =>
   Effect.runPromise(
     effect.pipe(Effect.provide(KEYED), Effect.provideService(FetchHttpClient.Fetch, liveFetch))
   );
 
-const runNoKey = <A, E>(effect: Effect.Effect<A, E, EnrichmentProvider>): Promise<A> =>
+const runNoKey = <A, E>(effect: Effect.Effect<A, E, TitleEnrichment>): Promise<A> =>
   Effect.runPromise(
     effect.pipe(Effect.provide(NO_KEY), Effect.provideService(FetchHttpClient.Fetch, liveFetch))
   );
 
 const metaProgram = (title: string) =>
   Effect.gen(function* () {
-    const provider = yield* EnrichmentProvider;
-    return yield* provider.fetchGameMetadata(title);
+    const provider = yield* TitleEnrichment;
+    return yield* provider.metadataFor(title);
   });
 
 const franchiseProgram = (title: string) =>
   Effect.gen(function* () {
-    const provider = yield* EnrichmentProvider;
-    return yield* provider.fetchFranchise(title);
+    const provider = yield* TitleEnrichment;
+    return yield* provider.franchiseFor(title);
   });
 
-const fetchGameMetadata = (title: string): Promise<GameMetadata> => runKeyed(metaProgram(title));
+const metadataFor = (title: string): Promise<GameMetadata> => runKeyed(metaProgram(title));
 
-const fetchFranchise = (title: string): Promise<string | undefined> =>
+const franchiseFor = (title: string): Promise<string | undefined> =>
   runKeyed(franchiseProgram(title));
 
 /** Run a metadata lookup, flipping the typed error onto the success channel. */
-const fetchGameMetadataError = (title: string) => runKeyed(metaProgram(title).pipe(Effect.flip));
+const metadataForError = (title: string) => runKeyed(metaProgram(title).pipe(Effect.flip));
 
 /** The URL `FetchHttpClient` passed on call `index` (it always passes a `URL`). */
 const fetchUrlAt = (spy: ReturnType<typeof vi.spyOn>, index: number): string => {
@@ -97,7 +96,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe(".fetchGameMetadata", () => {
+describe(".metadataFor", () => {
   it("returns absent metadata and skips the network when no key is set", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
 
@@ -111,7 +110,7 @@ describe(".fetchGameMetadata", () => {
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(searchResponse({ genres: ["Action", "Shooter"] }));
 
-    await expect(fetchGameMetadata("Returnal")).resolves.toMatchObject({
+    await expect(metadataFor("Returnal")).resolves.toMatchObject({
       genre: "Action-Adventure",
     });
 
@@ -124,7 +123,7 @@ describe(".fetchGameMetadata", () => {
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(searchResponse({ genres: ["Action"], playtime: 25 }));
 
-    await expect(fetchGameMetadata("Celeste")).resolves.toEqual({
+    await expect(metadataFor("Celeste")).resolves.toEqual({
       genre: "Action-Adventure",
       typicalPlaytime: 25,
     });
@@ -139,9 +138,9 @@ describe(".fetchGameMetadata", () => {
 
     const [first, second] = await runKeyed(
       Effect.gen(function* () {
-        const provider = yield* EnrichmentProvider;
-        const a = yield* provider.fetchGameMetadata("Gran Turismo 7");
-        const b = yield* provider.fetchGameMetadata("Gran Turismo 7");
+        const provider = yield* TitleEnrichment;
+        const a = yield* provider.metadataFor("Gran Turismo 7");
+        const b = yield* provider.metadataFor("Gran Turismo 7");
         return [a, b] as const;
       })
     );
@@ -154,25 +153,25 @@ describe(".fetchGameMetadata", () => {
   it("returns absent metadata when the search yields no mappable genre", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(searchResponse({ genres: ["Simulation"] }));
 
-    await expect(fetchGameMetadata("Powerwash Simulator")).resolves.toEqual({});
+    await expect(metadataFor("Powerwash Simulator")).resolves.toEqual({});
   });
 
   it("treats a playtime of 0 as no data", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(searchResponse({ playtime: 0 }));
 
-    await expect(fetchGameMetadata("Some Game")).resolves.toEqual({});
+    await expect(metadataFor("Some Game")).resolves.toEqual({});
   });
 
   it("falls back to absent on a non-ok response", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("nope", { status: 503 }));
 
-    await expect(fetchGameMetadata("Some Game")).resolves.toEqual({});
+    await expect(metadataFor("Some Game")).resolves.toEqual({});
   });
 
   it("falls back to absent when the request throws", async () => {
     vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("network down"));
 
-    await expect(fetchGameMetadata("Some Game")).resolves.toEqual({});
+    await expect(metadataFor("Some Game")).resolves.toEqual({});
   });
 
   it("falls back to absent when the response payload fails schema validation", async () => {
@@ -180,7 +179,7 @@ describe(".fetchGameMetadata", () => {
       new Response(JSON.stringify({ results: "not-an-array" }), { status: 200 })
     );
 
-    await expect(fetchGameMetadata("Some Game")).resolves.toEqual({});
+    await expect(metadataFor("Some Game")).resolves.toEqual({});
   });
 
   it("returns absent for a result with no genres array", async () => {
@@ -188,28 +187,28 @@ describe(".fetchGameMetadata", () => {
       new Response(JSON.stringify({ results: [{}] }), { status: 200 })
     );
 
-    await expect(fetchGameMetadata("Some Game")).resolves.toEqual({});
+    await expect(metadataFor("Some Game")).resolves.toEqual({});
   });
 
   it("skips the network when the name normalizes to an empty query", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
 
-    await expect(fetchGameMetadata("™®©")).resolves.toEqual({});
+    await expect(metadataFor("™®©")).resolves.toEqual({});
 
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it("surfaces a 429 as a ProviderRateLimitedError on the typed channel", async () => {
+  it("surfaces a 429 as a RateLimitedError on the typed channel", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("slow down", { status: 429 }));
 
-    const error = await fetchGameMetadataError("Busy Game");
+    const error = await metadataForError("Busy Game");
 
-    expect(error._tag).toBe("ProviderRateLimitedError");
+    expect(error._tag).toBe("RateLimitedError");
     expect(error.provider).toBe("rawg");
   });
 });
 
-describe(".fetchFranchise", () => {
+describe(".franchiseFor", () => {
   it("returns undefined and skips the network when no key is set", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
 
@@ -224,7 +223,7 @@ describe(".fetchFranchise", () => {
       .mockResolvedValueOnce(gameMatchResponse(42, "Forza Horizon 5"))
       .mockResolvedValueOnce(seriesResponse(["Forza Horizon 4", "Forza Motorsport 7"]));
 
-    await expect(fetchFranchise("Forza Horizon 5")).resolves.toBe("Forza");
+    await expect(franchiseFor("Forza Horizon 5")).resolves.toBe("Forza");
 
     expect(fetchSpy).toHaveBeenCalledTimes(2);
     expect(fetchUrlAt(fetchSpy, 0)).toContain("search=Forza");
@@ -239,9 +238,9 @@ describe(".fetchFranchise", () => {
 
     const [first, second] = await runKeyed(
       Effect.gen(function* () {
-        const provider = yield* EnrichmentProvider;
-        const a = yield* provider.fetchFranchise("God of War Ragnarök");
-        const b = yield* provider.fetchFranchise("God of War Ragnarök");
+        const provider = yield* TitleEnrichment;
+        const a = yield* provider.franchiseFor("God of War Ragnarök");
+        const b = yield* provider.franchiseFor("God of War Ragnarök");
         return [a, b] as const;
       })
     );
@@ -256,7 +255,7 @@ describe(".fetchFranchise", () => {
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(new Response(JSON.stringify({ results: [] }), { status: 200 }));
 
-    await expect(fetchFranchise("Totally Unknown Title")).resolves.toBeUndefined();
+    await expect(franchiseFor("Totally Unknown Title")).resolves.toBeUndefined();
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
@@ -266,7 +265,7 @@ describe(".fetchFranchise", () => {
       .mockResolvedValueOnce(gameMatchResponse(7, "Stray"))
       .mockResolvedValueOnce(seriesResponse([]));
 
-    await expect(fetchFranchise("Stray")).resolves.toBeUndefined();
+    await expect(franchiseFor("Stray")).resolves.toBeUndefined();
   });
 
   it("returns undefined when the series request is non-ok", async () => {
@@ -274,19 +273,19 @@ describe(".fetchFranchise", () => {
       .mockResolvedValueOnce(gameMatchResponse(7, "Stray"))
       .mockResolvedValueOnce(new Response("nope", { status: 503 }));
 
-    await expect(fetchFranchise("Stray")).resolves.toBeUndefined();
+    await expect(franchiseFor("Stray")).resolves.toBeUndefined();
   });
 
   it("falls back to undefined on a non-ok search response", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("nope", { status: 503 }));
 
-    await expect(fetchFranchise("Some Game")).resolves.toBeUndefined();
+    await expect(franchiseFor("Some Game")).resolves.toBeUndefined();
   });
 
   it("falls back to undefined when the search request throws", async () => {
     vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("network down"));
 
-    await expect(fetchFranchise("Some Game")).resolves.toBeUndefined();
+    await expect(franchiseFor("Some Game")).resolves.toBeUndefined();
   });
 
   it("falls back to undefined when the search payload fails schema validation", async () => {
@@ -294,13 +293,13 @@ describe(".fetchFranchise", () => {
       new Response(JSON.stringify({ results: [{ name: "no id here" }] }), { status: 200 })
     );
 
-    await expect(fetchFranchise("Some Game")).resolves.toBeUndefined();
+    await expect(franchiseFor("Some Game")).resolves.toBeUndefined();
   });
 
   it("skips the network when the name normalizes to an empty query", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
 
-    await expect(fetchFranchise("™®©")).resolves.toBeUndefined();
+    await expect(franchiseFor("™®©")).resolves.toBeUndefined();
 
     expect(fetchSpy).not.toHaveBeenCalled();
   });
@@ -324,9 +323,9 @@ describe("shared game-info search across genre and franchise", () => {
 
     const [metadata, franchise] = await runKeyed(
       Effect.gen(function* () {
-        const provider = yield* EnrichmentProvider;
-        const m = yield* provider.fetchGameMetadata("Halo Infinite");
-        const f = yield* provider.fetchFranchise("Halo Infinite");
+        const provider = yield* TitleEnrichment;
+        const m = yield* provider.metadataFor("Halo Infinite");
+        const f = yield* provider.franchiseFor("Halo Infinite");
         return [m, f] as const;
       })
     );
@@ -350,7 +349,7 @@ describe("process-lived cache across a shared runtime", () => {
       .mockResolvedValue(searchResponse({ genres: ["Racing"] }));
 
     // One runtime built from the keyed layer, mirroring how `serverRuntime`
-    // (runtime.effect.ts) constructs `EnrichmentProviderLayer` once and shares
+    // (runtime.effect.ts) constructs `TitleEnrichmentLayer` once and shares
     // it across requests. Two separate `runPromise` calls stand in for two
     // sequential server-fn invocations against that long-lived runtime.
     const runtime = ManagedRuntime.make(KEYED);

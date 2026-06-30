@@ -20,15 +20,13 @@ ground every API against the local source before using it.
 ## Services
 
 - Define services with `Context.Service` (v4 replaces v3's `Context.Tag` /
-  `Effect.Service`). The platform-agnostic ports are make-less — an
-  implementation layer supplies the behaviour (see
-  [Service ports](#service-ports-the-platform-agnostic-seam)):
+  `Effect.Service`). The capability contracts are make-less — an implementation
+  layer supplies the behaviour (see [Capability contracts](#capability-contracts)):
 
   ```ts
-  export class EnrichmentProvider extends Context.Service<
-    EnrichmentProvider,
-    EnrichmentProviderShape
-  >()("psn-playtime/server/providers/enrichment/contract.effect/EnrichmentProvider") {}
+  export class TitleEnrichment extends Context.Service<TitleEnrichment, TitleEnrichmentShape>()(
+    "psn-playtime/server/providers/enrichment/contract.effect/TitleEnrichment"
+  ) {}
   ```
 
 - Identifier strings are the **deterministic key** the `deterministicKeys` rule
@@ -50,7 +48,7 @@ make)`, or `Layer.succeed(Service, value)` for a constant; v4 does **not**
 ## Tagged errors
 
 - Model failures as data with `Data.TaggedError("Name")<{ … }>`; never `throw`.
-- Keep the `_tag` stable and descriptive (e.g. `ProviderRateLimitedError`),
+- Keep the `_tag` stable and descriptive (e.g. `RateLimitedError`),
   since it is the literal matched by `Effect.catchTag`.
 - Recover on the typed channel with `Effect.catchTag` / `Effect.catchTags`.
 
@@ -65,9 +63,9 @@ make)`, or `Layer.succeed(Service, value)` for a constant; v4 does **not**
 
 - The server composition root lives in `src/runtime/runtime.effect.ts`:
   `serverRuntime` is a module-scoped `ManagedRuntime` built from
-  `EnrichmentProviderLayer`, reached through `runServer(effect)` inside
-  `createServerFn` handlers. Its effects require `EnrichmentProvider` /
-  `AccountProvider`; the per-request `AccountProvider` is provided at the handler
+  `TitleEnrichmentLayer`, reached through `runServer(effect)` inside
+  `createServerFn` handlers. Its effects require `TitleEnrichment` /
+  `DashboardSource`; the per-request `DashboardSource` is provided at the handler
   boundary. Keep server-only layers here so they never reach the client bundle.
 - Browser-`localStorage`-backed atoms run on `kvsRuntime`
   (`src/runtime/kvs.effect.ts`), an `Atom.runtime` built from
@@ -130,24 +128,27 @@ imports → `@effect/platform`. Style rules also require pipeable/do-notation fo
 and the path-derived service keys above. Ground replacements in the local Effect
 source before reaching for a global.
 
-## Service ports (the platform-agnostic seam)
+## Capability contracts
 
-`src/server/ports/*.effect.ts` holds the interface-only seam (phase E3) that
-decouples the app from any one account source (PSN today; the Xbox seam later).
-Ports are **contracts, not implementations** — the PSN (`E5`) and RAWG (`E4`)
-layers are wired in later phases.
+The provider-grouped contracts decouple the app from any one upstream. Each is a
+make-less `Context.Service<Self, Shape>()("key")` declaration; its implementation
+`Layer` lives beside it and is wired into the server runtime.
 
-- **`AccountProvider`** — `loadDashboard(credential)` produces the normalized
-  `DashboardData` (the whole of `psn.ts`'s `authenticate` + `buildDashboard`).
-  The credential is a `Redacted<string>`; no source-specific naming crosses the
-  boundary.
-- **`EnrichmentProvider`** — `lookupGameInfo` / `lookupFranchise` (today's
-  `rawg.ts` lookups). Missing data is a successful absence, never an error.
-- **Tagged errors** (`errors.effect.ts`) — `AccountAuthError`,
-  `ProviderUnavailableError`, `ProviderRateLimitedError`: only the failure modes
-  PSN/RAWG actually surface today. There is no `NotFound` (no match = success).
-- Ports are make-less `Context.Service<Self, Shape>()("key")` declarations; the
-  later-phase implementations provide them via `Layer`.
+- **`DashboardSource`** (`src/server/providers/account/contract.effect.ts`) —
+  `loadDashboard(credential)` produces the normalized `DashboardData`. The
+  credential is a `Redacted<string>`; no source-specific naming crosses the
+  boundary. Implemented by `PsnDashboardSourceLayer`, provided per request at the
+  handler boundary since it carries a transient credential.
+- **`TitleEnrichment`** (`src/server/providers/enrichment/contract.effect.ts`) —
+  `metadataFor` / `franchiseFor` enrich a title by name. Missing data is a
+  successful absence, never an error. Implemented by `TitleEnrichmentLayer`,
+  folded into `serverRuntime` so its caches outlive a request; effects reach it
+  through `runServer`.
+- **Tagged errors** (`src/server/providers/errors.effect.ts`) —
+  `CredentialRejectedError`, `UpstreamUnavailableError`, `RateLimitedError`.
+  There is no `NotFound` (no match = success). Safe to expose: the closed
+  `ProviderSource` union (`"psn" | "rawg"`) as structured context and fixed
+  `reason` codes — never raw vendor text, a `cause`, URLs, or tokens.
 
 ## Definition of Done
 
