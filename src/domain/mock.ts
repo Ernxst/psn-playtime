@@ -1976,4 +1976,5 @@ export const demoDashboard: DashboardData = {
     },
   },
   isDemo: true,
+  trophiesUnavailable: false,
 };

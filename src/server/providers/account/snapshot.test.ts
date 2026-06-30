@@ -27,6 +27,14 @@ describe("snapshot schema", () => {
     expect(decoded.profile).not.toHaveProperty("aboutMe");
   });
 
+  it("defaults trophiesUnavailable to false when an old cached payload omits it", () => {
+    const { trophiesUnavailable: _trophiesUnavailable, ...withoutFlag } = demoDashboard;
+
+    const decoded = decodeData(withoutFlag);
+
+    expect(decoded.trophiesUnavailable).toBe(false);
+  });
+
   it("rejects a payload missing a required field", () => {
     const { fetchedAt: _fetchedAt, ...withoutFetchedAt } = demoDashboard;
 

@@ -85,6 +85,7 @@ const sample: DashboardData = {
     span: {},
   },
   isDemo: false,
+  trophiesUnavailable: false,
 };
 
 describe(".headlineTotals", () => {

@@ -18,6 +18,7 @@
  * (derived via `Schema.Schema.Type`), so consumers that only need the type keep
  * importing the same identifier; the wire/cache seams import the value to decode.
  */
+import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 
 export const Platform = Schema.Literals(["PS5", "PS4", "PS3", "PSVITA", "OTHER"]);
@@ -125,6 +126,13 @@ export const DashboardData = Schema.Struct({
   meta: DashboardMeta,
   /** True when this is the bundled demo dataset rather than a live PSN pull. */
   isDemo: Schema.Boolean,
+  /**
+   * True when the trophy fetch failed upstream (outage or rate limit) so trophy
+   * data is incomplete — distinct from an account that genuinely has none, where
+   * the fetch succeeded empty and this stays `false`. Defaults to `false` when
+   * the key is absent so snapshots cached before this field decode as "loaded".
+   */
+  trophiesUnavailable: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   /**
    * True once the deferred RAWG genre/franchise enrichment has been merged into
    * `games` and persisted to the client cache. Gates the RAWG lookups so a
