@@ -316,6 +316,12 @@ export function TrophySection({ data }: { data: DashboardData }) {
   const summary = useMemo(() => summariseTrophies(data), [data]);
   return (
     <div className="space-y-4">
+      {data.trophiesUnavailable ? (
+        <p className="flex items-start gap-2 text-xs text-muted-foreground">
+          <Info className="mt-0.5 size-3.5 shrink-0" />
+          <span>Couldn't load trophy data. Showing what we have; try refreshing later.</span>
+        </p>
+      ) : null}
       <TrophyKpis summary={summary} />
       <div className="grid gap-4 lg:grid-cols-2">
         <DistributionCard summary={summary} />

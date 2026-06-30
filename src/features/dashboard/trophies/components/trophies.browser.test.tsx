@@ -83,6 +83,18 @@ describe("TrophySection", () => {
       .toBeVisible();
   });
 
+  it("notes when trophy data couldn't be loaded", async () => {
+    await render(<TrophySection data={{ ...demoDashboard, trophiesUnavailable: true }} />);
+
+    await expect.element(page.getByText(/Couldn't load trophy data/)).toBeVisible();
+  });
+
+  it("omits the trophy-unavailable note when trophy data loaded", async () => {
+    await render(<TrophySection data={demoDashboard} />);
+
+    await expect.element(page.getByText(/Couldn't load trophy data/)).not.toBeInTheDocument();
+  });
+
   it("shows an empty within-reach state when no plat-capable game is close", async () => {
     const data = dataWith([
       game({
