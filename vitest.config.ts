@@ -67,6 +67,11 @@ export default defineConfig({
           ...testDefaults,
           name: "browser",
           include: ["src/**/*.browser.test.tsx"],
+          // Compile + inject the app's Tailwind entry stylesheet so rendered
+          // components report real computed styles. The CSS import is handled by
+          // this project's existing `tailwindcss()` plugin — no app-server
+          // plugins are pulled in, so #239's teardown leak does not return.
+          setupFiles: ["./src/test/load-styles.ts"],
           // Cap the browser pool and run it in its own sequence group so its
           // Playwright workers don't spin up alongside the node project (whose
           // heavy esbuild-in-`vm` test, `transaction-bookmarklet.test.ts`,
