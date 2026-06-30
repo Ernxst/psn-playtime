@@ -4,18 +4,14 @@ import type { Genre } from "../account/snapshot";
 import type { TitleEnrichmentError } from "../errors.effect";
 
 /**
- * `TitleEnrichment` — the platform-agnostic capability (phase E3) that enriches
- * game titles with genre/franchise/typical-playtime, as `rawg.ts` provides today.
- *
- * Keeps RAWG specifics (endpoints, the API-key gate, query normalization) out
- * of the boundary; the E4 RAWG implementation supplies the layer. Lookups are
- * by title name, matching the current `lookupRawg*` functions.
+ * `TitleEnrichment` — the capability that enriches a game title, looked up by
+ * name, with genre, franchise, and typical playtime. Missing data is a
+ * successful absence, never a failure.
  */
 
 /**
- * Genre + typical hours-to-complete for one title. Both ride a single upstream
- * lookup today (`rawg.effect.ts`'s game search), so they are returned together.
- * Absent fields mean "no usable data" — the caller keeps its fallback.
+ * Genre and typical hours-to-complete for one title. An absent field means "no
+ * usable data"; the caller keeps its own fallback.
  */
 export interface GameMetadata {
   readonly genre?: Genre;
@@ -24,17 +20,10 @@ export interface GameMetadata {
 }
 
 export interface TitleEnrichmentShape {
-  /**
-   * Coarse genre and typical playtime for a title, in one request. Both ride a
-   * single cached RAWG game search. Missing data is a successful empty result,
-   * not an error.
-   */
+  /** Genre and typical playtime for a title; absence is a successful empty result. */
   readonly metadataFor: (title: string) => Effect.Effect<GameMetadata, TitleEnrichmentError>;
 
-  /**
-   * The franchise/series label for a title. `undefined` means "no franchise" (a
-   * successful absence), not an error.
-   */
+  /** The franchise/series label for a title, or `undefined` when it has none. */
   readonly franchiseFor: (title: string) => Effect.Effect<string | undefined, TitleEnrichmentError>;
 }
 
