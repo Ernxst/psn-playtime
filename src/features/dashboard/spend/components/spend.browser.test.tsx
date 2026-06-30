@@ -284,6 +284,50 @@ describe("SpendSection", () => {
     await expect.element(page.getByRole("button", { name: "Copy bookmarklet" })).toBeVisible();
   });
 
+  it("prompts a non-demo account to import when no transactions are present", async () => {
+    onTestFinished(() => testTransactionStore.clear());
+
+    await renderWithAtoms(<SpendSection data={realDashboard} />);
+
+    await expect.element(page.getByText("Add your spend")).toBeVisible();
+    await expect.element(page.getByText("What you've spent")).not.toBeInTheDocument();
+  });
+
+  it("surfaces spend that matched no played title in the leaderboard footer", async () => {
+    seed([
+      {
+        transactionId: "t1",
+        key: "t1",
+        date: "2022-05-12",
+        transactionType: "PRODUCT_PURCHASE",
+        kind: "purchase",
+        productName: "Satisfactory",
+        quantity: 1,
+        amountMinor: 3300,
+        currency: "£",
+        displayAmount: "£33.00",
+      },
+      {
+        transactionId: "t2",
+        key: "t2",
+        date: "2022-06-12",
+        transactionType: "PRODUCT_PURCHASE",
+        kind: "purchase",
+        productName: "Nonexistent Phantom Title",
+        quantity: 1,
+        amountMinor: 500,
+        currency: "£",
+        displayAmount: "£5.00",
+      },
+    ]);
+
+    await renderWithAtoms(<SpendSection data={realDashboard} />);
+
+    await expect.element(page.getByText("Best value per hour")).toBeVisible();
+    await expect.element(page.getByText("Spend not matched to a played title")).toBeVisible();
+    await expect.element(page.getByText("£5.00")).toBeVisible();
+  });
+
   it("shows the import prompt on the demo dashboard even when an import exists", async () => {
     seed([
       {

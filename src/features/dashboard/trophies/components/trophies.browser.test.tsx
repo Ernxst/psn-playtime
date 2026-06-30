@@ -95,6 +95,28 @@ describe("TrophySection", () => {
     await expect.element(page.getByText(/Couldn't load trophy data/)).not.toBeInTheDocument();
   });
 
+  it("falls back to no-matched-list copy and drops per-game cards when nothing matched", async () => {
+    const data = dataWith([
+      game({ titleId: "a", name: "Unmatched A" }),
+      game({ titleId: "b", name: "Unmatched B" }),
+    ]);
+
+    await render(<TrophySection data={data} />);
+
+    // KPIs that depend on matched games fall back rather than implying 0%.
+    await expect.element(page.getByText("no matched trophy lists yet").first()).toBeVisible();
+    await expect.element(page.getByText("—", { exact: true })).toBeVisible();
+
+    // Every per-game card scoped to matched games drops out of the document.
+    await expect.element(page.getByText("Completion spectrum")).not.toBeInTheDocument();
+    await expect.element(page.getByText("Your platinums")).not.toBeInTheDocument();
+    await expect.element(page.getByText("Recent trophy activity")).not.toBeInTheDocument();
+
+    await expect
+      .element(page.getByText(/Based on the 0 of 2 games with a matched trophy list/).first())
+      .toBeVisible();
+  });
+
   it("shows an empty within-reach state when no plat-capable game is close", async () => {
     const data = dataWith([
       game({
