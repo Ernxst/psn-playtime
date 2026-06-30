@@ -4,7 +4,7 @@ import { page } from "vitest/browser";
 import { Toaster } from "@/components/ui/sonner";
 import { demoDashboard } from "@/domain/mock";
 import { signInWithToken } from "@/server/api/account.effect";
-import { loadDashboard, saveDashboard } from "@/stores/dashboard-store";
+import { testDashboardStore } from "@/test/atom-registry";
 import { createHarness } from "@/test/harness";
 import { SignInCard } from "./sign-in-card";
 
@@ -13,6 +13,14 @@ vi.mock("@/server/api/account.effect", () => ({
 }));
 
 const ACTIVE_KEY = "psn-playtime:dashboard-active";
+
+/** Decode the active-account pointer the dashboard kvs atom persists (JSON-encoded). */
+function readActiveId(): string | null {
+  const raw = localStorage.getItem(ACTIVE_KEY);
+  if (raw === null) return null;
+  const decoded: unknown = JSON.parse(raw);
+  return typeof decoded === "string" ? decoded : null;
+}
 
 describe("SignInCard", () => {
   it("renders the connect-account card with the manual steps", async () => {
@@ -158,13 +166,13 @@ describe("SignInCard", () => {
     expect(signInWithToken).toHaveBeenCalledExactlyOnceWith({
       data: { npsso: "a-valid-looking-token" },
     });
-    await expect.poll(() => loadDashboard("acc-1")).toEqual(account);
-    expect(localStorage.getItem(ACTIVE_KEY)).toBe("acc-1");
+    await expect.poll(() => testDashboardStore.load("acc-1")).toEqual(account);
+    await expect.poll(readActiveId).toBe("acc-1");
   });
 
   it("lists a cached account so a revisit needs no token", async () => {
     onTestFinished(() => localStorage.clear());
-    saveDashboard({
+    testDashboardStore.save({
       ...demoDashboard,
       isDemo: false,
       profile: { ...demoDashboard.profile, accountId: "acc-1", onlineId: "Ernxst_" },
@@ -175,7 +183,7 @@ describe("SignInCard", () => {
 
     await page.getByRole("button", { name: /Continue as Ernxst_/ }).click();
 
-    expect(localStorage.getItem(ACTIVE_KEY)).toBe("acc-1");
+    await expect.poll(readActiveId).toBe("acc-1");
     expect(signInWithToken).not.toHaveBeenCalled();
   });
 

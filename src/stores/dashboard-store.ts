@@ -1,30 +1,39 @@
-import * as Schema from "effect/Schema";
+import { useAtomValue } from "@effect/atom-react";
 /**
  * Client-side cache of dashboard data, keyed by PSN account.
  *
  * The npsso token is needed ONLY to fetch an account the first time; the derived
  * (non-secret) `DashboardData` is then persisted in `localStorage` so revisits
  * render from the cache with no token. An "active account" pointer records which
- * cached account the dashboard currently shows. Mirrors `transactions-store`:
- * same-tab writes notify via a custom event, and a `useSyncExternalStore` hook
- * re-renders subscribers when the cache changes.
+ * cached account the dashboard currently shows.
+ *
+ * Persistence lives on the same Effect/Atom boundary as `transactions-store`:
+ * two `Atom.kvs` nodes over the per-request {@link AtomRegistry} (a record of
+ * dashboards keyed by account id, plus the active-account pointer). Imperative
+ * writes go through {@link makeDashboardStore} — a plain service built per
+ * request in `getContext` — and React reads go through {@link useActiveDashboard}
+ * / {@link useCachedAccounts}, both backed by the same registry. Derived reads
+ * use `Atom.map` / `Atom.make`, which memoise on input identity, so consumers
+ * keep a stable snapshot reference between renders (no `useSyncExternalStore`,
+ * no custom storage events, no module-level memo).
  *
  * No TTL, no refresh, no clear UI: clearing is a manual browser-storage action.
+ *
+ * Cross-tab sync is out of scope here (#266 owns the `storage`-event bridge);
+ * single-tab writes notify subscribers through the shared registry.
  */
-import { useSyncExternalStore } from "react";
+import * as Schema from "effect/Schema";
+import * as Atom from "effect/unstable/reactivity/Atom";
+import type * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
 import { demoDashboard } from "@/domain/mock";
+import { kvsRuntime } from "@/runtime/kvs.effect";
 import { DashboardData } from "@/server/providers/account/snapshot";
 
-/** One cache entry per account: `psn-playtime:dashboard:<accountId>`. */
-const KEY_PREFIX = "psn-playtime:dashboard:";
+/** All cached dashboards, keyed by account id, under one `localStorage` slot. */
+const DASHBOARDS_STORAGE_KEY = "psn-playtime:dashboards";
 
 /** Pointer to the account the dashboard currently renders. */
-const ACTIVE_KEY = "psn-playtime:dashboard-active";
-
-/** Fired on the same tab after a write (the `storage` event only fires cross-tab). */
-const STORE_EVENT = "psn-playtime:dashboard-changed";
-
-const decodeDashboard = Schema.decodeUnknownSync(DashboardData);
+const ACTIVE_STORAGE_KEY = "psn-playtime:dashboard-active";
 
 /** Lightweight account identity used to drive the onboarding selector. */
 export interface CachedAccount {
@@ -34,99 +43,41 @@ export interface CachedAccount {
   fetchedAt: string;
 }
 
-function dataKey(accountId: string): string {
-  return `${KEY_PREFIX}${accountId}`;
-}
-
-function parse(raw: string | null): DashboardData | null {
-  if (raw === null) return null;
-  try {
-    const data: unknown = JSON.parse(raw);
-    return decodeDashboard(data);
-  } catch {
-    return null;
-  }
-}
-
-/** Read one account's cached dashboard, or `null` when absent/corrupt/SSR. */
-export function loadDashboard(accountId: string): DashboardData | null {
-  if (typeof window === "undefined") return null;
-  return parse(window.localStorage.getItem(dataKey(accountId)));
-}
-
-/** Persist an account's dashboard and notify same-tab subscribers. */
-export function saveDashboard(data: DashboardData): void {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(dataKey(data.profile.accountId), JSON.stringify(data));
-  window.dispatchEvent(new Event(STORE_EVENT));
-}
-
-/** Mark an account as the one the dashboard should render. */
-export function setActiveAccount(accountId: string): void {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(ACTIVE_KEY, accountId);
-  window.dispatchEvent(new Event(STORE_EVENT));
-}
-
-/** Drop the active-account pointer so the dashboard falls back to demo data. */
-export function clearActiveAccount(): void {
-  if (typeof window === "undefined") return;
-  window.localStorage.removeItem(ACTIVE_KEY);
-  window.dispatchEvent(new Event(STORE_EVENT));
-}
-
-function subscribe(onChange: () => void): () => void {
-  window.addEventListener(STORE_EVENT, onChange);
-  window.addEventListener("storage", onChange);
-  return () => {
-    window.removeEventListener(STORE_EVENT, onChange);
-    window.removeEventListener("storage", onChange);
-  };
-}
-
-// Cache the active snapshot keyed on `<activeId>:<raw>` so `getSnapshot` returns
-// a stable reference between renders (required by `useSyncExternalStore`).
-let activeCacheKey: string | null = null;
-let activeCacheValue: DashboardData = demoDashboard;
-
-function readActive(): DashboardData {
-  const activeId = window.localStorage.getItem(ACTIVE_KEY);
-  const raw = activeId === null ? null : window.localStorage.getItem(dataKey(activeId));
-  const cacheKey = `${activeId ?? ""}:${raw ?? ""}`;
-  if (cacheKey === activeCacheKey) return activeCacheValue;
-  activeCacheKey = cacheKey;
-  activeCacheValue = parse(raw) ?? demoDashboard;
-  return activeCacheValue;
-}
+/**
+ * The persisted dashboards shape: a record of valid `DashboardData` keyed by
+ * account id. The kvs schema decodes the whole record on read and encodes it on
+ * write, so a malformed/decoded-away slot resolves to the `{}` default rather
+ * than throwing.
+ *
+ * `mode: "sync"` (not "async") because `localStorage` is synchronous and we want
+ * the atom's value to BE the record. Under `"async"` the read type becomes an
+ * `AsyncResult`, so a post-write read no longer looks like a `Success` and
+ * reactivity breaks; sync mode keeps reads and writes on the same plain type.
+ *
+ * SSR-safe: on the server the atom resolves to its `defaultValue` and never
+ * touches `localStorage` (the `kvsRuntime` `layerStorage` thunk defers the
+ * `globalThis.localStorage` access until a read actually happens on the client).
+ */
+const dashboardsAtom = Atom.kvs({
+  runtime: kvsRuntime,
+  key: DASHBOARDS_STORAGE_KEY,
+  schema: Schema.Record(Schema.String, DashboardData),
+  defaultValue: (): Record<string, DashboardData> => ({}),
+  mode: "sync",
+});
 
 /**
- * The active account's cached dashboard, the demo dataset when none is active,
- * or `undefined` on the server and the initial client render (so the route can
- * show a shell until hydration reads `localStorage`).
+ * `localStorage`-backed pointer to the active account, or `null` when none is
+ * active (the dashboard then falls back to the demo dataset). Same `sync`-mode
+ * and SSR rationale as {@link dashboardsAtom}.
  */
-export function useActiveDashboard(): DashboardData | undefined {
-  return useSyncExternalStore(subscribe, readActive, () => undefined);
-}
-
-const EMPTY_ACCOUNTS: CachedAccount[] = [];
-
-// Cache the accounts snapshot keyed on a signature of the entries so repeated
-// `getSnapshot` calls return a stable reference.
-let accountsCacheKey: string | null = null;
-let accountsCacheValue: CachedAccount[] = EMPTY_ACCOUNTS;
-
-// Per-entry parse cache keyed by localStorage key. Avoids re-parsing (JSON.parse +
-// Schema decode) an account whose raw string is unchanged between snapshot reads;
-// a real write changes the raw string, forcing a re-parse of just that entry.
-const entryCache = new Map<string, { raw: string; parsed: DashboardData | null }>();
-
-function parseEntry(key: string, raw: string): DashboardData | null {
-  const cached = entryCache.get(key);
-  if (cached !== undefined && cached.raw === raw) return cached.parsed;
-  const parsed = parse(raw);
-  entryCache.set(key, { raw, parsed });
-  return parsed;
-}
+const activeAccountIdAtom = Atom.kvs({
+  runtime: kvsRuntime,
+  key: ACTIVE_STORAGE_KEY,
+  schema: Schema.NullOr(Schema.String),
+  defaultValue: (): string | null => null,
+  mode: "sync",
+});
 
 function toCachedAccount(data: DashboardData): CachedAccount {
   return {
@@ -137,47 +88,96 @@ function toCachedAccount(data: DashboardData): CachedAccount {
   };
 }
 
-// Read one account key via the per-entry cache, recording it in `seen` so its cache
-// entry survives eviction. Returns `null` for non-account keys and absent/corrupt entries.
-function readAccount(key: string, seen: Set<string>): CachedAccount | null {
-  if (!key.startsWith(KEY_PREFIX)) return null;
-  const raw = window.localStorage.getItem(key);
-  if (raw === null) return null;
-  seen.add(key);
-  const data = parseEntry(key, raw);
-  return data === null ? null : toCachedAccount(data);
+/**
+ * The active account's cached dashboard, or the demo dataset when no account is
+ * active (or the active account has no cached entry). Derived with `Atom.make`,
+ * which recomputes only when one of the source atoms actually changes — so a
+ * plain re-render returns the memoised snapshot by reference and consumers do
+ * not re-render in a loop.
+ *
+ * On the server (and the initial client render, before the kvs read resolves)
+ * both sources hold their defaults, so this resolves to {@link demoDashboard} —
+ * SSR and the first client render agree, avoiding a hydration mismatch.
+ */
+const activeDashboardAtom = Atom.make((get): DashboardData => {
+  const dashboards = get(dashboardsAtom);
+  const activeId = get(activeAccountIdAtom);
+  if (activeId === null) return demoDashboard;
+  return dashboards[activeId] ?? demoDashboard;
+});
+
+/**
+ * The accounts with a cached dashboard entry, sorted by online id. Derived with
+ * `Atom.map`, which memoises on {@link dashboardsAtom}'s identity, so the array
+ * keeps a stable reference until a write changes the record — empty on the
+ * server and until the first kvs read resolves.
+ */
+const cachedAccountsAtom = Atom.map(dashboardsAtom, (dashboards): CachedAccount[] =>
+  Object.values(dashboards)
+    .map(toCachedAccount)
+    .sort((a, b) => a.onlineId.localeCompare(b.onlineId))
+);
+
+/**
+ * Imperative read/write surface over the persisted dashboards. Built per request
+ * from the router-context registry and threaded to imperative writers (the
+ * dashboard view, the sign-in card), so the raw {@link AtomRegistry} stays a
+ * private implementation detail rather than a prop-drilled state container.
+ */
+export interface DashboardStore {
+  /** Read one account's cached dashboard, or `null` when absent/SSR. */
+  load(accountId: string): DashboardData | null;
+  /** Persist an account's dashboard; notifies hook subscribers. */
+  save(data: DashboardData): void;
+  /** Mark an account as the one the dashboard should render. */
+  setActive(accountId: string): void;
+  /** Drop the active-account pointer so the dashboard falls back to demo data. */
+  clearActive(): void;
 }
 
-// Evict cache entries for account keys that no longer exist so removed accounts do not leak.
-function evictRemoved(seen: Set<string>): void {
-  for (const key of entryCache.keys()) {
-    if (!seen.has(key)) entryCache.delete(key);
-  }
+/**
+ * Build a {@link DashboardStore} that closes over the per-request
+ * {@link AtomRegistry}. The registry is the same instance the React hooks read
+ * (seeded into `EffectAtomProvider` from the router context), so a write reaches
+ * the instance {@link useActiveDashboard} / {@link useCachedAccounts} subscribe
+ * to. Every writer keeps the `typeof window` no-op guard so a server render
+ * never touches `localStorage`.
+ */
+export function makeDashboardStore(registry: AtomRegistry.AtomRegistry): DashboardStore {
+  return {
+    load: (accountId) => {
+      if (typeof window === "undefined") return null;
+      return registry.get(dashboardsAtom)[accountId] ?? null;
+    },
+    save: (data) => {
+      if (typeof window === "undefined") return;
+      registry.set(dashboardsAtom, {
+        ...registry.get(dashboardsAtom),
+        [data.profile.accountId]: data,
+      });
+    },
+    setActive: (accountId) => {
+      if (typeof window === "undefined") return;
+      registry.set(activeAccountIdAtom, accountId);
+    },
+    clearActive: () => {
+      if (typeof window === "undefined") return;
+      registry.set(activeAccountIdAtom, null);
+    },
+  };
 }
 
-function collectAccounts(): CachedAccount[] {
-  const accounts: CachedAccount[] = [];
-  const seen = new Set<string>();
-  for (let i = 0; i < window.localStorage.length; i++) {
-    const key = window.localStorage.key(i);
-    const account = key === null ? null : readAccount(key, seen);
-    if (account) accounts.push(account);
-  }
-  evictRemoved(seen);
-  accounts.sort((a, b) => a.onlineId.localeCompare(b.onlineId));
-  return accounts;
+/**
+ * Subscribe to the active account's cached dashboard, falling back to the demo
+ * dataset when none is active. Returns {@link demoDashboard} on the server and
+ * the initial client render, then swaps to the cached data once the runtime
+ * resolves the first `localStorage` read.
+ */
+export function useActiveDashboard(): DashboardData {
+  return useAtomValue(activeDashboardAtom);
 }
 
-function readAccounts(): CachedAccount[] {
-  const accounts = collectAccounts();
-  const signature = JSON.stringify(accounts);
-  if (signature === accountsCacheKey) return accountsCacheValue;
-  accountsCacheKey = signature;
-  accountsCacheValue = accounts;
-  return accounts;
-}
-
-/** The accounts with a cached dashboard entry; empty on the server. */
+/** Subscribe to the accounts with a cached dashboard entry; empty on the server. */
 export function useCachedAccounts(): CachedAccount[] {
-  return useSyncExternalStore(subscribe, readAccounts, () => EMPTY_ACCOUNTS);
+  return useAtomValue(cachedAccountsAtom);
 }
