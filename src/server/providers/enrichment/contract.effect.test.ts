@@ -21,8 +21,10 @@ const enrichmentTestLayer = Layer.succeed(EnrichmentProvider, {
   fetchGameMetadata: (title: string) => {
     if (title === "Known Game") return Effect.succeed(ENRICHED);
     if (title === "Busy Game")
-      return Effect.fail(new ProviderRateLimitedError({ provider: "test" }));
-    return Effect.fail(new ProviderUnavailableError({ provider: "test", reason: "503" }));
+      return Effect.fail(new ProviderRateLimitedError({ provider: "rawg" }));
+    return Effect.fail(
+      new ProviderUnavailableError({ provider: "rawg", reason: "upstream_error" })
+    );
   },
   fetchFranchise: () => Effect.succeed(undefined),
 });
@@ -52,7 +54,7 @@ describe("EnrichmentProvider", () => {
         Effect.provide(enrichmentTestLayer)
       );
 
-    expect(await Effect.runPromise(lookup("Busy Game"))).toBe("rate:test");
-    expect(await Effect.runPromise(lookup("Other Game"))).toBe("down:503");
+    expect(await Effect.runPromise(lookup("Busy Game"))).toBe("rate:rawg");
+    expect(await Effect.runPromise(lookup("Other Game"))).toBe("down:upstream_error");
   });
 });

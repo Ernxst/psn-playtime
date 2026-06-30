@@ -140,7 +140,9 @@ describe(".buildSnapshot", () => {
           playDuration: "PT5H",
         }),
       ]),
-      trophyTitles: Effect.fail(new ProviderUnavailableError({ provider: "psn", reason: "down" })),
+      trophyTitles: Effect.fail(
+        new ProviderUnavailableError({ provider: "psn", reason: "upstream_error" })
+      ),
     });
 
     expect(result.games).toHaveLength(1);
