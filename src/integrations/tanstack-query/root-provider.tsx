@@ -15,13 +15,14 @@ export function getContext() {
   const transactionStore = makeTransactionStore(atomRegistry);
   const dashboardStore = makeDashboardStore(atomRegistry);
 
-  // Register the `storage` listener over this request's registry so a
-  // transactions write in another tab refreshes `useTransactionImport` here.
-  // Idempotent per registry, so a repeated router construction or HMR pass over
-  // the browser registry re-uses the one listener rather than stacking another;
-  // `startCrossTabSync` no-ops on the server (no `window`), keeping SSR
-  // untouched. The returned teardown is unused here — the browser registry lives
-  // for the app's lifetime, and the per-registry guard prevents duplicates.
+  // Mount the cross-tab sync resource on this request's registry so a
+  // transactions write in another tab refreshes `useTransactionImport` here. The
+  // listener is a scoped `Effect.acquireRelease` resource owned by the registry:
+  // its release runs when the registry's scope finalizes (`dispose`), and the
+  // registry caches one node per atom so a repeated router construction or HMR
+  // pass re-uses the one listener rather than stacking another. SSR is a no-op
+  // (the resource's `window` guard skips acquire). The unmount handle is unused
+  // here — the browser registry lives for the app's lifetime and owns release.
   startCrossTabSync(atomRegistry);
 
   return {

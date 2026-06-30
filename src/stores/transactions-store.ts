@@ -9,14 +9,17 @@ import { useAtomValue } from "@effect/atom-react";
  * `Atom.kvs`, and expose a `useTransactionImport` hook so the dashboard
  * re-renders when an import lands.
  *
- * Cross-tab sync is restored via {@link startCrossTabSync}: a `window` `storage`
- * listener, registered once per registry at client boot, pushes a write made in
- * another tab into this tab's registry so subscribers re-render. Registration is
- * idempotent per registry and returns a teardown, so the listener lifetime is
- * explicit rather than convention-only.
+ * Cross-tab sync is restored via {@link startCrossTabSync}: the `window`
+ * `storage` listener is modelled as a scoped {@link crossTabSyncAtom} resource
+ * (`Effect.acquireRelease`) mounted on the registry, so the registry's own scope
+ * owns acquire/release and node identity makes registration idempotent — no
+ * module-level bookkeeping. A write made in another tab is pushed into this tab's
+ * registry so subscribers re-render.
  */
+import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
+import * as Scope from "effect/Scope";
 import * as Atom from "effect/unstable/reactivity/Atom";
 import type * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
 import { type TransactionImport, transactionImportSchema } from "@/domain/transactions";
@@ -155,40 +158,64 @@ function syncFromStorageEvent(registry: AtomRegistry.AtomRegistry, event: Storag
 }
 
 /**
- * Maps each registry that already owns a `storage` listener to its teardown, so
- * a repeat call with the same registry returns the existing unsubscribe rather
- * than stacking a second listener over the same registry (a duplicate router
- * construction, HMR pass, or test setup would otherwise double-fire every
- * event). A `WeakMap` keeps the entry from pinning a registry past its own life.
+ * Acquire side of the cross-tab resource: add the `storage` listener that
+ * bridges another tab's write into `registry` and return its handle so the
+ * release can remove exactly that listener.
  */
-const crossTabTeardowns = new WeakMap<AtomRegistry.AtomRegistry, () => void>();
-
-/**
- * Register the `storage` listener that keeps {@link useTransactionImport}
- * subscribers in sync with writes from other tabs, and return a teardown that
- * removes it. Wired at client boot (the CLIENT path of the router-context
- * factory) over the single app registry; a `typeof window` guard makes it a
- * no-op (returning a no-op teardown) on the server, where no `storage` events
- * exist.
- *
- * Idempotent per registry: a second call with the same registry adds no further
- * listener and returns the same teardown, so the lifetime is explicit rather
- * than convention-only — the listener is registered exactly once per registry
- * and a single teardown removes it.
- */
-export function startCrossTabSync(registry: AtomRegistry.AtomRegistry): () => void {
-  if (typeof window === "undefined") return () => {};
-  const existing = crossTabTeardowns.get(registry);
-  if (existing !== undefined) return existing;
-
+function addStorageListener(registry: AtomRegistry.AtomRegistry): (event: StorageEvent) => void {
   const handler = (event: StorageEvent) => syncFromStorageEvent(registry, event);
   window.addEventListener("storage", handler);
-  const teardown = () => {
-    window.removeEventListener("storage", handler);
-    crossTabTeardowns.delete(registry);
-  };
-  crossTabTeardowns.set(registry, teardown);
-  return teardown;
+  return handler;
+}
+
+/** Release side of the cross-tab resource: remove the listener acquired above. */
+const removeStorageListener = (handler: (event: StorageEvent) => void): Effect.Effect<void> =>
+  Effect.sync(() => window.removeEventListener("storage", handler));
+
+/**
+ * Build the cross-tab `storage` listener as a scoped `Effect.acquireRelease`
+ * resource bound to `registry`: acquire adds the listener, release removes it
+ * when the surrounding scope closes. A `typeof window` guard makes it a no-op
+ * during SSR (returning `Effect.void`), where no `storage` events exist and
+ * `window` is absent, so SSR never touches `window`.
+ */
+function acquireCrossTabListener(
+  registry: AtomRegistry.AtomRegistry
+): Effect.Effect<void, never, Scope.Scope> {
+  if (typeof window === "undefined") return Effect.void;
+  return Effect.acquireRelease(
+    Effect.sync(() => addStorageListener(registry)),
+    removeStorageListener
+  );
+}
+
+/**
+ * The cross-tab listener modelled as an effect atom so the registry that mounts
+ * it owns the lifetime: the `acquireRelease` release runs when the node's scope
+ * closes (registry `dispose`, or the last mount handle unmounting past its idle
+ * TTL). The bridge writes through `get.registry` — the very registry running
+ * this atom, the same instance the React hooks read — so a cross-tab write
+ * reaches the subscribers. Ownership is the `Scope`, not a returned function or
+ * module-level map; idempotency falls out of the registry caching one node per
+ * atom, so mounting twice acquires exactly one listener.
+ */
+const crossTabSyncAtom = Atom.make((get) => acquireCrossTabListener(get.registry));
+
+/**
+ * Mount {@link crossTabSyncAtom} on the registry so the `storage` listener that
+ * keeps {@link useTransactionImport} subscribers in sync with other tabs is
+ * acquired, and return the registry's unmount handle. Wired at client boot (the
+ * router-context factory) over the per-request registry that owns app lifetime;
+ * the listener's removal is owned by that registry's scope (`dispose`), not the
+ * returned handle.
+ *
+ * Idempotent per registry: the registry caches one node per atom, so a second
+ * mount over the same registry reuses that node — `acquireRelease` acquire runs
+ * once and exactly one listener is added. SSR is a no-op (the atom's `window`
+ * guard skips acquire). Returns the unmount handle for explicit teardown/tests.
+ */
+export function startCrossTabSync(registry: AtomRegistry.AtomRegistry): () => void {
+  return registry.mount(crossTabSyncAtom);
 }
 
 /**
