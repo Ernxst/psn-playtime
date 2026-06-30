@@ -14,23 +14,20 @@ ground every API against the local source before using it.
 - Namespace imports from subpaths: `import * as Effect from "effect/Effect"`,
   `import * as Layer from "effect/Layer"`, `import * as Atom from
 "effect/unstable/reactivity/Atom"`.
-- React bindings come from `@effect/atom-react` (`RegistryProvider`,
+- React bindings come from `@effect/atom-react` (`RegistryContext`,
   `useAtomValue`, `useAtom`, …).
 
 ## Services
 
 - Define services with `Context.Service` (v4 replaces v3's `Context.Tag` /
-  `Effect.Service`):
+  `Effect.Service`). The platform-agnostic ports are make-less — an
+  implementation layer supplies the behaviour (see
+  [Service ports](#service-ports-the-platform-agnostic-seam)):
 
   ```ts
-  export class AppConfig extends Context.Service<AppConfig>()(
-    "psn-playtime/integrations/effect/services.effect/AppConfig",
-    {
-      make: Effect.succeed({ appName: "psn-playtime" }),
-    }
-  ) {
-    static readonly layer = Layer.effect(this, this.make);
-  }
+  export class TitleEnrichment extends Context.Service<TitleEnrichment, TitleEnrichmentShape>()(
+    "psn-playtime/server/providers/enrichment/contract.effect/TitleEnrichment"
+  ) {}
   ```
 
 - Identifier strings are the **deterministic key** the `deterministicKeys` rule
@@ -41,8 +38,9 @@ ground every API against the local source before using it.
 
 ## Layers
 
-- Build a service's layer from its `make` effect with `Layer.effect(this,
-this.make)`; v4 does **not** auto-generate a `Default` layer.
+- Build a service's layer from a `make` effect with `Layer.effect(Service,
+make)`, or `Layer.succeed(Service, value)` for a constant; v4 does **not**
+  auto-generate a `Default` layer.
 - Name the primary layer `layer`; use descriptive suffixes for variants
   (`layerTest`, `layerConfig`). Do not use v3's `Default` / `Live`.
 - Wire dependencies with `Layer.provide`; there is no `dependencies` option.
@@ -51,8 +49,8 @@ this.make)`; v4 does **not** auto-generate a `Default` layer.
 ## Tagged errors
 
 - Model failures as data with `Data.TaggedError("Name")<{ … }>`; never `throw`.
-- Keep the `_tag` short (`AppConfigError`), since it is the literal matched by
-  `Effect.catchTag`.
+- Keep the `_tag` stable and descriptive (e.g. `RateLimitedError`),
+  since it is the literal matched by `Effect.catchTag`.
 - Recover on the typed channel with `Effect.catchTag` / `Effect.catchTags`.
 
 ## Error-channel policy
@@ -64,10 +62,15 @@ this.make)`; v4 does **not** auto-generate a `Default` layer.
 
 ## Runtimes
 
-- The composition root lives in `src/integrations/effect/`.
-- `appRuntime` is the long-lived client runtime; `serverRuntime` is for
-  `createServerFn` handlers. Keep them distinct so server-only layers never
-  reach the client bundle.
+- The server composition root lives in `src/runtime/runtime.effect.ts`:
+  `serverRuntime` is a module-scoped `ManagedRuntime` built from
+  `TitleEnrichmentLayer`, reached through `runServer(effect)` inside
+  `createServerFn` handlers. Its effects require `TitleEnrichment` /
+  `DashboardSource`; the per-request `DashboardSource` is provided at the handler
+  boundary. Keep server-only layers here so they never reach the client bundle.
+- Browser-`localStorage`-backed atoms run on `kvsRuntime`
+  (`src/runtime/kvs.effect.ts`), an `Atom.runtime` built from
+  `KeyValueStore.layerStorage` alone.
 - Run effects only at the edges: `runtime.runPromise` / `runtime.runSync` /
   `runtime.runFork`. Inside a server handler use `runServer(effect)`.
 - Build a `ManagedRuntime` once at module scope; dispose only runtimes you own
@@ -75,9 +78,11 @@ this.make)`; v4 does **not** auto-generate a `Default` layer.
 
 ## Atoms (React)
 
-- Provide the registry with `RegistryProvider` from `@effect/atom-react`. It
-  manages its own registry lifecycle, so no project-level `useEffect` is needed
-  to wire it (see [Effects](./effects.md)).
+- Provide the registry with `EffectAtomProvider`
+  (`src/runtime/provider.effect.tsx`), which seeds `RegistryContext` from
+  `@effect/atom-react` with a per-request `AtomRegistry` created in the router's
+  `getContext`. No module singleton and no project-level `useEffect` to wire it
+  (see [Effects](./effects.md)).
 - Derive runtime-backed atoms from `Atom.runtime(layer).atom(effect)`; read
   them with `useAtomValue` (pass a **stable, module-scoped** selector, never an
   inline closure, to avoid re-subscribing every render).
@@ -93,9 +98,9 @@ rule set. Anything outside that convention is checked only by the base
 `tsconfig.json`.
 
 - **Production effect code** → `name.effect.ts(x)` (e.g.
-  `services.effect.ts`, `provider.effect.tsx`).
+  `contract.effect.ts`, `provider.effect.tsx`).
 - **Effectful tests** → `name.effect.test.ts(x)` (e.g.
-  `runtime.effect.test.ts`). They carry the `.effect.` marker for discovery but
+  `account.effect.test.ts`). They carry the `.effect.` marker for discovery but
   end in `.test.ts(x)`, so they stay matched by vitest **and** fall outside the
   strict `**/*.effect.ts(x)` include — test ergonomics (gen, inline closures)
   are not held to the production rules.

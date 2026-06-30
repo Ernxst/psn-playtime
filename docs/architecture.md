@@ -8,7 +8,7 @@ What each top-level directory under `src/` is for. The shape follows two ideas: 
 
 ## `runtime/`
 
-The Effect runtime and client-state wiring: the app/server runtimes (`runtime.effect.ts`), service definitions (`services.effect.ts`), and the `@effect/atom` setup (`atoms.effect.ts`, `provider.effect.tsx`). This is the seam where Effect programs are actually executed.
+The Effect runtime and client-state wiring: the server runtime (`runtime.effect.ts`), the browser `localStorage` atom runtime (`kvs.effect.ts`), and the `@effect/atom` registry setup (`provider.effect.tsx`). This is the seam where Effect programs are actually executed.
 
 ## `integrations/`
 
