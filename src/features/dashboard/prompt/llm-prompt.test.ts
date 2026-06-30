@@ -63,6 +63,47 @@ describe(".PROMPT_VARIANTS", () => {
   });
 });
 
+describe(".PROMPT_VARIANTS Recommendations", () => {
+  const RECOMMENDATION_IDS = ["rec-upcoming", "rec-out-now", "rec-recent", "rec-throwback"];
+
+  it("files the taste-based recommendation prompts under the Recommendations group", () => {
+    const groups = RECOMMENDATION_IDS.map((id) => PROMPT_VARIANTS.find((v) => v.id === id)?.group);
+
+    expect(groups).toStrictEqual(RECOMMENDATION_IDS.map(() => "Recommendations"));
+  });
+
+  it("keeps the taste-based recommendation prompts out of the spend-gated set", () => {
+    const spendIds = SPEND_VARIANTS.map((v): string => v.id);
+
+    const overlap = RECOMMENDATION_IDS.map((id) => spendIds.includes(id));
+
+    expect(overlap).toStrictEqual(RECOMMENDATION_IDS.map(() => false));
+  });
+
+  it("lists every taste-based recommendation prompt in the question menu", () => {
+    const menu = buildMenu();
+
+    const present = RECOMMENDATION_IDS.map((id) => {
+      const variant = PROMPT_VARIANTS.find((v) => v.id === id);
+      return menu.includes(`- ${variant?.question}`);
+    });
+
+    expect(present).toStrictEqual(RECOMMENDATION_IDS.map(() => true));
+  });
+
+  it("tells the model the data has no games catalogue and not to claim price knowledge", () => {
+    const present = RECOMMENDATION_IDS.map((id) => {
+      const instruction = PROMPT_VARIANTS.find((v) => v.id === id)?.instruction ?? "";
+      return (
+        instruction.includes("NO games catalogue") &&
+        instruction.includes("Don't reason about price or what I paid")
+      );
+    });
+
+    expect(present).toStrictEqual(RECOMMENDATION_IDS.map(() => true));
+  });
+});
+
 describe(".SPEND_VARIANTS", () => {
   it("gives every spend question an id unique across all variants", () => {
     const ids = [...PROMPT_VARIANTS, ...SPEND_VARIANTS].map((v) => v.id);

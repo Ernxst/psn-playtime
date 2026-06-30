@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { CopyButton } from "@/features/dashboard/components/copy-button";
-import { buildPrompt } from "@/features/dashboard/prompt/llm-prompt";
+import { availableVariants, buildPrompt } from "@/features/dashboard/prompt/llm-prompt";
 import {
   MENU_MODE,
   PROMPT_GROUPS,
@@ -14,6 +14,7 @@ import {
   type PromptVariant,
   PROMPT_VARIANTS,
 } from "@/features/dashboard/prompt/llm-prompt-catalogue";
+import { hasTransactionHistory } from "@/features/dashboard/prompt/llm-transaction-context";
 import { cn } from "@/lib/utils";
 import type { DashboardData } from "@/server/providers/account/snapshot";
 import { useTransactionImport } from "@/stores/transactions-store";
@@ -23,11 +24,14 @@ interface VariantGroup {
   questions: PromptVariant[];
 }
 
-/** The variants matching `query` (case-insensitive on the question text). */
-function filterVariants(query: string): readonly PromptVariant[] {
+/** The `variants` matching `query` (case-insensitive on the question text). */
+function filterVariants(
+  variants: readonly PromptVariant[],
+  query: string
+): readonly PromptVariant[] {
   const q = query.trim().toLowerCase();
-  if (q === "") return PROMPT_VARIANTS;
-  return PROMPT_VARIANTS.filter((v) => v.question.toLowerCase().includes(q));
+  if (q === "") return variants;
+  return variants.filter((v) => v.question.toLowerCase().includes(q));
 }
 
 /** Group `variants` into their display categories in order, dropping empty groups. */
@@ -71,16 +75,16 @@ function QuestionGroup({
   );
 }
 
-/** Searchable, grouped picker for the lead question. */
-function QuestionPicker({
-  selectedId,
-  onSelect,
-}: {
+interface QuestionPickerProps {
+  variants: readonly PromptVariant[];
   selectedId: string;
   onSelect: (id: string) => void;
-}) {
+}
+
+/** Searchable, grouped picker for the lead question. */
+function QuestionPicker({ variants, selectedId, onSelect }: QuestionPickerProps) {
   const [query, setQuery] = useState("");
-  const groups = useMemo(() => groupVariants(filterVariants(query)), [query]);
+  const groups = useMemo(() => groupVariants(filterVariants(variants, query)), [variants, query]);
 
   return (
     <>
@@ -143,18 +147,24 @@ function PromptHint({ menuMode, question }: { menuMode: boolean; question: strin
   );
 }
 
-/** Download `prompt` as a Markdown file via a transient object URL. */
-function savePromptToFile(prompt: string) {
+/** The download filename for `prompt`, tagged with the sanitised PSN `onlineId`. */
+function promptFileName(onlineId: string): string {
+  const safeId = onlineId.replace(/[^A-Za-z0-9-_]/g, "");
+  return safeId === "" ? "psn-playtime-prompt.md" : `psn-playtime-prompt-${safeId}.md`;
+}
+
+/** Download `prompt` as a Markdown file named for the PSN account via a transient object URL. */
+function savePromptToFile(prompt: string, onlineId: string) {
   const url = URL.createObjectURL(new Blob([prompt], { type: "text/markdown" }));
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = "psn-playtime-prompt.md";
+  anchor.download = promptFileName(onlineId);
   anchor.click();
   URL.revokeObjectURL(url);
 }
 
 /** The read-only prompt preview plus its copy and save-to-file buttons. */
-function PromptPreview({ prompt }: { prompt: string }) {
+function PromptPreview({ prompt, onlineId }: { prompt: string; onlineId: string }) {
   return (
     <div className="flex items-start gap-2">
       <Textarea
@@ -166,7 +176,11 @@ function PromptPreview({ prompt }: { prompt: string }) {
       />
       <div className="flex flex-col gap-2">
         <CopyButton value={prompt} label="Copy prompt" />
-        <Button variant="outline" onClick={() => savePromptToFile(prompt)} className="gap-2">
+        <Button
+          variant="outline"
+          onClick={() => savePromptToFile(prompt, onlineId)}
+          className="gap-2"
+        >
           <Download /> Save to file
         </Button>
       </div>
@@ -186,7 +200,8 @@ export function LlmPromptCard({ data }: { data: DashboardData }) {
   const [menuMode, setMenuMode] = useState(false);
   const imported = useTransactionImport();
 
-  const variant = PROMPT_VARIANTS.find((v) => v.id === selectedId) ?? PROMPT_VARIANTS[0];
+  const variants = availableVariants(hasTransactionHistory(imported?.transactions));
+  const variant = variants.find((v) => v.id === selectedId) ?? PROMPT_VARIANTS[0];
   const prompt = useMemo(
     () => buildPrompt(data, menuMode ? MENU_MODE : variant, imported?.transactions),
     [data, imported, menuMode, variant]
@@ -212,11 +227,15 @@ export function LlmPromptCard({ data }: { data: DashboardData }) {
       <CardContent className="space-y-3">
         <MenuModeOption active={menuMode} onActivate={() => setMenuMode(true)} />
 
-        <QuestionPicker selectedId={menuMode ? "" : selectedId} onSelect={selectQuestion} />
+        <QuestionPicker
+          variants={variants}
+          selectedId={menuMode ? "" : selectedId}
+          onSelect={selectQuestion}
+        />
 
         <PromptHint menuMode={menuMode} question={variant.question} />
 
-        <PromptPreview prompt={prompt} />
+        <PromptPreview prompt={prompt} onlineId={data.profile.onlineId} />
       </CardContent>
     </Card>
   );

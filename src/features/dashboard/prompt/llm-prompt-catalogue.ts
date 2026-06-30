@@ -131,6 +131,34 @@ export const PROMPT_VARIANTS = [
       "If you had to recommend exactly one game from my backlog (low-hours titles that fit my taste), pick one and explain in detail why it's the best next play for me.",
   },
   {
+    id: "rec-upcoming",
+    group: "Recommendations",
+    question: "What upcoming releases would I be most interested in?",
+    instruction:
+      "Infer my taste from my most-played genres, favourite franchises and the specific titles I engaged with most (weighing hours, sessions and recency), then suggest upcoming, not-yet-released games I'd most likely be excited for — titles I don't already own or play. My data contains NO games catalogue and NO release calendar, so reason from your own knowledge of the games landscape to name candidates and judge what is still on the horizon. Explain why each pick fits my taste, and be honest that these are suggestions from outside knowledge, not derived from my data: release timing (and even whether a game is real or still coming) can be uncertain, so flag that rather than overclaim. Don't reason about price or what I paid — that isn't the question here.",
+  },
+  {
+    id: "rec-out-now",
+    group: "Recommendations",
+    question: "Which games available now — old or new — would I enjoy?",
+    instruction:
+      "Infer my taste from my most-played genres, favourite franchises and the titles I engaged with most (weighing hours, sessions and recency), then suggest games available to play right now — old or new, any era — that I'd enjoy and don't already own or play. My data contains NO games catalogue, so reason from your own knowledge of what exists and is currently obtainable. Explain why each pick fits my taste, and be honest that these are suggestions from outside knowledge, not derived from my data, so treat availability as your best estimate rather than a certainty. Don't reason about price or what I paid — that isn't the question here.",
+  },
+  {
+    id: "rec-recent",
+    group: "Recommendations",
+    question: "Which recently released games would I be interested in?",
+    instruction:
+      "Infer my taste from my most-played genres, favourite franchises and the titles I engaged with most (weighing hours, sessions and recency), then suggest recently released games — roughly the last ~12 months — that I'd be interested in and don't already own or play. My data contains NO games catalogue and NO release calendar, so reason from your own knowledge of the games landscape to name candidates and judge their timing. Explain why each pick fits my taste, and be honest that these are suggestions from outside knowledge, not derived from my data: release dates can be uncertain, so flag anything you're unsure sits inside that window rather than overclaim. Don't reason about price or what I paid — that isn't the question here.",
+  },
+  {
+    id: "rec-throwback",
+    group: "Recommendations",
+    question: "Which throwback or classic games might I have missed?",
+    instruction:
+      "Infer my taste from my most-played genres, favourite franchises and the titles I engaged with most (weighing hours, sessions and recency), then suggest older or classic back-catalogue games — throwbacks I may have skipped — that I'd enjoy and don't already own or play. My data contains NO games catalogue, so reason from your own knowledge of gaming history to name candidates and judge which are genuinely older or classic. Explain why each pick fits my taste, and be honest that these are suggestions from outside knowledge, not derived from my data, so treat the 'classic' framing and whether I truly missed each one as your best estimate. Don't reason about price or what I paid — that isn't the question here.",
+  },
+  {
     id: "personality-traits",
     group: "Profile & personality",
     question: "What personality traits can you infer from my gaming habits?",
