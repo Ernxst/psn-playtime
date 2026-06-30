@@ -12,6 +12,7 @@ import {
   MENU_INSTRUCTION,
   MENU_MODE,
   METRIC_GUIDANCE_CAVEAT,
+  METRIC_RUBRIC_GROUPS,
   PLAY_PATTERN_GUIDANCE,
   PLAYTIME_SIGNAL_GUIDANCE,
   PRICE_CONTEXT_GUIDANCE,
@@ -39,13 +40,9 @@ function tx(overrides: Partial<TransactionRow>): TransactionRow {
 }
 
 /** Soft groups whose lead drops the metric rubric (keeping caveat + genre). */
-const SOFT_LEADS = PROMPT_VARIANTS.filter(
-  (v) => v.group === "Taste & preferences" || v.group === "Profile & personality"
-);
+const SOFT_LEADS = PROMPT_VARIANTS.filter((v) => !METRIC_RUBRIC_GROUPS.has(v.group));
 /** Groups whose lead keeps the full metric calibration rubric. */
-const METRIC_RUBRIC_LEADS = PROMPT_VARIANTS.filter(
-  (v) => v.group !== "Taste & preferences" && v.group !== "Profile & personality"
-);
+const METRIC_RUBRIC_LEADS = PROMPT_VARIANTS.filter((v) => METRIC_RUBRIC_GROUPS.has(v.group));
 
 describe(".PROMPT_VARIANTS", () => {
   it("gives every question a unique id", () => {
@@ -104,6 +101,134 @@ describe(".PROMPT_VARIANTS Recommendations", () => {
   });
 });
 
+describe(".PROMPT_VARIANTS new groups", () => {
+  const NEW_GROUP_IDS = {
+    "Trophies & completion": [
+      "closest-platinums",
+      "completionist-or-mover",
+      "trophies-left-on-table",
+      "hardest-earned-platinums",
+    ],
+    "Backlog & what to play next": [
+      "finish-next-owned",
+      "liked-but-drifted",
+      "barely-played-owned",
+    ],
+    "Wrapped & shareable": ["gaming-wrapped", "gaming-identity"],
+  } as const;
+  const EXISTING_GROUP_ADDITIONS = {
+    "Engagement & enjoyment": ["binge-vs-bursts"],
+    "Taste & preferences": ["genre-taste-shift", "franchise-loyalty"],
+  } as const;
+  const ALL_NEW_IDS = [
+    ...Object.values(NEW_GROUP_IDS).flat(),
+    ...Object.values(EXISTING_GROUP_ADDITIONS).flat(),
+  ];
+
+  it("declares the new groups in PROMPT_GROUPS in the agreed order", () => {
+    const order = PROMPT_GROUPS.filter(
+      (g) =>
+        g === "Trophies & completion" ||
+        g === "Backlog & what to play next" ||
+        g === "Wrapped & shareable" ||
+        g === "Recommendations" ||
+        g === "Profile & personality" ||
+        g === "Spending & value" ||
+        g === "More"
+    );
+
+    expect(order).toStrictEqual([
+      "Trophies & completion",
+      "Recommendations",
+      "Backlog & what to play next",
+      "Profile & personality",
+      "Wrapped & shareable",
+      "Spending & value",
+      "More",
+    ]);
+  });
+
+  it("files every new and added variant under its declared group", () => {
+    const expected = { ...NEW_GROUP_IDS, ...EXISTING_GROUP_ADDITIONS };
+
+    const actual = Object.fromEntries(
+      Object.entries(expected).map(([group, ids]) => [
+        group,
+        ids.map((id) => PROMPT_VARIANTS.find((v) => v.id === id)?.group),
+      ])
+    );
+
+    expect(actual).toStrictEqual(
+      Object.fromEntries(
+        Object.entries(expected).map(([group, ids]) => [group, ids.map(() => group)])
+      )
+    );
+  });
+
+  it("keeps every new variant always-available rather than spend-gated", () => {
+    const spendIds = SPEND_VARIANTS.map((v): string => v.id);
+
+    const overlap = ALL_NEW_IDS.map((id) => spendIds.includes(id));
+
+    expect(overlap).toStrictEqual(ALL_NEW_IDS.map(() => false));
+  });
+
+  it("lists every new variant in the spend-free question menu", () => {
+    const menu = buildMenu();
+
+    const present = ALL_NEW_IDS.map((id) => {
+      const variant = PROMPT_VARIANTS.find((v) => v.id === id);
+      return menu.includes(`- ${variant?.question}`);
+    });
+
+    expect(present).toStrictEqual(ALL_NEW_IDS.map(() => true));
+  });
+
+  it("lists every new variant among the follow-ups of an unrelated lead", () => {
+    const [lead] = PROMPT_VARIANTS;
+
+    const followUps = buildFollowUps(lead);
+
+    const present = ALL_NEW_IDS.map((id) => {
+      const variant = PROMPT_VARIANTS.find((v) => v.id === id);
+      return followUps.includes(`- ${variant?.question}`);
+    });
+
+    expect(present).toStrictEqual(ALL_NEW_IDS.map(() => true));
+  });
+
+  it("gives the trophy and backlog groups the metric rubric but not the synthesis-only wrapped group", () => {
+    expect(METRIC_RUBRIC_GROUPS.has("Trophies & completion")).toBe(true);
+    expect(METRIC_RUBRIC_GROUPS.has("Backlog & what to play next")).toBe(true);
+    expect(METRIC_RUBRIC_GROUPS.has("Wrapped & shareable")).toBe(false);
+  });
+
+  it("keeps the backlog prompts to ownership and playtime without claiming price knowledge", () => {
+    const present = ["finish-next-owned", "barely-played-owned"].map((id) => {
+      const instruction = PROMPT_VARIANTS.find((v) => v.id === id)?.instruction ?? "";
+      return instruction.includes("NO price");
+    });
+
+    expect(present).toStrictEqual([true, true]);
+  });
+
+  it("frames the wrapped prompts as synthesis-only", () => {
+    const present = NEW_GROUP_IDS["Wrapped & shareable"].map((id) => {
+      const instruction = PROMPT_VARIANTS.find((v) => v.id === id)?.instruction ?? "";
+      return instruction.toLowerCase().includes("synthesis");
+    });
+
+    expect(present).toStrictEqual(NEW_GROUP_IDS["Wrapped & shareable"].map(() => true));
+  });
+
+  it("is explicit that the hardest-platinum prompt has no rarity or difficulty data", () => {
+    const instruction =
+      PROMPT_VARIANTS.find((v) => v.id === "hardest-earned-platinums")?.instruction ?? "";
+
+    expect(instruction).toContain("NO trophy-rarity");
+  });
+});
+
 describe(".SPEND_VARIANTS", () => {
   it("gives every spend question an id unique across all variants", () => {
     const ids = [...PROMPT_VARIANTS, ...SPEND_VARIANTS].map((v) => v.id);
@@ -119,6 +244,15 @@ describe(".SPEND_VARIANTS", () => {
 
   it("declares the Spending & value group in PROMPT_GROUPS", () => {
     expect(PROMPT_GROUPS).toContain("Spending & value");
+  });
+
+  it("treats unmatched and free spend as unknown rather than zero in the new spend prompts", () => {
+    const present = ["spend-on-barely-played", "free-vs-paid-played"].map((id) => {
+      const instruction = SPEND_VARIANTS.find((v) => v.id === id)?.instruction ?? "";
+      return instruction.includes("UNKNOWN");
+    });
+
+    expect(present).toStrictEqual([true, true]);
   });
 });
 
@@ -863,7 +997,7 @@ describe(".buildPrompt (menu mode)", () => {
     const prompt = buildPrompt(demoDashboard, MENU_MODE);
 
     expect(prompt).toContain(MENU_INSTRUCTION);
-    expect(prompt).not.toContain("Recommendations, Spending & value, More)");
+    expect(prompt).not.toContain("Wrapped & shareable, Spending & value, More)");
   });
 
   it("adds the spend group to the menu instruction's enumerated list with transactions", () => {
@@ -873,6 +1007,6 @@ describe(".buildPrompt (menu mode)", () => {
       tx({ productName: game?.name ?? "", skuId: game?.titleId }),
     ]);
 
-    expect(prompt).toContain("Recommendations, Spending & value, More)");
+    expect(prompt).toContain("Wrapped & shareable, Spending & value, More)");
   });
 });

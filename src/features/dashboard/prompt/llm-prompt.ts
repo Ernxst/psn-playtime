@@ -228,8 +228,8 @@ export function buildFollowUps(
 function menuInstruction(ctx: PromptTransactionContext): string {
   if (!ctx.hasTransactions) return MENU_INSTRUCTION;
   return MENU_INSTRUCTION.replace(
-    "Recommendations, More)",
-    "Recommendations, Spending & value, More)"
+    "Wrapped & shareable, More)",
+    "Wrapped & shareable, Spending & value, More)"
   );
 }
 
