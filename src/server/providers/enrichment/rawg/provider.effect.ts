@@ -52,28 +52,36 @@ const RAWG_LOOKUP_CONCURRENCY = 8;
 /** A successful "no usable data" result — the caller keeps its keyword fallback. */
 const ABSENT_METADATA: GameMetadata = {};
 
-type GameMatch = { readonly id: number; readonly name: string };
+/**
+ * Everything a single `/games?search=` round-trip yields that either lookup
+ * needs: `id`/`name` for the series request, `genres`/`playtime` for metadata.
+ * One decode serves both so genre and franchise enrichment share one search.
+ */
+type GameInfo = {
+  readonly id: number | undefined;
+  readonly name: string | undefined;
+  readonly genres: ReadonlyArray<string>;
+  readonly playtime: number | undefined;
+};
 
 /** Typed absences, named so they read as values rather than `Effect.void`. */
-const NO_MATCH: GameMatch | undefined = undefined;
+const NO_GAME: GameInfo | undefined = undefined;
 const NO_FRANCHISE: string | undefined = undefined;
 const NO_SERIES: ReadonlyArray<string> = [];
 
-/** The slice of the RAWG `/games` search payload a metadata lookup relies on. */
+/**
+ * The slice of the RAWG `/games` search payload both lookups share. `id`/`name`
+ * are optional because the metadata path doesn't require them and a malformed
+ * result should degrade to absence rather than fail the whole decode.
+ */
 const RawgGameSearch = Schema.Struct({
   results: Schema.Struct({
+    id: Schema.Finite.pipe(Schema.optional),
+    name: Schema.String.pipe(Schema.optional),
     genres: Schema.Struct({ name: Schema.String }).pipe(Schema.Array, Schema.optional),
     /** RAWG's rough community-average hours to complete; often 0 or absent. */
     playtime: Schema.Finite.pipe(Schema.optional),
   }).pipe(Schema.Array, Schema.optional),
-});
-
-/** The RAWG search slice used to locate a game's id for a series lookup. */
-const RawgGameMatch = Schema.Struct({
-  results: Schema.Struct({ id: Schema.Finite, name: Schema.String }).pipe(
-    Schema.Array,
-    Schema.optional
-  ),
 });
 
 /** The slice of a RAWG `/games/{id}/game-series` payload used for franchises. */
@@ -97,47 +105,41 @@ const isOkStatus = (status: number): boolean => status >= 200 && status < 300;
  */
 type Client = HttpClient.HttpClient;
 
-const fetchGameMetadata = (
+/**
+ * The single shared `/games?search=` lookup. Both genre metadata and franchise
+ * enrichment derive from the one decoded {@link GameInfo}, so a title is
+ * searched once. Mirrors the previous helpers' recovery: transport/non-OK/decode
+ * failures degrade to absence (`undefined`); a genuine 429 surfaces as
+ * `ProviderRateLimitedError`.
+ */
+const searchGame = (
   client: Client,
   url: string
-): Effect.Effect<GameMetadata, ProviderRateLimitedError> =>
+): Effect.Effect<GameInfo | undefined, ProviderRateLimitedError> =>
   Effect.gen(function* () {
     const response = yield* client.get(url);
     if (response.status === 429) {
       return yield* new ProviderRateLimitedError({ provider: "rawg" });
     }
     if (!isOkStatus(response.status)) {
-      return ABSENT_METADATA;
+      return NO_GAME;
     }
     return yield* HttpClientResponse.schemaBodyJson(RawgGameSearch)(response).pipe(
-      Effect.map((body) => {
+      Effect.map((body): GameInfo | undefined => {
         const first = body.results?.[0];
+        if (first === undefined) {
+          return NO_GAME;
+        }
         return {
-          genre: mapRawgGenres((first?.genres ?? []).map((g) => g.name)),
-          typicalPlaytime: normalizePlaytime(first?.playtime),
+          id: first.id,
+          name: first.name,
+          genres: (first.genres ?? []).map((g) => g.name),
+          playtime: first.playtime,
         };
       }),
-      Effect.orElseSucceed(() => ABSENT_METADATA)
+      Effect.orElseSucceed(() => NO_GAME)
     );
-  }).pipe(Effect.catchTag("HttpClientError", () => Effect.succeed(ABSENT_METADATA)));
-
-const fetchGameMatch = (
-  client: Client,
-  url: string
-): Effect.Effect<GameMatch | undefined, ProviderRateLimitedError> =>
-  Effect.gen(function* () {
-    const response = yield* client.get(url);
-    if (response.status === 429) {
-      return yield* new ProviderRateLimitedError({ provider: "rawg" });
-    }
-    if (!isOkStatus(response.status)) {
-      return NO_MATCH;
-    }
-    return yield* HttpClientResponse.schemaBodyJson(RawgGameMatch)(response).pipe(
-      Effect.map((body) => body.results?.[0]),
-      Effect.orElseSucceed(() => NO_MATCH)
-    );
-  }).pipe(Effect.catchTag("HttpClientError", () => Effect.succeed(NO_MATCH)));
+  }).pipe(Effect.catchTag("HttpClientError", () => Effect.succeed(NO_GAME)));
 
 const fetchSeriesNames = (
   client: Client,
@@ -157,15 +159,41 @@ const fetchSeriesNames = (
     );
   }).pipe(Effect.catchTag("HttpClientError", () => Effect.succeed(NO_SERIES)));
 
-const fetchFranchise = (
+/** The shared search cache: one decoded {@link GameInfo} per normalised title. */
+type SearchCache = Ref.Ref<Map<string, GameInfo | undefined>>;
+
+/**
+ * Memoised shared search: the single `/games?search=` round-trip both lookups
+ * derive from, so genre and franchise enrichment of a title search it once.
+ */
+const cachedSearch = (
   client: Client,
-  query: string,
-  apiKey: string
+  apiKey: string,
+  cache: SearchCache,
+  query: string
+): Effect.Effect<GameInfo | undefined, ProviderRateLimitedError> =>
+  Effect.gen(function* () {
+    const key = query.toLowerCase();
+    const current = yield* Ref.get(cache);
+    if (current.has(key)) {
+      return current.get(key);
+    }
+    const info = yield* searchGame(client, searchUrl(query, apiKey));
+    yield* Ref.update(cache, (map) => map.set(key, info));
+    return info;
+  });
+
+/** Reuse the shared game-info for the id, then the separate series request. */
+const resolveFranchise = (
+  client: Client,
+  apiKey: string,
+  cache: SearchCache,
+  query: string
 ): Effect.Effect<string | undefined, ProviderRateLimitedError> =>
   Effect.gen(function* () {
-    const game = yield* fetchGameMatch(client, searchUrl(query, apiKey));
-    if (game === undefined) {
-      return undefined;
+    const game = yield* cachedSearch(client, apiKey, cache, query);
+    if (game?.id === undefined || game.name === undefined) {
+      return NO_FRANCHISE;
     }
     const seriesNames = yield* fetchSeriesNames(client, seriesUrl(game.id, apiKey));
     return deriveFranchise([game.name, ...seriesNames]);
@@ -174,7 +202,10 @@ const fetchFranchise = (
 /** Build the real (keyed) provider, closing over the client, key, and caches. */
 const makeRawgProvider = (client: Client, apiKey: string): Effect.Effect<EnrichmentProviderShape> =>
   Effect.gen(function* () {
-    const metadataCache = yield* Ref.make(new Map<string, GameMetadata>());
+    // The shared search cache: one `/games?search=` per title, reused by both the
+    // genre and franchise lookups (and across requests, since the layer is built
+    // once per worker process — #214).
+    const searchCache: SearchCache = yield* Ref.make(new Map());
     const franchiseCache = yield* Ref.make(new Map<string, string | undefined>());
 
     return {
@@ -184,28 +215,28 @@ const makeRawgProvider = (client: Client, apiKey: string): Effect.Effect<Enrichm
           if (query.length === 0) {
             return ABSENT_METADATA;
           }
-          const key = query.toLowerCase();
-          const cached = (yield* Ref.get(metadataCache)).get(key);
-          if (cached !== undefined) {
-            return cached;
+          const game = yield* cachedSearch(client, apiKey, searchCache, query);
+          if (game === undefined) {
+            return ABSENT_METADATA;
           }
-          const result = yield* fetchGameMetadata(client, searchUrl(query, apiKey));
-          yield* Ref.update(metadataCache, (cache) => cache.set(key, result));
-          return result;
+          return {
+            genre: mapRawgGenres([...game.genres]),
+            typicalPlaytime: normalizePlaytime(game.playtime),
+          };
         }),
 
       fetchFranchise: (title: string) =>
         Effect.gen(function* () {
           const query = normalizeForSearch(title);
           if (query.length === 0) {
-            return undefined;
+            return NO_FRANCHISE;
           }
           const key = query.toLowerCase();
           const cache = yield* Ref.get(franchiseCache);
           if (cache.has(key)) {
             return cache.get(key);
           }
-          const franchise = yield* fetchFranchise(client, query, apiKey);
+          const franchise = yield* resolveFranchise(client, apiKey, searchCache, query);
           yield* Ref.update(franchiseCache, (current) => current.set(key, franchise));
           return franchise;
         }),
