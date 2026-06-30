@@ -103,21 +103,23 @@ function TimeframeControl({
 }) {
   return (
     <div className="flex flex-col gap-1">
-      <Tabs
-        value={value}
-        onValueChange={(next) => {
-          const match = TIMEFRAMES.find((t) => t.value === next);
-          if (match) onValueChange(match.value);
-        }}
-      >
-        <TabsList>
-          {TIMEFRAMES.map((t) => (
-            <TabsTab key={t.value} value={t.value}>
-              {t.label}
-            </TabsTab>
-          ))}
-        </TabsList>
-      </Tabs>
+      <div className="overflow-x-auto">
+        <Tabs
+          value={value}
+          onValueChange={(next) => {
+            const match = TIMEFRAMES.find((t) => t.value === next);
+            if (match) onValueChange(match.value);
+          }}
+        >
+          <TabsList>
+            {TIMEFRAMES.map((t) => (
+              <TabsTab key={t.value} value={t.value}>
+                {t.label}
+              </TabsTab>
+            ))}
+          </TabsList>
+        </Tabs>
+      </div>
       <p className="text-xs text-muted-foreground">
         Windowed by last-played activity, not hours-in-period. PSN only reports lifetime hours per
         game.
