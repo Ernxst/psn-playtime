@@ -100,4 +100,8 @@ describe("GamePlay", () => {
   it("rejects a title with a non-numeric hours value", () => {
     expect(() => decodeGame({ ...aGame, hours: "lots" })).toThrow();
   });
+
+  it("rejects a title with a non-finite hours value", () => {
+    expect(() => decodeGame({ ...aGame, hours: Number.POSITIVE_INFINITY })).toThrow();
+  });
 });
