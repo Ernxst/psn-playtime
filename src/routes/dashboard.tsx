@@ -3,14 +3,13 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import { DashboardView } from "@/features/dashboard/components/dashboard-view";
-import { DashboardSkeleton } from "@/features/dashboard/components/states";
 import {
   rawgFranchisesQueryOptions,
   rawgGenresQueryOptions,
   shouldPersistEnrichment,
 } from "@/features/dashboard/enrichment/query";
 import type { DashboardData, GamePlay, Genre } from "@/server/providers/account/snapshot";
-import { clearActiveAccount, saveDashboard, useActiveDashboard } from "@/stores/dashboard-store";
+import { useActiveDashboard } from "@/stores/dashboard-store";
 
 /** Apply a title's deferred RAWG enrichment, leaving unknown fields untouched. */
 function enrichGame(
@@ -63,14 +62,16 @@ export const Route = createFileRoute("/dashboard")({
 });
 
 function Dashboard() {
+  // Resolves to the demo dataset on the server and the initial client render,
+  // then swaps to the active account's cached dashboard once the kvs read
+  // resolves on the client (revisit-from-cache). The sync kvs atom has no
+  // distinct "loading" state, so there is no shell to render here.
   const data = useActiveDashboard();
-  // `undefined` during SSR and the initial client render: render a shell until
-  // hydration reads the cached data from localStorage (revisit-from-cache).
-  if (!data) return <DashboardSkeleton />;
   return <DashboardCachedView data={data} />;
 }
 
 function DashboardCachedView({ data }: { data: DashboardData }) {
+  const { dashboardStore } = Route.useRouteContext();
   const { data: rawgGenres = [], status: genresStatus } = useQuery(rawgGenresQueryOptions(data));
   const { data: rawgFranchises = [], status: franchisesStatus } = useQuery(
     rawgFranchisesQueryOptions(data)
@@ -88,24 +89,24 @@ function DashboardCachedView({ data }: { data: DashboardData }) {
   //
   // This stays a `useEffect` per docs/rules/effects.md: it pushes to localStorage
   // and nothing here is read back during this render (the store re-publishes via
-  // its own `useSyncExternalStore`, so not that hook); no user interaction
-  // triggers it — it fires on async query settlement, not an event (so not an
-  // event handler); and writing to localStorage during render would be an impure
-  // side effect (so not render-time derivation). Moving the write into the query
-  // layer was attempted but is not viable: the `@/server/api/enrichment.effect` server functions
+  // its own atom hook, so not this render); no user interaction triggers it — it
+  // fires on async query settlement, not an event (so not an event handler); and
+  // writing to localStorage during render would be an impure side effect (so not
+  // render-time derivation). Moving the write into the query layer was attempted
+  // but is not viable: the `@/server/api/enrichment.effect` server functions
   // require the TanStack Start server runtime and cannot be driven at the query
   // layer in tests without mocking our own wrapper, which docs/rules/testing.md
   // forbids.
   useEffect(() => {
     if (!shouldPersistEnrichment(data, genresStatus, franchisesStatus)) return;
-    saveDashboard({ ...enrichedData, enriched: true });
-  }, [data, enrichedData, genresStatus, franchisesStatus]);
+    dashboardStore.save({ ...enrichedData, enriched: true });
+  }, [dashboardStore, data, enrichedData, genresStatus, franchisesStatus]);
 
   return (
     <DashboardView
       data={enrichedData}
       onSignOut={() => {
-        clearActiveAccount();
+        dashboardStore.clearActive();
         toast.success("Signed out — showing demo data.");
       }}
       signingOut={false}

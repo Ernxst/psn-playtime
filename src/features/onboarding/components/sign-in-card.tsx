@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate, useRouteContext } from "@tanstack/react-router";
 import { ArrowRight, ChevronDown, ExternalLink, ShieldAlert } from "lucide-react";
 import { useId, useState } from "react";
 import { toast } from "sonner";
@@ -12,12 +12,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { signInWithToken } from "@/server/api/account.effect";
-import {
-  type CachedAccount,
-  saveDashboard,
-  setActiveAccount,
-  useCachedAccounts,
-} from "@/stores/dashboard-store";
+import { type CachedAccount, useCachedAccounts } from "@/stores/dashboard-store";
+
+// The dashboard store lives on the root router context (the per-request registry
+// `useCachedAccounts` also reads). Reading it via `from: "__root__"` resolves
+// from anywhere in the tree, so writers go through the service rather than the
+// raw registry.
 
 /**
  * Reduce a pasted npsso value to the bare token.
@@ -187,13 +187,14 @@ function Step({
 
 function useSignIn() {
   const navigate = useNavigate();
+  const { dashboardStore } = useRouteContext({ from: "__root__" });
   return useMutation({
     mutationFn: (token: string) => signInWithToken({ data: { npsso: token } }),
     onSuccess: (data) => {
       // Cache the fetched data client-side and make it the active account; the
       // token is discarded here — revisits render from the cache without it.
-      saveDashboard(data);
-      setActiveAccount(data.profile.accountId);
+      dashboardStore.save(data);
+      dashboardStore.setActive(data.profile.accountId);
       void navigate({ to: "/dashboard" });
     },
     onError: (err) => {
@@ -286,12 +287,13 @@ function TokenForm() {
 
 function AccountButton({ account }: { account: CachedAccount }) {
   const navigate = useNavigate();
+  const { dashboardStore } = useRouteContext({ from: "__root__" });
   return (
     <Button
       variant="outline"
       className="h-auto sm:h-auto w-full justify-start gap-3 py-3"
       onClick={() => {
-        setActiveAccount(account.accountId);
+        dashboardStore.setActive(account.accountId);
         void navigate({ to: "/dashboard" });
       }}
     >

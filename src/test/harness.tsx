@@ -8,7 +8,7 @@ import {
   RouterProvider,
 } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import { TestAtomProvider } from "@/test/atom-registry";
+import { TestAtomProvider, testDashboardStore } from "@/test/atom-registry";
 
 interface HarnessOptions {
   /** Initial history entry the memory router boots at. */
@@ -59,7 +59,10 @@ export function createHarness(ui: ReactNode, options: HarnessOptions = {}): Harn
   const router = createRouter({
     routeTree,
     history: createMemoryHistory({ initialEntries: [options.path ?? "/"] }),
-    context: { queryClient },
+    // `dashboardStore` mirrors the per-request store on the app's router
+    // context, so components reading it via `getRouteApi(...).useRouteContext()`
+    // (the sign-in card) resolve the same registry `TestAtomProvider` seeds.
+    context: { queryClient, dashboardStore: testDashboardStore },
   });
 
   return {

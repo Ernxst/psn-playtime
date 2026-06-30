@@ -4,6 +4,7 @@ import { HeadContent, Scripts, createRootRouteWithContext } from "@tanstack/reac
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import type * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
 import { EffectAtomProvider } from "@/runtime/provider.effect";
+import type { DashboardStore } from "@/stores/dashboard-store";
 import type { TransactionStore } from "@/stores/transactions-store";
 import { Toaster } from "../components/ui/sonner";
 import { TooltipProvider } from "../components/ui/tooltip";
@@ -18,6 +19,7 @@ interface MyRouterContext {
   // Imperative writers use `transactionStore`, never the registry directly.
   atomRegistry: AtomRegistry.AtomRegistry;
   transactionStore: TransactionStore;
+  dashboardStore: DashboardStore;
 }
 
 const DEFAULT_TITLE = "PSN Playtime — your PlayStation history, visualised";
