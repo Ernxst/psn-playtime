@@ -204,10 +204,11 @@ const crossTabSyncAtom = Atom.make((get) => acquireCrossTabListener(get.registry
 /**
  * Mount {@link crossTabSyncAtom} on the registry so the `storage` listener that
  * keeps {@link useTransactionImport} subscribers in sync with other tabs is
- * acquired, and return the registry's unmount handle. Wired at client boot (the
- * router-context factory) over the per-request registry that owns app lifetime;
- * the listener's removal is owned by that registry's scope (`dispose`), not the
- * returned handle.
+ * acquired, and return the registry's unmount handle. Wired once at client boot,
+ * over the browser's single app-lifetime registry (created in `getAtomRegistry`)
+ * — so repeated router-context reconstructions reuse that registry rather than
+ * stacking a fresh listener. The listener's removal is owned by that registry's
+ * scope (`dispose`), not the returned handle.
  *
  * Idempotent per registry: the registry caches one node per atom, so a second
  * mount over the same registry reuses that node — `acquireRelease` acquire runs

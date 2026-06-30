@@ -4,26 +4,49 @@ import * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
 import { makeDashboardStore } from "@/stores/dashboard-store";
 import { makeTransactionStore, startCrossTabSync } from "@/stores/transactions-store";
 
+const makeAtomRegistry = () => AtomRegistry.make({ scheduleTask, defaultIdleTTL: 400 });
+
+/**
+ * The browser's single app-lifetime `AtomRegistry`, created lazily on first use
+ * and reused across router-context reconstructions (HMR, repeated `getRouter`).
+ * Module-private and only read through {@link getAtomRegistry} — imperative
+ * writes still flow through the per-context `transactionStore`/`dashboardStore`,
+ * never this binding directly, and React reads through `RegistryContext`.
+ */
+let browserRegistry: AtomRegistry.AtomRegistry | undefined;
+
+/**
+ * Resolve the registry for a router context, mirroring `queryClient`'s
+ * server-per-request vs browser-singleton split.
+ *
+ * Server: a fresh registry per request, so one request's atom state never bleeds
+ * into another (SSR isolation); no cross-tab listener exists there.
+ *
+ * Browser: one app-lifetime registry, reused across context reconstructions. The
+ * cross-tab `storage` listener is mounted on it exactly once — when that single
+ * registry is first created — so repeated `getContext`/HMR passes reuse the one
+ * listener instead of stacking a fresh registry (and a fresh listener) each
+ * rebuild. The scoped `Effect.acquireRelease` resource owns release via the
+ * registry's scope.
+ */
+function getAtomRegistry(): AtomRegistry.AtomRegistry {
+  if (typeof window === "undefined") return makeAtomRegistry();
+  if (browserRegistry === undefined) {
+    browserRegistry = makeAtomRegistry();
+    startCrossTabSync(browserRegistry);
+  }
+  return browserRegistry;
+}
+
 export function getContext() {
   const queryClient = new QueryClient();
-  // One registry per request (per router instance): isolated on the server,
-  // the single app registry in the browser. The provider seeds it into
-  // `RegistryContext` so React hooks read it; the transaction and dashboard
-  // stores close over the same instance so imperative writes notify those hooks.
-  // Both share one registry per request — verified by the store reactivity tests.
-  const atomRegistry = AtomRegistry.make({ scheduleTask, defaultIdleTTL: 400 });
+  // The provider seeds this registry into `RegistryContext` so React hooks read
+  // it; the transaction and dashboard stores close over the same instance so
+  // imperative writes notify those hooks. Fresh per request on the server,
+  // reused across reconstructions on the browser — see `getAtomRegistry`.
+  const atomRegistry = getAtomRegistry();
   const transactionStore = makeTransactionStore(atomRegistry);
   const dashboardStore = makeDashboardStore(atomRegistry);
-
-  // Mount the cross-tab sync resource on this request's registry so a
-  // transactions write in another tab refreshes `useTransactionImport` here. The
-  // listener is a scoped `Effect.acquireRelease` resource owned by the registry:
-  // its release runs when the registry's scope finalizes (`dispose`), and the
-  // registry caches one node per atom so a repeated router construction or HMR
-  // pass re-uses the one listener rather than stacking another. SSR is a no-op
-  // (the resource's `window` guard skips acquire). The unmount handle is unused
-  // here — the browser registry lives for the app's lifetime and owns release.
-  startCrossTabSync(atomRegistry);
 
   return {
     queryClient,
