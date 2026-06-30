@@ -433,6 +433,90 @@ describe("shared game-info search across genre and franchise", () => {
   });
 });
 
+describe("concurrent cache-miss dedup", () => {
+  /**
+   * Route by URL so concurrent search + series calls resolve deterministically.
+   * The search response is delayed a tick so the lookup is still in flight when
+   * the second fiber arrives — this exercises the in-flight coalescing, not mere
+   * sequential reuse of an already-written entry.
+   */
+  const routeRawg = (input: unknown): Promise<Response> => {
+    const href = input instanceof URL ? input.href : String(input);
+    if (href.includes("game-series")) {
+      return Promise.resolve(seriesResponse(["Halo Infinite", "Halo 5"]));
+    }
+    return new Promise((resolve) =>
+      setTimeout(
+        () =>
+          resolve(
+            new Response(
+              JSON.stringify({
+                results: [
+                  { id: 9, name: "Halo Infinite", genres: [{ name: "Shooter" }], playtime: 12 },
+                ],
+              }),
+              { status: 200 }
+            )
+          ),
+        10
+      )
+    );
+  };
+
+  /** Count the `/games?search=` fetches the spy saw (series calls carry no search). */
+  const searchCallCount = (spy: ReturnType<typeof vi.spyOn>): number =>
+    spy.mock.calls.filter(([input]: unknown[]) => {
+      const href = input instanceof URL ? input.href : "";
+      return href.includes("search=");
+    }).length;
+
+  it("coalesces two concurrent misses for the same title into one search", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(routeRawg);
+
+    // Genre and franchise lookups start independently (as the dashboard runs
+    // them) against a shared layer, so both miss the same key before either
+    // writes. The `Cache` coalesces them onto a single in-flight `/games?search=`.
+    const [metadata, franchise] = await runKeyed(
+      Effect.all([metaProgram("Halo Infinite"), franchiseProgram("Halo Infinite")], {
+        concurrency: "unbounded",
+      })
+    );
+
+    expect(metadata).toEqual({ genre: "Shooter", typicalPlaytime: 12 });
+    expect(franchise).toBe("Halo");
+    // Exactly one search despite two concurrent misses — the in-flight dedup.
+    expect(searchCallCount(fetchSpy)).toBe(1);
+  });
+});
+
+describe("transient failures are not cached", () => {
+  it("re-runs the search after an infrastructure failure rather than retaining it", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response("nope", { status: 503 }))
+      .mockResolvedValueOnce(searchResponse({ genres: ["Action"] }));
+
+    // One runtime, so both lookups share the same search `Cache`. The first
+    // surfaces a typed failure; the second must still hit the network and
+    // succeed — proving the failed `Exit` was evicted, not poisoning the key.
+    const runtime = ManagedRuntime.make(KEYED);
+    onTestFinished(() => runtime.dispose());
+
+    const lookup = metaProgram("Hades").pipe(
+      Effect.provideService(FetchHttpClient.Fetch, liveFetch)
+    );
+
+    const error = await runtime.runPromise(lookup.pipe(Effect.flip));
+    expect(error._tag).toBe("UpstreamUnavailableError");
+
+    const metadata = await runtime.runPromise(lookup);
+
+    expect(metadata).toMatchObject({ genre: "Action-Adventure" });
+    // Both lookups reached the network: the failure was not cached.
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe("process-lived cache across a shared runtime", () => {
   it("reuses the cache between two separate runtime invocations (one network hit)", async () => {
     const fetchSpy = vi

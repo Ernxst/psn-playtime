@@ -17,15 +17,24 @@
  *
  * Networking goes through the fetch-based `HttpClient` (`effect/unstable/http`);
  * `FetchHttpClient.layer` uses `globalThis.fetch`, so it runs on the
- * Nitro/Cloudflare-Workers runtime as well as in Node/tests. The lookup caches
- * are `Ref<Map>`s built once per layer construction; `TitleEnrichmentLayer` is
- * folded into `serverRuntime` (`runtime.effect.ts`), so the caches live for the
- * worker process and hit across requests. RAWG metadata is effectively static,
- * so there are no stale-data concerns, and the maps stay bounded by the distinct
- * title names a worker sees, so no eviction is needed.
+ * Nitro/Cloudflare-Workers runtime as well as in Node/tests. The shared
+ * `/games?search=` lookup is an Effect `Cache` (`effect/Cache`); the franchise
+ * result is a `Ref<Map>`. Both are built once per layer construction;
+ * `TitleEnrichmentLayer` is folded into `serverRuntime` (`runtime.effect.ts`),
+ * so they live for the worker process and hit across requests. The search
+ * `Cache` natively coalesces concurrent misses for the same key into a single
+ * in-flight lookup, so the genre and franchise queries the dashboard starts
+ * independently share one round-trip rather than racing two. RAWG metadata is
+ * effectively static, so successful results (including the genuine no-match
+ * absence) are kept for the process lifetime; only infrastructure failures are
+ * evicted immediately so a transient outage never poisons a title (see
+ * {@link makeRawgProvider}).
  */
+import * as Cache from "effect/Cache";
 import * as Config from "effect/Config";
+import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Redacted from "effect/Redacted";
@@ -65,6 +74,22 @@ const GAMES_PATH = "/games";
 
 /** Max RAWG lookups in flight at once. */
 const RAWG_LOOKUP_CONCURRENCY = 8;
+
+/**
+ * Bound on distinct normalised titles the search `Cache` retains. RAWG metadata
+ * is static so entries never go stale, but a `Cache` requires a capacity; this
+ * is comfortably above the distinct titles a single worker sees.
+ */
+const RAWG_SEARCH_CACHE_CAPACITY = 4096;
+
+/**
+ * How long a SUCCESSFUL search result (including the genuine `NO_GAME` absence)
+ * is retained. RAWG metadata is effectively static, so successes live for the
+ * process lifetime. Infrastructure FAILURES get {@link Duration.zero} instead so
+ * they're evicted immediately and never poison a title — see the `timeToLive`
+ * in {@link makeRawgProvider}.
+ */
+const RAWG_SEARCH_TTL = Duration.infinity;
 
 /** A successful "no usable data" result — the caller keeps its keyword fallback. */
 const ABSENT_METADATA: GameMetadata = {};
@@ -197,28 +222,32 @@ const fetchSeriesNames = (
     })
   );
 
-/** The shared search cache: one decoded {@link GameInfo} per normalised title. */
-type SearchCache = Ref.Ref<Map<string, GameInfo | undefined>>;
+/**
+ * The shared search cache: one decoded {@link GameInfo} per normalised title.
+ * An Effect `Cache` whose `lookup` is the single {@link searchGame} round-trip,
+ * keyed by the normalised query. Concurrent misses for the same key coalesce
+ * onto one in-flight lookup, so the dashboard's independent genre and franchise
+ * queries share a single `/games?search=` request rather than racing two.
+ */
+type SearchCache = Cache.Cache<string, GameInfo | undefined, TitleEnrichmentError>;
 
 /**
- * Memoised shared search: the single `/games?search=` round-trip both lookups
- * derive from, so genre and franchise enrichment of a title search it once.
+ * Build the shared search `Cache`. The lookup is the single {@link searchGame}
+ * round-trip, keyed by the normalised query; the `Cache` coalesces concurrent
+ * misses for a key onto one in-flight lookup (the dedup) and bounds entries by
+ * {@link RAWG_SEARCH_CACHE_CAPACITY}.
+ *
+ * `timeToLive` is the no-cache-of-failures guard: a `Cache` stores the lookup
+ * `Exit`, so a naive cache would retain a transient `UpstreamUnavailableError`/
+ * `RateLimitedError` and re-fail every later lookup for that title within TTL.
+ * SUCCESSFUL results (including the genuine `NO_GAME` absence — a real, stable
+ * answer) live for {@link RAWG_SEARCH_TTL}; a FAILED `Exit` gets `Duration.zero`
+ * so it's evicted immediately and a transport blip never poisons a title.
  */
-const cachedSearch = (
-  client: Client,
-  apiKey: ApiKey,
-  cache: SearchCache,
-  query: string
-): Effect.Effect<GameInfo | undefined, TitleEnrichmentError> =>
-  Effect.gen(function* () {
-    const key = query.toLowerCase();
-    const current = yield* Ref.get(cache);
-    if (current.has(key)) {
-      return current.get(key);
-    }
-    const info = yield* searchGame(client, query, apiKey);
-    yield* Ref.update(cache, (map) => map.set(key, info));
-    return info;
+const makeSearchCache = (client: Client, apiKey: ApiKey): Effect.Effect<SearchCache> =>
+  Cache.makeWith((query: string) => searchGame(client, query, apiKey), {
+    capacity: RAWG_SEARCH_CACHE_CAPACITY,
+    timeToLive: (exit) => (Exit.isSuccess(exit) ? RAWG_SEARCH_TTL : Duration.zero),
   });
 
 /** Reuse the shared game-info for the id, then the separate series request. */
@@ -229,7 +258,7 @@ const resolveFranchise = (
   query: string
 ): Effect.Effect<string | undefined, TitleEnrichmentError> =>
   Effect.gen(function* () {
-    const game = yield* cachedSearch(client, apiKey, cache, query);
+    const game = yield* Cache.get(cache, query);
     if (game?.id === undefined || game.name === undefined) {
       return NO_FRANCHISE;
     }
@@ -240,10 +269,10 @@ const resolveFranchise = (
 /** Build the real (keyed) provider, closing over the client, key, and caches. */
 const makeRawgProvider = (client: Client, apiKey: ApiKey): Effect.Effect<TitleEnrichmentShape> =>
   Effect.gen(function* () {
-    // The shared search cache: one `/games?search=` per title, reused by both the
-    // genre and franchise lookups, and across requests since the layer is built
-    // once per worker process.
-    const searchCache: SearchCache = yield* Ref.make(new Map());
+    // The shared search cache (one `/games?search=` per title, reused by both the
+    // genre and franchise lookups and across requests) and the franchise-result
+    // cache, built once per worker process.
+    const searchCache = yield* makeSearchCache(client, apiKey);
     const franchiseCache = yield* Ref.make(new Map<string, string | undefined>());
 
     return {
@@ -253,7 +282,7 @@ const makeRawgProvider = (client: Client, apiKey: ApiKey): Effect.Effect<TitleEn
           if (query.length === 0) {
             return ABSENT_METADATA;
           }
-          const game = yield* cachedSearch(client, apiKey, searchCache, query);
+          const game = yield* Cache.get(searchCache, query);
           if (game === undefined) {
             return ABSENT_METADATA;
           }
