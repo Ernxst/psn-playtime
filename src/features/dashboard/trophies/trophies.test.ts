@@ -61,6 +61,7 @@ function makeData(games: GamePlay[], profile: ProfileSummary = baseProfile): Das
     fetchedAt: "2024-01-01T00:00:00.000Z",
     meta: { totalGames: games.length, totalHours: 0, totalSessions: 0, appsExcluded: [], span: {} },
     isDemo: false,
+    trophiesUnavailable: false,
   };
 }
 

@@ -335,7 +335,7 @@ describe(".loadDashboard", () => {
     ).toBe("UpstreamUnavailableError");
   });
 
-  it("swallows a trophy-fetch failure to an empty trophy map", async () => {
+  it("flags trophies unavailable when the trophy fetch fails, keeping playtime and profile intact", async () => {
     const result = await loadDashboard(
       fakeTransport({
         played: Effect.succeed(
@@ -356,6 +356,32 @@ describe(".loadDashboard", () => {
     );
 
     expect(result.isDemo).toBe(false);
+    expect(result.trophiesUnavailable).toBe(true);
+    expect(result.profile.onlineId).toBe("Ernxst_");
+    expect(result.games.map((g) => g.titleId)).toEqual(["cod"]);
+    expect(result.games[0]!.hours).toBe(5);
+    expect(result.games.every((g) => g.trophy === undefined)).toBe(true);
+  });
+
+  it("flags trophies unavailable when the trophy fetch is rate-limited", async () => {
+    const result = await loadDashboard(
+      fakeTransport({ titles: psnFailure("429 Too Many Requests") })
+    );
+
+    expect(result.trophiesUnavailable).toBe(true);
+  });
+
+  it("leaves trophies available when the trophy fetch succeeds but is empty", async () => {
+    const result = await loadDashboard(
+      fakeTransport({
+        played: Effect.succeed(
+          playedPage([played({ titleId: "cod", name: "Call of Duty", playCount: 1 })], 1)
+        ),
+        titles: Effect.succeed(trophyPage([], 0)),
+      })
+    );
+
+    expect(result.trophiesUnavailable).toBe(false);
     expect(result.games.every((g) => g.trophy === undefined)).toBe(true);
   });
 });

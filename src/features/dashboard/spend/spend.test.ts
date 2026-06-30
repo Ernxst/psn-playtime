@@ -36,6 +36,7 @@ function data(games: GamePlay[]): DashboardData {
       span: {},
     },
     isDemo: false,
+    trophiesUnavailable: false,
   };
 }
 
