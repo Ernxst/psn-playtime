@@ -65,25 +65,32 @@ describe(".providerError", () => {
     });
   });
 
-  it("keeps raw upstream text (a URL/token) out of the typed reason, retaining it only as cause", () => {
-    const leaky = new Error("GET https://api.example.com?token=SECRET-abc123 failed: 500");
+  it("keeps raw upstream text (a URL/token) off the typed error entirely, not just out of the reason", () => {
+    const secret = "SECRET-abc123";
+    const leaky = new Error(`GET https://api.example.com?token=${secret} failed: 500`);
     const error = providerError("psn")(leaky);
 
     expect(error).toBeInstanceOf(ProviderUnavailableError);
     if (!(error instanceof ProviderUnavailableError)) throw new Error("expected unavailable");
     expect(error.reason).toBe("upstream_error");
-    expect(error.reason).not.toContain("https://");
-    expect(error.reason).not.toContain("SECRET-abc123");
-    expect(error.cause).toBe(leaky);
+
+    // The raw thrown value must appear NOWHERE on the typed error — not in
+    // `reason`, not in a `cause`, not in any other own field.
+    expect(error).not.toHaveProperty("cause");
+    const serialised = JSON.stringify(Object.entries(error));
+    expect(serialised).not.toContain("https://");
+    expect(serialised).not.toContain(secret);
+    expect(serialised).not.toContain("api.example.com");
   });
 
-  it("retains a non-Error thrown value as cause without surfacing it in the reason", () => {
+  it("discards a non-Error thrown value rather than surfacing it on the error", () => {
     const error = providerError("psn")("plain string failure");
 
     expect(error).toBeInstanceOf(ProviderUnavailableError);
     if (!(error instanceof ProviderUnavailableError)) throw new Error("expected unavailable");
     expect(error.reason).toBe("upstream_error");
-    expect(error.cause).toBe("plain string failure");
+    expect(error).not.toHaveProperty("cause");
+    expect(JSON.stringify(Object.entries(error))).not.toContain("plain string failure");
   });
 
   it("binds the provider name once for reuse as a catch thunk", () => {

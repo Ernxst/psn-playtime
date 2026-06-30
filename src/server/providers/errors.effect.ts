@@ -55,15 +55,17 @@ export class CredentialRejectedError extends Data.TaggedError("CredentialRejecte
  * by `signInWithTokenHandler`'s try/catch and the trophy fetch's `.catch`), and
  * to `rawg.ts`'s `fetchRawgJson` returning `undefined` on a non-OK response or a
  * thrown request. `provider` names the source; `reason` is a stable
- * {@link ProviderUnavailableReason} code, NOT raw upstream text. The unsafe raw
- * detail is kept ONLY in the optional `cause` for internal diagnostics and is
- * never the typed, surfaced `reason`.
+ * {@link ProviderUnavailableReason} code, NOT raw upstream text.
+ *
+ * The payload deliberately carries NO raw upstream value — no `cause`, no
+ * message. The thrown error is inspected only locally during classification
+ * (see {@link providerError}) and then DISCARDED, so this typed error can be
+ * logged, inspected after a failed run, or cross a framework boundary without
+ * ever leaking vendor text, URLs, headers, request detail, or tokens.
  */
 export class ProviderUnavailableError extends Data.TaggedError("ProviderUnavailableError")<{
   readonly provider: ProviderSource;
   readonly reason: ProviderUnavailableReason;
-  /** Raw upstream detail for diagnostics only — never surfaced as `reason`. */
-  readonly cause?: unknown;
 }> {}
 
 /**
@@ -108,8 +110,10 @@ const isRateLimitedMessage = (message: string): boolean =>
  * provider error channel: `ProviderRateLimitedError` when the message looks like
  * a 429 (best-effort, see {@link isRateLimitedMessage}), else a generic
  * `ProviderUnavailableError` with the stable `"upstream_error"` code. The raw
- * thrown value is retained as `cause` for diagnostics and is never copied into
- * the sanitised `reason`. `provider` names the source.
+ * thrown value is inspected ONLY locally here to make that structural decision
+ * and is then DISCARDED — it is never attached to the returned error, so no
+ * vendor text, URL, header, request detail, or token can ride out on the typed
+ * channel. `provider` names the source.
  *
  * Curried so a call site binds its source once and uses the result directly as
  * a `catch` thunk (e.g. `catch: providerError("psn")`).
@@ -119,4 +123,4 @@ export const providerError =
   (error: unknown): ProviderRateLimitedError | ProviderUnavailableError =>
     isRateLimitedMessage(messageOf(error))
       ? new ProviderRateLimitedError({ provider })
-      : new ProviderUnavailableError({ provider, reason: "upstream_error", cause: error });
+      : new ProviderUnavailableError({ provider, reason: "upstream_error" });
