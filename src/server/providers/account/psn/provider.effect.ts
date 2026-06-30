@@ -65,10 +65,8 @@ export const buildSnapshot: Effect.Effect<DashboardData, DashboardSourceError, P
   });
 
 /**
- * The PSN `DashboardSource` layer. Built from the ambient `PsnTransport`, which
- * it captures once and provides into each per-request `PsnSession`:
- * `loadDashboard` acquires its own session from the credential, so the transient
- * credential and its session never outlive a single call. A rejected credential
+ * The PSN `DashboardSource` layer, requiring `PsnTransport`. `loadDashboard`
+ * acquires a per-request `PsnSession` from the credential; a rejected credential
  * surfaces as `CredentialRejectedError`.
  */
 export const PsnDashboardSourceLayer: Layer.Layer<DashboardSource, never, PsnTransport> =

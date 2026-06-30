@@ -50,13 +50,11 @@ const signInEffect = (credential: AccountCredential) =>
   );
 
 /**
- * Fetch and normalize one account from a transient npsso token. The token is
- * never stored server-side; the caller persists the returned `DashboardData` in
- * the client cache. Throws a friendly error when the token is rejected (or any
- * fetch fails), exactly as before.
- *
- * `transport` is the PSN transport `Layer`, defaulting to the live `psn-api`
- * binding; it is the seam where a fake transport substitutes in tests.
+ * The server-fn boundary for a transient npsso token: validate, provide the PSN
+ * `transport` `Layer` (defaulting to the live `psn-api` binding), and translate
+ * any failure into a friendly client-facing error. The token is never stored
+ * server-side; the caller persists the returned `DashboardData` in the client
+ * cache.
  */
 export function signInWithTokenHandler(
   data: Schema.Schema.Type<typeof SignInInput>,

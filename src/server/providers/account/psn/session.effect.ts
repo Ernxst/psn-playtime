@@ -124,15 +124,10 @@ export interface PsnSessionShape {
 }
 
 /**
- * Read the ambient `PsnTransport`, authenticate once, then return the three
- * session effects with `transport` and `auth` captured. Fails with
- * `CredentialRejectedError` when the exchange is rejected.
- *
- * Exposed as the service's `make`: `PsnSession.make(credential)` is the
- * per-request acquisition effect a consumer provides (via
- * `Effect.provideServiceEffect`) and requires `PsnTransport`. There is no static
- * `layer` — the credential is per-request, so the session is acquired at the
- * call site.
+ * `PsnSession.make(credential)` authenticates the credential against the ambient
+ * `PsnTransport`, then returns the three session effects with `transport` and
+ * `auth` captured. Fails with `CredentialRejectedError` when the exchange is
+ * rejected.
  */
 const makePsnSession = Effect.fn("PsnSession.make")(function* (credential: AccountCredential) {
   const transport = yield* PsnTransport;

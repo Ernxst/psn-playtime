@@ -1,12 +1,7 @@
 /**
- * `PsnTransport` — the narrow capability that owns every `psn-api` interop call
- * account-loading needs: the npsso → access-code → access-token exchange and the
- * profile / played-games / trophy fetches.
- *
- * The `psn-api` module is imported in exactly one place: `PsnTransportLive`. The
- * session and provider depend on this *service* (through the Effect
- * environment), so the transport can be substituted with a fake `Layer` at the
- * production seam rather than via module-state mocking.
+ * `PsnTransport` — the narrow capability that owns the `psn-api` interop the
+ * account capability needs: the npsso → access-code → access-token exchange and
+ * the profile / played-games / trophy fetches.
  *
  * Each operation surfaces the raw upstream failure as an `Error` on its error
  * channel; classification onto the sanitised boundary channel
