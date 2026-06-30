@@ -39,23 +39,37 @@ const openPlayStation = {
 };
 
 /**
- * Mobile run step: a `javascript:` bookmark can't be launched by tapping it in
- * the bookmarks list on Chrome/Android — it has to be invoked from the address
- * bar suggestions on the active tab.
+ * Mobile run step: how you launch a `javascript:` bookmark differs by platform,
+ * so the run instruction splits into labelled per-platform sub-steps (no UA
+ * detection — both are shown). On iOS Safari you tap the saved bookmark in the
+ * Bookmarks list and it runs; on Chrome/Android tapping it does nothing, so it
+ * has to be invoked from the address-bar suggestions on the active tab.
  */
-const runOnPsTab: ReactNode = (
-  <>
+const runOnPsTab = {
+  text: "Run it on the PlayStation tab:",
+  subSteps: [
     {
-      "On the PlayStation tab, type that bookmark's name in the address bar and tap it in the suggestions — "
-    }
-    <strong>don't press Enter</strong>. It runs on the page, fetches your full purchase history, and
-    sends it back here.
-  </>
-);
+      label: "iPhone/iPad (Safari)",
+      text: "open your Bookmarks and tap the one you saved — it runs on this page.",
+    },
+    {
+      label: "Android (Chrome)",
+      text: (
+        <>
+          {"type that bookmark's name in the address bar and tap it in the suggestions — "}
+          <strong>don't press Enter</strong>.
+        </>
+      ),
+    },
+  ],
+};
 
-function steps(
-  canDragBookmarklet: boolean
-): Array<{ text: ReactNode; href?: string; linkText?: string }> {
+function steps(canDragBookmarklet: boolean): Array<{
+  text: ReactNode;
+  href?: string;
+  linkText?: string;
+  subSteps?: Array<{ label: string; text: ReactNode }>;
+}> {
   if (canDragBookmarklet) {
     return [
       {
@@ -87,9 +101,7 @@ function steps(
       text: "Edit that bookmark — give it a short name you'll remember, clear out the URL, paste the copied bookmarklet, and save.",
     },
     openPlayStation,
-    {
-      text: runOnPsTab,
-    },
+    runOnPsTab,
   ];
 }
 
@@ -99,6 +111,7 @@ function Step({
   text,
   href,
   linkText,
+  subSteps,
 }: ReturnType<typeof steps>[number] & { index: number }) {
   return (
     <li className="flex gap-3">
@@ -107,6 +120,15 @@ function Step({
       </span>
       <div className="space-y-1">
         <p>{text}</p>
+        {subSteps ? (
+          <ul className="ml-1 space-y-1 border-l border-border pl-3">
+            {subSteps.map((sub) => (
+              <li key={sub.label}>
+                <strong>{sub.label}:</strong> {sub.text}
+              </li>
+            ))}
+          </ul>
+        ) : null}
         {href ? (
           <a
             href={href}

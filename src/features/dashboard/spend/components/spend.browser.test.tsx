@@ -129,7 +129,32 @@ describe("SpendSection", () => {
         )
       )
       .toBeVisible();
-    await expect.element(page.getByText("don't press Enter")).toBeVisible();
+  });
+
+  it("splits the mobile run step into labelled Safari and Chrome sub-steps", async () => {
+    onTestFinished(() => testTransactionStore.clear());
+    mockPointer(true);
+
+    await renderWithAtoms(<SpendSection data={demoDashboard} />);
+
+    // Parent run line plus both platform labels, each emphasised.
+    await expect.element(page.getByText("Run it on the PlayStation tab:")).toBeVisible();
+    expect(page.getByText("iPhone/iPad (Safari)", { exact: false }).element().tagName).toBe(
+      "STRONG"
+    );
+    expect(page.getByText("Android (Chrome)", { exact: false }).element().tagName).toBe("STRONG");
+
+    // Safari: tap the saved bookmark in the Bookmarks list and it runs.
+    await expect
+      .element(
+        page.getByText("open your Bookmarks and tap the one you saved — it runs on this page.")
+      )
+      .toBeVisible();
+
+    // Chrome: type the name and tap the suggestion, with "don't press Enter" emphasised.
+    const dontPressEnter = page.getByText("don't press Enter");
+    await expect.element(dontPressEnter).toBeVisible();
+    expect(dontPressEnter.element().tagName).toBe("STRONG");
   });
 
   it("tells fine pointer users they can drag the bookmarklet", async () => {
