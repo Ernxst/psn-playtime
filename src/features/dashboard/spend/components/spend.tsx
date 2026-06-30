@@ -27,26 +27,68 @@ function perHour(currency: string, value: number): string {
   return `${money(currency, value)}/hr`;
 }
 
+/** The "Open PlayStation signed in" step — shared verbatim by both branches. */
+const openPlayStation = {
+  text: (
+    <>
+      Open PlayStation and make sure you are <strong>signed in</strong>.
+    </>
+  ),
+  href: "https://www.playstation.com/en-gb/",
+  linkText: "Open PlayStation",
+};
+
+/**
+ * Mobile run step: a `javascript:` bookmark can't be launched by tapping it in
+ * the bookmarks list on Chrome/Android — it has to be invoked from the address
+ * bar suggestions on the active tab.
+ */
+const runOnPsTab: ReactNode = (
+  <>
+    {
+      "On the PlayStation tab, type that bookmark's name in the address bar and tap it in the suggestions — "
+    }
+    <strong>don't press Enter</strong>. It runs on the page, fetches your full purchase history, and
+    sends it back here.
+  </>
+);
+
 function steps(
   canDragBookmarklet: boolean
 ): Array<{ text: ReactNode; href?: string; linkText?: string }> {
+  if (canDragBookmarklet) {
+    return [
+      {
+        text: "Drag the button below onto your bookmarks bar (or copy it and make a new bookmark).",
+      },
+      openPlayStation,
+      {
+        text: "Click the bookmark — it fetches your full purchase history and sends it back here in one click. No navigating or scrolling.",
+      },
+    ];
+  }
+
   return [
     {
-      text: canDragBookmarklet
-        ? "Drag the button below onto your bookmarks bar (or copy it and make a new bookmark)."
-        : "Click Copy bookmark and save it as a new bookmark.",
+      text: (
+        <>
+          Tap <strong>Copy bookmarklet</strong> (below).
+        </>
+      ),
     },
     {
       text: (
         <>
-          Open PlayStation and make sure you are <strong>signed in</strong>.
+          Add <strong>this page</strong> as a new bookmark.
         </>
       ),
-      href: "https://www.playstation.com/en-gb/",
-      linkText: "Open PlayStation",
     },
     {
-      text: "Click the bookmark — it fetches your full purchase history and sends it back here in one click. No navigating or scrolling.",
+      text: "Edit that bookmark — give it a short name you'll remember, clear out the URL, paste the copied bookmarklet, and save.",
+    },
+    openPlayStation,
+    {
+      text: runOnPsTab,
     },
   ];
 }
@@ -118,10 +160,24 @@ function BookmarkletActions() {
   );
 }
 
-/** Prompt shown until the user imports their transaction history. */
-function ImportSpendCard() {
+/** The numbered install steps plus the copy/drag actions — the import how-to. */
+function ImportInstructions() {
   const canDragBookmarklet = !useMediaQuery("coarse-pointer");
 
+  return (
+    <div className="space-y-4 text-sm">
+      <ol className="space-y-3 text-muted-foreground">
+        {steps(canDragBookmarklet).map((step, i) => (
+          <Step key={step.linkText ?? i} index={i} {...step} />
+        ))}
+      </ol>
+      <BookmarkletActions />
+    </div>
+  );
+}
+
+/** Prompt shown until the user imports their transaction history. */
+function ImportSpendCard() {
   return (
     <Card>
       <CardHeader>
@@ -133,13 +189,27 @@ function ImportSpendCard() {
           one click.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4 text-sm">
-        <ol className="space-y-3 text-muted-foreground">
-          {steps(canDragBookmarklet).map((step, i) => (
-            <Step key={step.linkText ?? i} index={i} {...step} />
-          ))}
-        </ol>
-        <BookmarkletActions />
+      <CardContent>
+        <ImportInstructions />
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Collapsed re-import affordance shown alongside the spend summary, so an
+ * already-imported user can run the bookmarklet again to update their data.
+ */
+function ReimportCard() {
+  return (
+    <Card className="lg:col-span-3">
+      <CardContent>
+        <details className="group space-y-4">
+          <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium">
+            <Coins className="size-4" /> Re-import or update your data
+          </summary>
+          <ImportInstructions />
+        </details>
       </CardContent>
     </Card>
   );
@@ -279,6 +349,7 @@ export function SpendSection({ data }: { data: DashboardData }) {
       <TotalsCard summary={summary} />
       <ByYearCard summary={summary} />
       <LeaderboardCard summary={summary} />
+      <ReimportCard />
     </div>
   );
 }

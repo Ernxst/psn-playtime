@@ -116,15 +116,20 @@ describe("SpendSection", () => {
     await expect.element(page.getByText("Import PSN spend")).toBeVisible();
   });
 
-  it("tells coarse pointer users to copy the bookmark", async () => {
+  it("walks coarse pointer users through bookmarking and editing the URL", async () => {
     onTestFinished(() => testTransactionStore.clear());
     mockPointer(true);
 
     await renderWithAtoms(<SpendSection data={demoDashboard} />);
 
     await expect
-      .element(page.getByText("Click Copy bookmark and save it as a new bookmark."))
+      .element(
+        page.getByText(
+          "Edit that bookmark — give it a short name you'll remember, clear out the URL, paste the copied bookmarklet, and save."
+        )
+      )
       .toBeVisible();
+    await expect.element(page.getByText("don't press Enter")).toBeVisible();
   });
 
   it("tells fine pointer users they can drag the bookmarklet", async () => {
@@ -201,6 +206,29 @@ describe("SpendSection", () => {
     await expect.element(page.getByText("Best value per hour")).toBeVisible();
     await expect.element(page.getByText("What you've spent")).toBeVisible();
     await expect.element(page.getByText("Satisfactory")).toBeVisible();
+  });
+
+  it("offers a re-import affordance with the install instructions once imported", async () => {
+    seed([
+      {
+        transactionId: "t1",
+        key: "t1",
+        date: "2022-05-12",
+        transactionType: "PRODUCT_PURCHASE",
+        kind: "purchase",
+        productName: "Satisfactory",
+        quantity: 1,
+        amountMinor: 3300,
+        currency: "£",
+        displayAmount: "£33.00",
+      },
+    ]);
+
+    await renderWithAtoms(<SpendSection data={realDashboard} />);
+
+    await page.getByText("Re-import or update your data").click();
+
+    await expect.element(page.getByRole("button", { name: "Copy bookmarklet" })).toBeVisible();
   });
 
   it("shows the import prompt on the demo dashboard even when an import exists", async () => {
