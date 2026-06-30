@@ -306,6 +306,43 @@ describe(".fetchFranchise", () => {
   });
 });
 
+describe("shared game-info search across genre and franchise", () => {
+  it("issues one /games?search= when the same title is enriched for both genre and franchise", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            results: [
+              { id: 9, name: "Halo Infinite", genres: [{ name: "Shooter" }], playtime: 12 },
+            ],
+          }),
+          { status: 200 }
+        )
+      )
+      .mockResolvedValueOnce(seriesResponse(["Halo Infinite", "Halo 5"]));
+
+    const [metadata, franchise] = await runKeyed(
+      Effect.gen(function* () {
+        const provider = yield* EnrichmentProvider;
+        const m = yield* provider.fetchGameMetadata("Halo Infinite");
+        const f = yield* provider.fetchFranchise("Halo Infinite");
+        return [m, f] as const;
+      })
+    );
+
+    expect(metadata).toEqual({ genre: "Shooter", typicalPlaytime: 12 });
+    expect(franchise).toBe("Halo");
+
+    // The search is fetched once (call 0); the franchise reuses it and only adds
+    // the separate series request (call 1), so there is no second search.
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(fetchUrlAt(fetchSpy, 0)).toContain("search=Halo");
+    expect(fetchUrlAt(fetchSpy, 1)).toContain("/9/game-series");
+    expect(fetchUrlAt(fetchSpy, 1)).not.toContain("search=");
+  });
+});
+
 describe("process-lived cache across a shared runtime", () => {
   it("reuses the cache between two separate runtime invocations (one network hit)", async () => {
     const fetchSpy = vi
