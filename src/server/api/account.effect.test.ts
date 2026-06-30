@@ -687,12 +687,68 @@ describe(".signInWithTokenHandler", () => {
     expect(result.profile.isPlus).toBe(false);
   });
 
-  it("throws a friendly error when authentication fails", async () => {
+  it("rejects with a credential-rejected error when the npsso exchange fails", async () => {
     const { layer } = fakeTransport({ exchangeNpsso: psnFailure("nope") });
 
-    await expect(signInWithTokenHandler({ npsso: "bad-token" }, layer)).rejects.toThrow(
-      /That token didn't work/
+    const promise = signInWithTokenHandler({ npsso: "bad-token" }, layer);
+
+    await expect(promise).rejects.toMatchObject({
+      name: "SignInError",
+      kind: "credential_rejected",
+      message: "That token didn't work — it may be expired. Grab a fresh npsso and try again.",
+    });
+    // The raw transport cause must never leak into the client message.
+    await expect(promise).rejects.not.toThrow(/nope/);
+  });
+
+  it("rejects with a rate-limited error when PlayStation throttles the fetch", async () => {
+    const { layer } = fakeTransport({ profile: psnFailure("429 Too Many Requests") });
+
+    const promise = signInWithTokenHandler({ npsso: "npsso-token" }, layer);
+
+    await expect(promise).rejects.toMatchObject({
+      name: "SignInError",
+      kind: "rate_limited",
+      message: "PlayStation is rate-limiting requests. Wait a moment and try again.",
+    });
+    await expect(promise).rejects.not.toThrow(/429|too many requests/i);
+  });
+
+  it("rejects with an unavailable error when PlayStation is down", async () => {
+    const { layer } = fakeTransport({ profile: psnFailure("upstream exploded") });
+
+    const promise = signInWithTokenHandler({ npsso: "npsso-token" }, layer);
+
+    await expect(promise).rejects.toMatchObject({
+      name: "SignInError",
+      kind: "upstream_unavailable",
+      message: "PlayStation is unavailable right now. Try again later.",
+    });
+    await expect(promise).rejects.not.toThrow(/exploded/);
+  });
+
+  it("rejects with an internal error when the snapshot fails the DashboardData contract", async () => {
+    // A non-finite trophy level normalizes through but fails the `DashboardData`
+    // decode (`SchemaError`) — our contract breaking, not the user's token.
+    const { layer } = liveBuild(
+      profile({
+        trophySummary: {
+          level: Number.NaN,
+          progress: 70,
+          earnedTrophies: { bronze: 1, silver: 1, gold: 1, platinum: 1 },
+        },
+      })
     );
+
+    const promise = signInWithTokenHandler({ npsso: "npsso-token" }, layer);
+
+    await expect(promise).rejects.toMatchObject({
+      name: "SignInError",
+      kind: "internal",
+      message: "Something went wrong on our end. Please try again.",
+    });
+    // No schema/field detail leaks into the client message.
+    await expect(promise).rejects.not.toThrow(/trophyLevel|Finite|NaN|SchemaError/);
   });
 
   it("keeps paging played games past a full first page when PSN omits the total", async () => {
