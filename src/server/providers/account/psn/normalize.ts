@@ -36,7 +36,7 @@ const APP_RULE =
 
 /**
  * Whether a played title is a non-game app (streaming/music/browser) the
- * `AccountProvider` excludes from play stats. PSN-specific: the `media_app`
+ * `DashboardSource` excludes from play stats. PSN-specific: the `media_app`
  * category check keys off psn-api's category vocabulary.
  */
 function isApp(name: string, category?: string): boolean {
@@ -279,7 +279,7 @@ export interface Partitioned {
 /**
  * Split played titles into games and excluded apps, joining each game to its
  * trophy list. Genres are not classified here — RAWG is the sole enrichment
- * source, a separate deferred `EnrichmentProvider` concern merged client-side,
+ * source, a separate deferred `TitleEnrichment` concern merged client-side,
  * so every game leaves this port with the baseline "Other" genre and no
  * franchise; the snapshot is honestly un-enriched.
  */

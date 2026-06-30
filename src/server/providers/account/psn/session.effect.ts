@@ -12,8 +12,8 @@
  * - `psn-api` is promise-based, so each call is wrapped with `Effect.tryPromise`.
  *   A failed npsso/access-code exchange becomes `CredentialRejectedError` (on
  *   the layer's error channel, since it happens in `make`); a profile/played/
- *   trophy fetch becomes `ProviderRateLimitedError` on a detected HTTP 429 or
- *   `ProviderUnavailableError` otherwise.
+ *   trophy fetch becomes `RateLimitedError` on a detected HTTP 429 or
+ *   `UpstreamUnavailableError` otherwise.
  * - Paging goes through the shared `paginateAll` helper, preserving the #140
  *   stop-condition fix via `pagingComplete`.
  *
@@ -42,7 +42,7 @@ import { paginateAll } from "@/server/providers/account/psn/paginate.effect";
 import {
   CredentialRejectedError,
   providerError,
-  type AccountProviderError,
+  type DashboardSourceError,
 } from "@/server/providers/errors.effect";
 import type { ProfileSummary } from "../snapshot";
 
@@ -84,7 +84,7 @@ const authenticate = (
 
 const fetchProfile = (
   auth: AuthorizationPayload
-): Effect.Effect<ProfileSummary, AccountProviderError> =>
+): Effect.Effect<ProfileSummary, DashboardSourceError> =>
   Effect.gen(function* () {
     const { profile } = yield* Effect.tryPromise({
       try: () => getProfileFromUserName(auth, "me"),
@@ -101,7 +101,7 @@ const fetchProfile = (
  */
 const fetchAllPlayedGames = (
   auth: AuthorizationPayload
-): Effect.Effect<PlayedTitle[], AccountProviderError> =>
+): Effect.Effect<PlayedTitle[], DashboardSourceError> =>
   paginateAll(PLAYED_PAGE_LIMIT, (offset) =>
     Effect.tryPromise({
       try: () => getUserPlayedGames(auth, "me", { limit: PLAYED_PAGE_LIMIT, offset }),
@@ -116,7 +116,7 @@ const fetchAllPlayedGames = (
 
 const fetchTrophyTitles = (
   auth: AuthorizationPayload
-): Effect.Effect<TrophyTitle[], AccountProviderError> =>
+): Effect.Effect<TrophyTitle[], DashboardSourceError> =>
   paginateAll(TROPHY_PAGE_LIMIT, (offset) =>
     Effect.tryPromise({
       try: () => getUserTitles(auth, "me", { limit: TROPHY_PAGE_LIMIT, offset }),
@@ -131,9 +131,9 @@ const fetchTrophyTitles = (
 
 /** The shape a `PsnSession` exposes: three `auth`-captured session effects. */
 export interface PsnSessionShape {
-  readonly profile: Effect.Effect<ProfileSummary, AccountProviderError>;
-  readonly playedGames: Effect.Effect<PlayedTitle[], AccountProviderError>;
-  readonly trophyTitles: Effect.Effect<TrophyTitle[], AccountProviderError>;
+  readonly profile: Effect.Effect<ProfileSummary, DashboardSourceError>;
+  readonly playedGames: Effect.Effect<PlayedTitle[], DashboardSourceError>;
+  readonly trophyTitles: Effect.Effect<TrophyTitle[], DashboardSourceError>;
 }
 
 /**

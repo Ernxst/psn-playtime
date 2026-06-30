@@ -1,11 +1,11 @@
 import * as Context from "effect/Context";
 import type * as Effect from "effect/Effect";
 import type { Genre } from "../account/snapshot";
-import type { EnrichmentProviderError } from "../errors.effect";
+import type { TitleEnrichmentError } from "../errors.effect";
 
 /**
- * `EnrichmentProvider` — the platform-agnostic seam (phase E3) for the
- * genre/franchise/typical-playtime enrichment that `rawg.ts` provides today.
+ * `TitleEnrichment` — the platform-agnostic capability (phase E3) that enriches
+ * game titles with genre/franchise/typical-playtime, as `rawg.ts` provides today.
  *
  * Keeps RAWG specifics (endpoints, the API-key gate, query normalization) out
  * of the boundary; the E4 RAWG implementation supplies the layer. Lookups are
@@ -23,26 +23,21 @@ export interface GameMetadata {
   readonly typicalPlaytime?: number;
 }
 
-export interface EnrichmentProviderShape {
+export interface TitleEnrichmentShape {
   /**
-   * Fetch a title's coarse genre and typical playtime in one request. Both ride
-   * a single cached RAWG game search. Missing data is a successful empty
-   * result, not an error.
+   * Coarse genre and typical playtime for a title, in one request. Both ride a
+   * single cached RAWG game search. Missing data is a successful empty result,
+   * not an error.
    */
-  readonly fetchGameMetadata: (
-    title: string
-  ) => Effect.Effect<GameMetadata, EnrichmentProviderError>;
+  readonly metadataFor: (title: string) => Effect.Effect<GameMetadata, TitleEnrichmentError>;
 
   /**
-   * Fetch a title's franchise/series label. `undefined` means "no franchise" (a
+   * The franchise/series label for a title. `undefined` means "no franchise" (a
    * successful absence), not an error.
    */
-  readonly fetchFranchise: (
-    title: string
-  ) => Effect.Effect<string | undefined, EnrichmentProviderError>;
+  readonly franchiseFor: (title: string) => Effect.Effect<string | undefined, TitleEnrichmentError>;
 }
 
-export class EnrichmentProvider extends Context.Service<
-  EnrichmentProvider,
-  EnrichmentProviderShape
->()("psn-playtime/server/providers/enrichment/contract.effect/EnrichmentProvider") {}
+export class TitleEnrichment extends Context.Service<TitleEnrichment, TitleEnrichmentShape>()(
+  "psn-playtime/server/providers/enrichment/contract.effect/TitleEnrichment"
+) {}

@@ -1,5 +1,5 @@
 /**
- * PSN-backed implementation of the `AccountProvider` port (phase E5).
+ * PSN-backed implementation of the `DashboardSource` port (phase E5).
  *
  * The whole of the old `psn.ts`'s `authenticate` + `buildDashboard` — npsso
  * exchange, paged profile/played-games/trophy fetches, the played-games ⇄
@@ -16,7 +16,7 @@
  * - `buildSnapshot` `yield*`s `PsnSession`, fetches the three session effects in
  *   parallel (a trophy failure is swallowed to `[]`, exactly as the old
  *   `fetchTrophyTitles(auth).catch(() => [])`), stamps `fetchedAt` from
- *   `DateTime.now`, and assembles the contract. `fetchSnapshot(credential)`
+ *   `DateTime.now`, and assembles the contract. `loadDashboard(credential)`
  *   acquires the credential-bearing `PsnSession` ONCE and injects it with a
  *   single `Effect.provideServiceEffect` (a Layer `Effect.provide` here would
  *   trip the `strictEffectProvide` rule, which reserves Layer provides for
@@ -27,9 +27,9 @@ import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import {
-  AccountProvider,
+  DashboardSource,
   type AccountCredential,
-  type AccountProviderShape,
+  type DashboardSourceShape,
 } from "@/server/providers/account/contract.effect";
 import {
   buildTrophyMap,
@@ -38,7 +38,7 @@ import {
   type TrophyTitle,
 } from "@/server/providers/account/psn/normalize";
 import { PsnSession } from "@/server/providers/account/psn/session.effect";
-import type { AccountProviderError } from "@/server/providers/errors.effect";
+import type { DashboardSourceError } from "@/server/providers/errors.effect";
 import type { DashboardData } from "../snapshot";
 
 /**
@@ -51,7 +51,7 @@ import type { DashboardData } from "../snapshot";
  * Exported so a fake `PsnSession` layer can be injected in isolation, exercising
  * the DI seam without touching the real psn-api transport.
  */
-export const buildSnapshot: Effect.Effect<DashboardData, AccountProviderError, PsnSession> =
+export const buildSnapshot: Effect.Effect<DashboardData, DashboardSourceError, PsnSession> =
   Effect.gen(function* () {
     const psn = yield* PsnSession;
     const [profile, playedTitles, trophyTitles] = yield* Effect.all(
@@ -81,18 +81,18 @@ export const buildSnapshot: Effect.Effect<DashboardData, AccountProviderError, P
  * single `Effect.provideServiceEffect`; a rejected exchange surfaces on the
  * error channel as `CredentialRejectedError`.
  */
-const fetchSnapshot = (
+const loadDashboard = (
   credential: AccountCredential
-): Effect.Effect<DashboardData, AccountProviderError> =>
+): Effect.Effect<DashboardData, DashboardSourceError> =>
   Effect.provideServiceEffect(buildSnapshot, PsnSession, PsnSession.make(credential));
 
 /**
- * The PSN `AccountProvider` layer. Self-contained (`fetchSnapshot` provides its
+ * The PSN `DashboardSource` layer. Self-contained (`loadDashboard` provides its
  * own `PsnSession` per request), so a handler provides only this one layer.
  */
-export const PsnAccountProviderLayer: Layer.Layer<AccountProvider> = Layer.succeed(
-  AccountProvider,
+export const PsnDashboardSourceLayer: Layer.Layer<DashboardSource> = Layer.succeed(
+  DashboardSource,
   {
-    fetchSnapshot,
-  } satisfies AccountProviderShape
+    loadDashboard,
+  } satisfies DashboardSourceShape
 );

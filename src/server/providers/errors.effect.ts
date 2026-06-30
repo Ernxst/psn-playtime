@@ -1,11 +1,11 @@
 import * as Data from "effect/Data";
 
 /**
- * Tagged-error model for the platform-agnostic service ports (phase E3).
+ * Tagged-error model for the platform-agnostic capability ports (phase E3).
  *
  * Every failure mode here is grounded in what `src/server/providers/account/psn/provider.effect.ts` and
  * `src/server/providers/enrichment/rawg/client.ts` can actually surface today — no speculative cases. The
- * port interfaces (account-provider, enrichment-provider) return these on the
+ * capability ports ({@link DashboardSource}, {@link TitleEnrichment}) return these on the
  * Effect error channel; the PSN/RAWG implementations (E5/E4) raise them and the
  * server functions recover with `Effect.catchTag`/`catchTags`.
  *
@@ -15,25 +15,26 @@ import * as Data from "effect/Data";
  */
 
 /**
- * The known upstream sources a provider failure can name. A closed union (not
- * `string`) so every error payload, log line, and `catchTag` handler is forced
- * to mention a real source — "psn" (account) or "rawg" (enrichment).
+ * The known upstream sources a failure can name. A closed union (not `string`)
+ * so every error payload, log line, and `catchTag` handler is forced to mention
+ * a real source — "psn" (account) or "rawg" (enrichment). This is safe,
+ * non-sensitive structured context, not raw upstream text.
  */
 export type ProviderSource = "psn" | "rawg";
 
 /**
  * Stable, sanitised classification of why an upstream is unavailable. These are
  * the typed `reason` codes that replace raw upstream message text on
- * {@link ProviderUnavailableError}: they are fixed strings we control, so no
+ * {@link UpstreamUnavailableError}: they are fixed strings we control, so no
  * vendor text, URL, header, request detail, or token can ever ride out on the
  * error channel.
  *
  * Today every non-rate-limited upstream failure (a status-less psn-api throw, a
  * non-OK fetch) collapses to the single honest code `"upstream_error"` — we have
- * no further structural signal to split it on. The raw detail is retained only
- * as {@link ProviderUnavailableError.cause} for internal diagnostics.
+ * no further structural signal to split it on. The raw thrown value is inspected
+ * only locally during classification and then discarded; it is never retained.
  */
-export type ProviderUnavailableReason = "upstream_error";
+export type UpstreamUnavailableReason = "upstream_error";
 
 /**
  * A transient account credential was rejected or has expired.
@@ -55,7 +56,7 @@ export class CredentialRejectedError extends Data.TaggedError("CredentialRejecte
  * by `signInWithTokenHandler`'s try/catch and the trophy fetch's `.catch`), and
  * to `rawg.ts`'s `fetchRawgJson` returning `undefined` on a non-OK response or a
  * thrown request. `provider` names the source; `reason` is a stable
- * {@link ProviderUnavailableReason} code, NOT raw upstream text.
+ * {@link UpstreamUnavailableReason} code, NOT raw upstream text.
  *
  * The payload deliberately carries NO raw upstream value — no `cause`, no
  * message. The thrown error is inspected only locally during classification
@@ -63,9 +64,9 @@ export class CredentialRejectedError extends Data.TaggedError("CredentialRejecte
  * logged, inspected after a failed run, or cross a framework boundary without
  * ever leaking vendor text, URLs, headers, request detail, or tokens.
  */
-export class ProviderUnavailableError extends Data.TaggedError("ProviderUnavailableError")<{
+export class UpstreamUnavailableError extends Data.TaggedError("UpstreamUnavailableError")<{
   readonly provider: ProviderSource;
-  readonly reason: ProviderUnavailableReason;
+  readonly reason: UpstreamUnavailableReason;
 }> {}
 
 /**
@@ -75,18 +76,18 @@ export class ProviderUnavailableError extends Data.TaggedError("ProviderUnavaila
  * into a generic failure (PSN) or swallowed to `undefined` (RAWG). Surfacing it
  * as its own tag lets E4/E5 back off explicitly. `provider` names the source.
  */
-export class ProviderRateLimitedError extends Data.TaggedError("ProviderRateLimitedError")<{
+export class RateLimitedError extends Data.TaggedError("RateLimitedError")<{
   readonly provider: ProviderSource;
 }> {}
 
-/** Failures the {@link AccountProvider} port can surface. */
-export type AccountProviderError =
+/** Failures the {@link DashboardSource} port can surface. */
+export type DashboardSourceError =
   | CredentialRejectedError
-  | ProviderUnavailableError
-  | ProviderRateLimitedError;
+  | UpstreamUnavailableError
+  | RateLimitedError;
 
-/** Failures the {@link EnrichmentProvider} port can surface. */
-export type EnrichmentProviderError = ProviderUnavailableError | ProviderRateLimitedError;
+/** Failures the {@link TitleEnrichment} port can surface. */
+export type TitleEnrichmentError = UpstreamUnavailableError | RateLimitedError;
 
 /** The message of a thrown value, falling back to its string form. */
 const messageOf = (error: unknown): string =>
@@ -107,9 +108,9 @@ const isRateLimitedMessage = (message: string): boolean =>
 
 /**
  * Classify a thrown upstream error from a STATUS-LESS transport onto the shared
- * provider error channel: `ProviderRateLimitedError` when the message looks like
- * a 429 (best-effort, see {@link isRateLimitedMessage}), else a generic
- * `ProviderUnavailableError` with the stable `"upstream_error"` code. The raw
+ * failure channel: `RateLimitedError` when the message looks like a 429
+ * (best-effort, see {@link isRateLimitedMessage}), else a generic
+ * `UpstreamUnavailableError` with the stable `"upstream_error"` code. The raw
  * thrown value is inspected ONLY locally here to make that structural decision
  * and is then DISCARDED — it is never attached to the returned error, so no
  * vendor text, URL, header, request detail, or token can ride out on the typed
@@ -120,7 +121,7 @@ const isRateLimitedMessage = (message: string): boolean =>
  */
 export const providerError =
   (provider: ProviderSource) =>
-  (error: unknown): ProviderRateLimitedError | ProviderUnavailableError =>
+  (error: unknown): RateLimitedError | UpstreamUnavailableError =>
     isRateLimitedMessage(messageOf(error))
-      ? new ProviderRateLimitedError({ provider })
-      : new ProviderUnavailableError({ provider, reason: "upstream_error" });
+      ? new RateLimitedError({ provider })
+      : new UpstreamUnavailableError({ provider, reason: "upstream_error" });

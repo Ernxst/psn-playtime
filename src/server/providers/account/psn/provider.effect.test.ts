@@ -24,9 +24,9 @@ import type {
   UserPlayedGamesResponse,
   UserTitlesResponse,
 } from "psn-api";
-import { AccountProvider } from "@/server/providers/account/contract.effect";
-import { PsnAccountProviderLayer } from "@/server/providers/account/psn/provider.effect";
-import type { AccountProviderError } from "@/server/providers/errors.effect";
+import { DashboardSource } from "@/server/providers/account/contract.effect";
+import { PsnDashboardSourceLayer } from "@/server/providers/account/psn/provider.effect";
+import type { DashboardSourceError } from "@/server/providers/errors.effect";
 import type { DashboardData } from "../snapshot";
 
 const mockExchangeNpsso = vi.mocked(exchangeNpssoForAccessCode);
@@ -135,28 +135,28 @@ function trophyPage(trophies: TrophyTitle[], totalItemCount: number): UserTitles
   };
 }
 
-/** Run `fetchSnapshot` through the real PSN layer, surfacing the success value. */
-function fetchSnapshot(npsso = "npsso-token"): Promise<DashboardData> {
+/** Run `loadDashboard` through the real PSN layer, surfacing the success value. */
+function loadDashboard(npsso = "npsso-token"): Promise<DashboardData> {
   return Effect.runPromise(
     Effect.gen(function* () {
-      const provider = yield* AccountProvider;
-      return yield* provider.fetchSnapshot(Redacted.make(npsso));
-    }).pipe(Effect.provide(PsnAccountProviderLayer))
+      const provider = yield* DashboardSource;
+      return yield* provider.loadDashboard(Redacted.make(npsso));
+    }).pipe(Effect.provide(PsnDashboardSourceLayer))
   );
 }
 
-/** Run `fetchSnapshot`, recovering any port failure to its `_tag` for assertion. */
-function fetchSnapshotTag(npsso = "npsso-token"): Promise<string> {
+/** Run `loadDashboard`, recovering any port failure to its `_tag` for assertion. */
+function loadDashboardTag(npsso = "npsso-token"): Promise<string> {
   return Effect.runPromise(
     Effect.gen(function* () {
-      const provider = yield* AccountProvider;
-      return yield* provider.fetchSnapshot(Redacted.make(npsso));
+      const provider = yield* DashboardSource;
+      return yield* provider.loadDashboard(Redacted.make(npsso));
     }).pipe(
       Effect.match({
-        onFailure: (error: AccountProviderError) => error._tag,
+        onFailure: (error: DashboardSourceError) => error._tag,
         onSuccess: () => "ok",
       }),
-      Effect.provide(PsnAccountProviderLayer)
+      Effect.provide(PsnDashboardSourceLayer)
     )
   );
 }
@@ -167,7 +167,7 @@ afterEach(() => {
   mockGetTitles.mockReset();
 });
 
-describe(".fetchSnapshot", () => {
+describe(".loadDashboard", () => {
   it("normalises a live PSN account into an un-enriched snapshot", async () => {
     mockExchangeNpsso.mockResolvedValue("access-code");
     mockExchangeTokens.mockResolvedValue(authTokens);
@@ -207,7 +207,7 @@ describe(".fetchSnapshot", () => {
       )
     );
 
-    const result = await fetchSnapshot();
+    const result = await loadDashboard();
 
     expect(result.isDemo).toBe(false);
     expect(typeof result.fetchedAt).toBe("string");
@@ -258,7 +258,7 @@ describe(".fetchSnapshot", () => {
     );
     mockGetTitles.mockResolvedValue(trophyPage([], 0));
 
-    const result = await fetchSnapshot();
+    const result = await loadDashboard();
 
     expect(result.games.map((g) => [g.titleId, g.platform])).toEqual([
       ["ps5", "PS5"],
@@ -272,27 +272,27 @@ describe(".fetchSnapshot", () => {
   it("fails with CredentialRejectedError when the npsso exchange is rejected", async () => {
     mockExchangeNpsso.mockRejectedValue(new Error("nope"));
 
-    expect(await fetchSnapshotTag()).toBe("CredentialRejectedError");
+    expect(await loadDashboardTag()).toBe("CredentialRejectedError");
   });
 
-  it("fails with ProviderRateLimitedError when PSN signals HTTP 429", async () => {
+  it("fails with RateLimitedError when PSN signals HTTP 429", async () => {
     mockExchangeNpsso.mockResolvedValue("access-code");
     mockExchangeTokens.mockResolvedValue(authTokens);
     mockGetProfile.mockRejectedValue(new Error("429 Too Many Requests"));
     mockGetPlayed.mockResolvedValue(playedPage([], 0));
     mockGetTitles.mockResolvedValue(trophyPage([], 0));
 
-    expect(await fetchSnapshotTag()).toBe("ProviderRateLimitedError");
+    expect(await loadDashboardTag()).toBe("RateLimitedError");
   });
 
-  it("fails with ProviderUnavailableError on a non-429 fetch failure", async () => {
+  it("fails with UpstreamUnavailableError on a non-429 fetch failure", async () => {
     mockExchangeNpsso.mockResolvedValue("access-code");
     mockExchangeTokens.mockResolvedValue(authTokens);
     mockGetProfile.mockRejectedValue(new Error("503 service unavailable"));
     mockGetPlayed.mockResolvedValue(playedPage([], 0));
     mockGetTitles.mockResolvedValue(trophyPage([], 0));
 
-    expect(await fetchSnapshotTag()).toBe("ProviderUnavailableError");
+    expect(await loadDashboardTag()).toBe("UpstreamUnavailableError");
   });
 
   it("swallows a trophy-fetch failure to an empty trophy map", async () => {
@@ -314,7 +314,7 @@ describe(".fetchSnapshot", () => {
     );
     mockGetTitles.mockRejectedValue(new Error("trophy service down"));
 
-    const result = await fetchSnapshot();
+    const result = await loadDashboard();
 
     expect(result.isDemo).toBe(false);
     expect(result.games.every((g) => g.trophy === undefined)).toBe(true);

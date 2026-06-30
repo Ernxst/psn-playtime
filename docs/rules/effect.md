@@ -131,14 +131,14 @@ decouples the app from any one account source (PSN today; the Xbox seam later).
 Ports are **contracts, not implementations** — the PSN (`E5`) and RAWG (`E4`)
 layers are wired in later phases.
 
-- **`AccountProvider`** — `loadDashboard(credential)` produces the normalized
+- **`DashboardSource`** — `loadDashboard(credential)` produces the normalized
   `DashboardData` (the whole of `psn.ts`'s `authenticate` + `buildDashboard`).
   The credential is a `Redacted<string>`; no source-specific naming crosses the
   boundary.
-- **`EnrichmentProvider`** — `lookupGameInfo` / `lookupFranchise` (today's
-  `rawg.ts` lookups). Missing data is a successful absence, never an error.
-- **Tagged errors** (`errors.effect.ts`) — `AccountAuthError`,
-  `ProviderUnavailableError`, `ProviderRateLimitedError`: only the failure modes
+- **`TitleEnrichment`** — `metadataFor` / `franchiseFor` (today's `rawg.ts`
+  lookups). Missing data is a successful absence, never an error.
+- **Tagged errors** (`errors.effect.ts`) — `CredentialRejectedError`,
+  `UpstreamUnavailableError`, `RateLimitedError`: only the failure modes
   PSN/RAWG actually surface today. There is no `NotFound` (no match = success).
 - Ports are make-less `Context.Service<Self, Shape>()("key")` declarations; the
   later-phase implementations provide them via `Layer`.

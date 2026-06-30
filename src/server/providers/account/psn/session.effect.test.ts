@@ -14,7 +14,7 @@ import type { TrophyTitle, UserPlayedGamesResponse } from "psn-api";
 import { describe, expect, it } from "vitest";
 import { buildSnapshot } from "@/server/providers/account/psn/provider.effect";
 import { PsnSession, type PsnSessionShape } from "@/server/providers/account/psn/session.effect";
-import { ProviderUnavailableError } from "@/server/providers/errors.effect";
+import { UpstreamUnavailableError } from "@/server/providers/errors.effect";
 import type { DashboardData, ProfileSummary } from "../snapshot";
 
 type PlayedTitle = UserPlayedGamesResponse["titles"][number];
@@ -141,7 +141,7 @@ describe(".buildSnapshot", () => {
         }),
       ]),
       trophyTitles: Effect.fail(
-        new ProviderUnavailableError({ provider: "psn", reason: "upstream_error" })
+        new UpstreamUnavailableError({ provider: "psn", reason: "upstream_error" })
       ),
     });
 
