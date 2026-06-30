@@ -20,12 +20,12 @@ describe("CredentialRejectedError", () => {
 });
 
 describe("ProviderUnavailableError", () => {
-  it("carries its tag, provider and reason", () => {
-    const error = new ProviderUnavailableError({ provider: "psn", reason: "500" });
+  it("carries its tag, provider and a stable sanitised reason code", () => {
+    const error = new ProviderUnavailableError({ provider: "psn", reason: "upstream_error" });
 
     expect(error._tag).toBe("ProviderUnavailableError");
     expect(error.provider).toBe("psn");
-    expect(error.reason).toBe("500");
+    expect(error.reason).toBe("upstream_error");
   });
 });
 
@@ -54,28 +54,45 @@ describe(".providerError", () => {
     }
   );
 
-  it("classifies an unrelated failure as ProviderUnavailableError carrying the message", () => {
+  it("classifies an unrelated failure as ProviderUnavailableError with the stable reason code", () => {
     const error = providerError("rawg")(new Error("connection refused"));
 
     expect(error).toBeInstanceOf(ProviderUnavailableError);
     expect(error).toMatchObject({
       _tag: "ProviderUnavailableError",
       provider: "rawg",
-      reason: "connection refused",
+      reason: "upstream_error",
     });
   });
 
-  it("stringifies a non-Error thrown value into the reason", () => {
+  it("keeps raw upstream text (a URL/token) out of the typed reason, retaining it only as cause", () => {
+    const leaky = new Error("GET https://api.example.com?token=SECRET-abc123 failed: 500");
+    const error = providerError("psn")(leaky);
+
+    expect(error).toBeInstanceOf(ProviderUnavailableError);
+    if (!(error instanceof ProviderUnavailableError)) throw new Error("expected unavailable");
+    expect(error.reason).toBe("upstream_error");
+    expect(error.reason).not.toContain("https://");
+    expect(error.reason).not.toContain("SECRET-abc123");
+    expect(error.cause).toBe(leaky);
+  });
+
+  it("retains a non-Error thrown value as cause without surfacing it in the reason", () => {
     const error = providerError("psn")("plain string failure");
 
     expect(error).toBeInstanceOf(ProviderUnavailableError);
-    expect(error).toMatchObject({ provider: "psn", reason: "plain string failure" });
+    if (!(error instanceof ProviderUnavailableError)) throw new Error("expected unavailable");
+    expect(error.reason).toBe("upstream_error");
+    expect(error.cause).toBe("plain string failure");
   });
 
   it("binds the provider name once for reuse as a catch thunk", () => {
     const classify = providerError("psn");
 
-    expect(classify(new Error("boom"))).toMatchObject({ provider: "psn", reason: "boom" });
+    expect(classify(new Error("boom"))).toMatchObject({
+      provider: "psn",
+      reason: "upstream_error",
+    });
     expect(classify(new Error("429"))).toMatchObject({
       _tag: "ProviderRateLimitedError",
       provider: "psn",
