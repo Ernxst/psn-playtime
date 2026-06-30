@@ -27,7 +27,7 @@ export default defineConfig({
   test: {
     passWithNoTests: true,
     coverage: {
-      provider: "v8",
+      provider: "istanbul",
       include: ["src/**/*.{ts,tsx}"],
       exclude: [
         "src/**/*.test.ts",
