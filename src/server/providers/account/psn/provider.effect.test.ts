@@ -1,22 +1,6 @@
 import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
 import * as Redacted from "effect/Redacted";
-import { afterEach, describe, expect, it, vi } from "vitest";
-
-vi.mock("psn-api", () => ({
-  exchangeNpssoForAccessCode: vi.fn(),
-  exchangeAccessCodeForAuthTokens: vi.fn(),
-  getProfileFromUserName: vi.fn(),
-  getUserPlayedGames: vi.fn(),
-  getUserTitles: vi.fn(),
-}));
-
-import {
-  exchangeAccessCodeForAuthTokens,
-  exchangeNpssoForAccessCode,
-  getProfileFromUserName,
-  getUserPlayedGames,
-  getUserTitles,
-} from "psn-api";
 import type {
   AuthTokensResponse,
   ProfileFromUserNameResponse,
@@ -24,16 +8,17 @@ import type {
   UserPlayedGamesResponse,
   UserTitlesResponse,
 } from "psn-api";
+import { describe, expect, it } from "vitest";
 import { DashboardSource } from "@/server/providers/account/contract.effect";
 import { PsnDashboardSourceLayer } from "@/server/providers/account/psn/provider.effect";
+import { PsnTransport, PsnTransportError } from "@/server/providers/account/psn/transport.effect";
 import type { DashboardSourceError } from "@/server/providers/errors.effect";
 import type { DashboardData } from "../snapshot";
 
-const mockExchangeNpsso = vi.mocked(exchangeNpssoForAccessCode);
-const mockExchangeTokens = vi.mocked(exchangeAccessCodeForAuthTokens);
-const mockGetProfile = vi.mocked(getProfileFromUserName);
-const mockGetPlayed = vi.mocked(getUserPlayedGames);
-const mockGetTitles = vi.mocked(getUserTitles);
+/** A transport failure carrying `message` as its raw cause, as the live layer would. */
+function psnFailure(message: string): Effect.Effect<never, PsnTransportError> {
+  return Effect.fail(new PsnTransportError({ cause: new Error(message) }));
+}
 
 type ProfileBody = ProfileFromUserNameResponse["profile"];
 type PlayedTitle = UserPlayedGamesResponse["titles"][number];
@@ -135,79 +120,96 @@ function trophyPage(trophies: TrophyTitle[], totalItemCount: number): UserTitles
   };
 }
 
-/** Run `loadDashboard` through the real PSN layer, surfacing the success value. */
-function loadDashboard(npsso = "npsso-token"): Promise<DashboardData> {
+/**
+ * A fake `PsnTransport` layer — the production seam the session reads through.
+ * Each operation defaults to a benign success; a test overrides only the ones
+ * its scenario exercises (e.g. a failing fetch or a specific page).
+ */
+function fakeTransport(
+  overrides: {
+    exchangeNpsso?: Effect.Effect<string, PsnTransportError>;
+    exchangeTokens?: Effect.Effect<AuthTokensResponse, PsnTransportError>;
+    profile?: Effect.Effect<ProfileFromUserNameResponse, PsnTransportError>;
+    played?: Effect.Effect<UserPlayedGamesResponse, PsnTransportError>;
+    titles?: Effect.Effect<UserTitlesResponse, PsnTransportError>;
+  } = {}
+): Layer.Layer<PsnTransport> {
+  return Layer.succeed(PsnTransport, {
+    exchangeNpssoForAccessCode: () => overrides.exchangeNpsso ?? Effect.succeed("access-code"),
+    exchangeAccessCodeForAuthTokens: () => overrides.exchangeTokens ?? Effect.succeed(authTokens),
+    getProfile: () => overrides.profile ?? Effect.succeed(profile()),
+    getPlayedGames: () => overrides.played ?? Effect.succeed(playedPage([], 0)),
+    getUserTitles: () => overrides.titles ?? Effect.succeed(trophyPage([], 0)),
+  });
+}
+
+/** Run `loadDashboard` through the PSN layer over a fake transport, surfacing the success value. */
+function loadDashboard(transport: Layer.Layer<PsnTransport>): Promise<DashboardData> {
   return Effect.runPromise(
     Effect.gen(function* () {
       const provider = yield* DashboardSource;
-      return yield* provider.loadDashboard(Redacted.make(npsso));
-    }).pipe(Effect.provide(PsnDashboardSourceLayer))
+      return yield* provider.loadDashboard(Redacted.make("npsso-token"));
+    }).pipe(Effect.provide(PsnDashboardSourceLayer), Effect.provide(transport))
   );
 }
 
 /** Run `loadDashboard`, recovering any port failure to its `_tag` for assertion. */
-function loadDashboardTag(npsso = "npsso-token"): Promise<string> {
+function loadDashboardTag(transport: Layer.Layer<PsnTransport>): Promise<string> {
   return Effect.runPromise(
     Effect.gen(function* () {
       const provider = yield* DashboardSource;
-      return yield* provider.loadDashboard(Redacted.make(npsso));
+      return yield* provider.loadDashboard(Redacted.make("npsso-token"));
     }).pipe(
       Effect.match({
         onFailure: (error: DashboardSourceError) => error._tag,
         onSuccess: () => "ok",
       }),
-      Effect.provide(PsnDashboardSourceLayer)
+      Effect.provide(PsnDashboardSourceLayer),
+      Effect.provide(transport)
     )
   );
 }
 
-afterEach(() => {
-  vi.clearAllMocks();
-  mockGetPlayed.mockReset();
-  mockGetTitles.mockReset();
-});
-
 describe(".loadDashboard", () => {
   it("normalises a live PSN account into an un-enriched snapshot", async () => {
-    mockExchangeNpsso.mockResolvedValue("access-code");
-    mockExchangeTokens.mockResolvedValue(authTokens);
-    mockGetProfile.mockResolvedValue(profile());
-    mockGetPlayed.mockResolvedValue(
-      playedPage(
-        [
-          played({
-            titleId: "cod",
-            name: "Call of Duty®: Modern Warfare®",
-            imageUrl: "https://img/cod",
-            playDuration: "PT100H30M15S",
-            playCount: 5,
-            firstPlayedDateTime: "2020-01-01T10:00:00Z",
-          }),
-          played({
-            titleId: "netflix",
-            name: "Netflix",
-            category: "ps4_native_media_app",
-          }),
-        ],
-        2
-      )
+    const result = await loadDashboard(
+      fakeTransport({
+        played: Effect.succeed(
+          playedPage(
+            [
+              played({
+                titleId: "cod",
+                name: "Call of Duty®: Modern Warfare®",
+                imageUrl: "https://img/cod",
+                playDuration: "PT100H30M15S",
+                playCount: 5,
+                firstPlayedDateTime: "2020-01-01T10:00:00Z",
+              }),
+              played({
+                titleId: "netflix",
+                name: "Netflix",
+                category: "ps4_native_media_app",
+              }),
+            ],
+            2
+          )
+        ),
+        titles: Effect.succeed(
+          trophyPage(
+            [
+              trophy({
+                trophyTitleName: "Call of Duty Modern Warfare",
+                progress: 90,
+                definedTrophies: { bronze: 40, silver: 10, gold: 5, platinum: 1 },
+                earnedTrophies: { bronze: 20, silver: 10, gold: 5, platinum: 1 },
+                lastUpdatedDateTime: "2021-06-10T00:00:00Z",
+              }),
+            ],
+            1
+          )
+        ),
+      })
     );
-    mockGetTitles.mockResolvedValue(
-      trophyPage(
-        [
-          trophy({
-            trophyTitleName: "Call of Duty Modern Warfare",
-            progress: 90,
-            definedTrophies: { bronze: 40, silver: 10, gold: 5, platinum: 1 },
-            earnedTrophies: { bronze: 20, silver: 10, gold: 5, platinum: 1 },
-            lastUpdatedDateTime: "2021-06-10T00:00:00Z",
-          }),
-        ],
-        1
-      )
-    );
-
-    const result = await loadDashboard();
 
     expect(result.isDemo).toBe(false);
     expect(typeof result.fetchedAt).toBe("string");
@@ -234,31 +236,29 @@ describe(".loadDashboard", () => {
   });
 
   it("derives each game's platform and excludes non-game apps", async () => {
-    mockExchangeNpsso.mockResolvedValue("access-code");
-    mockExchangeTokens.mockResolvedValue(authTokens);
-    mockGetProfile.mockResolvedValue(profile());
-    mockGetPlayed.mockResolvedValue(
-      playedPage(
-        [
-          // Platform comes from the psn-api category.
-          played({ titleId: "ps5", name: "A PS5 Game", category: "ps5_native_game" }),
-          // No category token: platform falls back to the title name.
-          played({ titleId: "named", name: "Some Game (PlayStation®4)", category: "unknown" }),
-          // Neither category nor name carries a token: platform is OTHER.
-          played({ titleId: "other", name: "Plain Title", category: "unknown" }),
-          // Excluded by the psn-api media-app category.
-          played({ titleId: "netflix", name: "Netflix", category: "ps4_native_media_app" }),
-          // Excluded by name even though the category looks like a game.
-          played({ titleId: "spotify", name: "Spotify", category: "ps4_game" }),
-          // "Max" is a streaming app, but "Mad Max" is a game (word-boundary guard).
-          played({ titleId: "madmax", name: "Mad Max", category: "ps4_game" }),
-        ],
-        6
-      )
+    const result = await loadDashboard(
+      fakeTransport({
+        played: Effect.succeed(
+          playedPage(
+            [
+              // Platform comes from the psn-api category.
+              played({ titleId: "ps5", name: "A PS5 Game", category: "ps5_native_game" }),
+              // No category token: platform falls back to the title name.
+              played({ titleId: "named", name: "Some Game (PlayStation®4)", category: "unknown" }),
+              // Neither category nor name carries a token: platform is OTHER.
+              played({ titleId: "other", name: "Plain Title", category: "unknown" }),
+              // Excluded by the psn-api media-app category.
+              played({ titleId: "netflix", name: "Netflix", category: "ps4_native_media_app" }),
+              // Excluded by name even though the category looks like a game.
+              played({ titleId: "spotify", name: "Spotify", category: "ps4_game" }),
+              // "Max" is a streaming app, but "Mad Max" is a game (word-boundary guard).
+              played({ titleId: "madmax", name: "Mad Max", category: "ps4_game" }),
+            ],
+            6
+          )
+        ),
+      })
     );
-    mockGetTitles.mockResolvedValue(trophyPage([], 0));
-
-    const result = await loadDashboard();
 
     expect(result.games.map((g) => [g.titleId, g.platform])).toEqual([
       ["ps5", "PS5"],
@@ -270,51 +270,42 @@ describe(".loadDashboard", () => {
   });
 
   it("fails with CredentialRejectedError when the npsso exchange is rejected", async () => {
-    mockExchangeNpsso.mockRejectedValue(new Error("nope"));
-
-    expect(await loadDashboardTag()).toBe("CredentialRejectedError");
+    expect(await loadDashboardTag(fakeTransport({ exchangeNpsso: psnFailure("nope") }))).toBe(
+      "CredentialRejectedError"
+    );
   });
 
   it("fails with RateLimitedError when PSN signals HTTP 429", async () => {
-    mockExchangeNpsso.mockResolvedValue("access-code");
-    mockExchangeTokens.mockResolvedValue(authTokens);
-    mockGetProfile.mockRejectedValue(new Error("429 Too Many Requests"));
-    mockGetPlayed.mockResolvedValue(playedPage([], 0));
-    mockGetTitles.mockResolvedValue(trophyPage([], 0));
-
-    expect(await loadDashboardTag()).toBe("RateLimitedError");
+    expect(
+      await loadDashboardTag(fakeTransport({ profile: psnFailure("429 Too Many Requests") }))
+    ).toBe("RateLimitedError");
   });
 
   it("fails with UpstreamUnavailableError on a non-429 fetch failure", async () => {
-    mockExchangeNpsso.mockResolvedValue("access-code");
-    mockExchangeTokens.mockResolvedValue(authTokens);
-    mockGetProfile.mockRejectedValue(new Error("503 service unavailable"));
-    mockGetPlayed.mockResolvedValue(playedPage([], 0));
-    mockGetTitles.mockResolvedValue(trophyPage([], 0));
-
-    expect(await loadDashboardTag()).toBe("UpstreamUnavailableError");
+    expect(
+      await loadDashboardTag(fakeTransport({ profile: psnFailure("503 service unavailable") }))
+    ).toBe("UpstreamUnavailableError");
   });
 
   it("swallows a trophy-fetch failure to an empty trophy map", async () => {
-    mockExchangeNpsso.mockResolvedValue("access-code");
-    mockExchangeTokens.mockResolvedValue(authTokens);
-    mockGetProfile.mockResolvedValue(profile());
-    mockGetPlayed.mockResolvedValue(
-      playedPage(
-        [
-          played({
-            titleId: "cod",
-            name: "Call of Duty",
-            playDuration: "PT5H",
-            playCount: 1,
-          }),
-        ],
-        1
-      )
+    const result = await loadDashboard(
+      fakeTransport({
+        played: Effect.succeed(
+          playedPage(
+            [
+              played({
+                titleId: "cod",
+                name: "Call of Duty",
+                playDuration: "PT5H",
+                playCount: 1,
+              }),
+            ],
+            1
+          )
+        ),
+        titles: psnFailure("trophy service down"),
+      })
     );
-    mockGetTitles.mockRejectedValue(new Error("trophy service down"));
-
-    const result = await loadDashboard();
 
     expect(result.isDemo).toBe(false);
     expect(result.games.every((g) => g.trophy === undefined)).toBe(true);

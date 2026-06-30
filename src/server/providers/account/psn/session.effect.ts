@@ -11,21 +11,13 @@
  * `RateLimitedError` on a detected HTTP 429 or `UpstreamUnavailableError`
  * otherwise. Paging goes through the shared `paginateAll` helper.
  *
- * SECURITY: the npsso `Redacted` is unwrapped with `Redacted.value` only inside
- * the psn-api `tryPromise` thunk, never logged; `CredentialRejectedError.reason`
- * is a fixed string, so the secret can never leak into an error.
+ * SECURITY: the npsso `Redacted` is unwrapped with `Redacted.value` only to
+ * hand to the transport, never logged; `CredentialRejectedError.reason` is a
+ * fixed string, so the secret can never leak into an error.
  */
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
-import {
-  exchangeAccessCodeForAuthTokens,
-  exchangeNpssoForAccessCode,
-  getProfileFromUserName,
-  getUserPlayedGames,
-  getUserTitles,
-} from "psn-api";
-import type { AuthorizationPayload } from "psn-api";
 import type { AccountCredential } from "@/server/providers/account/contract.effect";
 import {
   toProfileSummary,
@@ -33,6 +25,11 @@ import {
   type TrophyTitle,
 } from "@/server/providers/account/psn/normalize";
 import { paginateAll } from "@/server/providers/account/psn/paginate.effect";
+import {
+  PsnTransport,
+  type AuthorizationPayload,
+  type PsnTransportShape,
+} from "@/server/providers/account/psn/transport.effect";
 import {
   CredentialRejectedError,
   providerError,
@@ -44,7 +41,7 @@ const PLAYED_PAGE_LIMIT = 200;
 const TROPHY_PAGE_LIMIT = 800;
 
 /**
- * Classify a thrown psn-api error onto the failure channel. psn-api collapses
+ * Classify a raw transport failure onto the failure channel. psn-api collapses
  * every HTTP failure into a status-less thrown `Error`, so `providerError`
  * detects a 429 from the message text and otherwise maps to a generic outage.
  */
@@ -52,54 +49,52 @@ const psnError = providerError("psn");
 
 /**
  * Exchange a transient npsso for an access-token authorization payload. The
- * credential is read out of `Redacted` only to hand to psn-api and is never
- * logged; a rejection maps to `CredentialRejectedError` with a fixed reason so
- * the secret can never leak into an error.
+ * credential is read out of `Redacted` only to hand to the transport and is
+ * never logged; a rejection maps to `CredentialRejectedError` with a fixed
+ * reason so the secret can never leak into an error.
  */
 const authenticate = (
+  transport: PsnTransportShape,
   credential: AccountCredential
 ): Effect.Effect<AuthorizationPayload, CredentialRejectedError> =>
   Effect.gen(function* () {
     const npsso = Redacted.value(credential);
-    const accessCode = yield* Effect.tryPromise({
-      try: () => exchangeNpssoForAccessCode(npsso),
-      catch: () => new CredentialRejectedError({ reason: "npsso exchange rejected" }),
-    });
-    const tokens = yield* Effect.tryPromise({
-      try: () => exchangeAccessCodeForAuthTokens(accessCode),
-      catch: () =>
-        new CredentialRejectedError({
-          reason: "access-code exchange rejected",
-        }),
-    });
+    const accessCode = yield* transport
+      .exchangeNpssoForAccessCode(npsso)
+      .pipe(
+        Effect.mapError(() => new CredentialRejectedError({ reason: "npsso exchange rejected" }))
+      );
+    const tokens = yield* transport
+      .exchangeAccessCodeForAuthTokens(accessCode)
+      .pipe(
+        Effect.mapError(
+          () => new CredentialRejectedError({ reason: "access-code exchange rejected" })
+        )
+      );
     return { accessToken: tokens.accessToken };
   });
 
 const fetchProfile = (
+  transport: PsnTransportShape,
   auth: AuthorizationPayload
 ): Effect.Effect<ProfileSummary, DashboardSourceError> =>
-  Effect.gen(function* () {
-    const { profile } = yield* Effect.tryPromise({
-      try: () => getProfileFromUserName(auth, "me"),
-      catch: psnError,
-    });
-    return toProfileSummary(profile);
-  });
+  transport.getProfile(auth).pipe(
+    Effect.mapError((error) => psnError(error.cause)),
+    Effect.map(({ profile }) => toProfileSummary(profile))
+  );
 
 /**
  * Page through every played-games / trophy page with the shared `paginateAll`:
- * each page wraps one psn-api call in `Effect.tryPromise`, classifies failures
- * with `psnError`, and reports its `items` + `totalItemCount` for the stop
- * decision.
+ * each page is one transport call, classifies a failure's `cause` with
+ * `psnError`, and reports its `items` + `totalItemCount` for the stop decision.
  */
 const fetchAllPlayedGames = (
+  transport: PsnTransportShape,
   auth: AuthorizationPayload
 ): Effect.Effect<PlayedTitle[], DashboardSourceError> =>
   paginateAll(PLAYED_PAGE_LIMIT, (offset) =>
-    Effect.tryPromise({
-      try: () => getUserPlayedGames(auth, "me", { limit: PLAYED_PAGE_LIMIT, offset }),
-      catch: psnError,
-    }).pipe(
+    transport.getPlayedGames(auth, { limit: PLAYED_PAGE_LIMIT, offset }).pipe(
+      Effect.mapError((error) => psnError(error.cause)),
       Effect.map((res) => ({
         items: res.titles,
         totalItemCount: res.totalItemCount,
@@ -108,13 +103,12 @@ const fetchAllPlayedGames = (
   );
 
 const fetchTrophyTitles = (
+  transport: PsnTransportShape,
   auth: AuthorizationPayload
 ): Effect.Effect<TrophyTitle[], DashboardSourceError> =>
   paginateAll(TROPHY_PAGE_LIMIT, (offset) =>
-    Effect.tryPromise({
-      try: () => getUserTitles(auth, "me", { limit: TROPHY_PAGE_LIMIT, offset }),
-      catch: psnError,
-    }).pipe(
+    transport.getUserTitles(auth, { limit: TROPHY_PAGE_LIMIT, offset }).pipe(
+      Effect.mapError((error) => psnError(error.cause)),
       Effect.map((res) => ({
         items: res.trophyTitles,
         totalItemCount: res.totalItemCount,
@@ -130,20 +124,18 @@ export interface PsnSessionShape {
 }
 
 /**
- * Authenticate once, then return the three session effects with `auth` captured.
- * Fails with `CredentialRejectedError` when the exchange is rejected.
- *
- * Exposed as the service's `make`: `PsnSession.make(credential)` is the
- * per-request acquisition effect a consumer provides (via
- * `Effect.provideServiceEffect`). There is no static `layer` — the credential is
- * per-request, so the session is acquired at the call site.
+ * `PsnSession.make(credential)` authenticates the credential against the ambient
+ * `PsnTransport`, then returns the three session effects with `transport` and
+ * `auth` captured. Fails with `CredentialRejectedError` when the exchange is
+ * rejected.
  */
 const makePsnSession = Effect.fn("PsnSession.make")(function* (credential: AccountCredential) {
-  const auth = yield* authenticate(credential);
+  const transport = yield* PsnTransport;
+  const auth = yield* authenticate(transport, credential);
   return {
-    profile: fetchProfile(auth),
-    playedGames: fetchAllPlayedGames(auth),
-    trophyTitles: fetchTrophyTitles(auth),
+    profile: fetchProfile(transport, auth),
+    playedGames: fetchAllPlayedGames(transport, auth),
+    trophyTitles: fetchTrophyTitles(transport, auth),
   } satisfies PsnSessionShape;
 });
 
