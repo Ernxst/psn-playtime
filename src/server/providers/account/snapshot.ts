@@ -39,10 +39,10 @@ export const Genre = Schema.Literals([
 export type Genre = Schema.Schema.Type<typeof Genre>;
 
 export const TrophyCounts = Schema.Struct({
-  platinum: Schema.Number,
-  gold: Schema.Number,
-  silver: Schema.Number,
-  bronze: Schema.Number,
+  platinum: Schema.Finite,
+  gold: Schema.Finite,
+  silver: Schema.Finite,
+  bronze: Schema.Finite,
 });
 export type TrophyCounts = Schema.Schema.Type<typeof TrophyCounts>;
 
@@ -53,21 +53,21 @@ export const ProfileSummary = Schema.Struct({
   avatarUrl: Schema.optional(Schema.String),
   isPlus: Schema.Boolean,
   /** PSN trophy level (e.g. 220). */
-  trophyLevel: Schema.Number,
+  trophyLevel: Schema.Finite,
   /** Percent progress toward the next trophy level (0–100). */
-  levelProgress: Schema.Number,
+  levelProgress: Schema.Finite,
   earned: TrophyCounts,
   /** Sum of all earned trophies. */
-  totalTrophies: Schema.Number,
+  totalTrophies: Schema.Finite,
 });
 export type ProfileSummary = Schema.Schema.Type<typeof ProfileSummary>;
 
 /** Per-game trophy progress, when available. */
 export const GameTrophy = Schema.Struct({
   /** 0–100 completion of the trophy list. */
-  progress: Schema.Number,
+  progress: Schema.Finite,
   earned: TrophyCounts,
-  total: Schema.Number,
+  total: Schema.Finite,
   hasPlatinum: Schema.Boolean,
   /** ISO date of the most recently earned trophy in this game, if any. */
   lastEarnedAt: Schema.optional(Schema.String),
@@ -81,9 +81,9 @@ export const GamePlay = Schema.Struct({
   imageUrl: Schema.optional(Schema.String),
   platform: Platform,
   /** Lifetime hours played (psn-api playDuration, converted). */
-  hours: Schema.Number,
+  hours: Schema.Finite,
   /** Number of distinct play sessions/launches. */
-  playCount: Schema.Number,
+  playCount: Schema.Finite,
   /** ISO date first launched, if known. */
   firstPlayed: Schema.optional(Schema.String),
   /** ISO date most recently launched, if known. */
@@ -95,7 +95,7 @@ export const GamePlay = Schema.Struct({
   /** Derived: franchise/series name (e.g. "Call of Duty", "FIFA / EA FC"). */
   franchise: Schema.optional(Schema.String),
   /** RAWG community-average hours to complete this game, when available. */
-  typicalPlaytime: Schema.optional(Schema.Number),
+  typicalPlaytime: Schema.optional(Schema.Finite),
   /** True when this title is a non-game app (YouTube, Netflix…) that should be excluded from play stats. */
   isApp: Schema.Boolean,
   trophy: Schema.optional(GameTrophy),
@@ -103,11 +103,11 @@ export const GamePlay = Schema.Struct({
 export type GamePlay = Schema.Schema.Type<typeof GamePlay>;
 
 export const DashboardMeta = Schema.Struct({
-  totalGames: Schema.Number,
-  totalHours: Schema.Number,
-  totalSessions: Schema.Number,
+  totalGames: Schema.Finite,
+  totalHours: Schema.Finite,
+  totalSessions: Schema.Finite,
   /** Apps (streaming, music, browsers) excluded from the game stats, kept for transparency. */
-  appsExcluded: Schema.Array(Schema.Struct({ name: Schema.String, hours: Schema.Number })),
+  appsExcluded: Schema.Array(Schema.Struct({ name: Schema.String, hours: Schema.Finite })),
   /** ISO date of the earliest first-play across the library. */
   firstEverPlayed: Schema.optional(Schema.String),
   /** Overall activity span. */
