@@ -6,12 +6,18 @@ import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import type { GameMetadata } from "@/server/providers/enrichment/contract.effect";
 import { TitleEnrichment } from "@/server/providers/enrichment/contract.effect";
-import { TitleEnrichmentLayer } from "@/server/providers/enrichment/rawg/provider.effect";
+import {
+  prefetchFranchises,
+  prefetchGameMetadata,
+  TitleEnrichmentLayer,
+} from "@/server/providers/enrichment/rawg/provider.effect";
 
 /**
  * Tests the RAWG `TitleEnrichment` provider: the no-key gate, genre mapping,
- * caching, every-failure-to-absent fallback, empty-query skip, and a genuine
- * HTTP 429 surfacing as `RateLimitedError` on the typed channel.
+ * caching, empty-query skip, absence only for a genuine empty result, every
+ * infrastructure failure (non-OK, transport, decode) surfacing on the typed
+ * error channel (`UpstreamUnavailableError` / `RateLimitedError`), and the
+ * prefetch boundary degrading those typed failures back to blank enrichment.
  *
  * The `RAWG_API_KEY` gate is read through `Config`. Rather than mutate
  * `process.env` (the default provider snapshots it once), each run supplies the
@@ -85,6 +91,9 @@ const franchiseFor = (title: string): Promise<string | undefined> =>
 
 /** Run a metadata lookup, flipping the typed error onto the success channel. */
 const metadataForError = (title: string) => runKeyed(metaProgram(title).pipe(Effect.flip));
+
+/** Run a franchise lookup, flipping the typed error onto the success channel. */
+const franchiseForError = (title: string) => runKeyed(franchiseProgram(title).pipe(Effect.flip));
 
 /** The URL `FetchHttpClient` passed on call `index` (it always passes a `URL`). */
 const fetchUrlAt = (spy: ReturnType<typeof vi.spyOn>, index: number): string => {
@@ -167,24 +176,56 @@ describe(".metadataFor", () => {
     await expect(metadataFor("Some Game")).resolves.toEqual({});
   });
 
-  it("falls back to absent on a non-ok response", async () => {
+  it("returns absent metadata for a genuine empty search result", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ results: [] }), { status: 200 })
+    );
+
+    await expect(metadataFor("Totally Unknown Title")).resolves.toEqual({});
+  });
+
+  it("surfaces a non-ok response as an UpstreamUnavailableError on the typed channel", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("nope", { status: 503 }));
 
-    await expect(metadataFor("Some Game")).resolves.toEqual({});
+    const error = await metadataForError("Some Game");
+
+    expect(error._tag).toBe("UpstreamUnavailableError");
+    expect(error.provider).toBe("rawg");
   });
 
-  it("falls back to absent when the request throws", async () => {
+  it("surfaces a transport failure as an UpstreamUnavailableError on the typed channel", async () => {
     vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("network down"));
 
-    await expect(metadataFor("Some Game")).resolves.toEqual({});
+    const error = await metadataForError("Some Game");
+
+    expect(error._tag).toBe("UpstreamUnavailableError");
+    expect(error.provider).toBe("rawg");
   });
 
-  it("falls back to absent when the response payload fails schema validation", async () => {
+  it("surfaces an invalid-JSON payload as an UpstreamUnavailableError on the typed channel", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ results: "not-an-array" }), { status: 200 })
     );
 
-    await expect(metadataFor("Some Game")).resolves.toEqual({});
+    const error = await metadataForError("Some Game");
+
+    expect(error._tag).toBe("UpstreamUnavailableError");
+    expect(error.provider).toBe("rawg");
+  });
+
+  it("keeps the API key off an UpstreamUnavailableError even when the transport error names it", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(
+      new Error("connect failed for https://api.rawg.io/api/games?key=test-key")
+    );
+
+    const error = await metadataForError("Some Game");
+
+    // The thrown transport value is inspected only during classification and then
+    // discarded, so the redacted key never rides out on the typed error.
+    expect(error._tag).toBe("UpstreamUnavailableError");
+    expect(JSON.stringify(error)).not.toContain("test-key");
+    expect(String(error)).not.toContain("test-key");
+    expect(error.message).not.toContain("test-key");
   });
 
   it("returns absent for a result with no genres array", async () => {
@@ -289,32 +330,61 @@ describe(".franchiseFor", () => {
     await expect(franchiseFor("Stray")).resolves.toBeUndefined();
   });
 
-  it("returns undefined when the series request is non-ok", async () => {
-    vi.spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(gameMatchResponse(7, "Stray"))
-      .mockResolvedValueOnce(new Response("nope", { status: 503 }));
-
-    await expect(franchiseFor("Stray")).resolves.toBeUndefined();
-  });
-
-  it("falls back to undefined on a non-ok search response", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("nope", { status: 503 }));
-
-    await expect(franchiseFor("Some Game")).resolves.toBeUndefined();
-  });
-
-  it("falls back to undefined when the search request throws", async () => {
-    vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("network down"));
-
-    await expect(franchiseFor("Some Game")).resolves.toBeUndefined();
-  });
-
-  it("falls back to undefined when the search payload fails schema validation", async () => {
+  it("returns undefined when the matched game has no id", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ results: [{ name: "no id here" }] }), { status: 200 })
     );
 
     await expect(franchiseFor("Some Game")).resolves.toBeUndefined();
+  });
+
+  it("surfaces a non-ok series response as an UpstreamUnavailableError", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(gameMatchResponse(7, "Stray"))
+      .mockResolvedValueOnce(new Response("nope", { status: 503 }));
+
+    const error = await franchiseForError("Stray");
+
+    expect(error._tag).toBe("UpstreamUnavailableError");
+    expect(error.provider).toBe("rawg");
+  });
+
+  it("surfaces a non-ok search response as an UpstreamUnavailableError", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("nope", { status: 503 }));
+
+    const error = await franchiseForError("Some Game");
+
+    expect(error._tag).toBe("UpstreamUnavailableError");
+    expect(error.provider).toBe("rawg");
+  });
+
+  it("surfaces a transport failure as an UpstreamUnavailableError", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("network down"));
+
+    const error = await franchiseForError("Some Game");
+
+    expect(error._tag).toBe("UpstreamUnavailableError");
+    expect(error.provider).toBe("rawg");
+  });
+
+  it("surfaces an invalid-JSON search payload as an UpstreamUnavailableError", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ results: "not-an-array" }), { status: 200 })
+    );
+
+    const error = await franchiseForError("Some Game");
+
+    expect(error._tag).toBe("UpstreamUnavailableError");
+    expect(error.provider).toBe("rawg");
+  });
+
+  it("surfaces a 429 search response as a RateLimitedError", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("slow down", { status: 429 }));
+
+    const error = await franchiseForError("Busy Game");
+
+    expect(error._tag).toBe("RateLimitedError");
+    expect(error.provider).toBe("rawg");
   });
 
   it("skips the network when the name normalizes to an empty query", async () => {
@@ -387,5 +457,31 @@ describe("process-lived cache across a shared runtime", () => {
     expect(second.genre).toBe("Racing");
     // The Ref cache survived the first invocation, so the second hits no network.
     expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("prefetch boundary degradation", () => {
+  it("degrades to blank metadata when the provider surfaces an UpstreamUnavailableError", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("nope", { status: 503 }));
+
+    const metadata = await runKeyed(prefetchGameMetadata(["Some Game"]));
+
+    expect(metadata.get("Some Game")).toEqual({});
+  });
+
+  it("degrades to blank metadata when the provider surfaces a RateLimitedError", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("slow down", { status: 429 }));
+
+    const metadata = await runKeyed(prefetchGameMetadata(["Busy Game"]));
+
+    expect(metadata.get("Busy Game")).toEqual({});
+  });
+
+  it("degrades to a blank franchise when the provider surfaces an UpstreamUnavailableError", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("nope", { status: 503 }));
+
+    const franchises = await runKeyed(prefetchFranchises(["Some Game"]));
+
+    expect(franchises.get("Some Game")).toBeUndefined();
   });
 });

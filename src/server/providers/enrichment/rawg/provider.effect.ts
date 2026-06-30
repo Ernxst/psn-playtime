@@ -4,11 +4,16 @@
  * - The `RAWG_API_KEY` gate resolves the layer to a no-op provider (every lookup
  *   is a successful absence) when the key is unset, so callers keep their keyword
  *   fallback and the network is never touched.
- * - A transport error, a non-OK response, or a body that fails schema validation
- *   all recover to the absent value.
- * - A genuine HTTP 429 surfaces as `RateLimitedError`; the prefetch builders
- *   recover it (and `UpstreamUnavailableError`) back to absence, so the server-fn
- *   boundary never throws on enrichment failure.
+ * - Absence (`NO_GAME` / `{}`) is reserved for a genuine "no usable RAWG match":
+ *   a successful search whose results array is empty. Infrastructure failures are
+ *   NOT folded into absence — a transport error, a non-OK response, or a body
+ *   that fails schema validation is classified onto the typed error channel so a
+ *   caller can tell "RAWG found nothing" from "RAWG is down".
+ * - A genuine HTTP 429 surfaces as `RateLimitedError`; every other non-OK status,
+ *   transport `HttpClientError`, and schema decode failure surface as
+ *   `UpstreamUnavailableError`. The prefetch builders recover both tags back to
+ *   absence per title, so the server-fn boundary still degrades to blank
+ *   enrichment rather than throwing.
  *
  * Networking goes through the fetch-based `HttpClient` (`effect/unstable/http`);
  * `FetchHttpClient.layer` uses `globalThis.fetch`, so it runs on the
@@ -41,7 +46,12 @@ import {
   normalizeForSearch,
   normalizePlaytime,
 } from "@/server/providers/enrichment/rawg/client";
-import { RateLimitedError } from "@/server/providers/errors.effect";
+import {
+  RateLimitedError,
+  type TitleEnrichmentError,
+  UpstreamUnavailableError,
+  providerError,
+} from "@/server/providers/errors.effect";
 
 /**
  * The RAWG API origin. The Layer owns it: it's prepended onto every request the
@@ -74,7 +84,6 @@ type GameInfo = {
 /** Typed absences, named so they read as values rather than `Effect.void`. */
 const NO_GAME: GameInfo | undefined = undefined;
 const NO_FRANCHISE: string | undefined = undefined;
-const NO_SERIES: ReadonlyArray<string> = [];
 
 /**
  * The slice of the RAWG `/games` search payload both lookups share. `id`/`name`
@@ -108,23 +117,34 @@ const isOkStatus = (status: number): boolean => status >= 200 && status < 300;
 
 /**
  * A captured `HttpClient` (its method requirements are already `never`, so the
- * provider's effects stay `R = never`, matching the port). Each helper recovers
- * transport/non-OK/decode failures to its own absent value and lets a genuine
- * 429 surface as `RateLimitedError`.
+ * provider's effects stay `R = never`, matching the port). Each helper returns
+ * absence only for a genuine empty result and classifies every infrastructure
+ * failure onto the typed channel: HTTP 429 → `RateLimitedError`; other non-OK
+ * statuses, transport `HttpClientError`, and schema decode failures →
+ * `UpstreamUnavailableError`.
  */
 type Client = HttpClient.HttpClient;
 
 /**
+ * Classify a transport or decode failure onto the typed channel without leaking
+ * upstream text: `providerError` inspects the thrown value locally and discards
+ * it, returning a sanitised `RateLimitedError`/`UpstreamUnavailableError`. Shared
+ * by both lookups for `HttpClientError` (transport) and `SchemaError` (decode).
+ */
+const classifyRawgFailure = providerError("rawg");
+
+/**
  * The single shared `/games?search=` lookup. Both genre metadata and franchise
  * enrichment derive from the one decoded {@link GameInfo}, so a title is
- * searched once. Transport/non-OK/decode failures degrade to absence
- * (`undefined`); a genuine 429 surfaces as `RateLimitedError`.
+ * searched once. Absence (`NO_GAME`) is returned only for a genuine empty result;
+ * a 429 surfaces as `RateLimitedError`, and every other non-OK status, transport
+ * failure, or decode failure as `UpstreamUnavailableError`.
  */
 const searchGame = (
   client: Client,
   query: string,
   apiKey: ApiKey
-): Effect.Effect<GameInfo | undefined, RateLimitedError> =>
+): Effect.Effect<GameInfo | undefined, TitleEnrichmentError> =>
   Effect.gen(function* () {
     const response = yield* client.get(GAMES_PATH, {
       urlParams: { search: query, key: Redacted.value(apiKey), page_size: 1 },
@@ -133,30 +153,31 @@ const searchGame = (
       return yield* new RateLimitedError({ provider: "rawg" });
     }
     if (!isOkStatus(response.status)) {
+      return yield* new UpstreamUnavailableError({ provider: "rawg", reason: "upstream_error" });
+    }
+    const body = yield* HttpClientResponse.schemaBodyJson(RawgGameSearch)(response);
+    const first = body.results?.[0];
+    if (first === undefined) {
       return NO_GAME;
     }
-    return yield* HttpClientResponse.schemaBodyJson(RawgGameSearch)(response).pipe(
-      Effect.map((body): GameInfo | undefined => {
-        const first = body.results?.[0];
-        if (first === undefined) {
-          return NO_GAME;
-        }
-        return {
-          id: first.id,
-          name: first.name,
-          genres: (first.genres ?? []).map((g) => g.name),
-          playtime: first.playtime,
-        };
-      }),
-      Effect.orElseSucceed(() => NO_GAME)
-    );
-  }).pipe(Effect.catchTag("HttpClientError", () => Effect.succeed(NO_GAME)));
+    return {
+      id: first.id,
+      name: first.name,
+      genres: (first.genres ?? []).map((g) => g.name),
+      playtime: first.playtime,
+    };
+  }).pipe(
+    Effect.catchTags({
+      HttpClientError: classifyRawgFailure,
+      SchemaError: classifyRawgFailure,
+    })
+  );
 
 const fetchSeriesNames = (
   client: Client,
   id: number,
   apiKey: ApiKey
-): Effect.Effect<ReadonlyArray<string>, RateLimitedError> =>
+): Effect.Effect<ReadonlyArray<string>, TitleEnrichmentError> =>
   Effect.gen(function* () {
     const response = yield* client.get(`${GAMES_PATH}/${id}/game-series`, {
       urlParams: { key: Redacted.value(apiKey) },
@@ -165,13 +186,16 @@ const fetchSeriesNames = (
       return yield* new RateLimitedError({ provider: "rawg" });
     }
     if (!isOkStatus(response.status)) {
-      return NO_SERIES;
+      return yield* new UpstreamUnavailableError({ provider: "rawg", reason: "upstream_error" });
     }
-    return yield* HttpClientResponse.schemaBodyJson(RawgSeries)(response).pipe(
-      Effect.map((body) => (body.results ?? []).map((g) => g.name)),
-      Effect.orElseSucceed(() => NO_SERIES)
-    );
-  }).pipe(Effect.catchTag("HttpClientError", () => Effect.succeed(NO_SERIES)));
+    const body = yield* HttpClientResponse.schemaBodyJson(RawgSeries)(response);
+    return (body.results ?? []).map((g) => g.name);
+  }).pipe(
+    Effect.catchTags({
+      HttpClientError: classifyRawgFailure,
+      SchemaError: classifyRawgFailure,
+    })
+  );
 
 /** The shared search cache: one decoded {@link GameInfo} per normalised title. */
 type SearchCache = Ref.Ref<Map<string, GameInfo | undefined>>;
@@ -185,7 +209,7 @@ const cachedSearch = (
   apiKey: ApiKey,
   cache: SearchCache,
   query: string
-): Effect.Effect<GameInfo | undefined, RateLimitedError> =>
+): Effect.Effect<GameInfo | undefined, TitleEnrichmentError> =>
   Effect.gen(function* () {
     const key = query.toLowerCase();
     const current = yield* Ref.get(cache);
@@ -203,7 +227,7 @@ const resolveFranchise = (
   apiKey: ApiKey,
   cache: SearchCache,
   query: string
-): Effect.Effect<string | undefined, RateLimitedError> =>
+): Effect.Effect<string | undefined, TitleEnrichmentError> =>
   Effect.gen(function* () {
     const game = yield* cachedSearch(client, apiKey, cache, query);
     if (game?.id === undefined || game.name === undefined) {
