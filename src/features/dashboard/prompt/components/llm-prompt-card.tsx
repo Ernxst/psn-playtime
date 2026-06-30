@@ -147,18 +147,24 @@ function PromptHint({ menuMode, question }: { menuMode: boolean; question: strin
   );
 }
 
-/** Download `prompt` as a Markdown file via a transient object URL. */
-function savePromptToFile(prompt: string) {
+/** The download filename for `prompt`, tagged with the sanitised PSN `onlineId`. */
+function promptFileName(onlineId: string): string {
+  const safeId = onlineId.replace(/[^A-Za-z0-9-_]/g, "");
+  return safeId === "" ? "psn-playtime-prompt.md" : `psn-playtime-prompt-${safeId}.md`;
+}
+
+/** Download `prompt` as a Markdown file named for the PSN account via a transient object URL. */
+function savePromptToFile(prompt: string, onlineId: string) {
   const url = URL.createObjectURL(new Blob([prompt], { type: "text/markdown" }));
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = "psn-playtime-prompt.md";
+  anchor.download = promptFileName(onlineId);
   anchor.click();
   URL.revokeObjectURL(url);
 }
 
 /** The read-only prompt preview plus its copy and save-to-file buttons. */
-function PromptPreview({ prompt }: { prompt: string }) {
+function PromptPreview({ prompt, onlineId }: { prompt: string; onlineId: string }) {
   return (
     <div className="flex items-start gap-2">
       <Textarea
@@ -170,7 +176,11 @@ function PromptPreview({ prompt }: { prompt: string }) {
       />
       <div className="flex flex-col gap-2">
         <CopyButton value={prompt} label="Copy prompt" />
-        <Button variant="outline" onClick={() => savePromptToFile(prompt)} className="gap-2">
+        <Button
+          variant="outline"
+          onClick={() => savePromptToFile(prompt, onlineId)}
+          className="gap-2"
+        >
           <Download /> Save to file
         </Button>
       </div>
@@ -225,7 +235,7 @@ export function LlmPromptCard({ data }: { data: DashboardData }) {
 
         <PromptHint menuMode={menuMode} question={variant.question} />
 
-        <PromptPreview prompt={prompt} />
+        <PromptPreview prompt={prompt} onlineId={data.profile.onlineId} />
       </CardContent>
     </Card>
   );

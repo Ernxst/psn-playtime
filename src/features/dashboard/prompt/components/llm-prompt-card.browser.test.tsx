@@ -84,9 +84,28 @@ describe("LlmPromptCard", () => {
       type: "text/markdown",
     });
     expect(createObjectURL).toHaveBeenCalledTimes(1);
-    expect(anchor).toHaveAttribute("download", "psn-playtime-prompt.md");
+    expect(anchor).toHaveAttribute(
+      "download",
+      `psn-playtime-prompt-${demoDashboard.profile.onlineId}.md`
+    );
     expect(click).toHaveBeenCalledTimes(1);
     expect(revokeObjectURL).toHaveBeenCalledExactlyOnceWith("blob:prompt");
+  });
+
+  it("strips unsafe characters from the PSN id in the download filename", async () => {
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:prompt");
+    vi.spyOn(URL, "revokeObjectURL").mockReturnValue();
+    const data = { ...demoDashboard, profile: { ...demoDashboard.profile, onlineId: "a/b ?c" } };
+
+    await render(<LlmPromptCard data={data} />);
+
+    const anchor = document.createElement("a");
+    vi.spyOn(anchor, "click").mockReturnValue();
+    vi.spyOn(document, "createElement").mockReturnValueOnce(anchor);
+
+    await page.getByRole("button", { name: "Save to file" }).click();
+
+    expect(anchor).toHaveAttribute("download", "psn-playtime-prompt-abc.md");
   });
 
   it("choosing a different lead question changes the copied prompt", async () => {
