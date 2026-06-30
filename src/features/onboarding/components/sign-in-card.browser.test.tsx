@@ -204,4 +204,75 @@ describe("SignInCard", () => {
 
     await expect.element(page.getByText("That token didn't work")).toBeVisible();
   });
+
+  // The boundary (`@/server/api/account.effect`, #267) maps each typed PSN
+  // failure to its own fixed, user-facing message, and the card surfaces that
+  // message verbatim via the toast — so the right recovery copy reaches the user
+  // per failure kind rather than a single "expired token" for everything.
+  it.each([
+    [
+      "a rejected credential",
+      "That token didn't work — it may be expired. Grab a fresh npsso and try again.",
+    ],
+    ["a rate-limit", "PlayStation is rate-limiting requests. Wait a moment and try again."],
+    ["an upstream outage", "PlayStation is unavailable right now. Try again later."],
+    ["an internal error", "Something went wrong on our end. Please try again."],
+  ])("surfaces the distinct message for %s", async (_label, message) => {
+    vi.mocked(signInWithToken).mockRejectedValue(new Error(message));
+    const { element } = createHarness(
+      <>
+        <SignInCard />
+        <Toaster />
+      </>
+    );
+
+    await render(element);
+
+    await page.getByLabelText("npsso token").fill("stale-token");
+    await page.getByText(/sign in to my PlayStation account/i).click();
+    await page.getByRole("button", { name: "Sign in" }).click();
+
+    await expect.element(page.getByText(message)).toBeVisible();
+    expect(signInWithToken).toHaveBeenCalledExactlyOnceWith({ data: { npsso: "stale-token" } });
+  });
+
+  it("falls back to a generic message when the rejection is not an Error", async () => {
+    vi.mocked(signInWithToken).mockRejectedValue("boom");
+    const { element } = createHarness(
+      <>
+        <SignInCard />
+        <Toaster />
+      </>
+    );
+
+    await render(element);
+
+    await page.getByLabelText("npsso token").fill("stale-token");
+    await page.getByText(/sign in to my PlayStation account/i).click();
+    await page.getByRole("button", { name: "Sign in" }).click();
+
+    await expect.element(page.getByText("Sign in failed. Check your token.")).toBeVisible();
+  });
+
+  it("shows a signing-in spinner and locks the token input while the request is in flight", async () => {
+    onTestFinished(() => localStorage.clear());
+    let resolveSignIn: (value: typeof demoDashboard) => void = () => {};
+    vi.mocked(signInWithToken).mockReturnValue(
+      new Promise((resolve) => {
+        resolveSignIn = resolve;
+      })
+    );
+    const { element } = createHarness(<SignInCard />);
+
+    await render(element);
+
+    await page.getByLabelText("npsso token").fill("a-valid-looking-token");
+    await page.getByText(/sign in to my PlayStation account/i).click();
+    await page.getByRole("button", { name: "Sign in" }).click();
+
+    await expect.element(page.getByRole("button", { name: /signing in/i })).toBeDisabled();
+    await expect.element(page.getByLabelText("npsso token")).toBeDisabled();
+
+    resolveSignIn(demoDashboard);
+  });
 });
