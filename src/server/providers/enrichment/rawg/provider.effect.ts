@@ -23,10 +23,12 @@ import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
+import * as Redacted from "effect/Redacted";
 import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
 import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
 import * as HttpClient from "effect/unstable/http/HttpClient";
+import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest";
 import * as HttpClientResponse from "effect/unstable/http/HttpClientResponse";
 import {
   TitleEnrichment,
@@ -41,7 +43,15 @@ import {
 } from "@/server/providers/enrichment/rawg/client";
 import { RateLimitedError } from "@/server/providers/errors.effect";
 
-const RAWG_ENDPOINT = "https://api.rawg.io/api/games";
+/**
+ * The RAWG API origin. The Layer owns it: it's prepended onto every request the
+ * captured client issues (see {@link make}), so the lookup helpers address RAWG
+ * by relative path only and never carry the origin themselves.
+ */
+const RAWG_BASE_URL = "https://api.rawg.io/api";
+
+/** The `/games` collection path, relative to {@link RAWG_BASE_URL}. */
+const GAMES_PATH = "/games";
 
 /** Max RAWG lookups in flight at once. */
 const RAWG_LOOKUP_CONCURRENCY = 8;
@@ -86,11 +96,13 @@ const RawgSeries = Schema.Struct({
   results: Schema.Struct({ name: Schema.String }).pipe(Schema.Array, Schema.optional),
 });
 
-const searchUrl = (query: string, apiKey: string): string =>
-  `${RAWG_ENDPOINT}?search=${encodeURIComponent(query)}&key=${apiKey}&page_size=1`;
-
-const seriesUrl = (id: number, apiKey: string): string =>
-  `${RAWG_ENDPOINT}/${id}/game-series?key=${apiKey}`;
+/**
+ * The RAWG API key, kept inside a `Redacted` so it never logs or stringifies as
+ * plain text. It's unwrapped via `Redacted.value` only where a request URL is
+ * constructed (see {@link searchGame}/{@link fetchSeriesNames}), never stored or
+ * carried on a typed error.
+ */
+type ApiKey = Redacted.Redacted<string>;
 
 const isOkStatus = (status: number): boolean => status >= 200 && status < 300;
 
@@ -110,10 +122,13 @@ type Client = HttpClient.HttpClient;
  */
 const searchGame = (
   client: Client,
-  url: string
+  query: string,
+  apiKey: ApiKey
 ): Effect.Effect<GameInfo | undefined, RateLimitedError> =>
   Effect.gen(function* () {
-    const response = yield* client.get(url);
+    const response = yield* client.get(GAMES_PATH, {
+      urlParams: { search: query, key: Redacted.value(apiKey), page_size: 1 },
+    });
     if (response.status === 429) {
       return yield* new RateLimitedError({ provider: "rawg" });
     }
@@ -139,10 +154,13 @@ const searchGame = (
 
 const fetchSeriesNames = (
   client: Client,
-  url: string
+  id: number,
+  apiKey: ApiKey
 ): Effect.Effect<ReadonlyArray<string>, RateLimitedError> =>
   Effect.gen(function* () {
-    const response = yield* client.get(url);
+    const response = yield* client.get(`${GAMES_PATH}/${id}/game-series`, {
+      urlParams: { key: Redacted.value(apiKey) },
+    });
     if (response.status === 429) {
       return yield* new RateLimitedError({ provider: "rawg" });
     }
@@ -164,7 +182,7 @@ type SearchCache = Ref.Ref<Map<string, GameInfo | undefined>>;
  */
 const cachedSearch = (
   client: Client,
-  apiKey: string,
+  apiKey: ApiKey,
   cache: SearchCache,
   query: string
 ): Effect.Effect<GameInfo | undefined, RateLimitedError> =>
@@ -174,7 +192,7 @@ const cachedSearch = (
     if (current.has(key)) {
       return current.get(key);
     }
-    const info = yield* searchGame(client, searchUrl(query, apiKey));
+    const info = yield* searchGame(client, query, apiKey);
     yield* Ref.update(cache, (map) => map.set(key, info));
     return info;
   });
@@ -182,7 +200,7 @@ const cachedSearch = (
 /** Reuse the shared game-info for the id, then the separate series request. */
 const resolveFranchise = (
   client: Client,
-  apiKey: string,
+  apiKey: ApiKey,
   cache: SearchCache,
   query: string
 ): Effect.Effect<string | undefined, RateLimitedError> =>
@@ -191,12 +209,12 @@ const resolveFranchise = (
     if (game?.id === undefined || game.name === undefined) {
       return NO_FRANCHISE;
     }
-    const seriesNames = yield* fetchSeriesNames(client, seriesUrl(game.id, apiKey));
+    const seriesNames = yield* fetchSeriesNames(client, game.id, apiKey);
     return deriveFranchise([game.name, ...seriesNames]);
   });
 
 /** Build the real (keyed) provider, closing over the client, key, and caches. */
-const makeRawgProvider = (client: Client, apiKey: string): Effect.Effect<TitleEnrichmentShape> =>
+const makeRawgProvider = (client: Client, apiKey: ApiKey): Effect.Effect<TitleEnrichmentShape> =>
   Effect.gen(function* () {
     // The shared search cache: one `/games?search=` per title, reused by both the
     // genre and franchise lookups, and across requests since the layer is built
@@ -247,12 +265,19 @@ const noopProvider: TitleEnrichmentShape = {
 
 const make = Effect.gen(function* () {
   // A malformed RAWG_API_KEY source is a deploy-time defect, not a recoverable
-  // enrichment failure; `Config.option` already maps "unset" to `None`.
-  const apiKey = yield* Config.string("RAWG_API_KEY").pipe(Config.option, Effect.orDie);
+  // enrichment failure; `Config.option` already maps "unset" to `None`. The key
+  // stays inside a `Redacted` so it never logs as plain text; it's unwrapped
+  // only where a request URL is built.
+  const apiKey = yield* Config.redacted("RAWG_API_KEY").pipe(Config.option, Effect.orDie);
   if (Option.isNone(apiKey)) {
     return noopProvider;
   }
-  const client = yield* HttpClient.HttpClient;
+  // The Layer owns the base URL: every request the captured client issues is
+  // prefixed with the RAWG origin, so the lookup helpers address it by relative
+  // path only.
+  const client = (yield* HttpClient.HttpClient).pipe(
+    HttpClient.mapRequest(HttpClientRequest.prependUrl(RAWG_BASE_URL))
+  );
   return yield* makeRawgProvider(client, apiKey.value);
 });
 

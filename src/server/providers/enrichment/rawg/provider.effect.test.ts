@@ -115,7 +115,12 @@ describe(".metadataFor", () => {
     });
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
-    expect(fetchUrlAt(fetchSpy, 0)).toContain("search=Returnal");
+    const url = fetchUrlAt(fetchSpy, 0);
+    expect(url).toContain("search=Returnal");
+    // The query params are URL-encoded by the request builder, the API key
+    // among them, and the page size is fixed at one.
+    expect(url).toContain("key=test-key");
+    expect(url).toContain("page_size=1");
   });
 
   it("returns the genre and typical playtime from one shared request", async () => {
@@ -205,6 +210,22 @@ describe(".metadataFor", () => {
 
     expect(error._tag).toBe("RateLimitedError");
     expect(error.provider).toBe("rawg");
+  });
+
+  it("sends the API key on the request but keeps it off the typed error", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("slow down", { status: 429 }));
+
+    const error = await metadataForError("Busy Game");
+
+    // The key reaches RAWG (it lives in the outgoing request URL)...
+    expect(fetchUrlAt(fetchSpy, 0)).toContain("key=test-key");
+    // ...but stays redacted everywhere else: it never lands on the typed error
+    // surfaced to callers, even when fully serialised.
+    expect(JSON.stringify(error)).not.toContain("test-key");
+    expect(String(error)).not.toContain("test-key");
+    expect(error.message).not.toContain("test-key");
   });
 });
 
