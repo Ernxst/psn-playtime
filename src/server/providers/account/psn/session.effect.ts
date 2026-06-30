@@ -1,18 +1,12 @@
 /**
- * `PsnSession` — an authenticated PSN session reachable only inside a
- * per-request use boundary.
+ * `PsnSession` — the authenticated PSN session, a psn-module-internal value.
  *
- * `withPsnSession(credential, use)` authenticates the credential against the
- * ambient `PsnTransport`, then runs `use(session)`. The session value exists
- * only as the argument to `use`: there is no exported way to obtain a
- * `PsnSessionShape` outside the callback, so the session cannot be returned and
- * used after the boundary. The credential is authenticated once per call. The
- * session's `profile` / `playedGames` / `trophyTitles` are the operations
- * available within the boundary.
- *
- * The PSN auth/token exchange has no teardown (no logout), so there is no
- * release step to claim: the boundary is enforced structurally — the session is
- * only reachable inside `use` — not by a finalizer.
+ * `authenticatePsnSession(credential)` exchanges the transient credential
+ * against the ambient `PsnTransport` once and returns the session it authorises
+ * (`profile` / `playedGames` / `trophyTitles`). The session is a private
+ * intermediate of `loadDashboard`: it is not part of the public
+ * `DashboardSource` surface and is never the result of any operation exposed
+ * upward — the only public operation, `loadDashboard`, returns `DashboardData`.
  *
  * Failure model: a rejected npsso/access-code exchange fails with
  * `CredentialRejectedError`; a profile/played/trophy fetch fails with
@@ -123,7 +117,11 @@ const fetchTrophyTitles = (
     )
   );
 
-/** The session operations available within a `withPsnSession` boundary. */
+/**
+ * The PSN session operations. Internal to the psn module: it is a private
+ * intermediate of `loadDashboard`, never part of the public `DashboardSource`
+ * surface and never the result of any operation exposed upward.
+ */
 export interface PsnSessionShape {
   readonly profile: Effect.Effect<ProfileSummary, DashboardSourceError>;
   readonly playedGames: Effect.Effect<PlayedTitle[], DashboardSourceError>;
@@ -141,19 +139,17 @@ const sessionOf = (transport: PsnTransportShape, auth: AuthorizationPayload): Ps
 });
 
 /**
- * Run `use` within an authenticated PSN session: read the ambient
- * `PsnTransport`, exchange `credential` for `auth` once, then run `use(session)`.
- * The session value is reachable only as the argument to `use`, so it cannot be
- * captured and used after the boundary returns — the per-request lifetime is the
- * `use` call itself, enforced by the type rather than by prose. Fails with
- * `CredentialRejectedError` when the exchange is rejected.
+ * Authenticate `credential` against the ambient `PsnTransport` and return the
+ * session it authorises. The credential is transient — exchanged once per
+ * request and never stored. Fails with `CredentialRejectedError` when the
+ * exchange is rejected. This is psn-module-internal plumbing for
+ * `loadDashboard`; the returned session is not exposed on the public capability.
  */
-export const withPsnSession = <A, E, R>(
-  credential: AccountCredential,
-  use: (session: PsnSessionShape) => Effect.Effect<A, E, R>
-): Effect.Effect<A, E | CredentialRejectedError, R | PsnTransport> =>
+export const authenticatePsnSession = (
+  credential: AccountCredential
+): Effect.Effect<PsnSessionShape, CredentialRejectedError, PsnTransport> =>
   Effect.gen(function* () {
     const transport = yield* PsnTransport;
     const auth = yield* authenticate(transport, credential);
-    return yield* use(sessionOf(transport, auth));
-  }).pipe(Effect.withSpan("PsnSession.use"));
+    return sessionOf(transport, auth);
+  }).pipe(Effect.withSpan("PsnSession.authenticate"));

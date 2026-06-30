@@ -3,14 +3,15 @@
  * npsso credential, fetch the profile, played games, and trophies, and normalize
  * them into the un-enriched `DashboardData` contract.
  *
- * - The authenticated session comes from `withPsnSession` (`./session.effect`):
- *   it performs the npsso→token exchange once and hands the session to a
- *   callback, so `auth` is not threaded through this module.
+ * - `authenticatePsnSession` (`./session.effect`) performs the npsso→token
+ *   exchange once and returns the session; it is a private intermediate of
+ *   `loadDashboard`, so `auth` is not threaded through this module.
  * - The pure normalization/name-matching helpers live in `./normalize`.
  * - `buildSnapshot` takes the in-hand `PsnSessionShape`, fetches the three
  *   operations in parallel (a trophy failure degrades to `[]`), stamps
- *   `fetchedAt`, and assembles the contract. `loadDashboard` runs it inside a
- *   per-request `withPsnSession` boundary.
+ *   `fetchedAt`, and assembles the contract. `loadDashboard` composes
+ *   `authenticatePsnSession` then `buildSnapshot`; the session never surfaces on
+ *   the public capability, which returns only `DashboardData`.
  */
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
@@ -27,7 +28,7 @@ import {
   type TrophyTitle,
 } from "@/server/providers/account/psn/normalize";
 import {
-  withPsnSession,
+  authenticatePsnSession,
   type PsnSessionShape,
 } from "@/server/providers/account/psn/session.effect";
 import { PsnTransport } from "@/server/providers/account/psn/transport.effect";
@@ -70,10 +71,9 @@ export const buildSnapshot = (
 
 /**
  * The PSN `DashboardSource` layer, requiring `PsnTransport`. `loadDashboard`
- * runs `buildSnapshot` inside a per-request `withPsnSession` boundary: the
- * credential is authenticated per request and the session is reachable only
- * within the boundary. A rejected credential surfaces as
- * `CredentialRejectedError`.
+ * authenticates the per-request credential then runs `buildSnapshot` on the
+ * resulting session — a private intermediate of this one pipeline. A rejected
+ * credential surfaces as `CredentialRejectedError` before any snapshot fetch.
  */
 export const PsnDashboardSourceLayer: Layer.Layer<DashboardSource, never, PsnTransport> =
   Layer.effect(
@@ -82,7 +82,8 @@ export const PsnDashboardSourceLayer: Layer.Layer<DashboardSource, never, PsnTra
       PsnTransport,
       (transport): DashboardSourceShape => ({
         loadDashboard: (credential: AccountCredential) =>
-          withPsnSession(credential, buildSnapshot).pipe(
+          authenticatePsnSession(credential).pipe(
+            Effect.flatMap(buildSnapshot),
             Effect.provideService(PsnTransport, transport)
           ),
       })
