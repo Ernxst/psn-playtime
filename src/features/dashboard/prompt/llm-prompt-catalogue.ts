@@ -1,18 +1,24 @@
 export type PromptGroup =
   | "Engagement & enjoyment"
   | "Completion & habits"
+  | "Trophies & completion"
   | "Taste & preferences"
   | "Recommendations"
+  | "Backlog & what to play next"
   | "Profile & personality"
+  | "Wrapped & shareable"
   | "Spending & value"
   | "More";
 
 export const PROMPT_GROUPS = [
   "Engagement & enjoyment",
   "Completion & habits",
+  "Trophies & completion",
   "Taste & preferences",
   "Recommendations",
+  "Backlog & what to play next",
   "Profile & personality",
+  "Wrapped & shareable",
   "Spending & value",
   "More",
 ] as const satisfies readonly PromptGroup[];
@@ -61,6 +67,13 @@ export const PROMPT_VARIANTS = [
       "Infer which game mechanics seem to keep me coming back. Reason from the genres, franchises and the titles I sink repeated sessions into, and name the recurring mechanics.",
   },
   {
+    id: "binge-vs-bursts",
+    group: "Engagement & enjoyment",
+    question: "Which games did I binge versus play in short bursts?",
+    instruction:
+      "Separate the games I binged from the ones I dipped into in short bursts, using hours divided by sessions (hours-per-session) read against each game's session count. Call out the long-sitting bingers versus the little-and-often titles, and weigh the result against genre — short, repeated sessions are the core loop for roguelikes, fighters, sports and arcade games, so read those as habit, not a failure to commit, never as low engagement. Treat low recorded hours as possibly under-reported by PSN rather than proof of a thin session.",
+  },
+  {
     id: "finish-vs-abandon",
     group: "Completion & habits",
     question: "What patterns separate the games I finish from the ones I abandon?",
@@ -89,6 +102,34 @@ export const PROMPT_VARIANTS = [
       "Diagnose the habits that are stopping me from finishing more games. Use my session style, abandonment patterns and how spread my hours are, and give concrete, honest observations.",
   },
   {
+    id: "closest-platinums",
+    group: "Trophies & completion",
+    question: "Which platinums am I closest to?",
+    instruction:
+      "Find the platinums I'm closest to earning. Look only at games where a platinum is available but not yet earned, and rank them by how near completion I am — lean on each game's trophy progress % and the earned-versus-defined counts (P/G/S/B earned against what the game defines). Caveat honestly: I have NO trophy-rarity or difficulty data, so 'close on paper' doesn't mean the remaining trophies are easy or quick — a high progress % can still hide a brutal grind or a missable. Games marked 'no platinum available' are out of scope, and 'trophies unknown (no data)' means UNKNOWN, never zero progress.",
+  },
+  {
+    id: "completionist-or-mover",
+    group: "Trophies & completion",
+    question: "Am I a completionist, or do I move on?",
+    instruction:
+      "Judge whether I'm a completionist or someone who moves on, reading the earned-versus-defined trophy ratios across my whole library alongside the completionist baseline above (how often I platinum games that allow it). Weigh how consistently I push games to high completion versus leaving them part-finished. Be fair about it: finishing a main story and skipping grindy endgame, DLC or multiplayer trophies is satisfied completion, not abandonment, so low completion isn't automatically 'moving on'. I have no trophy-difficulty or rarity data, and 'trophies unknown (no data)' stays UNKNOWN — never read dislike or incompletion off missing data.",
+  },
+  {
+    id: "trophies-left-on-table",
+    group: "Trophies & completion",
+    question: "Which games have the most trophies left on the table?",
+    instruction:
+      "Point out the games with the most trophies left unearned — the biggest gap between what each game defines and what I've earned, read from the progress % and the earned P/G/S/B counts. Favour titles I clearly invested in (high hours or sessions) where the unfinished trophies are most notable. Caveat: a large gap is not a verdict of dislike — skipped grind, DLC or multiplayer trophies are legitimately left behind on a satisfied playthrough, and I have NO rarity or difficulty data to say how much effort the remainder really represents. 'trophies unknown (no data)' is UNKNOWN, not a full set left on the table.",
+  },
+  {
+    id: "hardest-earned-platinums",
+    group: "Trophies & completion",
+    question: "Which of my platinums were the hardest-earned?",
+    instruction:
+      "Among the games where I actually earned the platinum, reason about which were the hardest-won. Be explicit up front that my data carries NO trophy-rarity, difficulty or completion-percentage-of-other-players figures — so you must reason from your OWN knowledge of each title's reputation for grind, skill ceiling, missables or time-to-platinum, not from anything in the numbers. Use my hours on each as a loose corroborating hint where it helps, but treat the difficulty ranking as outside knowledge and say so, flagging any platinum whose reputation you're unsure of rather than overclaiming.",
+  },
+  {
     id: "hidden-preferences",
     group: "Taste & preferences",
     question: "What hidden preferences can you infer from my play history?",
@@ -115,6 +156,20 @@ export const PROMPT_VARIANTS = [
     question: "Which games were outliers compared to the rest of my library?",
     instruction:
       "Find the games that were outliers compared to the rest of my library. Flag titles that break my usual genre, franchise, hours or session patterns and say what makes each unusual.",
+  },
+  {
+    id: "genre-taste-shift",
+    group: "Taste & preferences",
+    question: "How has my genre taste shifted over the years?",
+    instruction:
+      "Trace how my taste in genres has shifted over the years. Group each game's genre against its first- and last-played dates to see which genres dominated my earlier years versus which I lean into now, and describe the drift — what's risen, what's faded, what's stayed constant. Reason from the dates I have, not a session timeline: my data has NO per-period or time-of-day history, so work from when each game entered and left my rotation. Treat low recorded hours as possibly under-reported rather than a thin period, and don't read a faded genre as dislike — tastes move on without any judgement attached.",
+  },
+  {
+    id: "franchise-loyalty",
+    group: "Taste & preferences",
+    question: "Which franchises am I most loyal to?",
+    instruction:
+      "Tell me which franchises I'm most loyal to. Rank them by how many titles I've played in each, the hours I've poured across them and how reliably I keep returning over time (first- and last-played spread). Distinguish deep loyalty — many entries played steadily across years — from a single big spike in one title. Weigh genre context: a live-service franchise I keep reopening reflects habit, and that's still loyalty. Missing trophy or playtime data is UNKNOWN, not disloyalty, and low recorded hours may be PSN under-reporting rather than a half-hearted return.",
   },
   {
     id: "another-chance",
@@ -159,6 +214,27 @@ export const PROMPT_VARIANTS = [
       "Infer my taste from my most-played genres, favourite franchises and the titles I engaged with most (weighing hours, sessions and recency), then suggest older or classic back-catalogue games — throwbacks I may have skipped — that I'd enjoy and don't already own or play. My data contains NO games catalogue, so reason from your own knowledge of gaming history to name candidates and judge which are genuinely older or classic. Explain why each pick fits my taste, and be honest that these are suggestions from outside knowledge, not derived from my data, so treat the 'classic' framing and whether I truly missed each one as your best estimate. Don't reason about price or what I paid — that isn't the question here.",
   },
   {
+    id: "finish-next-owned",
+    group: "Backlog & what to play next",
+    question: "What should I finish next from what I already own?",
+    instruction:
+      "Pick what I should finish next from the games I already own, balancing three things: how much I've already invested (hours and sessions), how much is left to finish (incomplete trophy progress, earned-versus-defined counts), and recency (a game I touched recently is a more natural pick-up than one dormant for years). Favour titles where a real chunk of the experience is still on the table but I've shown genuine engagement. Reason from ownership and playtime only — this is NOT about what I bought, and there is NO price or spend data here, so never frame it as money spent. Low completion isn't dislike, and 'trophies unknown (no data)' is UNKNOWN, not unfinished.",
+  },
+  {
+    id: "liked-but-drifted",
+    group: "Backlog & what to play next",
+    question: "Which games did I clearly like but drift away from?",
+    instruction:
+      "Surface the games I clearly liked but drifted away from — high hours (and where present, strong trophy progress or a long return span) paired with an old last-played date that shows I haven't been back. These are the lapsed favourites worth reviving, distinct from games I bounced off quickly. Use each game's hours against its first- and last-played dates; a big total long ago reads very differently from a smaller recent one. Drifting away is not a verdict of dislike — life and new releases pull attention — and low recorded hours may be PSN under-reporting, so weigh trophies and recency alongside the raw number.",
+  },
+  {
+    id: "barely-played-owned",
+    group: "Backlog & what to play next",
+    question: "Which games in my library have I barely played?",
+    instruction:
+      "List the games in my library I've barely played — the lowest-hours, fewest-sessions titles that have sat largely untouched. Reason from ownership and playtime ONLY: do not frame these as games I 'bought' or money wasted, because my data here has NO price or spend information and that framing would need it. Be careful with the figures too — PSN can under-report or miss play time, so a near-zero hour count can understate real play, and 'trophies unknown (no data)' is UNKNOWN; treat a barely-played game as an opportunity to revisit, not proof I disliked it.",
+  },
+  {
     id: "personality-traits",
     group: "Profile & personality",
     question: "What personality traits can you infer from my gaming habits?",
@@ -178,6 +254,20 @@ export const PROMPT_VARIANTS = [
     question: "If my play history belonged to someone else, what would stand out most?",
     instruction:
       "Imagine my play history belonged to a stranger. Tell me what would stand out most about them, citing the specific games and patterns that jump out.",
+  },
+  {
+    id: "gaming-wrapped",
+    group: "Wrapped & shareable",
+    question: "Write me a shareable gaming 'wrapped'.",
+    instruction:
+      "Write me a shareable gaming 'wrapped' — a punchy, celebratory synthesis of the picture I already gave you, in the spirit of a year-in-review. Do NOT run fresh deep analysis or invent new metrics: pull the highlights straight from the summary above — my biggest games, signature genres, favourite franchises, standout session habits and how my year looked — and turn them into a few snappy, quotable lines I'd happily share. Keep the tone upbeat and light; round and headline rather than over-qualify. Where a number is soft (PSN can under-report hours, missing data is unknown), lean on the clear standouts rather than overclaiming precision.",
+  },
+  {
+    id: "gaming-identity",
+    group: "Wrapped & shareable",
+    question: "Sum up my gaming identity in a few punchy lines.",
+    instruction:
+      "Sum up my gaming identity in a few punchy, shareable lines — a sharp character sketch, not an essay. This is synthesis only: distil what the summary above already shows about me — my signature genres, the franchises I'm loyal to, how I tend to play (binger or dipper, finisher or wanderer) and what stands out most — into a handful of memorable lines. Don't compute new analysis or invent metrics, and don't over-qualify; pick the boldest true through-lines and say them with flair, leaning on clear standouts where the underlying numbers are soft.",
   },
   {
     id: "binge-vs-steady",
@@ -277,6 +367,20 @@ export const SPEND_VARIANTS = [
       "Compare my wallet top-ups against my actual game spend from the imported spend block. Be clear that top-ups fund the wallet and are not spend on any one game, and that unmatched or free titles are unknown spend, not zero.",
   },
   {
+    id: "spend-on-barely-played",
+    group: "Spending & value",
+    question: "What did I spend on games I barely played?",
+    instruction:
+      "Using the imported spend block, point out the games I paid for but barely played — match each game's purchase against its lifetime hours and surface the ones with real spend and very little playtime. Read this as plain economics, not regret or a value verdict: spend is context about my buying, never a measure of enjoyment, and a low hour count may be PSN under-reporting rather than a game ignored. Be honest about coverage too — only matched purchases have a price, and PS Plus, pre-installs, free claims and unmatched buys are UNKNOWN spend, not zero, so frame the list as 'what I can see', not the whole library.",
+  },
+  {
+    id: "free-vs-paid-played",
+    group: "Spending & value",
+    question: "Which of my PS Plus or free games did I actually play?",
+    instruction:
+      "Using the imported spend block, compare the games I got free or via PS Plus (the titles with no matched purchase — freeGames) against the ones I paid for (paidGames), and tell me which of the free ones I actually sank time into. Lean on hours, sessions and recency to judge which freebies earned a real place in my rotation. Be clear that 'no matched purchase' means UNKNOWN spend — PS Plus, pre-installs, free claims or simply an unmatched transaction — not necessarily a genuinely free game, so treat the free/paid split as imperfect. Playing a free game a lot is engagement, not a value judgement on what I paid.",
+  },
+  {
     id: "value-for-money",
     group: "Spending & value",
     question: "Which games gave me the best and worst value for money?",
@@ -356,11 +460,13 @@ export const METRIC_GUIDANCE_CAVEAT = [
 export const METRIC_RUBRIC_GROUPS = new Set<PromptGroup>([
   "Engagement & enjoyment",
   "Completion & habits",
+  "Trophies & completion",
   "Recommendations",
+  "Backlog & what to play next",
   "More",
 ]);
 
 export const MENU_MODE = "menu" as const;
 
 export const MENU_INSTRUCTION =
-  "Don't analyse anything yet. Briefly introduce what you can tell me from this data, then present a concise menu of what I could ask — grouped (Engagement & enjoyment, Completion & habits, Taste & preferences, Profile & personality, Recommendations, More) — and ask which I'd like to explore first.";
+  "Don't analyse anything yet. Briefly introduce what you can tell me from this data, then present a concise menu of what I could ask — grouped (Engagement & enjoyment, Completion & habits, Trophies & completion, Taste & preferences, Recommendations, Backlog & what to play next, Profile & personality, Wrapped & shareable, More) — and ask which I'd like to explore first.";
