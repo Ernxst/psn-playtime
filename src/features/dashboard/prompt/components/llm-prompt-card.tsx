@@ -1,4 +1,4 @@
-import { Search, Sparkles } from "lucide-react";
+import { Download, Search, Sparkles } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -143,7 +143,17 @@ function PromptHint({ menuMode, question }: { menuMode: boolean; question: strin
   );
 }
 
-/** The read-only prompt preview plus its copy button. */
+/** Download `prompt` as a Markdown file via a transient object URL. */
+function savePromptToFile(prompt: string) {
+  const url = URL.createObjectURL(new Blob([prompt], { type: "text/markdown" }));
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = "psn-playtime-prompt.md";
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+/** The read-only prompt preview plus its copy and save-to-file buttons. */
 function PromptPreview({ prompt }: { prompt: string }) {
   return (
     <div className="flex items-start gap-2">
@@ -154,7 +164,12 @@ function PromptPreview({ prompt }: { prompt: string }) {
         aria-label="Prompt preview"
         className="font-mono text-xs"
       />
-      <CopyButton value={prompt} label="Copy prompt" />
+      <div className="flex flex-col gap-2">
+        <CopyButton value={prompt} label="Copy prompt" />
+        <Button variant="outline" onClick={() => savePromptToFile(prompt)} className="gap-2">
+          <Download /> Save to file
+        </Button>
+      </div>
     </div>
   );
 }

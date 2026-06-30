@@ -37,6 +37,28 @@ describe("LlmPromptCard", () => {
     );
   });
 
+  it("saves the prompt to a Markdown file and revokes the object URL", async () => {
+    const createObjectURL = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:prompt");
+    const revokeObjectURL = vi.spyOn(URL, "revokeObjectURL").mockReturnValue();
+    const blob = vi.spyOn(globalThis, "Blob");
+
+    await render(<LlmPromptCard data={demoDashboard} />);
+
+    const anchor = document.createElement("a");
+    const click = vi.spyOn(anchor, "click").mockReturnValue();
+    vi.spyOn(document, "createElement").mockReturnValueOnce(anchor);
+
+    await page.getByRole("button", { name: "Save to file" }).click();
+
+    expect(blob).toHaveBeenCalledExactlyOnceWith([expect.stringContaining("FOLLOW-UP QUESTIONS")], {
+      type: "text/markdown",
+    });
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+    expect(anchor).toHaveAttribute("download", "psn-playtime-prompt.md");
+    expect(click).toHaveBeenCalledTimes(1);
+    expect(revokeObjectURL).toHaveBeenCalledExactlyOnceWith("blob:prompt");
+  });
+
   it("choosing a different lead question changes the copied prompt", async () => {
     const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
 
