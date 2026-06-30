@@ -8,10 +8,6 @@ import { useAtomValue } from "@effect/atom-react";
  * touch the server. We persist them in `localStorage` through an `@effect/atom`
  * `Atom.kvs`, and expose a `useTransactionImport` hook so the dashboard
  * re-renders when an import lands.
- *
- * Cross-tab sync is restored via {@link startCrossTabSync}: a single
- * app-lifetime `window` `storage` listener, registered at client boot, pushes a
- * write made in another tab into this tab's registry so subscribers re-render.
  */
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
@@ -23,19 +19,12 @@ import { kvsRuntime } from "@/runtime/kvs.effect";
 const TRANSACTIONS_STORAGE_KEY = "psn-playtime:transactions";
 
 /**
- * The persisted shape: a valid import or `null` (absent/decoded-away key). Shared
- * by the kvs atom and the cross-tab bridge so both encode the same contract.
+ * The persisted shape: a valid import or `null` (absent/decoded-away key). Used
+ * by the kvs atom so an empty/cleared key decodes to `null`.
  */
 const persistedSchema = Schema.NullOr(transactionImportSchema);
 
 const decodeImport = Schema.decodeUnknownOption(transactionImportSchema);
-
-/**
- * Structural equality over the persisted value, derived from the same schema.
- * The cross-tab bridge uses it to skip a no-op push (and the re-persist it would
- * trigger), so a `storage`-driven update cannot echo-cascade across tabs.
- */
-const persistedEquivalence = Schema.toEquivalence(persistedSchema);
 
 /**
  * `localStorage`-backed atom for the imported transactions. `NullOr` preserves
@@ -128,40 +117,6 @@ export function makeTransactionStore(registry: AtomRegistry.AtomRegistry): Trans
       registry.set(transactionImportAtom, null);
     },
   };
-}
-
-/**
- * Apply a cross-tab `storage` event to the registry. Fires only in tabs OTHER
- * than the writer, so it bridges another tab's write into this tab's atom.
- *
- * Ignores events for other keys. A removed key (`newValue === null`) maps to
- * `null`; a present key is decoded through the store's own {@link parse}
- * (decode-or-`null`, never throws on malformed input).
- *
- * Echo guard: the registry's cached value is stale here (a cross-tab write does
- * not invalidate the kvs node), so it still holds the pre-event value. If the
- * incoming value equals it, the push is skipped — otherwise `registry.set`
- * re-persists to `localStorage`, which can re-fire `storage` in further tabs.
- * Once every tab holds the new value its cached value matches the incoming one,
- * the guard skips, no re-persist happens, and the cascade terminates.
- */
-function syncFromStorageEvent(registry: AtomRegistry.AtomRegistry, event: StorageEvent): void {
-  if (event.key !== TRANSACTIONS_STORAGE_KEY) return;
-  const next = event.newValue === null ? null : parse(event.newValue);
-  if (persistedEquivalence(registry.get(transactionImportAtom), next)) return;
-  registry.set(transactionImportAtom, next);
-}
-
-/**
- * Register the app-lifetime `storage` listener that keeps {@link
- * useTransactionImport} subscribers in sync with writes from other tabs. Wired
- * once at client boot (the CLIENT path of the router-context factory) over the
- * single app registry, so it needs no teardown; a `typeof window` guard makes it
- * a no-op on the server, where no `storage` events exist.
- */
-export function startCrossTabSync(registry: AtomRegistry.AtomRegistry): void {
-  if (typeof window === "undefined") return;
-  window.addEventListener("storage", (event) => syncFromStorageEvent(registry, event));
 }
 
 /**

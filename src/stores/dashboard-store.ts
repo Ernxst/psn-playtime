@@ -19,8 +19,8 @@ import { useAtomValue } from "@effect/atom-react";
  *
  * No TTL, no refresh, no clear UI: clearing is a manual browser-storage action.
  *
- * Cross-tab sync is out of scope here (#266 owns the `storage`-event bridge);
- * single-tab writes notify subscribers through the shared registry.
+ * Cross-tab `storage`-event sync is intentionally not provided; same-tab writes
+ * notify subscribers through the shared registry.
  */
 import * as Schema from "effect/Schema";
 import * as Atom from "effect/unstable/reactivity/Atom";
