@@ -33,7 +33,7 @@ import {
   type PromptTransactionContext,
 } from "./llm-transaction-context";
 
-function availableVariants(hasTransactions: boolean): readonly PromptVariant[] {
+export function availableVariants(hasTransactions: boolean): readonly PromptVariant[] {
   return hasTransactions ? [...PROMPT_VARIANTS, ...SPEND_VARIANTS] : PROMPT_VARIANTS;
 }
 
