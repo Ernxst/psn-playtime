@@ -1,18 +1,13 @@
 /**
- * Account server-fn entry point. Fetches a single PlayStation account's
- * play-time from PSN and normalizes everything into the `DashboardData`
- * contract.
+ * Account server-fn entry point. Loads a single PlayStation account's dashboard
+ * and normalizes it into the `DashboardData` contract.
  *
- * The actual PSN fetch + normalization lives behind the platform-agnostic
- * `DashboardSource` port, implemented by `PsnDashboardSourceLayer`
- * (`@/server/providers/account/psn/provider.effect`); this module only wraps it
- * in a `createServerFn` handler.
- *
- * This handler is an application entry point, so it composes its own layer and
- * provides it here (the `strictEffectProvide` diagnostic — which reserves Layer
- * provides for entry points — is disabled per-line for exactly this provide).
- * The npsso token is used transiently to fetch an account once; it is never
- * stored server-side. The derived `DashboardData` is cached client-side
+ * The PSN fetch + normalization lives behind the `DashboardSource` port,
+ * implemented by `PsnDashboardSourceLayer`
+ * (`@/server/providers/account/psn/provider.effect`); this module wraps it in a
+ * `createServerFn` handler and provides the layer as the entry point. The npsso
+ * token is used transiently to load an account once; it is never stored
+ * server-side. The derived `DashboardData` is cached client-side
  * (`@/stores/dashboard-store`), which is the source for revisits.
  */
 import { createServerFn } from "@tanstack/react-start";

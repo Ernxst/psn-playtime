@@ -1,16 +1,11 @@
 /**
  * Pure normalization for the PSN account provider.
  *
- * Everything here is a plain function over psn-api shapes — the played-games ⇄
- * trophy name-matching, profile/game normalization, paging-stop logic, and
- * snapshot meta. No Effect *workflows* (no `Effect`/`Layer`/`Stream`, no
- * services), and crucially no banned `Date` global, so the strict
- * `*.effect.ts` files can value-import it without the language-service rules
- * cascading a violation. `isoDate` uses the sanctioned pure `DateTime`
- * functions (not the `Date` global) precisely so it stays cascade-safe while
- * keeping the old UTC-normalizing behaviour byte-for-byte.
- *
- * Moved verbatim out of `psn.effect.ts` (PR #212); behaviour is unchanged.
+ * Plain functions over psn-api shapes — the played-games ⇄ trophy name-matching,
+ * profile/game normalization, paging-stop logic, and snapshot meta. No Effect
+ * workflows (no `Effect`/`Layer`/`Stream`, no services) and no `Date` global
+ * (`isoDate` uses pure `DateTime` functions), so the strict `*.effect.ts`
+ * modules can value-import it.
  */
 import * as DateTime from "effect/DateTime";
 import * as Option from "effect/Option";

@@ -7,10 +7,9 @@ import { CredentialRejectedError } from "../errors.effect";
 import { DashboardSource, type AccountCredential } from "./contract.effect";
 
 /**
- * Proves the E3 DashboardSource port tag and its tagged errors compose: a
- * trivial in-memory layer implements the port, an Effect consumes it, and a
- * tagged failure is recovered on the typed channel. Also keeps the port
- * referenced for knip.
+ * Proves the `DashboardSource` port and its tagged errors compose: a trivial
+ * in-memory layer implements the port, an Effect consumes it, and a tagged
+ * failure is recovered on the typed channel.
  */
 
 const VALID = "valid-token";

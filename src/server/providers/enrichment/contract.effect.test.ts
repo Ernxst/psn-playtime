@@ -5,10 +5,9 @@ import { RateLimitedError, UpstreamUnavailableError } from "../errors.effect";
 import { type GameMetadata, TitleEnrichment } from "./contract.effect";
 
 /**
- * Proves the E3 TitleEnrichment port tag and its tagged errors compose: a
- * trivial in-memory layer implements the port, an Effect consumes it, and the
- * tagged failures are recovered on the typed channel. Also keeps the port
- * referenced for knip.
+ * Proves the `TitleEnrichment` port and its tagged errors compose: a trivial
+ * in-memory layer implements the port, an Effect consumes it, and the tagged
+ * failures are recovered on the typed channel.
  */
 
 const ENRICHED: GameMetadata = { genre: "RPG", typicalPlaytime: 40 };

@@ -2,24 +2,18 @@
  * `PsnSession` — an authenticated PSN session as a `Context.Service`.
  *
  * `make(credential)` performs the npsso → access-code → access-token exchange
- * ONCE, then returns a shape whose `profile` / `playedGames` / `trophyTitles`
- * effects each CAPTURE the resulting `auth` payload in closure. The consequence
- * is the whole point of this service: `auth` is never threaded as a parameter
- * across the provider boundary — callers `yield* PsnSession` and read the three
- * effects, which already know how to authenticate themselves.
+ * once, then returns a shape whose `profile` / `playedGames` / `trophyTitles`
+ * effects each capture the resulting `auth`, so `auth` is never threaded as a
+ * parameter; callers read the three effects, which authenticate themselves.
  *
- * Behaviour mirrors the previous inline `psn.effect.ts` exactly:
- * - `psn-api` is promise-based, so each call is wrapped with `Effect.tryPromise`.
- *   A failed npsso/access-code exchange becomes `CredentialRejectedError` (on
- *   the layer's error channel, since it happens in `make`); a profile/played/
- *   trophy fetch becomes `RateLimitedError` on a detected HTTP 429 or
- *   `UpstreamUnavailableError` otherwise.
- * - Paging goes through the shared `paginateAll` helper, preserving the #140
- *   stop-condition fix via `pagingComplete`.
+ * Failure model: a rejected npsso/access-code exchange fails `make` with
+ * `CredentialRejectedError`; a profile/played/trophy fetch fails with
+ * `RateLimitedError` on a detected HTTP 429 or `UpstreamUnavailableError`
+ * otherwise. Paging goes through the shared `paginateAll` helper.
  *
  * SECURITY: the npsso `Redacted` is unwrapped with `Redacted.value` only inside
  * the psn-api `tryPromise` thunk, never logged; `CredentialRejectedError.reason`
- * is a fixed string so the secret can never leak into an error.
+ * is a fixed string, so the secret can never leak into an error.
  */
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -50,10 +44,9 @@ const PLAYED_PAGE_LIMIT = 200;
 const TROPHY_PAGE_LIMIT = 800;
 
 /**
- * Classify a thrown psn-api error onto the provider error channel. psn-api
- * collapses every HTTP failure into a status-less thrown `Error`, so the shared
- * `providerError` detects a 429 from the message text and otherwise maps to a
- * generic outage — matching the old catch-all behaviour.
+ * Classify a thrown psn-api error onto the failure channel. psn-api collapses
+ * every HTTP failure into a status-less thrown `Error`, so `providerError`
+ * detects a 429 from the message text and otherwise maps to a generic outage.
  */
 const psnError = providerError("psn");
 
@@ -94,10 +87,10 @@ const fetchProfile = (
   });
 
 /**
- * Page through every played-games / trophy page with the shared `paginateAll`
- * (preserving the #140 termination): each `fetchPage` wraps one psn-api call in
- * `Effect.tryPromise`, classifies failures with `psnError`, and reports its
- * page's `items` + `totalItemCount` for the stop decision.
+ * Page through every played-games / trophy page with the shared `paginateAll`:
+ * each page wraps one psn-api call in `Effect.tryPromise`, classifies failures
+ * with `psnError`, and reports its `items` + `totalItemCount` for the stop
+ * decision.
  */
 const fetchAllPlayedGames = (
   auth: AuthorizationPayload
@@ -137,16 +130,13 @@ export interface PsnSessionShape {
 }
 
 /**
- * Authenticate ONCE, then hand back the three session effects with `auth`
- * captured in closure. Fails with `CredentialRejectedError` when the exchange
- * is rejected — surfaced on the error channel of whoever acquires the service.
+ * Authenticate once, then return the three session effects with `auth` captured.
+ * Fails with `CredentialRejectedError` when the exchange is rejected.
  *
- * Exposed as the service's `make`, so `PsnSession.make(credential)` is the single
- * acquisition effect a per-request consumer injects (via
- * `Effect.provideServiceEffect`). A static `layer` is intentionally omitted: the
- * credential is per-request, so the session is acquired at the call site rather
- * than composed into a long-lived layer, and tests inject a fake `PsnSession`
- * with a plain `Layer.succeed`.
+ * Exposed as the service's `make`: `PsnSession.make(credential)` is the
+ * per-request acquisition effect a consumer provides (via
+ * `Effect.provideServiceEffect`). There is no static `layer` — the credential is
+ * per-request, so the session is acquired at the call site.
  */
 const makePsnSession = Effect.fn("PsnSession.make")(function* (credential: AccountCredential) {
   const auth = yield* authenticate(credential);

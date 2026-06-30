@@ -9,10 +9,9 @@ import { TitleEnrichment } from "@/server/providers/enrichment/contract.effect";
 import { TitleEnrichmentLayer } from "@/server/providers/enrichment/rawg/provider.effect";
 
 /**
- * Provider-level port of the old `rawg.ts` network tests (no-key gate, genre
- * mapping, caching, every-failure-to-absent fallback, empty-query skip) plus the
- * new behaviour the Effect port adds: a genuine HTTP 429 surfaces as a
- * `RateLimitedError` on the typed channel.
+ * Tests the RAWG `TitleEnrichment` provider: the no-key gate, genre mapping,
+ * caching, every-failure-to-absent fallback, empty-query skip, and a genuine
+ * HTTP 429 surfacing as `RateLimitedError` on the typed channel.
  *
  * The `RAWG_API_KEY` gate is read through `Config`. Rather than mutate
  * `process.env` (the default provider snapshots it once), each run supplies the

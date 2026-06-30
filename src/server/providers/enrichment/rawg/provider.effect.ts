@@ -1,26 +1,23 @@
 /**
- * RAWG-backed implementation of the `TitleEnrichment` port (phase E4).
+ * RAWG-backed implementation of the `TitleEnrichment` capability.
  *
- * Behaviour mirrors the previous `rawg.ts` lookups exactly:
- * - The `RAWG_API_KEY` gate is modelled as the layer resolving to a no-op
- *   provider (every lookup is a successful absence) when the key is unset, so
- *   callers fall back to their keyword result and the network is never touched.
- * - A transport error, a non-OK response, or a body that fails schema
- *   validation all recover to the success-absent value — today's fallback.
- * - A genuine HTTP 429 is surfaced as `RateLimitedError`; the prefetch
- *   builders recover it (and `UpstreamUnavailableError`) back to absence, so the
- *   server-fn boundary still never throws on enrichment failure.
+ * - The `RAWG_API_KEY` gate resolves the layer to a no-op provider (every lookup
+ *   is a successful absence) when the key is unset, so callers keep their keyword
+ *   fallback and the network is never touched.
+ * - A transport error, a non-OK response, or a body that fails schema validation
+ *   all recover to the absent value.
+ * - A genuine HTTP 429 surfaces as `RateLimitedError`; the prefetch builders
+ *   recover it (and `UpstreamUnavailableError`) back to absence, so the server-fn
+ *   boundary never throws on enrichment failure.
  *
- * Networking goes through `@effect/platform`'s fetch-based `HttpClient` (it lives
- * in core `effect/unstable/http` for the v4 beta line; `@effect/platform@4` is
- * not published). `FetchHttpClient.layer` uses `globalThis.fetch`, so it runs on
- * the Nitro/Cloudflare-Workers runtime as well as in Node/tests. The lookup
- * cache is a `Ref<Map>` built once per layer construction; this layer is folded
- * into the app-scoped `ServerLayer` (`runtime.effect.ts`), so the cache is built
- * once per worker process and lives for the runtime's lifetime, giving
- * cross-request hits. RAWG metadata is effectively static, so there are no
- * stale-data concerns, and the maps stay bounded by the distinct title names a
- * worker ever sees, so no eviction is needed.
+ * Networking goes through the fetch-based `HttpClient` (`effect/unstable/http`);
+ * `FetchHttpClient.layer` uses `globalThis.fetch`, so it runs on the
+ * Nitro/Cloudflare-Workers runtime as well as in Node/tests. The lookup caches
+ * are `Ref<Map>`s built once per layer construction; `TitleEnrichmentLayer` is
+ * folded into `serverRuntime` (`runtime.effect.ts`), so the caches live for the
+ * worker process and hit across requests. RAWG metadata is effectively static,
+ * so there are no stale-data concerns, and the maps stay bounded by the distinct
+ * title names a worker sees, so no eviction is needed.
  */
 import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
@@ -46,7 +43,7 @@ import { RateLimitedError } from "@/server/providers/errors.effect";
 
 const RAWG_ENDPOINT = "https://api.rawg.io/api/games";
 
-/** Max RAWG lookups in flight at once, matching the previous batch size. */
+/** Max RAWG lookups in flight at once. */
 const RAWG_LOOKUP_CONCURRENCY = 8;
 
 /** A successful "no usable data" result — the caller keeps its keyword fallback. */
@@ -108,9 +105,8 @@ type Client = HttpClient.HttpClient;
 /**
  * The single shared `/games?search=` lookup. Both genre metadata and franchise
  * enrichment derive from the one decoded {@link GameInfo}, so a title is
- * searched once. Mirrors the previous helpers' recovery: transport/non-OK/decode
- * failures degrade to absence (`undefined`); a genuine 429 surfaces as
- * `RateLimitedError`.
+ * searched once. Transport/non-OK/decode failures degrade to absence
+ * (`undefined`); a genuine 429 surfaces as `RateLimitedError`.
  */
 const searchGame = (
   client: Client,
@@ -203,8 +199,8 @@ const resolveFranchise = (
 const makeRawgProvider = (client: Client, apiKey: string): Effect.Effect<TitleEnrichmentShape> =>
   Effect.gen(function* () {
     // The shared search cache: one `/games?search=` per title, reused by both the
-    // genre and franchise lookups (and across requests, since the layer is built
-    // once per worker process — #214).
+    // genre and franchise lookups, and across requests since the layer is built
+    // once per worker process.
     const searchCache: SearchCache = yield* Ref.make(new Map());
     const franchiseCache = yield* Ref.make(new Map<string, string | undefined>());
 
@@ -292,7 +288,7 @@ const batchLookup = <A>(
  * Look up genre + typical playtime for each (already keyword-filtered) title
  * name, keyed by name. Each lookup independently falls back to absence on a
  * provider failure, so the batch always resolves — the server-fn boundary never
- * throws on enrichment failure, matching today's behaviour.
+ * throws on enrichment failure.
  */
 export const prefetchGameMetadata = (
   names: ReadonlyArray<string>

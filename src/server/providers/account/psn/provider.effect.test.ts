@@ -221,7 +221,7 @@ describe(".loadDashboard", () => {
     expect(cod.firstPlayed).toBe("2020-01-01");
     // RAWG is the sole enrichment source (merged client-side), so the snapshot
     // is un-enriched: a baseline "Other" genre and no franchise, even for a
-    // well-known title that the old keyword table would have classified.
+    // well-known title.
     expect(cod.genre).toBe("Other");
     expect(cod.franchise).toBeUndefined();
     expect(cod.trophy).toEqual({
