@@ -53,30 +53,37 @@ function tx(overrides: Partial<TransactionRow>): TransactionRow {
   };
 }
 
-const matching = tx({ skuId: "EP4040-PPSA01234_00-HADES00000000000-E001" });
-
 describe("ExportButtons", () => {
   it("renders a button for each export", async () => {
-    await render(<ExportButtons data={data([game({})])} transactions={[matching]} />);
+    await render(<ExportButtons data={data([game({})])} transactions={[tx({})]} />);
 
+    await expect.element(page.getByRole("button", { name: "Export games (CSV)" })).toBeVisible();
+    await expect.element(page.getByRole("button", { name: "Export account (CSV)" })).toBeVisible();
     await expect
       .element(page.getByRole("button", { name: "Export transactions (CSV)" }))
       .toBeVisible();
-    await expect.element(page.getByRole("button", { name: "Export games (CSV)" })).toBeVisible();
   });
 
-  it("enables the games export when a transaction matched a library game", async () => {
-    await render(<ExportButtons data={data([game({})])} transactions={[matching]} />);
+  it("enables the games and account exports when the library has titles", async () => {
+    await render(<ExportButtons data={data([game({})])} transactions={[]} />);
 
     await expect.element(page.getByRole("button", { name: "Export games (CSV)" })).toBeEnabled();
+    await expect.element(page.getByRole("button", { name: "Export account (CSV)" })).toBeEnabled();
   });
 
-  it("disables the games export when no transaction matched a library game", async () => {
-    const unmatched = tx({ productName: "Some Unowned Game", skuId: undefined });
-
-    await render(<ExportButtons data={data([game({})])} transactions={[unmatched]} />);
+  it("disables the games and account exports for an empty library", async () => {
+    await render(<ExportButtons data={data([])} transactions={[]} />);
 
     await expect.element(page.getByRole("button", { name: "Export games (CSV)" })).toBeDisabled();
+    await expect.element(page.getByRole("button", { name: "Export account (CSV)" })).toBeDisabled();
+  });
+
+  it("disables the transactions export when nothing was imported", async () => {
+    await render(<ExportButtons data={data([game({})])} transactions={[]} />);
+
+    await expect
+      .element(page.getByRole("button", { name: "Export transactions (CSV)" }))
+      .toBeDisabled();
   });
 
   it("downloads a CSV blob through a transient object URL when clicked", async () => {
@@ -84,9 +91,9 @@ describe("ExportButtons", () => {
     const revokeObjectURL = vi.spyOn(URL, "revokeObjectURL").mockReturnValue();
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
 
-    await render(<ExportButtons data={data([game({})])} transactions={[matching]} />);
+    await render(<ExportButtons data={data([game({})])} transactions={[tx({})]} />);
 
-    await page.getByRole("button", { name: "Export transactions (CSV)" }).click();
+    await page.getByRole("button", { name: "Export games (CSV)" }).click();
 
     expect(createObjectURL).toHaveBeenCalledExactlyOnceWith(expect.any(Blob));
     expect(click).toHaveBeenCalledTimes(1);

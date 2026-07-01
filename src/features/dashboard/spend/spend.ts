@@ -71,7 +71,7 @@ function normTitle(name: string): string {
 }
 
 /** Index library games by normalised name, keeping the first per name. */
-export function indexByName(games: readonly GamePlay[]): Map<string, GamePlay> {
+function indexByName(games: readonly GamePlay[]): Map<string, GamePlay> {
   const byName = new Map<string, GamePlay>();
   for (const game of games) {
     const key = normTitle(game.name);
@@ -123,7 +123,7 @@ function matchByName(key: string, games: readonly GamePlay[]): GamePlay | undefi
  * Find the library game a purchase refers to, if any. Prefers the stable
  * `skuId`, then falls back to matching the product name.
  */
-export function matchGame(
+function matchGame(
   tx: TransactionRow,
   games: readonly GamePlay[],
   byName: Map<string, GamePlay>
