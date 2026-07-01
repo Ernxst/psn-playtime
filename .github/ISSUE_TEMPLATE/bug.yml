@@ -1,0 +1,42 @@
+name: Bug report
+description: Something is broken
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Every bug report that can't be reproduced is a ghost. Leave a trail.
+  - type: textarea
+    id: describe
+    attributes:
+      label: Describe the bug
+      description: What happened, what did you expect, and why is the difference a problem?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: To reproduce
+      description: Steps, input file (if applicable), and browser/OS.
+      placeholder: |
+        1. Go to '...'
+        2. Click on '...'
+        3. See error
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Browser & version, OS, `bun --version`.
+      placeholder: "Chrome 138 / macOS 15 / bun 1.2.0"
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Screenshots, console errors, relevant issue links — anything that helps.
+    validations:
+      required: false
