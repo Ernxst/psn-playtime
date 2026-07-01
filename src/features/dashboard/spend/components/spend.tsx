@@ -54,6 +54,20 @@ const openPlayStation = {
 };
 
 /**
+ * Desktop drag step: names the draggable button by its exact visible label so
+ * it is unambiguous versus the adjacent "Copy bookmarklet" button. The label
+ * string mirrors the `<a>` in `BookmarkletActions` and must stay in sync.
+ */
+const dragBookmarklet = {
+  text: (
+    <>
+      Drag the <strong>Import PSN spend</strong> button below onto your bookmarks bar (or copy it
+      and make a new bookmark).
+    </>
+  ),
+};
+
+/**
  * Mobile run step: how you launch a `javascript:` bookmark differs by platform,
  * so the run instruction splits into labelled per-platform sub-steps (no UA
  * detection — both are shown). On iOS Safari you tap the saved bookmark in the
@@ -87,9 +101,7 @@ function steps(canDragBookmarklet: boolean): Array<{
 }> {
   if (canDragBookmarklet) {
     return [
-      {
-        text: "Drag the button below onto your bookmarks bar (or copy it and make a new bookmark).",
-      },
+      dragBookmarklet,
       openPlayStation,
       {
         text: "Click the bookmark — it fetches your full purchase history and sends it back here in one click. No navigating or scrolling.",
