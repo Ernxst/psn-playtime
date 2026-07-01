@@ -20,6 +20,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { bookmarkletHref } from "@/domain/transaction-bookmarklet";
 import { useCopied } from "@/features/dashboard/components/copy-button";
+import { ExportButtons } from "@/features/dashboard/export/components/export-buttons";
 import { fmtHours } from "@/features/dashboard/format";
 import {
   type AddOnSummary,
@@ -433,6 +434,7 @@ export function SpendSection({ data }: { data: DashboardData }) {
       <TotalsCard summary={summary} />
       <ByYearCard summary={summary} />
       <LeaderboardCard summary={summary} />
+      <ExportButtons data={data} transactions={imported.transactions} />
       <ReimportCard />
     </div>
   );
