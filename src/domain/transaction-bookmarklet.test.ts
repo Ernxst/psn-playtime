@@ -1,12 +1,13 @@
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 import { build } from "esbuild";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   bookmarkletHref,
   buildTransactionHistoryUrl,
   dedupeTransactions,
   importErrorMessage,
+  mountImportOverlay,
   TRANSACTION_HISTORY_ENDPOINT,
 } from "./transaction-bookmarklet";
 
@@ -129,6 +130,70 @@ function runEmbeddedOverlay(body: string): { overlay: OverlayController; message
   if (!message) throw new Error("overlay did not create an aria-live message node");
 
   return { overlay, message };
+}
+
+/** A live DOM element stub for invoking the real `mountImportOverlay` in node. */
+interface DirectElement {
+  style: Record<string, string>;
+  attrs: Record<string, string>;
+  id?: string;
+  textContent?: string;
+  children: DirectElement[];
+  removed: boolean;
+  setAttribute: (name: string, value: string) => void;
+  appendChild: (child: DirectElement) => DirectElement;
+  remove: () => void;
+}
+
+function directElement(): DirectElement {
+  const element: DirectElement = {
+    style: {},
+    attrs: {},
+    children: [],
+    removed: false,
+    setAttribute(name, value) {
+      element.attrs[name] = value;
+    },
+    appendChild(child) {
+      element.children.push(child);
+
+      return child;
+    },
+    remove() {
+      element.removed = true;
+    },
+  };
+
+  return element;
+}
+
+/**
+ * A `document` stub rich enough to mount the overlay by calling the real
+ * `mountImportOverlay` directly (so the source is instrumented). `body: null`
+ * exercises the `document.body || document.documentElement` fallback, which a
+ * real browser never hits.
+ */
+function directDocument(options: { existing?: DirectElement; body?: DirectElement | null } = {}): {
+  document: unknown;
+  created: DirectElement[];
+  documentElement: DirectElement;
+} {
+  const created: DirectElement[] = [];
+  const documentElement = directElement();
+  const body = options.body === undefined ? directElement() : options.body;
+  const document = {
+    getElementById: () => options.existing ?? null,
+    createElement: () => {
+      const element = directElement();
+      created.push(element);
+
+      return element;
+    },
+    body,
+    documentElement,
+  };
+
+  return { document, created, documentElement };
 }
 
 describe(".importErrorMessage", () => {
@@ -353,5 +418,48 @@ describe(".mountImportOverlay", () => {
     overlay.error("unexpected response (HTTP 429) — are you signed in to PlayStation?");
 
     expect(message.textContent).toContain("rate-limiting");
+  });
+
+  it("mounts a live overlay wired to the host DOM and updates through its lifecycle", () => {
+    const dom = directDocument();
+    vi.stubGlobal("document", dom.document);
+
+    const overlay = mountImportOverlay();
+    const message = dom.created.find((element) => element.attrs["aria-live"] === "polite");
+
+    expect(message?.textContent).toBe("Fetching your transactions… Keep this tab open.");
+
+    overlay.progress(150, 2);
+    expect(message?.textContent).toBe(
+      "Fetching transactions… 150 collected (page 2). Keep this tab open."
+    );
+
+    overlay.done();
+    expect(message?.textContent).toBe("Done — opening Playtime…");
+
+    overlay.error("unexpected response (HTTP 429) — are you signed in to PlayStation?");
+    expect(message?.textContent).toContain("rate-limiting");
+
+    overlay.remove();
+    expect(dom.created[0]?.removed).toBe(true);
+  });
+
+  it("removes a previously mounted overlay before mounting a new one", () => {
+    const previous = directElement();
+    const dom = directDocument({ existing: previous });
+    vi.stubGlobal("document", dom.document);
+
+    mountImportOverlay();
+
+    expect(previous.removed).toBe(true);
+  });
+
+  it("falls back to the document element when the page has no body", () => {
+    const dom = directDocument({ body: null });
+    vi.stubGlobal("document", dom.document);
+
+    mountImportOverlay();
+
+    expect(dom.documentElement.children).toContain(dom.created[0]);
   });
 });

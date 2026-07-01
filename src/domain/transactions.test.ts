@@ -9,15 +9,20 @@ import {
   walletFunding,
 } from "@/test/transaction-fixtures";
 import {
+  type ApiProductPurchase,
+  type ApiTransaction,
   currencySymbol,
   decodeHandoff,
   encodeHandoff,
   flattenApiTransactions,
   HANDOFF_VERSION,
   type HandoffPayload,
+  nonPurchaseRow,
   normaliseProductName,
   parseDisplayAmount,
+  purchaseRows,
   safeParseHandoff,
+  toPurchaseRow,
 } from "./transactions";
 
 describe(".normaliseProductName", () => {
@@ -177,6 +182,104 @@ describe(".flattenApiTransactions", () => {
 
     expect(rows).toHaveLength(600);
     expect(encoded.length).toBeLessThan(1_500_000);
+  });
+});
+
+describe(".toPurchaseRow", () => {
+  it("falls back to the transaction display when the line carries no formatted total", () => {
+    const tx: ApiTransaction = {
+      id: "t1",
+      date: "2024-01-01T00:00:00.000Z",
+      transactionType: "PRODUCT_PURCHASE",
+      displayOfTransactionValue: "£5.00",
+    };
+    const p: ApiProductPurchase = {
+      productName: "Game",
+      skuId: "SKU-A",
+      total: 500,
+      quantity: 1,
+      orderItemId: "OI-1",
+    };
+
+    expect(toPurchaseRow(tx, p)).toMatchObject({
+      key: "OI-1",
+      currency: "£",
+      displayAmount: "£5.00",
+      amountMinor: 500,
+    });
+  });
+
+  it("builds a fallback key from the sku and defaults quantity and amount when absent", () => {
+    const tx: ApiTransaction = {
+      id: "t2",
+      date: "2024-01-01T00:00:00.000Z",
+      transactionType: "PRODUCT_PURCHASE",
+    };
+    const p: ApiProductPurchase = { skuId: "SKU-B", totalFormatted: "£3.00" };
+
+    expect(toPurchaseRow(tx, p)).toMatchObject({
+      key: "t2|SKU-B",
+      quantity: 1,
+      amountMinor: 0,
+      currency: "£",
+      displayAmount: "£3.00",
+      productName: "Unknown item",
+    });
+  });
+
+  it("keys a line lacking an order id and sku by its product name", () => {
+    const tx: ApiTransaction = {
+      id: "t3",
+      date: "2024-01-01T00:00:00.000Z",
+      transactionType: "PRODUCT_PURCHASE",
+      displayOfTransactionValue: "£1.00",
+    };
+    const p: ApiProductPurchase = { productName: "Some Game", totalFormatted: "£1.00", total: 100 };
+
+    expect(toPurchaseRow(tx, p)).toMatchObject({ key: "t3|Some Game" });
+  });
+
+  it("keys by transaction id with an empty suffix when sku and name are both absent", () => {
+    const tx: ApiTransaction = {
+      id: "t4",
+      date: "2024-01-01T00:00:00.000Z",
+      transactionType: "PRODUCT_PURCHASE",
+      displayOfTransactionValue: "£2.00",
+    };
+    const p: ApiProductPurchase = { totalFormatted: "£2.00", total: 200 };
+
+    expect(toPurchaseRow(tx, p)).toMatchObject({ key: "t4|", productName: "Unknown item" });
+  });
+});
+
+describe(".purchaseRows", () => {
+  it("returns no rows for a transaction without purchase details", () => {
+    const tx: ApiTransaction = {
+      id: "p1",
+      date: "2024-01-01T00:00:00.000Z",
+      transactionType: "PRODUCT_PURCHASE",
+    };
+
+    expect(purchaseRows(tx)).toEqual([]);
+  });
+});
+
+describe(".nonPurchaseRow", () => {
+  it("defaults the display amount and currency to empty when the transaction has no value", () => {
+    const tx: ApiTransaction = {
+      id: "n1",
+      date: "2024-01-01T00:00:00.000Z",
+      transactionType: "WALLET_FUNDING",
+    };
+
+    expect(nonPurchaseRow(tx)).toMatchObject({
+      key: "n1",
+      kind: "top-up",
+      productName: "WALLET_FUNDING",
+      amountMinor: 0,
+      currency: "",
+      displayAmount: "",
+    });
   });
 });
 
