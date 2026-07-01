@@ -40,8 +40,16 @@ function rawgLookupNames(titles: ReadonlyArray<{ name: string }>): string[] {
   return Array.from(new Set(titles.map((title) => title.name)));
 }
 
-/** Run the RAWG genre/playtime lookup against the ambient, process-lived provider. */
-const rawgGenresEffect = (
+/**
+ * Run the RAWG genre/playtime lookup against the ambient, process-lived provider.
+ *
+ * The `TitleEnrichment` requirement stays on the effect's `R` channel: production
+ * runs it through `runServer`, which provides the real `TitleEnrichmentLayer`
+ * (and its cross-request caches); a test runs it by providing a fake
+ * `TitleEnrichment` layer — same effect, different layer. Exported for that test
+ * seam.
+ */
+export const rawgGenresEffect = (
   titles: readonly RawgInputTitle[]
 ): Effect.Effect<
   Array<{ titleId: string; genre?: Genre; typicalPlaytime?: number }>,
@@ -66,8 +74,12 @@ const rawgGenresEffect = (
     )
   );
 
-/** Run the RAWG franchise lookup against the ambient, process-lived provider. */
-const rawgFranchisesEffect = (
+/**
+ * Run the RAWG franchise lookup against the ambient, process-lived provider.
+ * Exported for the same fake-layer test seam as {@link rawgGenresEffect}; the
+ * `TitleEnrichment` requirement stays on `R`, provided by `runServer` in prod.
+ */
+export const rawgFranchisesEffect = (
   titles: readonly RawgInputTitle[]
 ): Effect.Effect<Array<{ titleId: string; franchise: string }>, never, TitleEnrichment> =>
   prefetchFranchises(rawgLookupNames(titles)).pipe(
