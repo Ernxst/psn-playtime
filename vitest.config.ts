@@ -43,6 +43,14 @@ export default defineConfig({
         "src/router.tsx",
         "src/integrations/**",
       ],
+      // CI coverage floor: fail the suite if coverage regresses below these
+      // ratchet levels (set just under current achieved to leave slack). #18.
+      thresholds: {
+        statements: 95,
+        branches: 73,
+        functions: 88,
+        lines: 95,
+      },
     },
     projects: [
       {
