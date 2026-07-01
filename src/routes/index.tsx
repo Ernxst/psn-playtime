@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { RestoreDashboardCard } from "@/features/onboarding/components/restore-dashboard-card";
 import { SignInCard } from "@/features/onboarding/components/sign-in-card";
 import { SITE_NAME, SITE_URL } from "@/lib/seo";
 
@@ -52,6 +53,7 @@ function Home() {
         </p>
       </div>
       <SignInCard />
+      <RestoreDashboardCard />
     </main>
   );
 }

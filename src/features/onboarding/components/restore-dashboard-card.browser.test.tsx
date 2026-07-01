@@ -1,0 +1,106 @@
+import { describe, expect, it, vi } from "vitest";
+import { render } from "vitest-browser-react";
+import { page } from "vitest/browser";
+import { Toaster } from "@/components/ui/sonner";
+import { buildAccountCsv, buildGamesCsv } from "@/features/dashboard/export/csv";
+import type { GamePlay, ProfileSummary } from "@/server/providers/account/snapshot";
+import { testDashboardStore } from "@/test/atom-registry";
+import { createHarness } from "@/test/harness";
+import { RestoreDashboardCard } from "./restore-dashboard-card";
+
+const profile: ProfileSummary = {
+  onlineId: "Ernxst_",
+  accountId: "acc-42",
+  isPlus: true,
+  trophyLevel: 120,
+  levelProgress: 12,
+  earned: { platinum: 1, gold: 2, silver: 3, bronze: 4 },
+  totalTrophies: 10,
+};
+
+const games: GamePlay[] = [
+  {
+    titleId: "PPSA01234",
+    name: "Hades",
+    platform: "PS5",
+    hours: 42.5,
+    playCount: 30,
+    genre: "Action-Adventure",
+    isApp: false,
+    trophy: {
+      progress: 100,
+      earned: { platinum: 1, gold: 2, silver: 3, bronze: 4 },
+      total: 10,
+      hasPlatinum: true,
+    },
+  },
+];
+
+function csvFile(name: string, content: string): File {
+  return new File([content], name, { type: "text/csv" });
+}
+
+const gamesFile = () =>
+  csvFile("psn-games.csv", buildGamesCsv(games, [{ name: "Netflix", hours: 5 }]));
+const accountFile = () => csvFile("psn-account.csv", buildAccountCsv(profile));
+
+describe("RestoreDashboardCard", () => {
+  it("renders the restore card with both file pickers", async () => {
+    await render(createHarness(<RestoreDashboardCard />).element);
+
+    await expect.element(page.getByText("Restore from CSV")).toBeVisible();
+    await expect.element(page.getByLabelText("Games CSV")).toBeVisible();
+    await expect.element(page.getByLabelText("Account CSV")).toBeVisible();
+  });
+
+  it("keeps the restore action disabled until both CSVs are picked", async () => {
+    await render(createHarness(<RestoreDashboardCard />).element);
+
+    await expect.element(page.getByRole("button", { name: /restore dashboard/i })).toBeDisabled();
+
+    await page.getByLabelText("Games CSV").upload(gamesFile());
+
+    await expect.element(page.getByRole("button", { name: /restore dashboard/i })).toBeDisabled();
+  });
+
+  it("reconstructs and caches the dashboard from the picked CSVs", async () => {
+    const save = vi.spyOn(testDashboardStore, "save");
+    const setActive = vi.spyOn(testDashboardStore, "setActive");
+
+    await render(createHarness(<RestoreDashboardCard />).element);
+
+    await page.getByLabelText("Games CSV").upload(gamesFile());
+    await page.getByLabelText("Account CSV").upload(accountFile());
+    await page.getByRole("button", { name: /restore dashboard/i }).click();
+
+    await vi.waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    const saved = save.mock.calls[0]?.[0];
+    expect(saved?.profile.accountId).toBe("acc-42");
+    expect(saved?.games.map((g) => g.name)).toStrictEqual(["Hades"]);
+    expect(saved?.meta.appsExcluded).toStrictEqual([{ name: "Netflix", hours: 5 }]);
+    expect(setActive).toHaveBeenCalledWith("acc-42");
+
+    save.mockRestore();
+    setActive.mockRestore();
+  });
+
+  it("surfaces an error and does not cache when a CSV is malformed", async () => {
+    const save = vi.spyOn(testDashboardStore, "save");
+
+    await render(
+      <>
+        {createHarness(<RestoreDashboardCard />).element}
+        <Toaster />
+      </>
+    );
+
+    await page.getByLabelText("Games CSV").upload(csvFile("bad.csv", "not,a,valid\ngames,csv,row"));
+    await page.getByLabelText("Account CSV").upload(accountFile());
+    await page.getByRole("button", { name: /restore dashboard/i }).click();
+
+    await expect.element(page.getByText(/expected|missing|invalid/i)).toBeVisible();
+    expect(save).not.toHaveBeenCalled();
+
+    save.mockRestore();
+  });
+});
