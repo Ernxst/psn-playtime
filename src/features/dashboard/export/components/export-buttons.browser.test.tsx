@@ -99,4 +99,22 @@ describe("ExportButtons", () => {
     expect(click).toHaveBeenCalledTimes(1);
     expect(revokeObjectURL).toHaveBeenCalledExactlyOnceWith("blob:test");
   });
+
+  it("downloads the account and transactions CSVs, with untagged filenames for a blank id", async () => {
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:test");
+    vi.spyOn(URL, "revokeObjectURL").mockReturnValue();
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    const download = vi
+      .spyOn(HTMLAnchorElement.prototype, "download", "set")
+      .mockImplementation(() => {});
+
+    await render(<ExportButtons data={data([game({})], "")} transactions={[tx({})]} />);
+
+    await page.getByRole("button", { name: "Export account (CSV)" }).click();
+    await page.getByRole("button", { name: "Export transactions (CSV)" }).click();
+
+    expect(click).toHaveBeenCalledTimes(2);
+    expect(download).toHaveBeenCalledWith("psn-account.csv");
+    expect(download).toHaveBeenCalledWith("psn-transactions.csv");
+  });
 });

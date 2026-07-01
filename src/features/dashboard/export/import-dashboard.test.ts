@@ -144,6 +144,27 @@ describe("importDashboardFromCsv", () => {
     expect(imported.meta.span).toStrictEqual({ from: "2023-05-01", to: "2025-02-20" });
   });
 
+  it("reconstructs a game with no trophy and excludes it from the earned totals", () => {
+    const noTrophy: GamePlay = {
+      titleId: "PPSA00001",
+      name: "Tetris",
+      platform: "PS4",
+      hours: 5,
+      playCount: 3,
+      genre: "Other",
+      isApp: false,
+    };
+
+    const imported = importDashboardFromCsv(
+      buildGamesCsv([noTrophy], []),
+      buildAccountCsv(original.profile)
+    );
+
+    expect(imported.games[0]?.trophy).toBeUndefined();
+    expect(imported.profile.earned).toStrictEqual({ platinum: 0, gold: 0, silver: 0, bronze: 0 });
+    expect(imported.profile.totalTrophies).toBe(0);
+  });
+
   it("throws a clear error when the account CSV has no data row", () => {
     expect(() => importDashboardFromCsv(buildGamesCsv([], []), "online_id,account_id\n")).toThrow(
       /no data row/i
