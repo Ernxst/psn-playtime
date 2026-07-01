@@ -120,6 +120,18 @@ describe(".useCachedAccounts", () => {
     await expect.element(page.getByText("Aaron,Zoe")).toBeVisible();
   });
 
+  it("drops a removed account from the cached list while leaving the others", async () => {
+    store.save(accountZ);
+    store.save(accountA);
+
+    await render(<CachedAccountNames />, { wrapper: Provider });
+    await expect.element(page.getByText("Aaron,Zoe")).toBeVisible();
+
+    store.remove("acc-1");
+
+    await expect.element(page.getByText("Zoe")).toBeVisible();
+  });
+
   it("keeps a stable snapshot reference across re-renders that do not change the store", async () => {
     store.save(accountA);
     const refs: CachedAccount[][] = [];
@@ -143,5 +155,42 @@ describe(".useCachedAccounts", () => {
     await page.getByRole("button", { name: "Re-render" }).click();
 
     expect(refs.at(-1)).toBe(stable);
+  });
+});
+
+describe(".remove", () => {
+  it("deletes the removed account's cached dashboard and leaves the others intact", () => {
+    store.save(accountA);
+    store.save(accountZ);
+
+    store.remove("acc-1");
+
+    expect(store.load("acc-1")).toBeNull();
+    expect(store.load("acc-2")).toEqual(accountZ);
+  });
+
+  it("clears the active pointer when the removed account was active", async () => {
+    store.save(accountA);
+    store.setActive("acc-1");
+
+    await render(<ActiveOnlineId />, { wrapper: Provider });
+    await expect.element(page.getByText("Aaron")).toBeVisible();
+
+    store.remove("acc-1");
+
+    await expect.element(page.getByText(demoDashboard.profile.onlineId)).toBeVisible();
+  });
+
+  it("keeps the active pointer when a different account is removed", async () => {
+    store.save(accountA);
+    store.save(accountZ);
+    store.setActive("acc-2");
+
+    await render(<ActiveOnlineId />, { wrapper: Provider });
+    await expect.element(page.getByText("Zoe")).toBeVisible();
+
+    store.remove("acc-1");
+
+    await expect.element(page.getByText("Zoe")).toBeVisible();
   });
 });

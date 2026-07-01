@@ -133,6 +133,12 @@ export interface DashboardStore {
   setActive(accountId: string): void;
   /** Drop the active-account pointer so the dashboard falls back to demo data. */
   clearActive(): void;
+  /**
+   * Delete an account's cached dashboard, and clear the active-account pointer
+   * when it referenced the removed account (so the dashboard falls back to demo
+   * data rather than a now-missing entry). Other accounts are left intact.
+   */
+  remove(accountId: string): void;
 }
 
 /**
@@ -163,6 +169,14 @@ export function makeDashboardStore(registry: AtomRegistry.AtomRegistry): Dashboa
     clearActive: () => {
       if (typeof window === "undefined") return;
       registry.set(activeAccountIdAtom, null);
+    },
+    remove: (accountId) => {
+      if (typeof window === "undefined") return;
+      const { [accountId]: _removed, ...rest } = registry.get(dashboardsAtom);
+      registry.set(dashboardsAtom, rest);
+      if (registry.get(activeAccountIdAtom) === accountId) {
+        registry.set(activeAccountIdAtom, null);
+      }
     },
   };
 }

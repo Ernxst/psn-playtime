@@ -1,6 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import { Link, useNavigate, useRouteContext } from "@tanstack/react-router";
-import { ArrowRight, ChevronDown, ExternalLink, ShieldAlert } from "lucide-react";
+import { ArrowRight, ChevronDown, ExternalLink, ShieldAlert, Trash2 } from "lucide-react";
 import { useId, useState } from "react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -307,6 +307,60 @@ function AccountButton({ account }: { account: CachedAccount }) {
   );
 }
 
+/**
+ * The explicit confirm/cancel pair a destructive control swaps to on its first
+ * click, so wiping `localStorage` data is never a single tap. Shared by the
+ * per-account and standalone-transaction remove controls.
+ */
+function ConfirmRemove({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
+  return (
+    <div className="flex shrink-0 items-center gap-1">
+      <Button variant="destructive" size="sm" onClick={onConfirm}>
+        Remove
+      </Button>
+      <Button variant="ghost" size="sm" onClick={onCancel}>
+        Cancel
+      </Button>
+    </div>
+  );
+}
+
+/**
+ * Two-step "remove account" control. The first click swaps to {@link ConfirmRemove}
+ * rather than firing immediately. Confirming goes through the router-context
+ * services — `dashboardStore.remove` drops the cached dashboard (and its active
+ * pointer), `transactionStore.clear` wipes the imported transactions — never the
+ * raw registry.
+ */
+function RemoveAccountButton({ account }: { account: CachedAccount }) {
+  const [confirming, setConfirming] = useState(false);
+  const { dashboardStore, transactionStore } = useRouteContext({ from: "__root__" });
+
+  if (!confirming) {
+    return (
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        aria-label={`Remove ${account.onlineId}`}
+        onClick={() => setConfirming(true)}
+      >
+        <Trash2 className="size-4" />
+      </Button>
+    );
+  }
+
+  return (
+    <ConfirmRemove
+      onConfirm={() => {
+        dashboardStore.remove(account.accountId);
+        transactionStore.clear();
+        setConfirming(false);
+      }}
+      onCancel={() => setConfirming(false)}
+    />
+  );
+}
+
 /** Lists accounts already cached in localStorage so a revisit needs no token. */
 function AccountSelector() {
   const accounts = useCachedAccounts();
@@ -316,7 +370,12 @@ function AccountSelector() {
       <p className="text-sm font-medium text-muted-foreground">Pick up where you left off:</p>
       <div className="space-y-2">
         {accounts.map((account) => (
-          <AccountButton key={account.accountId} account={account} />
+          <div key={account.accountId} className="flex items-center gap-2">
+            <div className="min-w-0 flex-1">
+              <AccountButton account={account} />
+            </div>
+            <RemoveAccountButton account={account} />
+          </div>
         ))}
       </div>
     </div>
