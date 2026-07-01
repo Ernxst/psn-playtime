@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import { DashboardView } from "@/features/dashboard/components/dashboard-view";
+import { DashboardSkeleton } from "@/features/dashboard/components/states";
 import {
   rawgFranchisesQueryOptions,
   rawgGenresQueryOptions,
@@ -50,6 +51,15 @@ function mergeRawgEnrichment(
 }
 
 export const Route = createFileRoute("/dashboard")({
+  // Client-render only. The dashboard is built entirely from the user's
+  // browser-local data (the persisted snapshot via `Atom.kvs` and the imported
+  // transactions store). The server has none of it, so any SSR'd DOM reflects
+  // demo/default state that cannot match the client's first render once the sync
+  // kvs atoms read localStorage — a hydration mismatch (React #418). There is no
+  // SEO value to SSR here (the route is `noindex`), so rendering client-side
+  // eliminates the whole mismatch class. Mirrors `/import`, which is `ssr:false`
+  // for the same client-only-data reason.
+  ssr: false,
   head: () => ({
     meta: [
       {
@@ -59,13 +69,14 @@ export const Route = createFileRoute("/dashboard")({
     ],
   }),
   component: Dashboard,
+  // Server render + initial client paint while the route resolves client-side.
+  pendingComponent: DashboardSkeleton,
 });
 
 function Dashboard() {
-  // Resolves to the demo dataset on the server and the initial client render,
-  // then swaps to the active account's cached dashboard once the kvs read
-  // resolves on the client (revisit-from-cache). The sync kvs atom has no
-  // distinct "loading" state, so there is no shell to render here.
+  // With `ssr: false` this only ever runs on the client, where the sync kvs atom
+  // reads localStorage immediately and resolves to the active account's cached
+  // dashboard (falling back to the demo dataset when there is none).
   const data = useActiveDashboard();
   return <DashboardCachedView data={data} />;
 }
