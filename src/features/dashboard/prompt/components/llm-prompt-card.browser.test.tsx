@@ -77,9 +77,9 @@ describe("LlmPromptCard", () => {
     );
   });
 
-  it("opens ChatGPT in a new tab and copies the prompt for pasting", async () => {
+  it("copies the prompt first, then opens ChatGPT in a new tab", async () => {
     const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
-    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    const open = vi.spyOn(window, "open").mockReturnValue(window);
 
     await render(<LlmPromptCard data={demoDashboard} />);
 
@@ -88,16 +88,18 @@ describe("LlmPromptCard", () => {
     expect(writeText).toHaveBeenCalledExactlyOnceWith(
       expect.stringContaining("FOLLOW-UP QUESTIONS")
     );
-    expect(open).toHaveBeenCalledExactlyOnceWith(
-      "https://chatgpt.com/",
-      "_blank",
-      "noopener,noreferrer"
+    await vi.waitFor(() =>
+      expect(open).toHaveBeenCalledExactlyOnceWith(
+        "https://chatgpt.com/",
+        "_blank",
+        "noopener,noreferrer"
+      )
     );
   });
 
-  it("opens Claude in a new tab and copies the prompt for pasting", async () => {
+  it("copies the prompt first, then opens Claude in a new tab", async () => {
     const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
-    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    const open = vi.spyOn(window, "open").mockReturnValue(window);
 
     await render(<LlmPromptCard data={demoDashboard} />);
 
@@ -106,11 +108,66 @@ describe("LlmPromptCard", () => {
     expect(writeText).toHaveBeenCalledExactlyOnceWith(
       expect.stringContaining("FOLLOW-UP QUESTIONS")
     );
+    await vi.waitFor(() =>
+      expect(open).toHaveBeenCalledExactlyOnceWith(
+        "https://claude.ai/new",
+        "_blank",
+        "noopener,noreferrer"
+      )
+    );
+  });
+
+  it("does not open the tab and shows an inline error when the copy fails", async () => {
+    vi.spyOn(navigator.clipboard, "writeText").mockRejectedValue(new Error("denied"));
+    const open = vi.spyOn(window, "open").mockReturnValue(window);
+
+    await render(<LlmPromptCard data={demoDashboard} />);
+
+    await page.getByRole("button", { name: "Open in ChatGPT" }).click();
+
+    await expect
+      .element(page.getByText("Couldn't copy, click Copy prompt then open ChatGPT."))
+      .toBeVisible();
+    await expect
+      .element(page.getByText("Prompt copied. Open ChatGPT and paste it in."))
+      .not.toBeInTheDocument();
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it("keeps the user on the page with a copied message when the popup is blocked", async () => {
+    vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+
+    await render(<LlmPromptCard data={demoDashboard} />);
+
+    await page.getByRole("button", { name: "Open in ChatGPT" }).click();
+
+    await expect
+      .element(page.getByText("Prompt copied. Open ChatGPT and paste it in."))
+      .toBeVisible();
     expect(open).toHaveBeenCalledExactlyOnceWith(
-      "https://claude.ai/new",
+      "https://chatgpt.com/",
       "_blank",
       "noopener,noreferrer"
     );
+  });
+
+  it("captions each action group beneath its buttons", async () => {
+    await render(<LlmPromptCard data={demoDashboard} />);
+
+    await expect
+      .element(page.getByText("Copy the full prompt to paste into any AI chat."))
+      .toBeVisible();
+    await expect
+      .element(page.getByText("Opens the chat with your prompt copied. Just paste it in."))
+      .toBeVisible();
+    await expect
+      .element(
+        page.getByText(
+          "Attach it in ChatGPT or Claude, best for very large prompts, or keep a copy."
+        )
+      )
+      .toBeVisible();
   });
 
   it("saves the prompt to a Markdown file and revokes the object URL", async () => {
