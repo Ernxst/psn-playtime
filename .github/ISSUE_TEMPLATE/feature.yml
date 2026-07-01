@@ -1,0 +1,37 @@
+name: Feature request
+description: Suggest an idea for this project
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The best feature request comes with a pull request. The second best comes with a clear spec and no entitlement.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What's the problem?
+      description: What can't you do right now? Be specific.
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Describe the solution
+      description: Concrete API, UI, or behavior. If it involves a new dependency, argue why it's necessary.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Describe alternatives you've considered
+      description: What else could solve the same problem without changing the codebase?
+    validations:
+      required: false
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Screenshots, mockups, prior art — anything that makes the request clearer.
+    validations:
+      required: false
