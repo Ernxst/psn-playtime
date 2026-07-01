@@ -2,14 +2,13 @@ import * as Schema from "effect/Schema";
 import { describe, expect, it } from "vitest";
 import type { TransactionRow } from "@/domain/transactions";
 import type { GamePlay } from "@/server/providers/account/snapshot";
+import { buildGamesCsv, buildTransactionsCsv } from "./csv";
 import {
-  buildGamesCsv,
-  buildTransactionsCsv,
   GAMES_CSV_COLUMNS,
   GameCsvRow,
   TRANSACTION_CSV_COLUMNS,
   TransactionCsvRow,
-} from "./csv";
+} from "./csv-schema.effect";
 
 function tx(overrides: Partial<TransactionRow>): TransactionRow {
   return {
