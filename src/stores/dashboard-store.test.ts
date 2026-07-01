@@ -38,6 +38,12 @@ describe(".clearActive", () => {
   });
 });
 
+describe(".remove", () => {
+  it("does nothing during server render when there is no window", () => {
+    expect(() => makeStore().remove("demo")).not.toThrow();
+  });
+});
+
 describe("server-side rendering", () => {
   it("never reads or writes localStorage without a window", () => {
     const getItem = vi.fn();
@@ -53,6 +59,7 @@ describe("server-side rendering", () => {
     store.save(demoDashboard);
     store.setActive("demo");
     store.clearActive();
+    store.remove("demo");
 
     expect(getItem).not.toHaveBeenCalled();
     expect(setItem).not.toHaveBeenCalled();

@@ -3,8 +3,9 @@ import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
 import { Toaster } from "@/components/ui/sonner";
 import { demoDashboard } from "@/domain/mock";
+import type { TransactionImport } from "@/domain/transactions";
 import { signInWithToken } from "@/server/api/account.effect";
-import { testDashboardStore } from "@/test/atom-registry";
+import { testDashboardStore, testTransactionStore } from "@/test/atom-registry";
 import { createHarness } from "@/test/harness";
 import { SignInCard } from "./sign-in-card";
 
@@ -13,6 +14,31 @@ vi.mock("@/server/api/account.effect", () => ({
 }));
 
 const ACTIVE_KEY = "psn-playtime:dashboard-active";
+
+const cachedAccount = {
+  ...demoDashboard,
+  isDemo: false,
+  profile: { ...demoDashboard.profile, accountId: "acc-1", onlineId: "Ernxst_" },
+};
+
+const importedTransactions: TransactionImport = {
+  transactions: [
+    {
+      transactionId: "T1",
+      key: "k1",
+      date: "2024-01-01",
+      transactionType: "PURCHASE",
+      kind: "purchase",
+      productName: "Some Game",
+      quantity: 1,
+      amountMinor: 4490,
+      currency: "£",
+      displayAmount: "£44.90",
+    },
+  ],
+  importedAt: "2024-01-02T00:00:00.000Z",
+  source: "store.playstation.com",
+};
 
 /** Decode the active-account pointer the dashboard kvs atom persists (JSON-encoded). */
 function readActiveId(): string | null {
@@ -185,6 +211,52 @@ describe("SignInCard", () => {
 
     await expect.poll(readActiveId).toBe("acc-1");
     expect(signInWithToken).not.toHaveBeenCalled();
+  });
+
+  it("offers a remove control for a cached account", async () => {
+    onTestFinished(() => localStorage.clear());
+    testDashboardStore.save(cachedAccount);
+    const { element } = createHarness(<SignInCard />);
+
+    await render(element);
+
+    await expect.element(page.getByRole("button", { name: "Remove Ernxst_" })).toBeVisible();
+  });
+
+  it("gates account removal behind an explicit confirm step and cancels without touching storage", async () => {
+    onTestFinished(() => localStorage.clear());
+    testDashboardStore.save(cachedAccount);
+    const { element } = createHarness(<SignInCard />);
+
+    await render(element);
+
+    await page.getByRole("button", { name: "Remove Ernxst_" }).click();
+
+    await expect.element(page.getByRole("button", { name: "Remove", exact: true })).toBeVisible();
+    await expect.element(page.getByRole("button", { name: "Cancel" })).toBeVisible();
+
+    await page.getByRole("button", { name: "Cancel" }).click();
+
+    await expect.element(page.getByRole("button", { name: /Continue as Ernxst_/ })).toBeVisible();
+    expect(testDashboardStore.load("acc-1")).toEqual(cachedAccount);
+  });
+
+  it("confirming removal wipes the account's cached games and its imported transactions", async () => {
+    onTestFinished(() => localStorage.clear());
+    testDashboardStore.save(cachedAccount);
+    testTransactionStore.save(importedTransactions);
+    const { element } = createHarness(<SignInCard />);
+
+    await render(element);
+
+    await page.getByRole("button", { name: "Remove Ernxst_" }).click();
+    await page.getByRole("button", { name: "Remove", exact: true }).click();
+
+    await expect
+      .element(page.getByRole("button", { name: /Continue as Ernxst_/ }))
+      .not.toBeInTheDocument();
+    await expect.poll(() => testDashboardStore.load("acc-1")).toBeNull();
+    await expect.poll(() => testTransactionStore.load()).toBeNull();
   });
 
   it("a failed sign-in surfaces the error message as a toast", async () => {
