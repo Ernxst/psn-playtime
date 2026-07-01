@@ -163,35 +163,125 @@ function savePromptToFile(prompt: string, onlineId: string) {
   URL.revokeObjectURL(url);
 }
 
+interface OpenInChatButtonProps {
+  prompt: string;
+  /** Idle button text, e.g. "Open in ChatGPT". */
+  label: string;
+  /** Chat site opened in a new tab once the copy succeeds. */
+  url: string;
+  /** Site name woven into the inline failure/blocked messages, e.g. "ChatGPT". */
+  site: string;
+}
+
 /**
- * Copy `prompt` to the clipboard and open a chat site in a new tab so the user
+ * Copy `prompt` to the clipboard, then open a chat site in a new tab so the user
  * can paste it. The prompt embeds the whole library (routinely ~35k chars), far
- * past any URL length limit, so a `?q=` deep-link would truncate — copy+paste is
- * the only mechanism that works at any size. `window.open` and the clipboard
- * write both fire synchronously inside the click handler: awaiting the clipboard
- * first would drop the user activation and let popup blockers block the tab.
+ * past any URL length limit, so a `?q=` deep-link would truncate. Copy+paste is
+ * the only mechanism that works at any size.
+ *
+ * The copy is awaited FIRST and the tab is only opened once it definitely
+ * succeeds: navigating implies the clipboard holds the prompt. We accept the
+ * small popup-block risk of writing before opening because the alternative
+ * (open first) sends focus to the new tab, where the user can never see a
+ * success or error message on the page they left. The clipboard write can reject
+ * (Safari, denied permission, non-secure context) or be missing entirely; on any
+ * failure we do NOT navigate and surface an inline message on the current page so
+ * the user can fall back to the Copy prompt button. If the write succeeds but the
+ * popup is blocked (`window.open` returns null) the user is still here, so we tell
+ * them the prompt is copied and to open the site manually.
  */
-function OpenInChatButton({ prompt, label, url }: { prompt: string; label: string; url: string }) {
-  const [copied, flash] = useCopied();
+function OpenInChatButton({ prompt, label, url, site }: OpenInChatButtonProps) {
+  const [flashed, flash] = useCopied();
+  const [status, setStatus] = useState<"blocked" | "error">("error");
 
   const openChat = () => {
-    window.open(url, "_blank", "noopener,noreferrer");
-    void navigator.clipboard.writeText(prompt);
-    flash();
+    if (!navigator.clipboard?.writeText) {
+      setStatus("error");
+      flash();
+      return;
+    }
+    navigator.clipboard
+      .writeText(prompt)
+      .then(() => {
+        if (!window.open(url, "_blank", "noopener,noreferrer")) {
+          setStatus("blocked");
+          flash();
+        }
+      })
+      .catch(() => {
+        setStatus("error");
+        flash();
+      });
   };
+
+  const text = !flashed
+    ? label
+    : status === "blocked"
+      ? `Prompt copied. Open ${site} and paste it in.`
+      : `Couldn't copy, click Copy prompt then open ${site}.`;
 
   return (
     <Button variant="outline" onClick={openChat} className="gap-2">
-      <SquareArrowOutUpRight /> {copied ? "Copied, paste it in the tab" : label}
+      <SquareArrowOutUpRight /> {text}
     </Button>
   );
 }
 
-/** The read-only prompt preview plus its copy, download, and open-in-chat buttons. */
+/** A muted, one-line caption describing the action group it sits under. */
+function ActionCaption({ children }: { children: string }) {
+  return <p className="text-muted-foreground text-xs">{children}</p>;
+}
+
+/**
+ * The copy, open-in-chat, and download action groups. Each group owns its caption;
+ * `gap-4` between the groups keeps it obvious which caption belongs to which action
+ * in both layouts. The two Open buttons wrap together on mobile and stack in the
+ * column from `sm` up.
+ */
+function PromptActions({ prompt, onlineId }: { prompt: string; onlineId: string }) {
+  return (
+    <div className="flex flex-col gap-4 sm:w-auto">
+      <div className="flex flex-col gap-1">
+        <CopyButton value={prompt} label="Copy prompt" />
+        <ActionCaption>Copy the full prompt to paste into any AI chat.</ActionCaption>
+      </div>
+      <div className="flex flex-col gap-1">
+        <div className="flex flex-wrap gap-2 sm:flex-col">
+          <OpenInChatButton
+            prompt={prompt}
+            label="Open in ChatGPT"
+            url="https://chatgpt.com/"
+            site="ChatGPT"
+          />
+          <OpenInChatButton
+            prompt={prompt}
+            label="Open in Claude"
+            url="https://claude.ai/new"
+            site="Claude"
+          />
+        </div>
+        <ActionCaption>Opens the chat with your prompt copied. Just paste it in.</ActionCaption>
+      </div>
+      <div className="flex flex-col gap-1">
+        <Button
+          variant="outline"
+          onClick={() => savePromptToFile(prompt, onlineId)}
+          className="gap-2"
+        >
+          <Download /> Download (.md)
+        </Button>
+        <ActionCaption>
+          Attach it in ChatGPT or Claude, best for very large prompts, or keep a copy.
+        </ActionCaption>
+      </div>
+    </div>
+  );
+}
+
+/** The read-only prompt preview beside its copy, download, and open-in-chat actions. */
 function PromptPreview({ prompt, onlineId }: { prompt: string; onlineId: string }) {
-  // Stacks on mobile (textarea over a wrapping button grid) so neither is squashed,
-  // and sits side-by-side (textarea beside a button column) from `sm` up. The `w-full`
-  // captions force their own row in the wrapped mobile layout and fill the sm column.
+  // Stacks on mobile (textarea over the action groups) so neither is squashed, and
+  // sits side-by-side (textarea beside the button column) from `sm` up.
   return (
     <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
       <Textarea
@@ -201,24 +291,7 @@ function PromptPreview({ prompt, onlineId }: { prompt: string; onlineId: string 
         aria-label="Prompt preview"
         className="w-full font-mono text-xs"
       />
-      <div className="flex flex-wrap gap-2 sm:w-auto sm:flex-col">
-        <CopyButton value={prompt} label="Copy prompt" />
-        <Button
-          variant="outline"
-          onClick={() => savePromptToFile(prompt, onlineId)}
-          className="gap-2"
-        >
-          <Download /> Download (.md)
-        </Button>
-        <p className="w-full text-muted-foreground text-xs">
-          Attach it in ChatGPT or Claude, best for very large prompts, or keep a copy.
-        </p>
-        <OpenInChatButton prompt={prompt} label="Open in ChatGPT" url="https://chatgpt.com/" />
-        <OpenInChatButton prompt={prompt} label="Open in Claude" url="https://claude.ai/new" />
-        <p className="w-full text-muted-foreground text-xs">
-          Opens the chat with your prompt copied. Just paste it in.
-        </p>
-      </div>
+      <PromptActions prompt={prompt} onlineId={onlineId} />
     </div>
   );
 }
