@@ -1,7 +1,9 @@
 import { useMutation } from "@tanstack/react-query";
 import { Link, useNavigate, useRouteContext } from "@tanstack/react-router";
-import { ArrowRight, ChevronDown, ExternalLink, ShieldAlert, Trash2 } from "lucide-react";
-import { useId, useState } from "react";
+import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
+import { ArrowRight, ChevronDown, ExternalLink, ShieldAlert, Trash2, Upload } from "lucide-react";
+import { useId, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -11,6 +13,7 @@ import { Field, FieldControl, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
+import { importTransactionsCsv } from "@/features/dashboard/export/import-transactions";
 import { signInWithToken } from "@/server/api/account.effect";
 import { type CachedAccount, useCachedAccounts } from "@/stores/dashboard-store";
 
@@ -382,6 +385,58 @@ function AccountSelector() {
   );
 }
 
+/** Success toast copy for a completed CSV restore. */
+function restoreMessage({ added, total }: { added: number; total: number }): string {
+  if (added === 0) return "Those transactions are already imported.";
+  const label = added === 1 ? "transaction" : "transactions";
+  return `Restored ${added} ${label} (${total} in total).`;
+}
+
+/**
+ * Restore a previously exported transactions CSV back into the store. The hidden
+ * file input's `onChange` reads the chosen file, runs the schema-validated import
+ * off the router-context {@link TransactionStore}, and toasts the row count or a
+ * clear error — no effect, the whole flow hangs off the change event.
+ */
+function RestoreTransactions() {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const { transactionStore } = useRouteContext({ from: "__root__" });
+
+  async function onChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const input = event.currentTarget;
+    const file = input.files?.[0];
+    // Reset so re-selecting the same file fires `onChange` again.
+    input.value = "";
+    if (!file) return;
+
+    const text = await file.text();
+    const exit = await Effect.runPromiseExit(importTransactionsCsv(transactionStore, text));
+    if (Exit.isSuccess(exit)) {
+      toast.success(restoreMessage(exit.value));
+    } else {
+      toast.error(
+        "We couldn't read that file as a transactions CSV. Export it again and try again."
+      );
+    }
+  }
+
+  return (
+    <div className="flex flex-col items-center gap-1 pt-1">
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".csv,text/csv"
+        aria-label="Restore transactions from CSV"
+        className="sr-only"
+        onChange={onChange}
+      />
+      <Button variant="ghost" size="sm" onClick={() => inputRef.current?.click()}>
+        <Upload className="size-4" /> Restore transactions from CSV
+      </Button>
+    </div>
+  );
+}
+
 export function SignInCard() {
   return (
     <Card>
@@ -408,6 +463,7 @@ export function SignInCard() {
             Or explore the demo instead
           </Button>
         </div>
+        <RestoreTransactions />
       </CardContent>
     </Card>
   );
