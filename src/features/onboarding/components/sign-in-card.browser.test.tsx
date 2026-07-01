@@ -259,68 +259,6 @@ describe("SignInCard", () => {
     await expect.poll(() => testTransactionStore.load()).toBeNull();
   });
 
-  it("hides the standalone remove-transaction-data control when no transactions are imported", async () => {
-    onTestFinished(() => localStorage.clear());
-    const { element } = createHarness(<SignInCard />);
-
-    await render(element);
-
-    await expect.element(page.getByRole("link", { name: /explore the demo/i })).toBeVisible();
-    await expect
-      .element(page.getByRole("button", { name: "Remove transaction data" }))
-      .not.toBeInTheDocument();
-  });
-
-  it("shows the standalone remove-transaction-data control when transactions are imported", async () => {
-    onTestFinished(() => localStorage.clear());
-    testTransactionStore.save(importedTransactions);
-    const { element } = createHarness(<SignInCard />);
-
-    await render(element);
-
-    await expect
-      .element(page.getByRole("button", { name: "Remove transaction data" }))
-      .toBeVisible();
-  });
-
-  it("gates the standalone transaction removal behind a confirm step and cancels without clearing", async () => {
-    onTestFinished(() => localStorage.clear());
-    testTransactionStore.save(importedTransactions);
-    const { element } = createHarness(<SignInCard />);
-
-    await render(element);
-
-    await page.getByRole("button", { name: "Remove transaction data" }).click();
-
-    await expect.element(page.getByRole("button", { name: "Remove", exact: true })).toBeVisible();
-
-    await page.getByRole("button", { name: "Cancel" }).click();
-
-    await expect
-      .element(page.getByRole("button", { name: "Remove transaction data" }))
-      .toBeVisible();
-    expect(testTransactionStore.load()).toEqual(importedTransactions);
-  });
-
-  it("confirming the standalone control clears only the transactions and leaves cached games intact", async () => {
-    onTestFinished(() => localStorage.clear());
-    testDashboardStore.save(cachedAccount);
-    testTransactionStore.save(importedTransactions);
-    const { element } = createHarness(<SignInCard />);
-
-    await render(element);
-
-    await page.getByRole("button", { name: "Remove transaction data" }).click();
-    await page.getByRole("button", { name: "Remove", exact: true }).click();
-
-    await expect
-      .element(page.getByRole("button", { name: "Remove transaction data" }))
-      .not.toBeInTheDocument();
-    await expect.poll(() => testTransactionStore.load()).toBeNull();
-    await expect.element(page.getByRole("button", { name: /Continue as Ernxst_/ })).toBeVisible();
-    expect(testDashboardStore.load("acc-1")).toEqual(cachedAccount);
-  });
-
   it("a failed sign-in surfaces the error message as a toast", async () => {
     vi.mocked(signInWithToken).mockRejectedValue(new Error("That token didn't work"));
     const { element } = createHarness(

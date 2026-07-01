@@ -13,7 +13,6 @@ import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { signInWithToken } from "@/server/api/account.effect";
 import { type CachedAccount, useCachedAccounts } from "@/stores/dashboard-store";
-import { useTransactionImport } from "@/stores/transactions-store";
 
 // The dashboard store lives on the root router context (the per-request registry
 // `useCachedAccounts` also reads). Reading it via `from: "__root__"` resolves
@@ -383,51 +382,6 @@ function AccountSelector() {
   );
 }
 
-/**
- * Standalone control to clear ONLY the imported transaction data — the single
- * un-keyed import — leaving every account's cached games untouched. Rendered
- * only when an import exists (nothing to clear otherwise), and gated by the same
- * {@link ConfirmRemove} two-step as the per-account remove since it wipes
- * `localStorage`. Confirming goes through the router-context
- * `transactionStore.clear`, never the raw registry or any dashboard data.
- */
-function RemoveTransactionData() {
-  const transactions = useTransactionImport();
-  const [confirming, setConfirming] = useState(false);
-  const { transactionStore } = useRouteContext({ from: "__root__" });
-
-  if (transactions === null) return null;
-
-  return (
-    <div className="flex items-center justify-between gap-2 rounded-md border p-3">
-      <div className="min-w-0">
-        <p className="text-sm font-medium">Imported spend</p>
-        <p className="text-xs text-muted-foreground">
-          Remove the transaction data stored in this browser. Your accounts stay.
-        </p>
-      </div>
-      {confirming ? (
-        <ConfirmRemove
-          onConfirm={() => {
-            transactionStore.clear();
-            setConfirming(false);
-          }}
-          onCancel={() => setConfirming(false)}
-        />
-      ) : (
-        <Button
-          variant="destructive-outline"
-          size="sm"
-          className="shrink-0"
-          onClick={() => setConfirming(true)}
-        >
-          Remove transaction data
-        </Button>
-      )}
-    </div>
-  );
-}
-
 export function SignInCard() {
   return (
     <Card>
@@ -439,7 +393,6 @@ export function SignInCard() {
       </CardHeader>
       <CardContent className="space-y-5">
         <AccountSelector />
-        <RemoveTransactionData />
         <div className="space-y-3">
           <p className="text-sm font-medium text-muted-foreground">How to get your token:</p>
           <ol className="space-y-3 text-sm">
