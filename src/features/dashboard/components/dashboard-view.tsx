@@ -43,6 +43,7 @@ import { TrophySection } from "@/features/dashboard/trophies/components/trophies
 import type { DashboardData } from "@/server/providers/account/snapshot";
 import { DashboardHeader } from "./dashboard-header";
 import { DashboardSidebar } from "./dashboard-sidebar";
+import { RemoveTransactions } from "./remove-transactions";
 import { DashboardEmpty, DashboardNoMatches } from "./states";
 
 const LazyTopGamesSection = lazy(() =>
@@ -196,6 +197,9 @@ function SpendSections({ data }: { data: DashboardData }) {
       </Section>
       <Section id="add-ons">
         <AddOnsSection data={data} />
+      </Section>
+      <Section id="remove-transactions">
+        <RemoveTransactions />
       </Section>
     </>
   );
