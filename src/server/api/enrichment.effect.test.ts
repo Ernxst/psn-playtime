@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { getRawgFranchisesHandler, getRawgGenresHandler } from "@/server/api/enrichment.effect";
+import { describe, expect, it, vi } from "vitest";
+import { rawgFranchisesEffect, rawgGenresEffect } from "@/server/api/enrichment.effect";
 import { TitleEnrichment, type GameMetadata } from "@/server/providers/enrichment/contract.effect";
 import {
   RateLimitedError,
@@ -9,8 +9,10 @@ import {
   UpstreamUnavailableError,
 } from "@/server/providers/errors.effect";
 
+type RawgTitle = { titleId: string; name: string };
+
 /**
- * A fake `TitleEnrichment` — the production seam both handlers read through. The
+ * A fake `TitleEnrichment` — the production seam both effects read through. The
  * returned spies let a test assert that a duplicated title name is looked up
  * once. Each capability defaults to a successful absence so a test only states
  * the lookup it cares about.
@@ -27,6 +29,19 @@ function fakeEnrichment(
   return { layer, metadataFor, franchiseFor };
 }
 
+/**
+ * Provide the fake `TitleEnrichment` layer onto the effect's `R` channel and run
+ * it to a Promise — the test-side mirror of production's `runServer` (which
+ * provides the real layer). The two-arg `Effect.provide` keeps the seam explicit.
+ */
+function runGenres(titles: RawgTitle[], layer: Layer.Layer<TitleEnrichment>) {
+  return Effect.runPromise(Effect.provide(rawgGenresEffect(titles), layer));
+}
+
+function runFranchises(titles: RawgTitle[], layer: Layer.Layer<TitleEnrichment>) {
+  return Effect.runPromise(Effect.provide(rawgFranchisesEffect(titles), layer));
+}
+
 const rateLimited: Effect.Effect<never, TitleEnrichmentError> = Effect.fail(
   new RateLimitedError({ provider: "rawg" })
 );
@@ -34,19 +49,7 @@ const unavailable: Effect.Effect<never, TitleEnrichmentError> = Effect.fail(
   new UpstreamUnavailableError({ provider: "rawg", reason: "upstream_error" })
 );
 
-beforeEach(() => {
-  // With no key the ambient runtime resolves to the no-op RAWG provider, so the
-  // default (un-injected) handler path never touches the network.
-  delete process.env.RAWG_API_KEY;
-});
-
-describe(".getRawgGenresHandler", () => {
-  it("runs against the ambient runtime and returns blank enrichment when no layer is injected", async () => {
-    const result = await getRawgGenresHandler([{ titleId: "t1", name: "Game" }]);
-
-    expect(result).toEqual([]);
-  });
-
+describe(".rawgGenresEffect", () => {
   it("returns the genre and typical playtime for titles RAWG matched", async () => {
     const matched: Record<string, GameMetadata> = {
       Halo: { genre: "Shooter", typicalPlaytime: 12 },
@@ -55,7 +58,7 @@ describe(".getRawgGenresHandler", () => {
       metadataFor: (title) => Effect.succeed(matched[title] ?? {}),
     });
 
-    const result = await getRawgGenresHandler(
+    const result = await runGenres(
       [
         { titleId: "halo", name: "Halo" },
         { titleId: "mystery", name: "Mystery Game" },
@@ -79,7 +82,7 @@ describe(".getRawgGenresHandler", () => {
   ])("includes $label", async ({ metadata }) => {
     const { layer } = fakeEnrichment({ metadataFor: () => Effect.succeed(metadata) });
 
-    const result = await getRawgGenresHandler([{ titleId: "t1", name: "Game" }], layer);
+    const result = await runGenres([{ titleId: "t1", name: "Game" }], layer);
 
     expect(result).toEqual([{ titleId: "t1", ...metadata }]);
   });
@@ -87,7 +90,7 @@ describe(".getRawgGenresHandler", () => {
   it("drops a title whose genre and typical playtime are both absent", async () => {
     const { layer } = fakeEnrichment({ metadataFor: () => Effect.succeed({}) });
 
-    const result = await getRawgGenresHandler([{ titleId: "t1", name: "Unknown" }], layer);
+    const result = await runGenres([{ titleId: "t1", name: "Unknown" }], layer);
 
     expect(result).toEqual([]);
   });
@@ -97,7 +100,7 @@ describe(".getRawgGenresHandler", () => {
       metadataFor: () => Effect.succeed({ genre: "Racing" }),
     });
 
-    const result = await getRawgGenresHandler(
+    const result = await runGenres(
       [
         { titleId: "gt-ps4", name: "Gran Turismo" },
         { titleId: "gt-ps5", name: "Gran Turismo" },
@@ -118,26 +121,20 @@ describe(".getRawgGenresHandler", () => {
   ])("degrades to blank enrichment when the provider $label", async ({ failure }) => {
     const { layer } = fakeEnrichment({ metadataFor: () => failure });
 
-    const result = await getRawgGenresHandler([{ titleId: "t1", name: "Game" }], layer);
+    const result = await runGenres([{ titleId: "t1", name: "Game" }], layer);
 
     expect(result).toEqual([]);
   });
 });
 
-describe(".getRawgFranchisesHandler", () => {
-  it("runs against the ambient runtime and returns blank enrichment when no layer is injected", async () => {
-    const result = await getRawgFranchisesHandler([{ titleId: "t1", name: "Game" }]);
-
-    expect(result).toEqual([]);
-  });
-
+describe(".rawgFranchisesEffect", () => {
   it("returns the franchise for titles RAWG matched", async () => {
     const matched: Record<string, string | undefined> = { Halo: "Halo" };
     const { layer } = fakeEnrichment({
       franchiseFor: (title) => Effect.succeed(matched[title]),
     });
 
-    const result = await getRawgFranchisesHandler(
+    const result = await runFranchises(
       [
         { titleId: "halo", name: "Halo" },
         { titleId: "mystery", name: "Mystery Game" },
@@ -154,7 +151,7 @@ describe(".getRawgFranchisesHandler", () => {
   ])("drops a title with $label", async ({ value }) => {
     const { layer } = fakeEnrichment({ franchiseFor: () => Effect.succeed(value) });
 
-    const result = await getRawgFranchisesHandler([{ titleId: "t1", name: "Game" }], layer);
+    const result = await runFranchises([{ titleId: "t1", name: "Game" }], layer);
 
     expect(result).toEqual([]);
   });
@@ -164,7 +161,7 @@ describe(".getRawgFranchisesHandler", () => {
       franchiseFor: () => Effect.succeed("Gran Turismo"),
     });
 
-    const result = await getRawgFranchisesHandler(
+    const result = await runFranchises(
       [
         { titleId: "gt-ps4", name: "Gran Turismo" },
         { titleId: "gt-ps5", name: "Gran Turismo" },
@@ -185,7 +182,7 @@ describe(".getRawgFranchisesHandler", () => {
   ])("degrades to blank enrichment when the provider $label", async ({ failure }) => {
     const { layer } = fakeEnrichment({ franchiseFor: () => failure });
 
-    const result = await getRawgFranchisesHandler([{ titleId: "t1", name: "Game" }], layer);
+    const result = await runFranchises([{ titleId: "t1", name: "Game" }], layer);
 
     expect(result).toEqual([]);
   });

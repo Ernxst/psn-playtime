@@ -9,7 +9,6 @@
  */
 import { createServerFn } from "@tanstack/react-start";
 import * as Effect from "effect/Effect";
-import type * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 import { runServer } from "@/runtime/runtime.effect";
 import { type Genre } from "@/server/providers/account/snapshot";
@@ -41,8 +40,16 @@ function rawgLookupNames(titles: ReadonlyArray<{ name: string }>): string[] {
   return Array.from(new Set(titles.map((title) => title.name)));
 }
 
-/** Run the RAWG genre/playtime lookup against the ambient, process-lived provider. */
-const rawgGenresEffect = (
+/**
+ * Run the RAWG genre/playtime lookup against the ambient, process-lived provider.
+ *
+ * The `TitleEnrichment` requirement stays on the effect's `R` channel: production
+ * runs it through `runServer`, which provides the real `TitleEnrichmentLayer`
+ * (and its cross-request caches); a test runs it by providing a fake
+ * `TitleEnrichment` layer — same effect, different layer. Exported for that test
+ * seam.
+ */
+export const rawgGenresEffect = (
   titles: readonly RawgInputTitle[]
 ): Effect.Effect<
   Array<{ titleId: string; genre?: Genre; typicalPlaytime?: number }>,
@@ -67,8 +74,12 @@ const rawgGenresEffect = (
     )
   );
 
-/** Run the RAWG franchise lookup against the ambient, process-lived provider. */
-const rawgFranchisesEffect = (
+/**
+ * Run the RAWG franchise lookup against the ambient, process-lived provider.
+ * Exported for the same fake-layer test seam as {@link rawgGenresEffect}; the
+ * `TitleEnrichment` requirement stays on `R`, provided by `runServer` in prod.
+ */
+export const rawgFranchisesEffect = (
   titles: readonly RawgInputTitle[]
 ): Effect.Effect<Array<{ titleId: string; franchise: string }>, never, TitleEnrichment> =>
   prefetchFranchises(rawgLookupNames(titles)).pipe(
@@ -82,40 +93,10 @@ const rawgFranchisesEffect = (
     )
   );
 
-/**
- * Run the genre lookup for a validated request. Mirrors
- * `signInWithTokenHandler`'s injectable-layer seam: production passes no
- * `enrichment`, so the effect runs against the process-lived `TitleEnrichment`
- * the ambient `runServer` runtime supplies (preserving the cross-request RAWG
- * caches); a test passes a fake `TitleEnrichment` layer to drive the lookup
- * deterministically. The result still degrades to blank enrichment on a provider
- * failure because `prefetchGameMetadata` already recovers the typed failures.
- */
-export function getRawgGenresHandler(
-  titles: readonly RawgInputTitle[],
-  enrichment?: Layer.Layer<TitleEnrichment>
-): Promise<Array<{ titleId: string; genre?: Genre; typicalPlaytime?: number }>> {
-  const effect = rawgGenresEffect(titles);
-  // The handler is the server-fn entry point; a test injects a fake layer here.
-  // @effect-diagnostics-next-line strictEffectProvide:off
-  return runServer(enrichment === undefined ? effect : Effect.provide(effect, enrichment));
-}
-
-/** Franchise counterpart to {@link getRawgGenresHandler}, sharing the same seam. */
-export function getRawgFranchisesHandler(
-  titles: readonly RawgInputTitle[],
-  enrichment?: Layer.Layer<TitleEnrichment>
-): Promise<Array<{ titleId: string; franchise: string }>> {
-  const effect = rawgFranchisesEffect(titles);
-  // The handler is the server-fn entry point; a test injects a fake layer here.
-  // @effect-diagnostics-next-line strictEffectProvide:off
-  return runServer(enrichment === undefined ? effect : Effect.provide(effect, enrichment));
-}
-
 export const getRawgGenres = createServerFn({ method: "POST" })
   .validator(rawgGenreInput)
-  .handler(({ data }) => getRawgGenresHandler(data.titles));
+  .handler(({ data }) => runServer(rawgGenresEffect(data.titles)));
 
 export const getRawgFranchises = createServerFn({ method: "POST" })
   .validator(rawgGenreInput)
-  .handler(({ data }) => getRawgFranchisesHandler(data.titles));
+  .handler(({ data }) => runServer(rawgFranchisesEffect(data.titles)));
