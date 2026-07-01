@@ -52,6 +52,16 @@ describe("LlmPromptCard", () => {
     await expect.element(page.getByRole("textbox", { name: "Prompt preview" })).toBeVisible();
   });
 
+  it("renders all four prompt actions alongside the preview without squashing them", async () => {
+    await render(<LlmPromptCard data={demoDashboard} />);
+
+    await expect.element(page.getByRole("textbox", { name: "Prompt preview" })).toBeVisible();
+    await expect.element(page.getByRole("button", { name: "Copy prompt" })).toBeVisible();
+    await expect.element(page.getByRole("button", { name: "Download (.md)" })).toBeVisible();
+    await expect.element(page.getByRole("button", { name: "Open in ChatGPT" })).toBeVisible();
+    await expect.element(page.getByRole("button", { name: "Open in Claude" })).toBeVisible();
+  });
+
   it("copies the prompt leading with the default question plus follow-ups", async () => {
     const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
 
@@ -114,7 +124,7 @@ describe("LlmPromptCard", () => {
     const click = vi.spyOn(anchor, "click").mockReturnValue();
     vi.spyOn(document, "createElement").mockReturnValueOnce(anchor);
 
-    await page.getByRole("button", { name: "Save to file" }).click();
+    await page.getByRole("button", { name: "Download (.md)" }).click();
 
     expect(blob).toHaveBeenCalledExactlyOnceWith([expect.stringContaining("FOLLOW-UP QUESTIONS")], {
       type: "text/markdown",
@@ -139,7 +149,7 @@ describe("LlmPromptCard", () => {
     vi.spyOn(anchor, "click").mockReturnValue();
     vi.spyOn(document, "createElement").mockReturnValueOnce(anchor);
 
-    await page.getByRole("button", { name: "Save to file" }).click();
+    await page.getByRole("button", { name: "Download (.md)" }).click();
 
     expect(anchor).toHaveAttribute("download", "psn-playtime-prompt-abc.md");
   });

@@ -187,29 +187,35 @@ function OpenInChatButton({ prompt, label, url }: { prompt: string; label: strin
   );
 }
 
-/** The read-only prompt preview plus its copy, save, and open-in-chat buttons. */
+/** The read-only prompt preview plus its copy, download, and open-in-chat buttons. */
 function PromptPreview({ prompt, onlineId }: { prompt: string; onlineId: string }) {
+  // Stacks on mobile (textarea over a wrapping button grid) so neither is squashed,
+  // and sits side-by-side (textarea beside a button column) from `sm` up. The `w-full`
+  // captions force their own row in the wrapped mobile layout and fill the sm column.
   return (
-    <div className="flex items-start gap-2">
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
       <Textarea
         readOnly
         rows={8}
         value={prompt}
         aria-label="Prompt preview"
-        className="font-mono text-xs"
+        className="w-full font-mono text-xs"
       />
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap gap-2 sm:w-auto sm:flex-col">
         <CopyButton value={prompt} label="Copy prompt" />
         <Button
           variant="outline"
           onClick={() => savePromptToFile(prompt, onlineId)}
           className="gap-2"
         >
-          <Download /> Save to file
+          <Download /> Download (.md)
         </Button>
+        <p className="w-full text-muted-foreground text-xs">
+          Attach it in ChatGPT or Claude, best for very large prompts, or keep a copy.
+        </p>
         <OpenInChatButton prompt={prompt} label="Open in ChatGPT" url="https://chatgpt.com/" />
         <OpenInChatButton prompt={prompt} label="Open in Claude" url="https://claude.ai/new" />
-        <p className="text-muted-foreground text-xs">
+        <p className="w-full text-muted-foreground text-xs">
           Opens the chat with your prompt copied. Just paste it in.
         </p>
       </div>
