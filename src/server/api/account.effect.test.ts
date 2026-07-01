@@ -1,5 +1,6 @@
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Redacted from "effect/Redacted";
 import type {
   AuthTokensResponse,
   ProfileFromUserNameResponse,
@@ -8,8 +9,24 @@ import type {
   UserTitlesResponse,
 } from "psn-api";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { signInWithTokenHandler } from "@/server/api/account.effect";
+import { signInEffect } from "@/server/api/account.effect";
+import { PsnDashboardSourceLayer } from "@/server/providers/account/psn/provider.effect";
 import { PsnTransport, PsnTransportError } from "@/server/providers/account/psn/transport.effect";
+import type { DashboardData } from "@/server/providers/account/snapshot";
+
+/**
+ * Run the exported `signInEffect` the way production does — provide the layer at
+ * the edge, then run to a Promise — but bind the real `PsnDashboardSourceLayer`
+ * to a FAKE `PsnTransport` instead of the live `psn-api` one. Keeping the seam at
+ * the transport (not at `DashboardSource`) means the real `loadDashboard` →
+ * `buildSnapshot` path still runs, so normalization and the #267 error branches
+ * stay covered. The two-arg `Effect.provide` keeps the seam explicit; production
+ * satisfies the same `DashboardSource` requirement through `runServer`.
+ */
+function runSignIn(npsso: string, transport: Layer.Layer<PsnTransport>): Promise<DashboardData> {
+  const source = Layer.provide(PsnDashboardSourceLayer, transport);
+  return Effect.runPromise(Effect.provide(signInEffect(Redacted.make(npsso)), source));
+}
 
 /** A transport failure carrying `message` as its raw cause, as the live layer would. */
 function psnFailure(message: string): Effect.Effect<never, PsnTransportError> {
@@ -268,11 +285,11 @@ beforeEach(() => {
   delete process.env.RAWG_API_KEY;
 });
 
-describe(".signInWithTokenHandler", () => {
+describe(".signInEffect", () => {
   it("normalizes a live PSN account for a valid token", async () => {
     const { layer } = liveBuild();
 
-    const result = await signInWithTokenHandler({ npsso: "npsso-token" }, layer);
+    const result = await runSignIn("npsso-token", layer);
 
     expect(result.isDemo).toBe(false);
     expect(result.profile.onlineId).toBe("Ernxst_");
@@ -366,7 +383,7 @@ describe(".signInWithTokenHandler", () => {
       ],
     });
 
-    const result = await signInWithTokenHandler({ npsso: "npsso-token" }, layer);
+    const result = await runSignIn("npsso-token", layer);
 
     const gow = result.games.find((g) => g.titleId === "gow")!;
 
@@ -417,7 +434,7 @@ describe(".signInWithTokenHandler", () => {
       ],
     });
 
-    const result = await signInWithTokenHandler({ npsso: "npsso-token" }, layer);
+    const result = await runSignIn("npsso-token", layer);
 
     const div2 = result.games.find((g) => g.titleId === "div2")!;
 
@@ -456,7 +473,7 @@ describe(".signInWithTokenHandler", () => {
       ],
     });
 
-    const result = await signInWithTokenHandler({ npsso: "npsso-token" }, layer);
+    const result = await runSignIn("npsso-token", layer);
 
     const div2 = result.games.find((g) => g.titleId === "div2")!;
 
@@ -493,7 +510,7 @@ describe(".signInWithTokenHandler", () => {
         titles: [Effect.succeed(trophyPage([trophy({ trophyTitleName, progress: 60 })], 1))],
       });
 
-      const result = await signInWithTokenHandler({ npsso: "npsso-token" }, layer);
+      const result = await runSignIn("npsso-token", layer);
 
       const game = result.games.find((g) => g.titleId === "seq")!;
 
@@ -539,7 +556,7 @@ describe(".signInWithTokenHandler", () => {
       ],
     });
 
-    const result = await signInWithTokenHandler({ npsso: "npsso-token" }, layer);
+    const result = await runSignIn("npsso-token", layer);
 
     const gta5 = result.games.find((g) => g.titleId === "gta5")!;
 
@@ -578,7 +595,7 @@ describe(".signInWithTokenHandler", () => {
       ],
     });
 
-    const result = await signInWithTokenHandler({ npsso: "npsso-token" }, layer);
+    const result = await runSignIn("npsso-token", layer);
 
     const div2 = result.games.find((g) => g.titleId === "div2")!;
 
@@ -619,7 +636,7 @@ describe(".signInWithTokenHandler", () => {
       ],
     });
 
-    const result = await signInWithTokenHandler({ npsso: "npsso-token" }, layer);
+    const result = await runSignIn("npsso-token", layer);
 
     const minecraft = result.games.find((g) => g.titleId === "minecraft")!;
 
@@ -652,7 +669,7 @@ describe(".signInWithTokenHandler", () => {
       ],
     });
 
-    const result = await signInWithTokenHandler({ npsso: "npsso-token" }, layer);
+    const result = await runSignIn("npsso-token", layer);
 
     const obscure = result.games.find((g) => g.titleId === "obscure")!;
 
@@ -667,7 +684,7 @@ describe(".signInWithTokenHandler", () => {
       titles: [psnFailure("trophy service down")],
     });
 
-    const result = await signInWithTokenHandler({ npsso: "npsso-token" }, layer);
+    const result = await runSignIn("npsso-token", layer);
 
     expect(result.isDemo).toBe(false);
     expect(result.profile.avatarUrl).toBeUndefined();
@@ -680,7 +697,7 @@ describe(".signInWithTokenHandler", () => {
       profile({ avatarUrls: [{ size: "s", avatarUrl: "https://img/s" }], plus: 0 })
     );
 
-    const result = await signInWithTokenHandler({ npsso: "fresh-token" }, layer);
+    const result = await runSignIn("fresh-token", layer);
 
     expect(result.isDemo).toBe(false);
     expect(result.profile.avatarUrl).toBe("https://img/s");
@@ -690,7 +707,7 @@ describe(".signInWithTokenHandler", () => {
   it("rejects with a credential-rejected error when the npsso exchange fails", async () => {
     const { layer } = fakeTransport({ exchangeNpsso: psnFailure("nope") });
 
-    const promise = signInWithTokenHandler({ npsso: "bad-token" }, layer);
+    const promise = runSignIn("bad-token", layer);
 
     await expect(promise).rejects.toMatchObject({
       name: "SignInError",
@@ -704,7 +721,7 @@ describe(".signInWithTokenHandler", () => {
   it("rejects with a rate-limited error when PlayStation throttles the fetch", async () => {
     const { layer } = fakeTransport({ profile: psnFailure("429 Too Many Requests") });
 
-    const promise = signInWithTokenHandler({ npsso: "npsso-token" }, layer);
+    const promise = runSignIn("npsso-token", layer);
 
     await expect(promise).rejects.toMatchObject({
       name: "SignInError",
@@ -717,7 +734,7 @@ describe(".signInWithTokenHandler", () => {
   it("rejects with an unavailable error when PlayStation is down", async () => {
     const { layer } = fakeTransport({ profile: psnFailure("upstream exploded") });
 
-    const promise = signInWithTokenHandler({ npsso: "npsso-token" }, layer);
+    const promise = runSignIn("npsso-token", layer);
 
     await expect(promise).rejects.toMatchObject({
       name: "SignInError",
@@ -740,7 +757,7 @@ describe(".signInWithTokenHandler", () => {
       })
     );
 
-    const promise = signInWithTokenHandler({ npsso: "npsso-token" }, layer);
+    const promise = runSignIn("npsso-token", layer);
 
     await expect(promise).rejects.toMatchObject({
       name: "SignInError",
@@ -749,6 +766,23 @@ describe(".signInWithTokenHandler", () => {
     });
     // No schema/field detail leaks into the client message.
     await expect(promise).rejects.not.toThrow(/trophyLevel|Finite|NaN|SchemaError/);
+  });
+
+  it("rejects with an internal error when an unexpected defect escapes the load", async () => {
+    // An untyped defect (not a modelled `PsnTransportError`) escapes normalization
+    // — our bug, not the user's token. It must be caught and sanitised to a
+    // generic `internal` error so no raw defect value rides out to the client.
+    const { layer } = fakeTransport({ profile: Effect.die(new Error("unexpected boom")) });
+
+    const promise = runSignIn("npsso-token", layer);
+
+    await expect(promise).rejects.toMatchObject({
+      name: "SignInError",
+      kind: "internal",
+      message: "Something went wrong on our end. Please try again.",
+    });
+    // The raw defect value must never leak into the client message.
+    await expect(promise).rejects.not.toThrow(/boom/);
   });
 
   it("keeps paging played games past a full first page when PSN omits the total", async () => {
@@ -786,7 +820,7 @@ describe(".signInWithTokenHandler", () => {
       titles: [Effect.succeed(trophyPage([], 0))],
     });
 
-    const result = await signInWithTokenHandler({ npsso: "npsso-token" }, layer);
+    const result = await runSignIn("npsso-token", layer);
 
     expect(getPlayedGames).toHaveBeenCalledTimes(2);
     expect(result.games).toHaveLength(201);
@@ -828,7 +862,7 @@ describe(".signInWithTokenHandler", () => {
       ],
     });
 
-    const result = await signInWithTokenHandler({ npsso: "npsso-token" }, layer);
+    const result = await runSignIn("npsso-token", layer);
 
     const marker = result.games.find((g) => g.titleId === "marker")!;
 

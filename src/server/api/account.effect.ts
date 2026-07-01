@@ -4,16 +4,17 @@
  *
  * The PSN fetch + normalization lives behind the `DashboardSource` port,
  * implemented by `PsnDashboardSourceLayer`
- * (`@/server/providers/account/psn/provider.effect`); this module wraps it in a
- * `createServerFn` handler and provides the layer as the entry point. The npsso
- * token is used transiently to load an account once; it is never stored
- * server-side. The derived `DashboardData` is cached client-side
- * (`@/stores/dashboard-store`), which is the source for revisits.
+ * (`@/server/providers/account/psn/provider.effect`); this module exports the
+ * boundary program as an effect that declares that port on its `R` channel and
+ * wraps it in a `createServerFn` handler, with the real layer provided by the
+ * server runtime via `runServer`. The npsso token is used transiently to load an
+ * account once; it is never stored server-side. The derived `DashboardData` is
+ * cached client-side (`@/stores/dashboard-store`), which is the source for
+ * revisits.
  */
 import { createServerFn } from "@tanstack/react-start";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
-import type * as Layer from "effect/Layer";
 import * as Redacted from "effect/Redacted";
 import * as Schema from "effect/Schema";
 import { runServer } from "@/runtime/runtime.effect";
@@ -21,11 +22,6 @@ import {
   DashboardSource,
   type AccountCredential,
 } from "@/server/providers/account/contract.effect";
-import { PsnDashboardSourceLayer } from "@/server/providers/account/psn/provider.effect";
-import {
-  PsnTransportLive,
-  type PsnTransport,
-} from "@/server/providers/account/psn/transport.effect";
 import { DashboardData } from "@/server/providers/account/snapshot";
 
 const SignInInput = Schema.Struct({
@@ -85,53 +81,42 @@ const signInError = (kind: SignInErrorKind) => Effect.fail(makeSignInError(kind)
 const decodeDashboard = Schema.decodeUnknownEffect(DashboardData);
 
 /**
- * Fetch and normalize one account from a transient credential. Runs the PSN
- * `DashboardSource`, then decodes the snapshot against the `DashboardData`
- * contract before it goes over the wire (a pass-through for valid data). The
- * `PsnTransport` the source needs stays open here, satisfied by the layer the
- * handler provides.
+ * The whole sign-in boundary program for a transient npsso token, as an exported,
+ * testable effect. It loads the account through the `DashboardSource` port,
+ * decodes the snapshot against the `DashboardData` contract (a pass-through for
+ * valid data), and translates each typed failure into a DISTINCT, serializable
+ * {@link SignInError}. Matching is by error tag (`Effect.catchTags`), never a
+ * blanket catch, so a credential rejection, a rate-limit, an outage, and a
+ * `DashboardData` contract breakage each keep their own recovery path instead of
+ * collapsing into "expired token". Any unexpected defect becomes a safe generic
+ * `internal` error so nothing unmodelled leaks.
+ *
+ * The `DashboardSource` requirement stays on the `R` channel: production runs it
+ * through `runServer`, which provides the real `PsnDashboardSourceLayer` (bound
+ * to the live `psn-api` transport) from the process-lived server runtime; a test
+ * runs it by providing a `PsnDashboardSourceLayer` bound to a fake `PsnTransport`
+ * — same effect, different layer. Exported for that test seam.
+ *
+ * The token is never stored server-side; the caller persists the returned
+ * `DashboardData` in the client cache.
  */
-const signInEffect = (credential: AccountCredential) =>
+export const signInEffect = (
+  credential: AccountCredential
+): Effect.Effect<DashboardData, SignInError, DashboardSource> =>
   Effect.flatMap(DashboardSource, (provider) => provider.loadDashboard(credential)).pipe(
     Effect.flatMap(decodeDashboard),
-    // @effect-diagnostics-next-line strictEffectProvide:off
-    Effect.provide(PsnDashboardSourceLayer)
+    Effect.catchTags({
+      CredentialRejectedError: () => signInError("credential_rejected"),
+      RateLimitedError: () => signInError("rate_limited"),
+      UpstreamUnavailableError: () => signInError("upstream_unavailable"),
+      // A `DashboardData` decode failure is OUR contract breaking, not the token.
+      SchemaError: () => signInError("internal"),
+    }),
+    // An unexpected defect (e.g. a normalization bug) becomes a safe generic
+    // `internal` error, so no raw, unmodelled value rides out to the client.
+    Effect.catchDefect(() => signInError("internal"))
   );
-
-/**
- * The server-fn boundary for a transient npsso token: validate, provide the PSN
- * `transport` `Layer` (defaulting to the live `psn-api` binding), and translate
- * each typed failure into a DISTINCT, serializable {@link SignInError}. Matching
- * is by error tag (`Effect.catchTags`), never a blanket catch, so a credential
- * rejection, a rate-limit, an outage, and a `DashboardData` contract breakage
- * each keep their own recovery path instead of collapsing into "expired token".
- * Any unexpected defect becomes a safe generic `internal` error so nothing
- * unmodelled leaks. The token is never stored server-side; the caller persists
- * the returned `DashboardData` in the client cache.
- */
-export function signInWithTokenHandler(
-  data: Schema.Schema.Type<typeof SignInInput>,
-  transport: Layer.Layer<PsnTransport> = PsnTransportLive
-): Promise<DashboardData> {
-  const credential = Redacted.make(data.npsso);
-  return signInEffect(credential)
-    .pipe(
-      Effect.catchTags({
-        CredentialRejectedError: () => signInError("credential_rejected"),
-        RateLimitedError: () => signInError("rate_limited"),
-        UpstreamUnavailableError: () => signInError("upstream_unavailable"),
-        // A `DashboardData` decode failure is OUR contract breaking, not the token.
-        SchemaError: () => signInError("internal"),
-      }),
-      // @effect-diagnostics-next-line strictEffectProvide:off
-      Effect.provide(transport),
-      runServer
-    )
-    .catch((cause: unknown) => {
-      throw cause instanceof SignInError ? cause : makeSignInError("internal");
-    });
-}
 
 export const signInWithToken = createServerFn({ method: "POST" })
   .validator(signInInput)
-  .handler(({ data }) => signInWithTokenHandler(data));
+  .handler(({ data }) => Redacted.make(data.npsso).pipe(signInEffect, runServer));
