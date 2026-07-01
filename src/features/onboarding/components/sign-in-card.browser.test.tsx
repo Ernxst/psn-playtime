@@ -1,9 +1,10 @@
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { render } from "vitest-browser-react";
-import { page } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 import { Toaster } from "@/components/ui/sonner";
 import { demoDashboard } from "@/domain/mock";
 import type { TransactionImport } from "@/domain/transactions";
+import { buildTransactionsCsv } from "@/features/dashboard/export/csv";
 import { signInWithToken } from "@/server/api/account.effect";
 import { testDashboardStore, testTransactionStore } from "@/test/atom-registry";
 import { createHarness } from "@/test/harness";
@@ -324,6 +325,78 @@ describe("SignInCard", () => {
     await page.getByRole("button", { name: "Sign in" }).click();
 
     await expect.element(page.getByText("Sign in failed. Check your token.")).toBeVisible();
+  });
+
+  it("offers a restore-transactions-from-CSV affordance", async () => {
+    const { element } = createHarness(<SignInCard />);
+
+    await render(element);
+
+    await expect
+      .element(page.getByLabelText("Restore transactions from CSV"))
+      .toHaveAttribute("type", "file");
+  });
+
+  it("restores transactions from a chosen CSV and toasts the imported count", async () => {
+    onTestFinished(() => localStorage.clear());
+    const csv = buildTransactionsCsv(importedTransactions.transactions);
+    const file = new File([csv], "transactions.csv", { type: "text/csv" });
+    const { element } = createHarness(
+      <>
+        <SignInCard />
+        <Toaster />
+      </>
+    );
+
+    await render(element);
+
+    await userEvent.upload(page.getByLabelText("Restore transactions from CSV"), file);
+
+    await expect.element(page.getByText("Restored 1 transaction (1 in total).")).toBeVisible();
+  });
+
+  it("re-importing the same CSV is idempotent and reports nothing new", async () => {
+    onTestFinished(() => localStorage.clear());
+    testTransactionStore.save(importedTransactions);
+    const csv = buildTransactionsCsv(importedTransactions.transactions);
+    const file = new File([csv], "transactions.csv", { type: "text/csv" });
+    const { element } = createHarness(
+      <>
+        <SignInCard />
+        <Toaster />
+      </>
+    );
+
+    await render(element);
+
+    await userEvent.upload(page.getByLabelText("Restore transactions from CSV"), file);
+
+    await expect.element(page.getByText("Those transactions are already imported.")).toBeVisible();
+    await expect.poll(() => testTransactionStore.load()?.transactions).toHaveLength(1);
+  });
+
+  it("surfaces a clear error toast when the chosen file is not a valid transactions CSV", async () => {
+    onTestFinished(() => localStorage.clear());
+    const file = new File(["not,a,transactions\r\ncsv,at,all"], "junk.csv", { type: "text/csv" });
+    const { element } = createHarness(
+      <>
+        <SignInCard />
+        <Toaster />
+      </>
+    );
+
+    await render(element);
+
+    await userEvent.upload(page.getByLabelText("Restore transactions from CSV"), file);
+
+    await expect
+      .element(
+        page.getByText(
+          "We couldn't read that file as a transactions CSV. Export it again and try again."
+        )
+      )
+      .toBeVisible();
+    expect(testTransactionStore.load()).toBeNull();
   });
 
   it("shows a signing-in spinner and locks the token input while the request is in flight", async () => {
