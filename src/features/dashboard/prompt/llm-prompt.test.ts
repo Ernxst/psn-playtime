@@ -279,6 +279,41 @@ describe(".buildDataSummary", () => {
     expect(summary).toContain("PSN reports no per-period or per-session playtime");
   });
 
+  it("marks a game's timing as unknown when it has no play dates", () => {
+    const games = demoDashboard.games.map((g) => ({
+      ...g,
+      lastPlayed: undefined,
+      firstPlayed: undefined,
+    }));
+
+    const summary = buildDataSummary({ ...demoDashboard, games });
+
+    expect(summary).toContain(", timing unknown");
+  });
+
+  it("reports a platinum-eligible game as platinum available but not earned", () => {
+    const games = demoDashboard.games.map((g) =>
+      g.trophy
+        ? {
+            ...g,
+            trophy: { ...g.trophy, hasPlatinum: true, earned: { ...g.trophy.earned, platinum: 0 } },
+          }
+        : g
+    );
+
+    const summary = buildDataSummary({ ...demoDashboard, games });
+
+    expect(summary).toContain("platinum available, not earned");
+  });
+
+  it("reports no franchises when none are detected", () => {
+    const games = demoDashboard.games.map((g) => ({ ...g, franchise: undefined }));
+
+    const summary = buildDataSummary({ ...demoDashboard, games });
+
+    expect(summary).toContain("Franchises by hours:\n  (none detected)");
+  });
+
   it("includes each game's last and first played dates on its line", () => {
     const [top] = demoDashboard.games.toSorted((a, b) => b.hours - a.hours);
 

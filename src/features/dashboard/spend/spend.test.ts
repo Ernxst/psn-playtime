@@ -146,6 +146,35 @@ describe(".summariseSpend", () => {
     expect(summary.leaderboard).toEqual([]);
     expect(summary.paidGames).toBe(1);
   });
+
+  it("treats a purchase with an unnameable product as unmatched spend", () => {
+    const summary = summariseSpend(data([game("Real Game", 10)]), [
+      tx({ productName: "™®©", amountMinor: 1500 }),
+    ]);
+
+    expect(summary.unmatchedSpend).toBe(15);
+    expect(summary.paidGames).toBe(0);
+  });
+
+  it("omits purchases with an unparseable date from the year breakdown", () => {
+    const summary = summariseSpend(data([game("Dated", 10)]), [
+      tx({ productName: "Dated", amountMinor: 2000, date: "not-a-date" }),
+    ]);
+
+    expect(summary.byYear).toEqual([]);
+    expect(summary.totalSpend).toBe(20);
+  });
+
+  it("keeps the first library game when two share a normalised name", () => {
+    const summary = summariseSpend(data([game("Hades", 10, "H1"), game("Hades!", 20, "H2")]), [
+      tx({ productName: "Hades", amountMinor: 1000 }),
+    ]);
+
+    expect(summary.paidGames).toBe(1);
+    expect(summary.leaderboard).toEqual([
+      { titleId: "H1", name: "Hades", hours: 10, spend: 10, perHour: 1 },
+    ]);
+  });
 });
 
 describe(".summariseSpend byTitle", () => {
@@ -179,6 +208,18 @@ describe(".summariseSpend byTitle", () => {
       { titleId: "PPSA01491_00", name: "Cyberpunk 2077", spend: 44.98 },
       { titleId: "UNPLAYED", name: "Bought But Unplayed", spend: 40 },
       { titleId: "CHEAP", name: "Cheap Game", spend: 5 },
+    ]);
+  });
+
+  it("breaks equal total spend ties by name", () => {
+    const summary = summariseSpend(data([game("Zelda", 10, "Z"), game("Alpha", 10, "A")]), [
+      tx({ productName: "Zelda", amountMinor: 2000 }),
+      tx({ productName: "Alpha", amountMinor: 2000 }),
+    ]);
+
+    expect(summary.byTitle).toEqual([
+      { titleId: "A", name: "Alpha", spend: 20 },
+      { titleId: "Z", name: "Zelda", spend: 20 },
     ]);
   });
 });
@@ -266,6 +307,22 @@ describe(".isAddOnPurchase", () => {
     });
 
     expect(isAddOnPurchase(row, game("Cyberpunk 2077", 40, "PPSA01491_00"))).toBe(false);
+  });
+
+  it("does not treat a non-purchase transaction as an add-on", () => {
+    const row = tx({ kind: "top-up", productName: "Known Game Season Pass" });
+
+    expect(isAddOnPurchase(row, game("Known Game", 10))).toBe(false);
+  });
+
+  it("does not treat an unrecognised standalone product with no matched game as an add-on", () => {
+    expect(isAddOnPurchase(tx({ productName: "Standalone Indie" }))).toBe(false);
+  });
+
+  it("ignores a sku id with no content segment", () => {
+    const row = tx({ productName: "Plain Game", skuId: "EP4082-PPSA01491_00" });
+
+    expect(isAddOnPurchase(row, game("Other", 10))).toBe(false);
   });
 });
 
@@ -424,5 +481,23 @@ describe(".summarisePriceContext", () => {
     ]);
 
     expect(summary).toEqual([]);
+  });
+
+  it("keeps the first base-game purchase when a title was bought more than once", () => {
+    const summary = summarisePriceContext(data([game("Twice", 10, "TW")]), [
+      tx({ productName: "Twice", amountMinor: 1500, originalPriceMinor: 2000 }),
+      tx({ productName: "Twice", amountMinor: 500, originalPriceMinor: 2000 }),
+    ]);
+
+    expect(summary).toEqual([
+      {
+        titleId: "TW",
+        name: "Twice",
+        label: "discounted",
+        paidMinor: 1500,
+        originalPriceMinor: 2000,
+        currency: "£",
+      },
+    ]);
   });
 });

@@ -50,6 +50,18 @@ function CachedAccountNames() {
   return <p>{accounts.map((account) => account.onlineId).join(",") || "none"}</p>;
 }
 
+describe(".load", () => {
+  it("returns the cached dashboard for a saved account", () => {
+    store.save(accountA);
+
+    expect(store.load("acc-1")).toEqual(accountA);
+  });
+
+  it("returns null for an account with no cached dashboard", () => {
+    expect(store.load("missing")).toBeNull();
+  });
+});
+
 describe(".useActiveDashboard", () => {
   it("falls back to demo data when no account is active", async () => {
     await render(<ActiveOnlineId />, { wrapper: Provider });
@@ -66,6 +78,26 @@ describe(".useActiveDashboard", () => {
     store.setActive("acc-1");
 
     await expect.element(page.getByText("Aaron")).toBeVisible();
+  });
+
+  it("falls back to demo data when the active account has no cached dashboard", async () => {
+    store.setActive("ghost");
+
+    await render(<ActiveOnlineId />, { wrapper: Provider });
+
+    await expect.element(page.getByText(demoDashboard.profile.onlineId)).toBeVisible();
+  });
+
+  it("falls back to demo data after the active account is cleared", async () => {
+    store.save(accountA);
+    store.setActive("acc-1");
+
+    await render(<ActiveOnlineId />, { wrapper: Provider });
+    await expect.element(page.getByText("Aaron")).toBeVisible();
+
+    store.clearActive();
+
+    await expect.element(page.getByText(demoDashboard.profile.onlineId)).toBeVisible();
   });
 });
 
