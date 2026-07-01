@@ -100,6 +100,32 @@ Before summarising, verify each claim against added/removed lines in the diff. U
 4. Do not open a PR with a custom body that skips the template sections.
 5. In `## Summary`, explain the change in terms of behaviour, intent, and why it matters — do not just restate the diff.
 
+## Labelling issues
+
+Never file an issue bare. Every issue gets **at least one type label**, plus a **grouping/area label where one fits**.
+
+**Type labels** (what kind of work — pick ≥1):
+
+- `bug` — something is broken (default for defects)
+- `enhancement` — new feature or request (default for features / UX)
+- `perf` — performance / efficiency
+- `test-infra` — testing infrastructure / conventions
+- `documentation` — documentation changes
+- `structure` — file organisation / conventions
+- `simplify` — reduce complexity without behaviour change
+- `reuse` — consolidate duplication / reuse existing code
+- `a11y` — accessibility
+- `question` — a question, not actionable work yet
+
+**Grouping / area labels** (add where applicable):
+
+- `epic` — large multi-issue initiative
+- `deferred` — backlog / not scheduled yet
+- `observability` — logging, tracing, metrics, error reporting
+- `a11y` — accessibility
+
+Opening an issue through the [issue forms](./.github/ISSUE_TEMPLATE) applies the `bug` / `enhancement` type label automatically; add any further type or grouping labels by hand.
+
 ## Questions?
 
 Open a [discussion](https://github.com/galaxiajs/shard/discussions) or an issue.
