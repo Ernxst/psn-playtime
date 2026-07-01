@@ -307,7 +307,7 @@ function OpenInChatButton({ prompt, label, url, site }: OpenInChatButtonProps) {
       : `Couldn't copy, click Copy prompt then open ${site}.`;
 
   return (
-    <Button variant="outline" onClick={openChat} className="gap-2">
+    <Button variant="outline" onClick={openChat} className="flex-1 gap-2 sm:flex-none">
       <SquareArrowOutUpRight /> {text}
     </Button>
   );
@@ -326,7 +326,7 @@ function ActionCaption({ children }: { children: string }) {
  */
 function PromptActions({ prompt, onlineId }: { prompt: string; onlineId: string }) {
   return (
-    <div className="flex flex-col gap-4 sm:w-auto">
+    <div className="flex w-full flex-col gap-4 sm:w-auto">
       <div className="flex flex-col gap-1">
         <CopyButton value={prompt} label="Copy prompt" />
         <ActionCaption>Copy the full prompt to paste into any AI chat.</ActionCaption>
@@ -369,7 +369,7 @@ function PromptPreview({ prompt, onlineId }: { prompt: string; onlineId: string 
   // Stacks on mobile (textarea over the action groups) so neither is squashed, and
   // sits side-by-side (textarea beside the button column) from `sm` up.
   return (
-    <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-4">
       <Textarea
         readOnly
         rows={8}
