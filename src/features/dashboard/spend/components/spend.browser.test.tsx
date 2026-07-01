@@ -113,7 +113,11 @@ describe("SpendSection", () => {
     await renderWithAtoms(<SpendSection data={demoDashboard} />);
 
     await expect.element(page.getByText("Add your spend")).toBeVisible();
-    await expect.element(page.getByText("Import PSN spend")).toBeVisible();
+    // Scope to the affordance link: the fine-pointer drag step also names the
+    // button in a `<strong>`, so a bare text match resolves to two elements.
+    await expect
+      .element(page.getByRole("link", { name: "Import PSN spend", includeHidden: true }))
+      .toBeVisible();
   });
 
   it("walks coarse pointer users through bookmarking and editing the URL", async () => {
@@ -189,7 +193,7 @@ describe("SpendSection", () => {
     await expect
       .element(
         page.getByText(
-          "Drag the button below onto your bookmarks bar (or copy it and make a new bookmark)."
+          "Drag the Import PSN spend button below onto your bookmarks bar (or copy it and make a new bookmark)."
         )
       )
       .toBeVisible();
@@ -212,7 +216,10 @@ describe("SpendSection", () => {
 
     await renderWithAtoms(<SpendSection data={demoDashboard} />);
 
-    const affordance = page.getByText("Import PSN spend");
+    // The drag step also names the button in a `<strong>`, so scope to the
+    // aria-hidden affordance link (`includeHidden` reaches it; a strong is not a
+    // link) rather than a bare text match, which now resolves to two elements.
+    const affordance = page.getByRole("link", { name: "Import PSN spend", includeHidden: true });
 
     await expect.element(affordance).toHaveAttribute("aria-hidden", "true");
     await expect.element(affordance).toHaveAttribute("tabindex", "-1");
