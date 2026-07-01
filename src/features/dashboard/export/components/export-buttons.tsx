@@ -2,7 +2,11 @@ import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { TransactionRow } from "@/domain/transactions";
-import { buildGamesCsv, buildTransactionsCsv } from "@/features/dashboard/export/csv";
+import {
+  buildAccountCsv,
+  buildGamesCsv,
+  buildTransactionsCsv,
+} from "@/features/dashboard/export/csv";
 import type { DashboardData } from "@/server/providers/account/snapshot";
 
 /** Sanitise a PSN onlineId for a filename, mirroring the prompt export. */
@@ -20,6 +24,12 @@ function transactionsFileName(onlineId: string): string {
 function gamesFileName(onlineId: string): string {
   const id = safeId(onlineId);
   return id === "" ? "psn-games.csv" : `psn-games-${id}.csv`;
+}
+
+/** Download filename for the account CSV, tagged with the sanitised onlineId. */
+function accountFileName(onlineId: string): string {
+  const id = safeId(onlineId);
+  return id === "" ? "psn-account.csv" : `psn-account-${id}.csv`;
 }
 
 /** Download `csv` as a text/csv file via a transient object URL, then revoke it. */
@@ -40,17 +50,21 @@ function ExportHeader() {
         <Download className="size-4" /> Export your data
       </CardTitle>
       <CardDescription>
-        Download your imported transactions, and the games they matched, as CSV.
+        Download your full game library, your account profile, and your imported transactions as
+        CSV. The games and account files can restore your dashboard later.
       </CardDescription>
     </CardHeader>
   );
 }
 
 /**
- * Two client-side CSV downloads for the imported data: every transaction, and
- * the subset joined to a library game. Both files build in the click handler and
- * download via a Blob object URL (no config, no server round-trip). The games
- * button is disabled when no transaction matched a library title.
+ * Client-side CSV downloads for the dashboard: the full game library (one row per
+ * title, games and apps), the account profile, and every imported transaction.
+ * The games + account CSVs together reconstruct the whole `DashboardData` (see
+ * `import-dashboard.ts`). Each file builds in the click handler and downloads via
+ * a Blob object URL (no config, no server round-trip). The games/account buttons
+ * are disabled for the empty demo library; the transactions button is disabled
+ * when nothing was imported.
  */
 export function ExportButtons({
   data,
@@ -60,22 +74,30 @@ export function ExportButtons({
   transactions: readonly TransactionRow[];
 }) {
   const onlineId = data.profile.onlineId;
-  const gamesCsv = buildGamesCsv(transactions, data.games);
-  // The header line has no CRLF; a CRLF means at least one matched-game row.
-  const hasGames = gamesCsv.includes("\r\n");
+  const hasLibrary = data.games.length > 0 || data.meta.appsExcluded.length > 0;
 
   const exportTransactions = () => {
     downloadCsv(buildTransactionsCsv(transactions), transactionsFileName(onlineId));
   };
 
   const exportGames = () => {
-    downloadCsv(gamesCsv, gamesFileName(onlineId));
+    downloadCsv(buildGamesCsv(data.games, data.meta.appsExcluded), gamesFileName(onlineId));
+  };
+
+  const exportAccount = () => {
+    downloadCsv(buildAccountCsv(data.profile), accountFileName(onlineId));
   };
 
   return (
     <Card className="lg:col-span-3">
       <ExportHeader />
       <CardContent className="flex flex-wrap gap-3">
+        <Button variant="outline" size="sm" onClick={exportGames} disabled={!hasLibrary}>
+          Export games (CSV)
+        </Button>
+        <Button variant="outline" size="sm" onClick={exportAccount} disabled={!hasLibrary}>
+          Export account (CSV)
+        </Button>
         <Button
           variant="outline"
           size="sm"
@@ -83,9 +105,6 @@ export function ExportButtons({
           disabled={transactions.length === 0}
         >
           Export transactions (CSV)
-        </Button>
-        <Button variant="outline" size="sm" onClick={exportGames} disabled={!hasGames}>
-          Export games (CSV)
         </Button>
       </CardContent>
     </Card>

@@ -1,30 +1,33 @@
 /**
- * Pure CSV builders for the dashboard's two downloads.
+ * Pure CSV builders for the dashboard's downloads.
  *
  * The column/type CONTRACT lives in `csv-schema.effect.ts` (pure `effect/Schema`,
  * under the strict Effect glob). This module holds the parts that necessarily
- * touch the domain — the row projections and the transaction→game join (reusing
- * the spend view's `matchGame`) — plus the RFC-4180 string assembly, so those
- * domain imports stay out of the strict Effect program.
+ * touch the domain — the row projections — plus the RFC-4180 string assembly, so
+ * those domain imports stay out of the strict Effect program.
  *
  * `buildTransactionsCsv` emits one row per imported transaction (the complete,
- * primary round-trip source). `buildGamesCsv` emits the subset matched to a
- * library game, each enriched with the game's fields. Money stays in minor
- * units, dates ISO-8601, ids stable; optional cells blank when absent. Encoding
- * goes through the shared schema, so export and the future importer (#312) agree
- * by construction.
+ * primary round-trip source). `buildGamesCsv` emits the FULL library: one row
+ * per title, every game and every excluded app, discriminated by a `kind`
+ * column. `buildAccountCsv` emits the one non-derivable profile row. Together the
+ * games + account CSVs are enough to reconstruct the whole `DashboardData` (see
+ * `import-dashboard.ts`). Money stays in minor units, dates ISO-8601, ids stable;
+ * optional cells blank when absent. Encoding goes through the shared schema, so
+ * export and the importer agree by construction.
  */
 import type { TransactionRow } from "@/domain/transactions";
-import { indexByName, matchGame } from "@/features/dashboard/spend/spend";
-import type { GamePlay } from "@/server/providers/account/snapshot";
+import type { GamePlay, ProfileSummary } from "@/server/providers/account/snapshot";
 import {
+  ACCOUNT_CSV_COLUMNS,
+  encodeAccountCsvRow,
   encodeGameCsvRow,
   encodeTransactionCsvRow,
   GAMES_CSV_COLUMNS,
-  type GameCsvRow,
   TRANSACTION_CSV_COLUMNS,
-  type TransactionCsvRow,
 } from "./csv-schema.effect";
+
+/** An excluded app, as carried on `DashboardData.meta.appsExcluded`. */
+type AppExcluded = { name: string; hours: number };
 
 /** RFC-4180: quote a cell containing a comma, quote or newline; escape `"` as `""`. */
 function escapeCell(value: string): string {
@@ -41,8 +44,12 @@ function toCsv(header: string, lines: readonly string[]): string {
   return [header, ...lines].join("\r\n");
 }
 
+// The row projections return plain domain values; the money/id brands on the
+// schema Type are Type-only nominal tags, so `encodeUnknown*` validates and
+// brands them without a narrowing cast here.
+
 /** Project a domain transaction onto the header-keyed transactions CSV row. */
-function toTransactionCsvRow(tx: TransactionRow): TransactionCsvRow {
+function toTransactionCsvRow(tx: TransactionRow) {
   return {
     transaction_id: tx.transactionId,
     key: tx.key,
@@ -61,39 +68,74 @@ function toTransactionCsvRow(tx: TransactionRow): TransactionCsvRow {
   };
 }
 
-/** Project a matched (transaction, game) pair onto the header-keyed games CSV row. */
-function toGameCsvRow(tx: TransactionRow, game: GamePlay): GameCsvRow {
+/** Project a played game onto the header-keyed games CSV row (`kind: "game"`). */
+function toGameCsvRow(game: GamePlay) {
   const trophy = game.trophy;
   return {
-    transaction_id: tx.transactionId,
-    key: tx.key,
-    date: tx.date,
-    transaction_type: tx.transactionType,
-    kind: tx.kind,
-    product_name: tx.productName,
-    sku_id: tx.skuId,
-    sku_type: tx.skuType,
-    quantity: tx.quantity,
-    amount_minor: tx.amountMinor,
-    original_price_minor: tx.originalPriceMinor,
-    discount_minor: tx.discountMinor,
-    currency: tx.currency,
     title_id: game.titleId,
-    game_name: game.name,
+    name: game.name,
+    kind: "game",
     platform: game.platform,
     hours: game.hours,
     play_count: game.playCount,
     first_played: game.firstPlayed,
     last_played: game.lastPlayed,
+    category: game.category,
     genre: game.genre,
     franchise: game.franchise,
     typical_playtime: game.typicalPlaytime,
+    image_url: game.imageUrl,
     trophy_progress: trophy?.progress,
     trophy_earned_platinum: trophy?.earned.platinum,
     trophy_earned_gold: trophy?.earned.gold,
     trophy_earned_silver: trophy?.earned.silver,
     trophy_earned_bronze: trophy?.earned.bronze,
+    trophy_total: trophy?.total,
     trophy_has_platinum: trophy?.hasPlatinum,
+    trophy_last_earned_at: trophy?.lastEarnedAt,
+  };
+}
+
+/**
+ * Project an excluded app onto the header-keyed games CSV row (`kind: "app"`).
+ * Apps carry only a name and hours; every game-only column stays blank.
+ */
+function toAppCsvRow(app: AppExcluded) {
+  return {
+    title_id: undefined,
+    name: app.name,
+    kind: "app",
+    platform: undefined,
+    hours: app.hours,
+    play_count: undefined,
+    first_played: undefined,
+    last_played: undefined,
+    category: undefined,
+    genre: undefined,
+    franchise: undefined,
+    typical_playtime: undefined,
+    image_url: undefined,
+    trophy_progress: undefined,
+    trophy_earned_platinum: undefined,
+    trophy_earned_gold: undefined,
+    trophy_earned_silver: undefined,
+    trophy_earned_bronze: undefined,
+    trophy_total: undefined,
+    trophy_has_platinum: undefined,
+    trophy_last_earned_at: undefined,
+  };
+}
+
+/** Project a profile onto the one header-keyed account CSV row. */
+function toAccountCsvRow(profile: ProfileSummary) {
+  return {
+    online_id: profile.onlineId,
+    account_id: profile.accountId,
+    about_me: profile.aboutMe,
+    avatar_url: profile.avatarUrl,
+    is_plus: profile.isPlus,
+    trophy_level: profile.trophyLevel,
+    level_progress: profile.levelProgress,
   };
 }
 
@@ -111,22 +153,33 @@ export function buildTransactionsCsv(transactions: readonly TransactionRow[]): s
 }
 
 /**
- * Build the games CSV: the subset of transaction rows that matched a library
- * game (via the shared {@link matchGame}), each enriched with the game's fields
- * and encoded through the shared `GameCsvRow` schema. Unmatched rows are omitted.
+ * Build the games CSV: the FULL library, one row per title. Every game is
+ * emitted as a `kind: "game"` row carrying its full shape; every excluded app is
+ * emitted as a `kind: "app"` row carrying only name and hours. Encoded through
+ * the shared `GameCsvRow` schema, so the importer reconstructs the split.
  */
 export function buildGamesCsv(
-  transactions: readonly TransactionRow[],
-  games: readonly GamePlay[]
+  games: readonly GamePlay[],
+  appsExcluded: readonly AppExcluded[]
 ): string {
-  const byName = indexByName(games);
   const header = GAMES_CSV_COLUMNS.join(",");
-  const lines: string[] = [];
-  for (const tx of transactions) {
-    const game = matchGame(tx, games, byName);
-    if (game === undefined) continue;
-    const cells: Record<string, string> = encodeGameCsvRow(toGameCsvRow(tx, game));
-    lines.push(toLine(GAMES_CSV_COLUMNS, cells));
-  }
-  return toCsv(header, lines);
+  const gameLines = games.map((game) =>
+    toLine(GAMES_CSV_COLUMNS, encodeGameCsvRow(toGameCsvRow(game)))
+  );
+  const appLines = appsExcluded.map((app) =>
+    toLine(GAMES_CSV_COLUMNS, encodeGameCsvRow(toAppCsvRow(app)))
+  );
+  return toCsv(header, [...gameLines, ...appLines]);
+}
+
+/**
+ * Build the account CSV: one row of the non-derivable profile fields, encoded
+ * through the shared `AccountCsvRow` schema. Trophy totals and the demo flags are
+ * intentionally omitted — the importer derives/sets them.
+ */
+export function buildAccountCsv(profile: ProfileSummary): string {
+  const header = ACCOUNT_CSV_COLUMNS.join(",");
+  return toCsv(header, [
+    toLine(ACCOUNT_CSV_COLUMNS, encodeAccountCsvRow(toAccountCsvRow(profile))),
+  ]);
 }
