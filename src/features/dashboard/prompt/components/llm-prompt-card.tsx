@@ -1,5 +1,13 @@
 import { Download, Search, Sparkles, SquareArrowOutUpRight } from "lucide-react";
+import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionHeader,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -44,33 +52,114 @@ function groupVariants(variants: readonly PromptVariant[]): VariantGroup[] {
   return groups;
 }
 
-/** One category heading plus its selectable lead-question buttons. */
-function QuestionGroup({
+/** The display group that holds `id`, falling back to the first group. */
+function groupOf(variants: readonly PromptVariant[], id: string): PromptGroup {
+  return variants.find((v) => v.id === id)?.group ?? PROMPT_GROUPS[0];
+}
+
+/** A selectable picker row: a lead question or the pinned menu-mode entry. */
+function PickerButton({
+  selected,
+  onClick,
+  children,
+}: {
+  selected: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      aria-pressed={selected}
+      onClick={onClick}
+      className={cn(
+        "h-auto w-full justify-start whitespace-normal py-1.5 text-left font-normal",
+        selected && "bg-accent text-accent-foreground"
+      )}
+    >
+      {children}
+    </Button>
+  );
+}
+
+/** One collapsible category section: its name and count plus its question buttons. */
+function QuestionSection({
   group,
   questions,
   selectedId,
   onSelect,
 }: VariantGroup & { selectedId: string; onSelect: (id: string) => void }) {
   return (
-    <div className="space-y-1">
-      <p className="px-1 font-medium text-muted-foreground text-xs uppercase tracking-wide">
-        {group}
+    <AccordionItem value={group} className="border-b-0">
+      <AccordionHeader>
+        <AccordionTrigger className="px-1">
+          <span className="flex items-baseline gap-2">
+            <span className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+              {group}
+            </span>
+            <span className="text-muted-foreground text-xs tabular-nums">{questions.length}</span>
+          </span>
+        </AccordionTrigger>
+      </AccordionHeader>
+      <AccordionContent className="space-y-1 pb-1">
+        {questions.map((v) => (
+          <PickerButton key={v.id} selected={v.id === selectedId} onClick={() => onSelect(v.id)}>
+            {v.question}
+          </PickerButton>
+        ))}
+      </AccordionContent>
+    </AccordionItem>
+  );
+}
+
+interface QuestionSectionsProps {
+  groups: VariantGroup[];
+  query: string;
+  selectedId: string;
+  onSelect: (id: string) => void;
+  value: string[];
+  onValueChange: (value: string[]) => void;
+}
+
+/** The empty state, or the controlled multi-open accordion of category sections. */
+function QuestionSections({
+  groups,
+  query,
+  selectedId,
+  onSelect,
+  value,
+  onValueChange,
+}: QuestionSectionsProps) {
+  if (groups.length === 0) {
+    return (
+      <p className="px-1 py-6 text-center text-sm text-muted-foreground">
+        No questions match “{query}”.
       </p>
-      {questions.map((v) => (
-        <Button
-          key={v.id}
-          variant="ghost"
-          size="sm"
-          aria-pressed={v.id === selectedId}
-          onClick={() => onSelect(v.id)}
-          className={cn(
-            "h-auto w-full justify-start whitespace-normal py-1.5 text-left font-normal",
-            v.id === selectedId && "bg-accent text-accent-foreground"
-          )}
-        >
-          {v.question}
-        </Button>
+    );
+  }
+  return (
+    <Accordion multiple value={value} onValueChange={onValueChange}>
+      {groups.map((g) => (
+        <QuestionSection key={g.group} {...g} selectedId={selectedId} onSelect={onSelect} />
       ))}
+    </Accordion>
+  );
+}
+
+/** The search box for narrowing the question list. */
+function QuestionSearch({ query, onQuery }: { query: string; onQuery: (q: string) => void }) {
+  return (
+    <div className="relative">
+      <Search className="pointer-events-none absolute start-2.5 top-1/2 z-10 size-4 -translate-y-1/2 text-muted-foreground" />
+      <Input
+        type="search"
+        value={query}
+        onChange={(e) => onQuery(e.currentTarget.value)}
+        aria-label="Search questions"
+        placeholder="Search questions…"
+        className="[&_[data-slot=input]]:ps-8"
+      />
     </div>
   );
 }
@@ -78,61 +167,58 @@ function QuestionGroup({
 interface QuestionPickerProps {
   variants: readonly PromptVariant[];
   selectedId: string;
+  menuMode: boolean;
   onSelect: (id: string) => void;
+  onMenuMode: () => void;
 }
 
-/** Searchable, grouped picker for the lead question. */
-function QuestionPicker({ variants, selectedId, onSelect }: QuestionPickerProps) {
+/**
+ * Searchable picker with a pinned no-lead menu entry over collapsible category
+ * sections. The accordion's open value is DERIVED each render (no effect): while
+ * searching, every group with a match is expanded so results are never hidden;
+ * otherwise it is the user-toggled set, which defaults to the selected question's
+ * group. `onValueChange` records toggles only when not searching, so clearing the
+ * query reverts to that default. Nothing here reads an external system, so there
+ * is nothing for `useSyncExternalStore` or a `useEffect` to do.
+ */
+function QuestionPicker({
+  variants,
+  selectedId,
+  menuMode,
+  onSelect,
+  onMenuMode,
+}: QuestionPickerProps) {
   const [query, setQuery] = useState("");
+  const [openGroups, setOpenGroups] = useState<string[]>(() => [groupOf(variants, selectedId)]);
   const groups = useMemo(() => groupVariants(filterVariants(variants, query)), [variants, query]);
+  const searching = query.trim() !== "";
+  const value = useMemo(
+    () => (searching ? groups.map((g) => g.group) : openGroups),
+    [searching, groups, openGroups]
+  );
 
   return (
     <>
-      <div className="relative">
-        <Search className="pointer-events-none absolute start-2.5 top-1/2 z-10 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          type="search"
-          value={query}
-          onChange={(e) => setQuery(e.currentTarget.value)}
-          aria-label="Search questions"
-          placeholder="Search questions…"
-          className="[&_[data-slot=input]]:ps-8"
-        />
-      </div>
-
+      <QuestionSearch query={query} onQuery={setQuery} />
       <ScrollArea className="h-56 rounded-lg border">
-        <fieldset className="space-y-3 p-2">
+        <fieldset className="space-y-1 p-2">
           <legend className="sr-only">Lead question</legend>
-          {groups.length === 0 ? (
-            <p className="px-1 py-6 text-center text-sm text-muted-foreground">
-              No questions match “{query}”.
-            </p>
-          ) : (
-            groups.map((g) => (
-              <QuestionGroup key={g.group} {...g} selectedId={selectedId} onSelect={onSelect} />
-            ))
-          )}
+          <PickerButton selected={menuMode} onClick={onMenuMode}>
+            Let the AI ask me (no specific question)
+          </PickerButton>
+          <QuestionSections
+            groups={groups}
+            query={query}
+            selectedId={menuMode ? "" : selectedId}
+            onSelect={onSelect}
+            value={value}
+            onValueChange={(next) => {
+              if (!searching) setOpenGroups(next);
+            }}
+          />
         </fieldset>
       </ScrollArea>
     </>
-  );
-}
-
-/** The selectable entry that switches the prompt into no-lead "menu" mode. */
-function MenuModeOption({ active, onActivate }: { active: boolean; onActivate: () => void }) {
-  return (
-    <Button
-      variant="ghost"
-      size="sm"
-      aria-pressed={active}
-      onClick={onActivate}
-      className={cn(
-        "h-auto w-full justify-start whitespace-normal py-1.5 text-left font-normal",
-        active && "bg-accent text-accent-foreground"
-      )}
-    >
-      Let the AI ask me (no specific question)
-    </Button>
   );
 }
 
@@ -333,12 +419,12 @@ export function LlmPromptCard({ data }: { data: DashboardData }) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
-        <MenuModeOption active={menuMode} onActivate={() => setMenuMode(true)} />
-
         <QuestionPicker
           variants={variants}
-          selectedId={menuMode ? "" : selectedId}
+          selectedId={selectedId}
+          menuMode={menuMode}
           onSelect={selectQuestion}
+          onMenuMode={() => setMenuMode(true)}
         />
 
         <PromptHint menuMode={menuMode} question={variant.question} />

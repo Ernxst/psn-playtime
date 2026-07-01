@@ -42,6 +42,11 @@ function seedTransaction() {
   onTestFinished(() => testTransactionStore.clear());
 }
 
+/** Expand a collapsed category section by clicking its accordion trigger. */
+async function expandSection(name: RegExp) {
+  await page.getByRole("button", { name }).click();
+}
+
 describe("LlmPromptCard", () => {
   it("renders the searchable question picker and a prompt preview", async () => {
     await render(<LlmPromptCard data={demoDashboard} />);
@@ -216,12 +221,72 @@ describe("LlmPromptCard", () => {
 
     await render(<LlmPromptCard data={demoDashboard} />);
 
+    await expandSection(/^More/);
     await page.getByRole("button", { name: SIGNATURE_QUESTION }).click();
     await page.getByRole("button", { name: "Copy prompt" }).click();
 
     expect(writeText).toHaveBeenCalledExactlyOnceWith(
       expect.stringContaining("TASK: Tell me my signature genre")
     );
+  });
+
+  it("keeps a collapsed group's questions out of the document until expanded", async () => {
+    await render(<LlmPromptCard data={demoDashboard} />);
+
+    await expect
+      .element(page.getByRole("button", { name: SIGNATURE_QUESTION }))
+      .not.toBeInTheDocument();
+
+    await expandSection(/^More/);
+
+    await expect.element(page.getByRole("button", { name: SIGNATURE_QUESTION })).toBeVisible();
+  });
+
+  it("expanding a section and selecting its question updates the prompt hint", async () => {
+    await render(<LlmPromptCard data={demoDashboard} />);
+
+    await expandSection(/^More/);
+    await page.getByRole("button", { name: SIGNATURE_QUESTION }).click();
+
+    await expect.element(page.getByText(`Leads with “${SIGNATURE_QUESTION}”`)).toBeVisible();
+  });
+
+  it("selecting the pinned menu entry switches the hint to menu mode", async () => {
+    await render(<LlmPromptCard data={demoDashboard} />);
+
+    await page.getByRole("button", { name: "Let the AI ask me (no specific question)" }).click();
+
+    await expect
+      .element(page.getByText("The AI introduces what it can tell you", { exact: false }))
+      .toBeVisible();
+  });
+
+  it("auto-expands the matching group when searching so results show", async () => {
+    await render(<LlmPromptCard data={demoDashboard} />);
+
+    await expect
+      .element(page.getByRole("button", { name: SIGNATURE_QUESTION }))
+      .not.toBeInTheDocument();
+
+    await userEvent.fill(page.getByRole("searchbox", { name: "Search questions" }), "signature");
+
+    await expect.element(page.getByRole("button", { name: SIGNATURE_QUESTION })).toBeVisible();
+  });
+
+  it("re-collapses the sections when the search is cleared", async () => {
+    await render(<LlmPromptCard data={demoDashboard} />);
+
+    const search = page.getByRole("searchbox", { name: "Search questions" });
+    await userEvent.fill(search, "signature");
+
+    await expect.element(page.getByRole("button", { name: SIGNATURE_QUESTION })).toBeVisible();
+
+    await userEvent.clear(search);
+
+    await expect.element(page.getByRole("button", { name: LEAD_QUESTION })).toBeVisible();
+    await expect
+      .element(page.getByRole("button", { name: SIGNATURE_QUESTION }))
+      .not.toBeInTheDocument();
   });
 
   it("searching filters the question list", async () => {
@@ -255,6 +320,7 @@ describe("LlmPromptCard", () => {
     await render(<LlmPromptCard data={demoDashboard} />);
 
     await page.getByRole("button", { name: MENU_OPTION }).click();
+    await expandSection(/^More/);
     await page.getByRole("button", { name: SIGNATURE_QUESTION }).click();
     await page.getByRole("button", { name: "Copy prompt" }).click();
 
@@ -277,6 +343,8 @@ describe("LlmPromptCard", () => {
 
     await renderWithAtoms(<LlmPromptCard data={demoDashboard} />);
 
+    await expandSection(/^Spending & value/);
+
     await expect.element(page.getByRole("button", { name: SPEND_QUESTION })).toBeVisible();
   });
 
@@ -286,6 +354,7 @@ describe("LlmPromptCard", () => {
 
     await renderWithAtoms(<LlmPromptCard data={demoDashboard} />);
 
+    await expandSection(/^Spending & value/);
     await page.getByRole("button", { name: SPEND_QUESTION }).click();
     await page.getByRole("button", { name: "Copy prompt" }).click();
 
