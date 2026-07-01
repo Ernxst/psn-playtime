@@ -1,11 +1,11 @@
-import { Download, Search, Sparkles } from "lucide-react";
+import { Download, Search, Sparkles, SquareArrowOutUpRight } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
-import { CopyButton } from "@/features/dashboard/components/copy-button";
+import { CopyButton, useCopied } from "@/features/dashboard/components/copy-button";
 import { availableVariants, buildPrompt } from "@/features/dashboard/prompt/llm-prompt";
 import {
   MENU_MODE,
@@ -163,7 +163,31 @@ function savePromptToFile(prompt: string, onlineId: string) {
   URL.revokeObjectURL(url);
 }
 
-/** The read-only prompt preview plus its copy and save-to-file buttons. */
+/**
+ * Copy `prompt` to the clipboard and open a chat site in a new tab so the user
+ * can paste it. The prompt embeds the whole library (routinely ~35k chars), far
+ * past any URL length limit, so a `?q=` deep-link would truncate — copy+paste is
+ * the only mechanism that works at any size. `window.open` and the clipboard
+ * write both fire synchronously inside the click handler: awaiting the clipboard
+ * first would drop the user activation and let popup blockers block the tab.
+ */
+function OpenInChatButton({ prompt, label, url }: { prompt: string; label: string; url: string }) {
+  const [copied, flash] = useCopied();
+
+  const openChat = () => {
+    window.open(url, "_blank", "noopener,noreferrer");
+    void navigator.clipboard.writeText(prompt);
+    flash();
+  };
+
+  return (
+    <Button variant="outline" onClick={openChat} className="gap-2">
+      <SquareArrowOutUpRight /> {copied ? "Copied, paste it in the tab" : label}
+    </Button>
+  );
+}
+
+/** The read-only prompt preview plus its copy, save, and open-in-chat buttons. */
 function PromptPreview({ prompt, onlineId }: { prompt: string; onlineId: string }) {
   return (
     <div className="flex items-start gap-2">
@@ -183,6 +207,11 @@ function PromptPreview({ prompt, onlineId }: { prompt: string; onlineId: string 
         >
           <Download /> Save to file
         </Button>
+        <OpenInChatButton prompt={prompt} label="Open in ChatGPT" url="https://chatgpt.com/" />
+        <OpenInChatButton prompt={prompt} label="Open in Claude" url="https://claude.ai/new" />
+        <p className="text-muted-foreground text-xs">
+          Opens the chat with your prompt copied. Just paste it in.
+        </p>
       </div>
     </div>
   );

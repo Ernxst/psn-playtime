@@ -67,6 +67,42 @@ describe("LlmPromptCard", () => {
     );
   });
 
+  it("opens ChatGPT in a new tab and copies the prompt for pasting", async () => {
+    const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+
+    await render(<LlmPromptCard data={demoDashboard} />);
+
+    await page.getByRole("button", { name: "Open in ChatGPT" }).click();
+
+    expect(writeText).toHaveBeenCalledExactlyOnceWith(
+      expect.stringContaining("FOLLOW-UP QUESTIONS")
+    );
+    expect(open).toHaveBeenCalledExactlyOnceWith(
+      "https://chatgpt.com/",
+      "_blank",
+      "noopener,noreferrer"
+    );
+  });
+
+  it("opens Claude in a new tab and copies the prompt for pasting", async () => {
+    const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+
+    await render(<LlmPromptCard data={demoDashboard} />);
+
+    await page.getByRole("button", { name: "Open in Claude" }).click();
+
+    expect(writeText).toHaveBeenCalledExactlyOnceWith(
+      expect.stringContaining("FOLLOW-UP QUESTIONS")
+    );
+    expect(open).toHaveBeenCalledExactlyOnceWith(
+      "https://claude.ai/new",
+      "_blank",
+      "noopener,noreferrer"
+    );
+  });
+
   it("saves the prompt to a Markdown file and revokes the object URL", async () => {
     const createObjectURL = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:prompt");
     const revokeObjectURL = vi.spyOn(URL, "revokeObjectURL").mockReturnValue();
