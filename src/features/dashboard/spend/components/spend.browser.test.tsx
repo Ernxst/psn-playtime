@@ -7,7 +7,7 @@ import { bookmarkletHref } from "@/domain/transaction-bookmarklet";
 import type { TransactionRow } from "@/domain/transactions";
 import type { GamePlay } from "@/server/providers/account/snapshot";
 import { TestAtomProvider, testTransactionStore } from "@/test/atom-registry";
-import { AddOnsSection, SpendSection, SpentMostSection } from "./spend";
+import { AddOnsSection, SpendEvidence, SpendSection, SpentMostSection } from "./spend";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -355,6 +355,28 @@ describe("SpendSection", () => {
 
     await expect.element(page.getByText("Add your spend")).toBeVisible();
     await expect.element(page.getByText("Best value per hour")).not.toBeInTheDocument();
+  });
+});
+
+describe("SpendEvidence", () => {
+  it("shows compact account-wide spend facts when transactions exist", async () => {
+    seed([baseFor("DEMO-8", 3000), baseFor("UNKNOWN", 1000)]);
+
+    await renderWithAtoms(<SpendEvidence data={realDashboard} />);
+
+    await expect.element(page.getByText("Imported spend", { exact: true })).toBeVisible();
+    await expect.element(page.getByText("Cost per recorded hour")).toBeVisible();
+    await expect.element(page.getByText("Spend not matched to a played title")).toBeVisible();
+    await expect.element(page.getByText(/strongest title signal is Cyberpunk 2077/)).toBeVisible();
+    await expect.element(page.getByText(/Best value|Free \/ included/)).not.toBeInTheDocument();
+  });
+
+  it("omits spend evidence when there are no transactions", async () => {
+    onTestFinished(() => testTransactionStore.clear());
+
+    await renderWithAtoms(<SpendEvidence data={realDashboard} />);
+
+    await expect.element(page.getByText("Imported spend")).not.toBeInTheDocument();
   });
 });
 

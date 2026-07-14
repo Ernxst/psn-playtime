@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Home, Info } from "lucide-react";
+import { ChevronDown, Home, Info, Wrench } from "lucide-react";
 import {
   lazy,
   Suspense,
@@ -24,22 +24,11 @@ import {
 } from "@/features/dashboard/filters/analytics";
 import { FilterBar } from "@/features/dashboard/filters/components/filter-bar";
 import { GamesTable } from "@/features/dashboard/filters/components/games-table";
-import {
-  AppsExcludedNote,
-  ComebacksCard,
-  LifespansCard,
-  RecencyCard,
-  ValueCard,
-} from "@/features/dashboard/filters/components/insights";
 import { KpiCards } from "@/features/dashboard/filters/components/kpi-cards";
+import { ProfileSummary } from "@/features/dashboard/profile/components/profile-summary";
 import { LlmPromptCard } from "@/features/dashboard/prompt/components/llm-prompt-card";
 import { PurchaseHistorySection } from "@/features/dashboard/spend/components/purchase-history";
-import {
-  AddOnsSection,
-  SpendSection,
-  SpentMostSection,
-} from "@/features/dashboard/spend/components/spend";
-import { TrophySection } from "@/features/dashboard/trophies/components/trophies";
+import { SpendEvidence, SpendSection } from "@/features/dashboard/spend/components/spend";
 import type { DashboardData } from "@/server/providers/account/snapshot";
 import { DashboardHeader } from "./dashboard-header";
 import { DashboardSidebar } from "./dashboard-sidebar";
@@ -48,12 +37,6 @@ import { DashboardEmpty, DashboardNoMatches } from "./states";
 
 const LazyTopGamesSection = lazy(() =>
   import("./chart-sections").then((module) => ({ default: module.TopGamesSection }))
-);
-const LazyGenresFranchisesSection = lazy(() =>
-  import("./chart-sections").then((module) => ({ default: module.GenresFranchisesSection }))
-);
-const LazyTimelineSection = lazy(() =>
-  import("./chart-sections").then((module) => ({ default: module.TimelineSection }))
 );
 
 interface Props {
@@ -183,39 +166,78 @@ function DeferredSection({ children, height }: { children: React.ReactNode; heig
   );
 }
 
-function SpendSections({ data }: { data: DashboardData }) {
+function Tools({ data, accountData }: { data: DashboardData; accountData: DashboardData }) {
   return (
-    <>
-      <Section id="spend">
-        <SpendSection data={data} />
-      </Section>
-      <Section id="purchase-history">
-        <PurchaseHistorySection data={data} />
-      </Section>
-      <Section id="spent-most">
-        <SpentMostSection data={data} />
-      </Section>
-      <Section id="add-ons">
-        <AddOnsSection data={data} />
-      </Section>
-      <Section id="remove-transactions">
-        <RemoveTransactions />
-      </Section>
-    </>
+    <Section id="tools">
+      <details className="group rounded-2xl border bg-muted/20">
+        <summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 rounded-2xl px-5 py-4 hover:bg-muted/40 [&::-webkit-details-marker]:hidden">
+          <Wrench className="size-4 text-muted-foreground" />
+          <h2 className="text-xl font-semibold text-balance">Tools</h2>
+          <ChevronDown className="ml-auto size-4 group-open:rotate-180" />
+        </summary>
+        <div className="space-y-4 border-t p-4 sm:p-5">
+          <SpendSection data={accountData} />
+          <PurchaseHistorySection data={accountData} />
+          <LlmPromptCard data={data} />
+          <RemoveTransactions />
+        </div>
+      </details>
+    </Section>
   );
 }
 
-function InsightsSection({ data }: { data: DashboardData }) {
+function SectionHeading({ children }: { children: React.ReactNode }) {
+  return <h2 className="text-xl font-semibold text-balance sm:text-2xl">{children}</h2>;
+}
+
+function TopGames({ data }: { data: DashboardData }) {
   return (
-    <Section id="insights">
-      <div className="grid gap-4 lg:grid-cols-3">
-        <ValueCard data={data} />
-        <RecencyCard data={data} />
-        <LifespansCard data={data} />
-        <ComebacksCard data={data} />
-        <AppsExcludedNote data={data} />
-      </div>
+    <Section id="top-games">
+      <SectionHeading>Top games</SectionHeading>
+      <DeferredSection height={430}>
+        <LazyTopGamesSection data={data} />
+      </DeferredSection>
     </Section>
+  );
+}
+
+function AllGames({ data }: { data: DashboardData }) {
+  return (
+    <Section id="all-games">
+      <SectionHeading>All games</SectionHeading>
+      <GamesTable data={data} />
+    </Section>
+  );
+}
+
+function Profile({ data }: { data: DashboardData }) {
+  return (
+    <Section id="profile">
+      <SectionHeading>Your play profile</SectionHeading>
+      <ProfileSummary data={data} />
+    </Section>
+  );
+}
+
+function FirstImpression({ data, timeframe }: { data: DashboardData; timeframe: Timeframe }) {
+  return (
+    <Section id="overview">
+      <SectionHeading>At a glance</SectionHeading>
+      <KpiCards data={data} timeframePhrase={timeframePhrase(timeframe)} />
+    </Section>
+  );
+}
+
+function DashboardBody({ data, accountData, timeframe }: DashboardBodyProps) {
+  return (
+    <div className="space-y-8">
+      <FirstImpression data={data} timeframe={timeframe} />
+      <Profile data={data} />
+      <TopGames data={data} />
+      <SpendEvidence data={accountData} />
+      <AllGames data={data} />
+      <Tools data={data} accountData={accountData} />
+    </div>
   );
 }
 
@@ -225,42 +247,6 @@ interface DashboardBodyProps {
   /** Unfiltered, account-wide library for the spend sections. */
   accountData: DashboardData;
   timeframe: Timeframe;
-}
-
-function DashboardBody({ data, accountData, timeframe }: DashboardBodyProps) {
-  return (
-    <div className="space-y-6">
-      <Section id="overview">
-        <KpiCards data={data} timeframePhrase={timeframePhrase(timeframe)} />
-      </Section>
-      <Section id="top-games">
-        <DeferredSection height={430}>
-          <LazyTopGamesSection data={data} />
-        </DeferredSection>
-      </Section>
-      <Section id="genres-franchises">
-        <DeferredSection height={390}>
-          <LazyGenresFranchisesSection data={data} />
-        </DeferredSection>
-      </Section>
-      <Section id="timeline">
-        <DeferredSection height={350}>
-          <LazyTimelineSection data={data} />
-        </DeferredSection>
-      </Section>
-      <Section id="trophies">
-        <TrophySection data={data} />
-      </Section>
-      <InsightsSection data={data} />
-      <Section id="ask-ai">
-        <LlmPromptCard data={data} />
-      </Section>
-      <SpendSections data={accountData} />
-      <Section id="all-games">
-        <GamesTable data={data} />
-      </Section>
-    </div>
-  );
 }
 
 function DashboardContent({

@@ -61,11 +61,11 @@ describe("DashboardSidebar", () => {
 
     await page.getByRole("button", { name: "Toggle Sidebar" }).click();
 
-    const insightsLink = page.getByRole("link", { name: "Insights" });
-    await expect.element(insightsLink).toBeVisible();
+    const profileLink = page.getByRole("link", { name: "Play profile" });
+    await expect.element(profileLink).toBeVisible();
 
-    await insightsLink.click();
+    await profileLink.click();
 
-    await expect.element(insightsLink).not.toBeInTheDocument();
+    await expect.element(profileLink).not.toBeInTheDocument();
   });
 });
