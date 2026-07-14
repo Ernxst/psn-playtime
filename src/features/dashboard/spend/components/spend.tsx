@@ -440,6 +440,73 @@ export function SpendSection({ data }: { data: DashboardData }) {
   );
 }
 
+function SpendFacts({ data, summary }: { data: DashboardData; summary: SpendSummary }) {
+  const matchedSpend = summary.totalSpend - summary.unmatchedSpend;
+  const coverage =
+    summary.totalSpend > 0 ? Math.round((matchedSpend / summary.totalSpend) * 100) : 0;
+  const costPerHour = data.meta.totalHours > 0 ? summary.totalSpend / data.meta.totalHours : 0;
+  return (
+    <div className="grid gap-4 sm:grid-cols-3">
+      <div>
+        <p className="text-xs text-muted-foreground">Imported spend</p>
+        <p className="text-2xl font-bold tabular-nums">
+          {money(summary.currency, summary.totalSpend)}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {summary.purchaseCount} {summary.purchaseCount === 1 ? "purchase" : "purchases"}
+        </p>
+      </div>
+      <div>
+        <p className="text-xs text-muted-foreground">Matched to played titles</p>
+        <p className="text-2xl font-bold tabular-nums">{coverage}%</p>
+        <p className="text-xs text-muted-foreground">
+          {money(summary.currency, matchedSpend)} of imported spend
+        </p>
+      </div>
+      <div>
+        <p className="text-xs text-muted-foreground">Cost per recorded hour</p>
+        <p className="text-2xl font-bold tabular-nums">{perHour(summary.currency, costPerHour)}</p>
+        <p className="text-xs text-muted-foreground">Across the account-wide library</p>
+      </div>
+    </div>
+  );
+}
+
+function StrongestTitle({ summary }: { summary: SpendSummary }) {
+  const strongest = summary.byTitle[0];
+  if (!strongest) return null;
+  return (
+    <p className="text-sm">
+      The strongest title signal is {strongest.name}, with{" "}
+      {money(summary.currency, strongest.spend)} in matched spend.
+    </p>
+  );
+}
+
+function SpendEvidenceCard({ data, summary }: { data: DashboardData; summary: SpendSummary }) {
+  return (
+    <section id="spend" className="scroll-mt-20 space-y-4">
+      <h2 className="text-xl font-semibold text-balance sm:text-2xl">Spend evidence</h2>
+      <Card>
+        <CardContent className="space-y-4 p-6">
+          <SpendFacts data={data} summary={summary} />
+          <StrongestTitle summary={summary} />
+          <UnmatchedFooter currency={summary.currency} spend={summary.unmatchedSpend} />
+        </CardContent>
+      </Card>
+    </section>
+  );
+}
+
+/** Compact account-wide spend evidence for the authored profile flow. */
+export function SpendEvidence({ data }: { data: DashboardData }) {
+  const imported = useTransactionImport();
+  if (data.isDemo) return null;
+  if (!imported) return null;
+  if (imported.transactions.length === 0) return null;
+  return <SpendEvidenceCard data={data} summary={summariseSpend(data, imported.transactions)} />;
+}
+
 function TitleSpendRow({ currency, title }: { currency: string; title: TitleSpend }) {
   return (
     <div className="flex items-center justify-between gap-3">

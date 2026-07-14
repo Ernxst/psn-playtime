@@ -11,8 +11,8 @@ import { ChartCard } from "./chart-card";
 export function TopGamesSection({ data }: { data: DashboardData }) {
   return (
     <ChartCard
-      title="Top games by hours"
-      caption="The titles you've sunk the most lifetime hours into."
+      title="Recorded hours"
+      caption="The titles with the most PSN-recorded lifetime hours."
     >
       <TopGamesChart data={data} />
     </ChartCard>

@@ -11,6 +11,7 @@ describe("DashboardHeader", () => {
     await expect.element(page.getByRole("heading", { name: "Ernxst_" })).toBeVisible();
     await expect.element(page.getByText("Demo", { exact: true })).toBeVisible();
     await expect.element(page.getByText("PS Plus")).toBeVisible();
+    await expect.element(page.getByText(/Trophy level/)).not.toBeInTheDocument();
     expect(page.getByRole("button", { name: /sign out/i }).query()).toBeNull();
   });
 

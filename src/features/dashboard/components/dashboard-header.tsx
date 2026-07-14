@@ -2,9 +2,7 @@ import { LogOut } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import type { DashboardData } from "@/server/providers/account/snapshot";
-import { fmtNumber } from "../format";
 import { CachedDataIndicator } from "./cached-data-indicator";
 
 interface Props {
@@ -27,11 +25,6 @@ export function DashboardHeader({ data, onSignOut, signingOut }: Props) {
             <h1 className="text-2xl font-bold">{profile.onlineId}</h1>
             {profile.isPlus ? <Badge variant="secondary">PS Plus</Badge> : null}
             {data.isDemo ? <Badge>Demo</Badge> : null}
-          </div>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span>Trophy level {fmtNumber(profile.trophyLevel)}</span>
-            <Progress value={profile.levelProgress} className="h-1.5 w-24" />
-            <span>{profile.levelProgress}% to next</span>
           </div>
           <CachedDataIndicator data={data} />
         </div>
