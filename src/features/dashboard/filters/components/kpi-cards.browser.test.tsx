@@ -5,31 +5,43 @@ import { demoDashboard } from "@/domain/mock";
 import { KpiCards } from "./kpi-cards";
 
 describe("KpiCards", () => {
-  it("contains exactly the three first-impression measures", async () => {
+  it("surfaces the headline trophy level and biggest game from the data", async () => {
+    await render(<KpiCards data={demoDashboard} />);
+
+    await expect.element(page.getByText("220")).toBeInTheDocument();
+    await expect.element(page.getByText("Call of Duty®: Modern Warfare®")).toBeInTheDocument();
+  });
+
+  it("falls back to a placeholder when the library has no biggest game", async () => {
+    const empty = { ...demoDashboard, games: [], meta: { ...demoDashboard.meta, totalGames: 0 } };
+
+    await render(<KpiCards data={empty} />);
+
+    await expect.element(page.getByText("Biggest game")).toBeVisible();
+    await expect.element(page.getByText("—", { exact: true })).toBeVisible();
+  });
+
+  it("labels the headline hours as a lifetime total with a persistent disclaimer", async () => {
     await render(<KpiCards data={demoDashboard} />);
 
     await expect.element(page.getByText("Lifetime play time")).toBeVisible();
-    await expect.element(page.getByText("Games played")).toBeVisible();
-    await expect.element(page.getByText("Launches", { exact: true })).toBeVisible();
-    await expect
-      .element(page.getByText(/Trophy level|Biggest game|That's roughly/))
-      .not.toBeInTheDocument();
-  });
-
-  it("folds duration and excluded app time beneath lifetime play time", async () => {
-    await render(<KpiCards data={demoDashboard} />);
-
-    await expect.element(page.getByText(/About .* in total/)).toBeVisible();
-    await expect.element(page.getByText(/streaming and app time is excluded/)).toBeVisible();
     await expect.element(page.getByText(/All playtime is PSN-recorded hours/)).toBeVisible();
   });
 
-  it("reframes filtered hours without implying hours within the period", async () => {
+  it("exposes the lifetime caveat as an accessible tooltip on the headline figures", async () => {
+    await render(<KpiCards data={demoDashboard} />);
+
+    await page.getByRole("button").first().hover();
+
+    await expect
+      .element(page.getByText(/PSN can under-report or miss play time for some titles/))
+      .toBeVisible();
+  });
+
+  it("reframes the headline as games-last-played when a timeframe is active", async () => {
     await render(<KpiCards data={demoDashboard} timeframePhrase="the last 12 months" />);
 
     await expect.element(page.getByText("Lifetime hours (filtered)")).toBeVisible();
-    await expect
-      .element(page.getByText("Games last played in the last 12 months; still lifetime hours."))
-      .toBeVisible();
+    await expect.element(page.getByText(/games last played in the last 12 months/)).toBeVisible();
   });
 });

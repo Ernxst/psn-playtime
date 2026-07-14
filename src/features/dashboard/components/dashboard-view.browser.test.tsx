@@ -26,7 +26,7 @@ function baseFor(titleId: string, amountMinor: number): TransactionRow {
 }
 
 describe("DashboardView", () => {
-  it("composes the profile, supporting evidence, game table and tools in DOM order", async () => {
+  it("composes the header, KPIs, chart sections and games table from the data", async () => {
     const { element } = createHarness(
       <DashboardView data={demoDashboard} onSignOut={vi.fn()} signingOut={false} />
     );
@@ -34,39 +34,13 @@ describe("DashboardView", () => {
     await render(element);
 
     await expect.element(page.getByRole("heading", { name: "Ernxst_" })).toBeVisible();
-    await expect.element(page.getByRole("heading", { name: "At a glance" })).toBeVisible();
-    await expect.element(page.getByRole("heading", { name: "Your play profile" })).toBeVisible();
+    await expect.element(page.getByText("Games played")).toBeVisible();
 
     // Reveal the deferred chart section so its IntersectionObserver fires and loads the chart.
     document.getElementById("top-games")?.scrollIntoView();
 
-    await expect.element(page.getByText("Recorded hours")).toBeVisible();
+    await expect.element(page.getByText("Top games by hours")).toBeVisible();
     await expect.element(page.getByText("Every game you've played")).toBeVisible();
-
-    const headings = [...document.querySelectorAll("h2")].map((heading) => heading.textContent);
-    expect(headings).toEqual([
-      "At a glance",
-      "Your play profile",
-      "Top games",
-      "All games",
-      "Tools",
-    ]);
-  });
-
-  it("removes weak proxy and recommendation surfaces from the main flow", async () => {
-    const { element } = createHarness(
-      <DashboardView data={demoDashboard} onSignOut={vi.fn()} signingOut={false} />
-    );
-
-    await render(element);
-
-    await expect
-      .element(
-        page.getByText(
-          /Binge or dip-in|Hours by most-recent year|Kept coming back to|Still in rotation|Platinum within reach|Best value per hour/
-        )
-      )
-      .not.toBeInTheDocument();
   });
 
   it("shows the demo banner for the demo dataset and offers no sign-out", async () => {
@@ -122,7 +96,6 @@ describe("DashboardView", () => {
 
     await render(element);
 
-    await page.getByText("Tools", { exact: true }).click();
     await expect.element(page.getByRole("textbox", { name: "Prompt preview" })).toBeVisible();
 
     const countGames = () =>
@@ -158,36 +131,24 @@ describe("DashboardView", () => {
     );
 
     const { container } = await render(element);
-    const spend = () => container.querySelector("#spend")?.textContent ?? "";
+
+    // The "Spent the most on" section is account-wide; scope spend reads to it.
+    const spentMost = () => container.querySelector("#spent-most")?.textContent ?? "";
 
     await expect.element(page.getByText(/98 titles in total/)).toBeVisible();
 
-    expect(spend()).toContain("£50.00");
+    // Satisfactory's £20 spend (DEMO-6) shows alongside the full library.
+    expect(spentMost()).toContain("Satisfactory");
+    expect(spentMost()).toContain("£20.00");
 
     // Filtering to Cyberpunk (DEMO-8) narrows the game-centric views off Satisfactory.
     await page.getByRole("searchbox", { name: "Search games by name" }).fill("Cyberpunk");
 
     await expect.element(page.getByText(/98 titles in total/)).not.toBeInTheDocument();
 
-    expect(spend()).toContain("£50.00");
-  });
-
-  it("keeps spend setup and AI utilities collapsed after all games when no spend exists", async () => {
-    const { element } = createHarness(
-      <DashboardView data={demoDashboard} onSignOut={vi.fn()} signingOut={false} />
-    );
-
-    await render(element);
-
-    await expect
-      .element(page.getByRole("heading", { name: "Spend evidence" }))
-      .not.toBeInTheDocument();
-    await expect.element(page.getByText("Add your spend")).not.toBeVisible();
-
-    await page.getByText("Tools", { exact: true }).click();
-
-    await expect.element(page.getByText("Add your spend")).toBeVisible();
-    await expect.element(page.getByRole("textbox", { name: "Prompt preview" })).toBeVisible();
+    // …but spend stays account-wide: Satisfactory's £20 is still reported.
+    expect(spentMost()).toContain("Satisfactory");
+    expect(spentMost()).toContain("£20.00");
   });
 
   it("renders the empty state when the account has no played games", async () => {

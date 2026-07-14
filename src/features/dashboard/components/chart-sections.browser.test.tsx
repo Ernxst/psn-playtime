@@ -8,9 +8,9 @@ describe("TopGamesSection", () => {
   it("frames the top games chart with its title and caption", async () => {
     await render(<TopGamesSection data={demoDashboard} />);
 
-    await expect.element(page.getByText("Recorded hours")).toBeVisible();
+    await expect.element(page.getByText("Top games by hours")).toBeVisible();
     await expect
-      .element(page.getByText("The titles with the most PSN-recorded lifetime hours."))
+      .element(page.getByText("The titles you've sunk the most lifetime hours into."))
       .toBeVisible();
   });
 

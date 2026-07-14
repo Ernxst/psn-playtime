@@ -1,5 +1,18 @@
 import { Link } from "@tanstack/react-router";
-import { BookOpenText, Gamepad2, LayoutDashboard, type LucideIcon, Trophy } from "lucide-react";
+import {
+  Banknote,
+  CalendarRange,
+  Coins,
+  Gamepad2,
+  Gift,
+  LayoutDashboard,
+  Lightbulb,
+  type LucideIcon,
+  PieChart,
+  Receipt,
+  Sparkles,
+  Trophy,
+} from "lucide-react";
 import { useState, useSyncExternalStore } from "react";
 import {
   Sidebar,
@@ -23,8 +36,16 @@ interface Section {
 
 const DASHBOARD_SECTIONS: readonly Section[] = [
   { icon: LayoutDashboard, id: "overview", label: "Overview" },
-  { icon: BookOpenText, id: "profile", label: "Play profile" },
   { icon: Trophy, id: "top-games", label: "Top games" },
+  { icon: PieChart, id: "genres-franchises", label: "Genres & franchises" },
+  { icon: CalendarRange, id: "timeline", label: "Timeline" },
+  { icon: Trophy, id: "trophies", label: "Trophies" },
+  { icon: Lightbulb, id: "insights", label: "Insights" },
+  { icon: Sparkles, id: "ask-ai", label: "Ask an AI" },
+  { icon: Coins, id: "spend", label: "Spend" },
+  { icon: Receipt, id: "purchase-history", label: "Purchase history" },
+  { icon: Banknote, id: "spent-most", label: "Spent the most on" },
+  { icon: Gift, id: "add-ons", label: "Spent extra on" },
   { icon: Gamepad2, id: "all-games", label: "All games" },
 ];
 
