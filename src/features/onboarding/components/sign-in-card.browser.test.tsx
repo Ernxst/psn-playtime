@@ -15,6 +15,7 @@ vi.mock("@/server/api/account.effect", () => ({
 }));
 
 const ACTIVE_KEY = "psn-playtime:dashboard-active";
+const TRANSACTIONS_KEY = "psn-playtime:transactions";
 
 const cachedAccount = {
   ...demoDashboard,
@@ -45,6 +46,8 @@ const importedTransactions: TransactionImport = {
   importedAt: "2024-01-02T00:00:00.000Z",
   source: "store.playstation.com",
 };
+
+const legacyRaw = JSON.stringify(importedTransactions);
 
 /** Decode the active-account pointer the dashboard kvs atom persists (JSON-encoded). */
 function readActiveId(): string | null {
@@ -202,6 +205,23 @@ describe("SignInCard", () => {
     await expect.poll(readActiveId).toBe("acc-1");
   });
 
+  it("does not assign ownerless legacy transactions to a newly signed-in account", async () => {
+    onTestFinished(() => localStorage.clear());
+    testTransactionStore.clear(cachedAccount.profile.accountId);
+    vi.mocked(signInWithToken).mockResolvedValue(cachedAccount);
+    const { element } = createHarness(<SignInCard />);
+    await render(element);
+    localStorage.setItem(TRANSACTIONS_KEY, legacyRaw);
+
+    await page.getByLabelText("npsso token").fill("a-valid-looking-token");
+    await page.getByText(/sign in to my PlayStation account/i).click();
+    await page.getByRole("button", { name: "Sign in" }).click();
+
+    await expect.poll(() => testDashboardStore.load("acc-1")).toEqual(cachedAccount);
+    expect(testTransactionStore.load("acc-1")).toBeNull();
+    expect(localStorage.getItem(TRANSACTIONS_KEY)).toBe(legacyRaw);
+  });
+
   it("lists a cached account so a revisit needs no token", async () => {
     onTestFinished(() => localStorage.clear());
     testDashboardStore.save({
@@ -266,6 +286,24 @@ describe("SignInCard", () => {
       .not.toBeInTheDocument();
     await expect.poll(() => testDashboardStore.load("acc-1")).toBeNull();
     await expect.poll(() => testTransactionStore.load(cachedAccount.profile.accountId)).toBeNull();
+  });
+
+  it("does not assign or erase ownerless legacy transactions when removal leaves one account", async () => {
+    onTestFinished(() => localStorage.clear());
+    testTransactionStore.clear(cachedAccount.profile.accountId);
+    testTransactionStore.clear(secondAccount.profile.accountId);
+    testDashboardStore.save(cachedAccount);
+    testDashboardStore.save(secondAccount);
+    const { element } = createHarness(<SignInCard />);
+    await render(element);
+    localStorage.setItem(TRANSACTIONS_KEY, legacyRaw);
+
+    await page.getByRole("button", { name: "Remove Ernxst_" }).click();
+    await page.getByRole("button", { name: "Remove", exact: true }).click();
+
+    expect(testDashboardStore.load(secondAccount.profile.accountId)).toEqual(secondAccount);
+    expect(testTransactionStore.load(secondAccount.profile.accountId)).toBeNull();
+    expect(localStorage.getItem(TRANSACTIONS_KEY)).toBe(legacyRaw);
   });
 
   it("a failed sign-in surfaces the error message as a toast", async () => {

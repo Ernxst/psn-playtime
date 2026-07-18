@@ -26,9 +26,7 @@ const testRegistry: AtomRegistry.AtomRegistry = AtomRegistry.make({
 export const testDashboardStore: DashboardStore = makeDashboardStore(testRegistry);
 
 /** The account-keyed transaction store bound to the shared test registry. */
-export const testTransactionStore: TransactionStore = makeTransactionStore(testRegistry, () =>
-  testDashboardStore.accountIds()
-);
+export const testTransactionStore: TransactionStore = makeTransactionStore(testRegistry);
 
 /** Provider bound to {@link testRegistry} for `render(ui, { wrapper: TestAtomProvider })`. */
 export function TestAtomProvider({ children }: { readonly children: ReactNode }) {

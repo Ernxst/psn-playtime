@@ -190,14 +190,13 @@ function Step({
 
 function useSignIn() {
   const navigate = useNavigate();
-  const { dashboardStore, transactionStore } = useRouteContext({ from: "__root__" });
+  const { dashboardStore } = useRouteContext({ from: "__root__" });
   return useMutation({
     mutationFn: (token: string) => signInWithToken({ data: { npsso: token } }),
     onSuccess: (data) => {
       // Cache the fetched data client-side and make it the active account; the
       // token is discarded here — revisits render from the cache without it.
       dashboardStore.save(data);
-      transactionStore.migrateLegacy();
       dashboardStore.setActive(data.profile.accountId);
       void navigate({ to: "/dashboard" });
     },
@@ -358,7 +357,6 @@ function RemoveAccountButton({ account }: { account: CachedAccount }) {
       onConfirm={() => {
         dashboardStore.remove(account.accountId);
         transactionStore.clear(account.accountId);
-        transactionStore.migrateLegacy();
         setConfirming(false);
       }}
       onCancel={() => setConfirming(false)}

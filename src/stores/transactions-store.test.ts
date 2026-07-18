@@ -25,8 +25,8 @@ const validImport: TransactionImport = {
   source: "store.playstation.com",
 };
 
-function makeStore(accountIds: readonly string[] = []) {
-  return makeTransactionStore(AtomRegistry.make(), () => accountIds);
+function makeStore() {
+  return makeTransactionStore(AtomRegistry.make());
 }
 
 function stubWindow() {
@@ -49,22 +49,12 @@ describe(".load", () => {
     const win = stubWindow();
     win.localStorage.setItem(STORAGE_KEY, "{ not valid json");
 
-    expect(makeStore(["acc-1"]).load("acc-1")).toBeNull();
+    expect(makeStore().load("acc-1")).toBeNull();
   });
 });
 
-describe("legacy migration", () => {
-  it("assigns a legacy import to the sole cached account", () => {
-    const win = stubWindow();
-    win.localStorage.setItem(STORAGE_KEY, JSON.stringify(validImport));
-
-    const store = makeStore(["acc-1"]);
-
-    expect(store.load("acc-1")).toEqual(validImport);
-    expect(store.load("acc-2")).toBeNull();
-  });
-
-  it("preserves an ownerless import when there are no cached accounts", () => {
+describe("ownerless legacy data", () => {
+  it("is not attributed to any account on initial load", () => {
     const win = stubWindow();
     const raw = JSON.stringify(validImport);
     win.localStorage.setItem(STORAGE_KEY, raw);
@@ -72,38 +62,15 @@ describe("legacy migration", () => {
     const store = makeStore();
 
     expect(store.load("acc-1")).toBeNull();
-    expect(win.localStorage.getItem(STORAGE_KEY)).toBe(raw);
-  });
-
-  it("preserves an ownerless import when there are multiple cached accounts", () => {
-    const win = stubWindow();
-    const raw = JSON.stringify(validImport);
-    win.localStorage.setItem(STORAGE_KEY, raw);
-
-    const store = makeStore(["acc-1", "acc-2"]);
-
-    expect(store.load("acc-1")).toBeNull();
     expect(store.load("acc-2")).toBeNull();
     expect(win.localStorage.getItem(STORAGE_KEY)).toBe(raw);
   });
 
-  it("claims preserved legacy data when the cached accounts become unambiguous", () => {
-    const win = stubWindow();
-    win.localStorage.setItem(STORAGE_KEY, JSON.stringify(validImport));
-    const accountIds: string[] = [];
-    const store = makeTransactionStore(AtomRegistry.make(), () => accountIds);
-
-    accountIds.push("acc-1");
-    store.migrateLegacy();
-
-    expect(store.load("acc-1")).toEqual(validImport);
-  });
-
-  it("does not erase preserved legacy data when an unrelated account is cleared", () => {
+  it("is not erased when an account with no keyed data is cleared", () => {
     const win = stubWindow();
     const raw = JSON.stringify(validImport);
     win.localStorage.setItem(STORAGE_KEY, raw);
-    const store = makeStore(["acc-1", "acc-2"]);
+    const store = makeStore();
 
     store.clear("acc-1");
 
@@ -114,7 +81,7 @@ describe("legacy migration", () => {
 describe("account isolation", () => {
   it("saves distinct imports for distinct accounts", () => {
     stubWindow();
-    const store = makeStore(["acc-1", "acc-2"]);
+    const store = makeStore();
     const second = { ...validImport, source: "second.account" };
 
     store.save("acc-1", validImport);
@@ -126,7 +93,7 @@ describe("account isolation", () => {
 
   it("clears one account without clearing another", () => {
     stubWindow();
-    const store = makeStore(["acc-1", "acc-2"]);
+    const store = makeStore();
     const second = { ...validImport, source: "second.account" };
     store.save("acc-1", validImport);
     store.save("acc-2", second);
@@ -140,7 +107,7 @@ describe("account isolation", () => {
   it("allows an explicit import to supersede unresolved legacy data", () => {
     const win = stubWindow();
     win.localStorage.setItem(STORAGE_KEY, JSON.stringify(validImport));
-    const store = makeStore(["acc-1", "acc-2"]);
+    const store = makeStore();
     const explicit = { ...validImport, source: "explicit.account" };
 
     store.save("acc-2", explicit);

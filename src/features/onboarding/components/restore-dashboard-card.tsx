@@ -30,7 +30,7 @@ interface Selection {
  */
 function useRestore() {
   const navigate = useNavigate();
-  const { dashboardStore, transactionStore } = useRouteContext({ from: "__root__" });
+  const { dashboardStore } = useRouteContext({ from: "__root__" });
   return useMutation({
     mutationFn: async ({ games, account }: Selection) => {
       const [gamesCsv, accountCsv] = await Promise.all([games.text(), account.text()]);
@@ -38,7 +38,6 @@ function useRestore() {
     },
     onSuccess: (data) => {
       dashboardStore.save(data);
-      transactionStore.migrateLegacy();
       dashboardStore.setActive(data.profile.accountId);
       void navigate({ to: "/dashboard" });
     },

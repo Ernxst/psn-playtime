@@ -14,7 +14,6 @@ import { importTransactionsCsv } from "./import-transactions";
 function memoryStore(initial: Record<string, TransactionImport> = {}): TransactionStore {
   let imports = initial;
   return {
-    migrateLegacy: () => undefined,
     load: (accountId) => imports[accountId] ?? null,
     save: (accountId, next) => {
       imports = { ...imports, [accountId]: next };

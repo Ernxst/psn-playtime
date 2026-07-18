@@ -13,7 +13,7 @@ export function getContext() {
   // source of truth, so a per-request registry is correct — kvs atoms re-read it.
   const atomRegistry = AtomRegistry.make({ scheduleTask, defaultIdleTTL: 400 });
   const dashboardStore = makeDashboardStore(atomRegistry);
-  const transactionStore = makeTransactionStore(atomRegistry, () => dashboardStore.accountIds());
+  const transactionStore = makeTransactionStore(atomRegistry);
 
   return {
     queryClient,
