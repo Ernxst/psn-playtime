@@ -25,6 +25,9 @@ describe("RefreshDashboard", () => {
       .toBeVisible();
     await expect.element(page.getByLabelText("npsso token")).toHaveAttribute("type", "password");
     await expect.element(page.getByText(/sent once for this refresh/)).toBeVisible();
+    await expect
+      .element(page.getByRole("link", { name: "Sign in to PlayStation" }))
+      .toHaveAttribute("href", "https://www.playstation.com/");
     await expect.element(page.getByRole("link", { name: /SSO cookie page/ })).toBeVisible();
   });
 
