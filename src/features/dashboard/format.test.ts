@@ -46,6 +46,16 @@ describe(".fmtRelative", () => {
     expect(fmtRelative("2022-09-15T00:00:00Z")).toBe("3 days ago");
   });
 
+  it("treats a future timestamp as freshly updated", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2022-09-18T00:00:00Z"));
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+
+    expect(fmtRelative("2022-09-18T00:00:10Z")).toBe("less than a minute ago");
+  });
+
   it("returns a dash for a missing value", () => {
     expect(fmtRelative()).toBe("—");
   });
