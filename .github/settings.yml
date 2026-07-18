@@ -1,49 +1,64 @@
 labels:
   - name: bug
-    color: ee0701
+    color: d73a4a
     description: Something is broken or behaving incorrectly.
-  - name: contribution welcome
-    color: 0e8a16
-    description: External contributions are welcome for this issue.
-  - name: discussion
-    color: 4935ad
-    description: Needs design discussion or maintainer alignment before implementation.
-  - name: docs
-    color: 8be281
-    description: Documentation, examples, or explanatory content.
+  - name: documentation
+    color: 0075ca
+    description: Improvements or additions to documentation.
+  - name: duplicate
+    color: cfd3d7
+    description: This issue or pull request already exists.
   - name: enhancement
     color: a2eeef
-    description: New feature or improvement to existing behavior.
-  - name: good first issue
-    color: 7057ff
-    description: Small, well-scoped issue suitable for a first contribution.
+    description: New feature or request.
   - name: help wanted
     color: 008672
-    description: Maintainers would appreciate outside help on this issue.
+    description: Extra attention is needed.
+  - name: good first issue
+    color: 7057ff
+    description: Good for newcomers.
+  - name: invalid
+    color: e4e669
+    description: This does not seem right.
   - name: question
     color: d876e3
-    description: Needs an answer or clarification rather than implementation.
+    description: Further information is requested.
   - name: wontfix
     color: ffffff
-    description: This issue will not be actioned.
-  - name: needs-triage
+    description: This will not be worked on.
+  - name: reuse
+    color: cfd3d7
+    description: Consolidate duplication or reuse existing code.
+  - name: perf
     color: fbca04
-    description: Maintainer or triage agent needs to evaluate and classify this issue.
-  - name: needs-info
-    color: d876e3
-    description: Waiting on the reporter or maintainer for specific missing information.
+    description: Performance or efficiency.
+  - name: simplify
+    color: c5def5
+    description: Reduce complexity without behaviour change.
+  - name: a11y
+    color: 5319e7
+    description: Accessibility.
+  - name: structure
+    color: 0e8a16
+    description: File organisation or conventions.
+  - name: test-infra
+    color: bfdadc
+    description: Testing infrastructure or conventions.
+  - name: epic
+    color: 6f42c1
+    description: Large multi-issue initiative.
+  - name: deferred
+    color: ededed
+    description: Backlog or not scheduled yet.
+  - name: observability
+    color: 006b75
+    description: Logging, tracing, metrics, or error reporting.
   - name: ready-for-agent
     color: 0e8a16
-    description: Fully specified and ready for an AFK coding agent.
+    description: Fully specified and executable without further human input.
   - name: ready-for-human
     color: 5319e7
-    description: Requires human judgement, access, design direction, or manual validation.
-  - name: WIP
-    color: ffffff
-    description: Work is in progress and not ready for final review.
-  - name: need repro
-    color: c9581c
-    description: A reliable reproduction case is needed before the issue can proceed.
-  - name: feature request
-    color: fbca04
-    description: Request for a new feature or capability.
+    description: Awaiting human judgement, access, direction, or manual validation.
+  - name: blocked
+    color: b60205
+    description: Waiting for a named dependency or condition.
