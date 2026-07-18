@@ -12,6 +12,7 @@ import {
   walletFunding,
 } from "@/test/transaction-fixtures";
 import {
+  AUTHENTICATED_ACCOUNT_ENDPOINT,
   bookmarkletHref,
   buildTransactionHistoryUrl,
   dedupeTransactions,
@@ -264,6 +265,9 @@ async function runNetworkBookmarklet(): Promise<{
   message: DirectElement;
   open: ReturnType<typeof vi.fn>;
 }> {
+  server.use(
+    http.get(AUTHENTICATED_ACCOUNT_ENDPOINT, () => HttpResponse.json({ handle: "Ernxst_" }))
+  );
   vi.useFakeTimers({ toFake: ["setTimeout"] });
   onTestFinished(() => {
     vi.useRealTimers();
@@ -569,7 +573,7 @@ describe("bookmarklet transaction-history workflow", () => {
 
     expect(result.open).toHaveBeenCalledTimes(1);
     expect(importedPayload(result.href)).toMatchObject({
-      v: 3,
+      v: 4,
       source: "store.playstation.com",
       transactions: [
         { transactionId: multiProductPurchase.id, key: "111111111111" },
