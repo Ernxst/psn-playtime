@@ -1,8 +1,8 @@
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Redacted from "effect/Redacted";
+import { HttpResponse, http } from "msw";
 import type {
-  AuthTokensResponse,
   ProfileFromUserNameResponse,
   TrophyTitle,
   UserPlayedGamesResponse,
@@ -11,109 +11,47 @@ import type {
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { signInEffect } from "@/server/api/account.effect";
 import { PsnDashboardSourceLayer } from "@/server/providers/account/psn/provider.effect";
-import { PsnTransport, PsnTransportError } from "@/server/providers/account/psn/transport.effect";
+import { PsnTransport, PsnTransportLive } from "@/server/providers/account/psn/transport.effect";
 import type { DashboardData } from "@/server/providers/account/snapshot";
+import { server } from "@/test/msw";
+import {
+  PSN_AUTH_URL,
+  PSN_PLAYED_GAMES_URL,
+  PSN_PROFILE_URL,
+  PSN_TROPHY_TITLES_URL,
+} from "@/test/msw-handlers";
+import {
+  psnAuthTokens as authTokens,
+  psnPlayedPage as playedPage,
+  psnPlayedTitle as played,
+  psnProfile as profile,
+  psnTrophyPage as trophyPage,
+  psnTrophyTitle as trophy,
+  type PsnPlayedTitle as PlayedTitle,
+} from "@/test/psn-fixtures";
 
 /**
- * Run the exported `signInEffect` the way production does — provide the layer at
- * the edge, then run to a Promise — but bind the real `PsnDashboardSourceLayer`
- * to a FAKE `PsnTransport` instead of the live `psn-api` one. Keeping the seam at
- * the transport (not at `DashboardSource`) means the real `loadDashboard` →
- * `buildSnapshot` path still runs, so normalization and the #267 error branches
- * stay covered. The two-arg `Effect.provide` keeps the seam explicit; production
- * satisfies the same `DashboardSource` requirement through `runServer`.
+ * Run the exported `signInEffect` through the production PSN provider and live
+ * `psn-api` transport. MSW owns only the remote PlayStation HTTP responses.
  */
-function runSignIn(npsso: string, transport: Layer.Layer<PsnTransport>): Promise<DashboardData> {
-  const source = Layer.provide(PsnDashboardSourceLayer, transport);
+function runSignIn(npsso: string): Promise<DashboardData> {
+  const source = Layer.provide(PsnDashboardSourceLayer, PsnTransportLive);
   return Effect.runPromise(Effect.provide(signInEffect(Redacted.make(npsso)), source));
 }
 
-/** A transport failure carrying `message` as its raw cause, as the live layer would. */
-function psnFailure(message: string): Effect.Effect<never, PsnTransportError> {
-  return Effect.fail(new PsnTransportError({ cause: new Error(message) }));
+function runSignInWithProfileDefect(defect: Error): Promise<DashboardData> {
+  const transport = Layer.succeed(PsnTransport, {
+    exchangeNpssoForAccessCode: () => Effect.succeed("access-code"),
+    exchangeAccessCodeForAuthTokens: () => Effect.succeed(authTokens),
+    getProfile: () => Effect.die(defect),
+    getPlayedGames: () => Effect.succeed(playedPage()),
+    getUserTitles: () => Effect.succeed(trophyPage()),
+  });
+  const source = Layer.provide(PsnDashboardSourceLayer, transport);
+  return Effect.runPromise(Effect.provide(signInEffect(Redacted.make("npsso-token")), source));
 }
 
-type ProfileBody = ProfileFromUserNameResponse["profile"];
-type PlayedTitle = UserPlayedGamesResponse["titles"][number];
-
-const authTokens: AuthTokensResponse = {
-  accessToken: "access-token",
-  expiresIn: 3600,
-  idToken: "id-token",
-  refreshToken: "refresh-token",
-  refreshTokenExpiresIn: 7200,
-  scope: "psn:mobile.v2.core psn:clientapp",
-  tokenType: "bearer",
-};
-
-const baseProfile: ProfileBody = {
-  onlineId: "Ernxst_",
-  accountId: "acc-1",
-  npId: "np-1",
-  avatarUrls: [{ size: "xl", avatarUrl: "https://img/xl" }],
-  plus: 1,
-  aboutMe: "Hello there",
-  languagesUsed: ["en"],
-  trophySummary: {
-    level: 220,
-    progress: 70,
-    earnedTrophies: { bronze: 887, silver: 188, gold: 54, platinum: 9 },
-  },
-  isOfficiallyVerified: false,
-  personalDetail: { firstName: "", lastName: "", profilePictureUrls: [] },
-  personalDetailSharing: "no",
-  personalDetailSharingRequestMessageFlag: false,
-  primaryOnlineStatus: "offline",
-  presences: [],
-  friendRelation: "no-relation",
-  requestMessageFlag: false,
-  blocking: false,
-  following: false,
-  consoleAvailability: { availabilityStatus: "unavailable" },
-};
-
-function profile(overrides: Partial<ProfileBody> = {}): ProfileFromUserNameResponse {
-  return { profile: { ...baseProfile, ...overrides } };
-}
-
-const basePlayed: PlayedTitle = {
-  titleId: "",
-  name: "",
-  localizedName: "",
-  imageUrl: "",
-  localizedImageUrl: "",
-  category: "ps4_game",
-  service: "none",
-  playCount: 0,
-  concept: { id: 0, titleIds: [], name: "", media: { audios: [], videos: [], images: [] } },
-  media: {},
-  firstPlayedDateTime: "",
-  lastPlayedDateTime: "",
-  playDuration: "PT0S",
-};
-
-function played(overrides: Partial<PlayedTitle>): PlayedTitle {
-  return { ...basePlayed, ...overrides };
-}
-
-const baseTrophy: TrophyTitle = {
-  npServiceName: "trophy",
-  npCommunicationId: "",
-  trophySetVersion: "01.00",
-  trophyTitleName: "",
-  trophyTitleIconUrl: "",
-  trophyTitlePlatform: "PS4",
-  hasTrophyGroups: false,
-  definedTrophies: { bronze: 0, silver: 0, gold: 0, platinum: 0 },
-  progress: 0,
-  earnedTrophies: { bronze: 0, silver: 0, gold: 0, platinum: 0 },
-  hiddenFlag: false,
-  lastUpdatedDateTime: "",
-};
-
-function trophy(overrides: Partial<TrophyTitle>): TrophyTitle {
-  return { ...baseTrophy, ...overrides };
-}
+const basePlayed = played({});
 
 const playedTitles: PlayedTitle[] = [
   played({
@@ -211,14 +149,6 @@ const trophyTitles: TrophyTitle[] = [
   }),
 ];
 
-function playedPage(titles: PlayedTitle[], totalItemCount: number): UserPlayedGamesResponse {
-  return { titles, totalItemCount, nextOffset: 0, previousOffset: 0 };
-}
-
-function trophyPage(trophies: TrophyTitle[], totalItemCount: number): UserTitlesResponse {
-  return { trophyTitles: trophies, totalItemCount, nextOffset: 0, previousOffset: 0 };
-}
-
 /**
  * Drop the (type-required) `totalItemCount` so a page exercises the defensive
  * page-fullness pagination fallback — the PSN API can omit it in practice.
@@ -233,50 +163,78 @@ function withoutPlayCount<T extends { playCount: number }>(title: T): T {
 }
 
 /**
- * A fake `PsnTransport` — the production seam the sign-in handler reads through.
- * `played`/`titles` are paged responses consumed in call order, an empty page
- * once exhausted, so a test can model both single-page and multi-page fetches;
- * the returned spies let pagination tests assert the page-call count.
+ * Override PlayStation's remote responses. Paged fixtures are selected by the
+ * request offset, so the real SDK adapter and pagination path remain exercised.
  */
-function fakeTransport(
+function mockPsn(
   cfg: {
-    exchangeNpsso?: Effect.Effect<string, PsnTransportError>;
-    exchangeTokens?: Effect.Effect<AuthTokensResponse, PsnTransportError>;
-    profile?: Effect.Effect<ProfileFromUserNameResponse, PsnTransportError>;
-    played?: Effect.Effect<UserPlayedGamesResponse, PsnTransportError>[];
-    titles?: Effect.Effect<UserTitlesResponse, PsnTransportError>[];
+    authorize?: "reject";
+    profile?: ProfileFromUserNameResponse;
+    profileError?: string;
+    played?: UserPlayedGamesResponse[];
+    titles?: UserTitlesResponse[];
+    trophiesUnavailable?: boolean;
   } = {}
 ) {
   const playedPages = cfg.played ?? [];
   const titlePages = cfg.titles ?? [];
-  let playedCall = 0;
-  let titleCall = 0;
-  const getPlayedGames = vi.fn(
-    () => playedPages[playedCall++] ?? Effect.succeed(playedPage([], 0))
-  );
-  const getUserTitles = vi.fn(() => titlePages[titleCall++] ?? Effect.succeed(trophyPage([], 0)));
-  const layer = Layer.succeed(PsnTransport, {
-    exchangeNpssoForAccessCode: () => cfg.exchangeNpsso ?? Effect.succeed("access-code"),
-    exchangeAccessCodeForAuthTokens: () => cfg.exchangeTokens ?? Effect.succeed(authTokens),
-    getProfile: () => cfg.profile ?? Effect.succeed(profile()),
-    getPlayedGames,
-    getUserTitles,
+  const getPlayedGames = vi.fn(({ request }: { request: Request }) => {
+    const offset = Number(new URL(request.url).searchParams.get("offset") ?? 0);
+    const page =
+      playedPages.find((_, index) => {
+        const previous = playedPages.slice(0, index);
+        const consumed = previous.reduce((sum, item) => sum + item.titles.length, 0);
+        return consumed === offset;
+      }) ?? playedPage([], 0);
+    return HttpResponse.json(page);
   });
-  return { layer, getPlayedGames, getUserTitles };
+  const getUserTitles = cfg.trophiesUnavailable
+    ? vi.fn(() => HttpResponse.error())
+    : vi.fn(({ request }: { request: Request }) => {
+        const offset = Number(new URL(request.url).searchParams.get("offset") ?? 0);
+        const page =
+          titlePages.find((_, index) => {
+            const previous = titlePages.slice(0, index);
+            const consumed = previous.reduce((sum, item) => sum + item.trophyTitles.length, 0);
+            return consumed === offset;
+          }) ?? trophyPage([], 0);
+        return HttpResponse.json(page);
+      });
+  server.use(
+    http.get(
+      `${PSN_AUTH_URL}/authorize`,
+      () =>
+        new HttpResponse(null, {
+          status: cfg.authorize === "reject" ? 200 : 302,
+          headers:
+            cfg.authorize === "reject"
+              ? {}
+              : { Location: "https://example.test/redirect/?code=access-code" },
+        })
+    ),
+    http.get(PSN_PROFILE_URL, () =>
+      HttpResponse.json(
+        cfg.profileError ? { error: { message: cfg.profileError } } : (cfg.profile ?? profile())
+      )
+    ),
+    http.get(PSN_PLAYED_GAMES_URL, getPlayedGames),
+    http.get(PSN_TROPHY_TITLES_URL, getUserTitles)
+  );
+  return { getPlayedGames, getUserTitles };
 }
 
 /** A successful live build with the shared fixtures, spread across two pages each. */
 function liveBuild(profileResult: ProfileFromUserNameResponse = profile()) {
-  return fakeTransport({
-    profile: Effect.succeed(profileResult),
+  return mockPsn({
+    profile: profileResult,
     // Two pages: the first doesn't complete the set (loop continues), the second
     // is empty (loop breaks) — covering both pagination exit branches.
-    played: [Effect.succeed(playedPage(playedTitles, 20)), Effect.succeed(playedPage([], 20))],
+    played: [playedPage(playedTitles, 20), playedPage([], 20)],
     // Two non-empty pages: the first has a known total (loop continues), the
     // second an unknown total (breaks via page fullness).
     titles: [
-      Effect.succeed(trophyPage(trophyTitles.slice(0, 2), 100)),
-      Effect.succeed(withoutTotal(trophyPage(trophyTitles.slice(2), 0))),
+      trophyPage(trophyTitles.slice(0, 2), 100),
+      withoutTotal(trophyPage(trophyTitles.slice(2), 0)),
     ],
   });
 }
@@ -287,9 +245,9 @@ beforeEach(() => {
 
 describe(".signInEffect", () => {
   it("normalizes a live PSN account for a valid token", async () => {
-    const { layer } = liveBuild();
+    liveBuild();
 
-    const result = await runSignIn("npsso-token", layer);
+    const result = await runSignIn("npsso-token");
 
     expect(result.isDemo).toBe(false);
     expect(result.profile.onlineId).toBe("Ernxst_");
@@ -345,45 +303,41 @@ describe(".signInEffect", () => {
   });
 
   it("matches a played title to its trophy list by canonical concept name", async () => {
-    const { layer } = fakeTransport({
+    mockPsn({
       played: [
-        Effect.succeed(
-          playedPage(
-            [
-              played({
-                titleId: "gow",
-                // Store name carries an edition suffix the trophy set lacks, so it
-                // only resolves via the canonical concept name.
-                name: "God of War Ragnarök: Digital Deluxe Edition",
-                category: "ps5_native_game",
-                concept: { ...basePlayed.concept, name: "God of War Ragnarök" },
-                playDuration: "PT220H",
-                playCount: 7,
-              }),
-            ],
-            1
-          )
+        playedPage(
+          [
+            played({
+              titleId: "gow",
+              // Store name carries an edition suffix the trophy set lacks, so it
+              // only resolves via the canonical concept name.
+              name: "God of War Ragnarök: Digital Deluxe Edition",
+              category: "ps5_native_game",
+              concept: { ...basePlayed.concept, name: "God of War Ragnarök" },
+              playDuration: "PT220H",
+              playCount: 7,
+            }),
+          ],
+          1
         ),
       ],
       titles: [
-        Effect.succeed(
-          trophyPage(
-            [
-              trophy({
-                trophyTitleName: "God of War Ragnarök",
-                progress: 73,
-                definedTrophies: { bronze: 30, silver: 8, gold: 3, platinum: 1 },
-                earnedTrophies: { bronze: 20, silver: 5, gold: 2, platinum: 1 },
-                lastUpdatedDateTime: "2023-02-01T00:00:00Z",
-              }),
-            ],
-            1
-          )
+        trophyPage(
+          [
+            trophy({
+              trophyTitleName: "God of War Ragnarök",
+              progress: 73,
+              definedTrophies: { bronze: 30, silver: 8, gold: 3, platinum: 1 },
+              earnedTrophies: { bronze: 20, silver: 5, gold: 2, platinum: 1 },
+              lastUpdatedDateTime: "2023-02-01T00:00:00Z",
+            }),
+          ],
+          1
         ),
       ],
     });
 
-    const result = await runSignIn("npsso-token", layer);
+    const result = await runSignIn("npsso-token");
 
     const gow = result.games.find((g) => g.titleId === "gow")!;
 
@@ -397,44 +351,40 @@ describe(".signInEffect", () => {
   });
 
   it("matches a glyph-glued trophy name carrying a brand prefix to its played title", async () => {
-    const { layer } = fakeTransport({
+    mockPsn({
       played: [
-        Effect.succeed(
-          playedPage(
-            [
-              played({
-                titleId: "div2",
-                name: "The Division 2",
-                category: "ps4_game",
-                concept: { ...basePlayed.concept, name: "The Division 2" },
-                playDuration: "PT460H",
-                playCount: 12,
-              }),
-            ],
-            1
-          )
+        playedPage(
+          [
+            played({
+              titleId: "div2",
+              name: "The Division 2",
+              category: "ps4_game",
+              concept: { ...basePlayed.concept, name: "The Division 2" },
+              playDuration: "PT460H",
+              playCount: 12,
+            }),
+          ],
+          1
         ),
       ],
       titles: [
-        Effect.succeed(
-          trophyPage(
-            [
-              trophy({
-                // Glyph glues "Division" to "2" and a "Tom Clancy's" brand prefix
-                // sits only on the trophy side, so only a subset match resolves it.
-                trophyTitleName: "Tom Clancy's The Division®2",
-                progress: 64,
-                earnedTrophies: { bronze: 30, silver: 8, gold: 3, platinum: 0 },
-                lastUpdatedDateTime: "2024-01-01T00:00:00Z",
-              }),
-            ],
-            1
-          )
+        trophyPage(
+          [
+            trophy({
+              // Glyph glues "Division" to "2" and a "Tom Clancy's" brand prefix
+              // sits only on the trophy side, so only a subset match resolves it.
+              trophyTitleName: "Tom Clancy's The Division®2",
+              progress: 64,
+              earnedTrophies: { bronze: 30, silver: 8, gold: 3, platinum: 0 },
+              lastUpdatedDateTime: "2024-01-01T00:00:00Z",
+            }),
+          ],
+          1
         ),
       ],
     });
 
-    const result = await runSignIn("npsso-token", layer);
+    const result = await runSignIn("npsso-token");
 
     const div2 = result.games.find((g) => g.titleId === "div2")!;
 
@@ -448,32 +398,26 @@ describe(".signInEffect", () => {
   });
 
   it("does not subset-match an unrelated trophy list to a played title", async () => {
-    const { layer } = fakeTransport({
+    mockPsn({
       played: [
-        Effect.succeed(
-          playedPage(
-            [
-              played({
-                titleId: "div2",
-                name: "The Division 2",
-                category: "ps4_game",
-                concept: { ...basePlayed.concept, name: "The Division 2" },
-                playDuration: "PT460H",
-                playCount: 12,
-              }),
-            ],
-            1
-          )
+        playedPage(
+          [
+            played({
+              titleId: "div2",
+              name: "The Division 2",
+              category: "ps4_game",
+              concept: { ...basePlayed.concept, name: "The Division 2" },
+              playDuration: "PT460H",
+              playCount: 12,
+            }),
+          ],
+          1
         ),
       ],
-      titles: [
-        Effect.succeed(
-          trophyPage([trophy({ trophyTitleName: "Forza Horizon 5", progress: 50 })], 1)
-        ),
-      ],
+      titles: [trophyPage([trophy({ trophyTitleName: "Forza Horizon 5", progress: 50 })], 1)],
     });
 
-    const result = await runSignIn("npsso-token", layer);
+    const result = await runSignIn("npsso-token");
 
     const div2 = result.games.find((g) => g.titleId === "div2")!;
 
@@ -489,28 +433,26 @@ describe(".signInEffect", () => {
   ])(
     'does not attach the more-specific "$trophyTitleName" to the broader played "$playedName"',
     async ({ playedName, trophyTitleName }) => {
-      const { layer } = fakeTransport({
+      mockPsn({
         played: [
-          Effect.succeed(
-            playedPage(
-              [
-                played({
-                  titleId: "seq",
-                  name: playedName,
-                  category: "ps5_native_game",
-                  concept: { ...basePlayed.concept, name: playedName },
-                  playDuration: "PT40H",
-                  playCount: 5,
-                }),
-              ],
-              1
-            )
+          playedPage(
+            [
+              played({
+                titleId: "seq",
+                name: playedName,
+                category: "ps5_native_game",
+                concept: { ...basePlayed.concept, name: playedName },
+                playDuration: "PT40H",
+                playCount: 5,
+              }),
+            ],
+            1
           ),
         ],
-        titles: [Effect.succeed(trophyPage([trophy({ trophyTitleName, progress: 60 })], 1))],
+        titles: [trophyPage([trophy({ trophyTitleName, progress: 60 })], 1)],
       });
 
-      const result = await runSignIn("npsso-token", layer);
+      const result = await runSignIn("npsso-token");
 
       const game = result.games.find((g) => g.titleId === "seq")!;
 
@@ -519,44 +461,40 @@ describe(".signInEffect", () => {
   );
 
   it("matches a played title that carries a trailing platform suffix the trophy list omits", async () => {
-    const { layer } = fakeTransport({
+    mockPsn({
       played: [
-        Effect.succeed(
-          playedPage(
-            [
-              played({
-                titleId: "gta5",
-                name: "Grand Theft Auto V (PlayStation®5)",
-                category: "ps5_native_game",
-                concept: { ...basePlayed.concept, name: "Grand Theft Auto V (PlayStation®5)" },
-                playDuration: "PT300H",
-                playCount: 20,
-              }),
-            ],
-            1
-          )
+        playedPage(
+          [
+            played({
+              titleId: "gta5",
+              name: "Grand Theft Auto V (PlayStation®5)",
+              category: "ps5_native_game",
+              concept: { ...basePlayed.concept, name: "Grand Theft Auto V (PlayStation®5)" },
+              playDuration: "PT300H",
+              playCount: 20,
+            }),
+          ],
+          1
         ),
       ],
       // Two stacks under one name: the more-progressed PS5 set is the representative.
       titles: [
-        Effect.succeed(
-          trophyPage(
-            [
-              trophy({ trophyTitleName: "Grand Theft Auto V", progress: 27 }),
-              trophy({
-                trophyTitleName: "Grand Theft Auto V",
-                progress: 28,
-                earnedTrophies: { bronze: 40, silver: 8, gold: 2, platinum: 0 },
-                lastUpdatedDateTime: "2024-03-01T00:00:00Z",
-              }),
-            ],
-            2
-          )
+        trophyPage(
+          [
+            trophy({ trophyTitleName: "Grand Theft Auto V", progress: 27 }),
+            trophy({
+              trophyTitleName: "Grand Theft Auto V",
+              progress: 28,
+              earnedTrophies: { bronze: 40, silver: 8, gold: 2, platinum: 0 },
+              lastUpdatedDateTime: "2024-03-01T00:00:00Z",
+            }),
+          ],
+          2
         ),
       ],
     });
 
-    const result = await runSignIn("npsso-token", layer);
+    const result = await runSignIn("npsso-token");
 
     const gta5 = result.games.find((g) => g.titleId === "gta5")!;
 
@@ -570,32 +508,28 @@ describe(".signInEffect", () => {
   });
 
   it("matches the glyph-glued The Division 2 when the brand prefix is on both sides", async () => {
-    const { layer } = fakeTransport({
+    mockPsn({
       played: [
-        Effect.succeed(
-          playedPage(
-            [
-              played({
-                titleId: "div2",
-                name: "Tom Clancy's The Division 2",
-                category: "ps4_game",
-                concept: { ...basePlayed.concept, name: "Tom Clancy's The Division 2" },
-                playDuration: "PT70H",
-                playCount: 8,
-              }),
-            ],
-            1
-          )
+        playedPage(
+          [
+            played({
+              titleId: "div2",
+              name: "Tom Clancy's The Division 2",
+              category: "ps4_game",
+              concept: { ...basePlayed.concept, name: "Tom Clancy's The Division 2" },
+              playDuration: "PT70H",
+              playCount: 8,
+            }),
+          ],
+          1
         ),
       ],
       titles: [
-        Effect.succeed(
-          trophyPage([trophy({ trophyTitleName: "Tom Clancy's The Division® 2", progress: 70 })], 1)
-        ),
+        trophyPage([trophy({ trophyTitleName: "Tom Clancy's The Division® 2", progress: 70 })], 1),
       ],
     });
 
-    const result = await runSignIn("npsso-token", layer);
+    const result = await runSignIn("npsso-token");
 
     const div2 = result.games.find((g) => g.titleId === "div2")!;
 
@@ -603,40 +537,36 @@ describe(".signInEffect", () => {
   });
 
   it("keeps the most-progressed trophy list when a game has several under one name", async () => {
-    const { layer } = fakeTransport({
+    mockPsn({
       played: [
-        Effect.succeed(
-          playedPage(
-            [
-              played({
-                titleId: "minecraft",
-                name: "Minecraft",
-                category: "ps5_native_game",
-                concept: { ...basePlayed.concept, name: "Minecraft" },
-                playDuration: "PT120H",
-                playCount: 15,
-              }),
-            ],
-            1
-          )
+        playedPage(
+          [
+            played({
+              titleId: "minecraft",
+              name: "Minecraft",
+              category: "ps5_native_game",
+              concept: { ...basePlayed.concept, name: "Minecraft" },
+              playDuration: "PT120H",
+              playCount: 15,
+            }),
+          ],
+          1
         ),
       ],
       titles: [
-        Effect.succeed(
-          trophyPage(
-            [
-              trophy({ trophyTitleName: "Minecraft", progress: 22 }),
-              trophy({ trophyTitleName: "Minecraft", progress: 34 }),
-              // An additional set normalizes to a distinct key and must not clobber.
-              trophy({ trophyTitleName: "Minecraft • Set 2", progress: 2 }),
-            ],
-            3
-          )
+        trophyPage(
+          [
+            trophy({ trophyTitleName: "Minecraft", progress: 22 }),
+            trophy({ trophyTitleName: "Minecraft", progress: 34 }),
+            // An additional set normalizes to a distinct key and must not clobber.
+            trophy({ trophyTitleName: "Minecraft • Set 2", progress: 2 }),
+          ],
+          3
         ),
       ],
     });
 
-    const result = await runSignIn("npsso-token", layer);
+    const result = await runSignIn("npsso-token");
 
     const minecraft = result.games.find((g) => g.titleId === "minecraft")!;
 
@@ -644,32 +574,26 @@ describe(".signInEffect", () => {
   });
 
   it("leaves trophy undefined when no candidate name matches a trophy list", async () => {
-    const { layer } = fakeTransport({
+    mockPsn({
       played: [
-        Effect.succeed(
-          playedPage(
-            [
-              played({
-                titleId: "obscure",
-                name: "Some Game With No Trophies",
-                category: "ps5_native_game",
-                concept: { ...basePlayed.concept, name: "Some Game With No Trophies" },
-                playDuration: "PT5H",
-                playCount: 1,
-              }),
-            ],
-            1
-          )
+        playedPage(
+          [
+            played({
+              titleId: "obscure",
+              name: "Some Game With No Trophies",
+              category: "ps5_native_game",
+              concept: { ...basePlayed.concept, name: "Some Game With No Trophies" },
+              playDuration: "PT5H",
+              playCount: 1,
+            }),
+          ],
+          1
         ),
       ],
-      titles: [
-        Effect.succeed(
-          trophyPage([trophy({ trophyTitleName: "An Unrelated Game", progress: 50 })], 1)
-        ),
-      ],
+      titles: [trophyPage([trophy({ trophyTitleName: "An Unrelated Game", progress: 50 })], 1)],
     });
 
-    const result = await runSignIn("npsso-token", layer);
+    const result = await runSignIn("npsso-token");
 
     const obscure = result.games.find((g) => g.titleId === "obscure")!;
 
@@ -677,14 +601,14 @@ describe(".signInEffect", () => {
   });
 
   it("falls back to an empty trophy map when the trophy fetch fails", async () => {
-    const { layer } = fakeTransport({
-      profile: Effect.succeed(profile({ avatarUrls: [], aboutMe: "" })),
+    mockPsn({
+      profile: profile({ avatarUrls: [], aboutMe: "" }),
       // Single page with no total: exercises the played-games page-fullness fallback.
-      played: [Effect.succeed(withoutTotal(playedPage(playedTitles, 0)))],
-      titles: [psnFailure("trophy service down")],
+      played: [withoutTotal(playedPage(playedTitles, 0))],
+      trophiesUnavailable: true,
     });
 
-    const result = await runSignIn("npsso-token", layer);
+    const result = await runSignIn("npsso-token");
 
     expect(result.isDemo).toBe(false);
     expect(result.profile.avatarUrl).toBeUndefined();
@@ -693,11 +617,9 @@ describe(".signInEffect", () => {
   });
 
   it("falls back to the first listed avatar when no xl/l/m size is present", async () => {
-    const { layer } = liveBuild(
-      profile({ avatarUrls: [{ size: "s", avatarUrl: "https://img/s" }], plus: 0 })
-    );
+    liveBuild(profile({ avatarUrls: [{ size: "s", avatarUrl: "https://img/s" }], plus: 0 }));
 
-    const result = await runSignIn("fresh-token", layer);
+    const result = await runSignIn("fresh-token");
 
     expect(result.isDemo).toBe(false);
     expect(result.profile.avatarUrl).toBe("https://img/s");
@@ -705,9 +627,9 @@ describe(".signInEffect", () => {
   });
 
   it("rejects with a credential-rejected error when the npsso exchange fails", async () => {
-    const { layer } = fakeTransport({ exchangeNpsso: psnFailure("nope") });
+    mockPsn({ authorize: "reject" });
 
-    const promise = runSignIn("bad-token", layer);
+    const promise = runSignIn("bad-token");
 
     await expect(promise).rejects.toMatchObject({
       name: "SignInError",
@@ -719,9 +641,9 @@ describe(".signInEffect", () => {
   });
 
   it("rejects with a rate-limited error when PlayStation throttles the fetch", async () => {
-    const { layer } = fakeTransport({ profile: psnFailure("429 Too Many Requests") });
+    mockPsn({ profileError: "429 Too Many Requests" });
 
-    const promise = runSignIn("npsso-token", layer);
+    const promise = runSignIn("npsso-token");
 
     await expect(promise).rejects.toMatchObject({
       name: "SignInError",
@@ -732,9 +654,9 @@ describe(".signInEffect", () => {
   });
 
   it("rejects with an unavailable error when PlayStation is down", async () => {
-    const { layer } = fakeTransport({ profile: psnFailure("upstream exploded") });
+    mockPsn({ profileError: "upstream exploded" });
 
-    const promise = runSignIn("npsso-token", layer);
+    const promise = runSignIn("npsso-token");
 
     await expect(promise).rejects.toMatchObject({
       name: "SignInError",
@@ -747,7 +669,7 @@ describe(".signInEffect", () => {
   it("rejects with an internal error when the snapshot fails the DashboardData contract", async () => {
     // A non-finite trophy level normalizes through but fails the `DashboardData`
     // decode (`SchemaError`) — our contract breaking, not the user's token.
-    const { layer } = liveBuild(
+    liveBuild(
       profile({
         trophySummary: {
           level: Number.NaN,
@@ -757,7 +679,7 @@ describe(".signInEffect", () => {
       })
     );
 
-    const promise = runSignIn("npsso-token", layer);
+    const promise = runSignIn("npsso-token");
 
     await expect(promise).rejects.toMatchObject({
       name: "SignInError",
@@ -772,9 +694,7 @@ describe(".signInEffect", () => {
     // An untyped defect (not a modelled `PsnTransportError`) escapes normalization
     // — our bug, not the user's token. It must be caught and sanitised to a
     // generic `internal` error so no raw defect value rides out to the client.
-    const { layer } = fakeTransport({ profile: Effect.die(new Error("unexpected boom")) });
-
-    const promise = runSignIn("npsso-token", layer);
+    const promise = runSignInWithProfileDefect(new Error("unexpected boom"));
 
     await expect(promise).rejects.toMatchObject({
       name: "SignInError",
@@ -797,30 +717,28 @@ describe(".signInEffect", () => {
         playCount: 1,
       })
     );
-    const { layer, getPlayedGames } = fakeTransport({
+    const { getPlayedGames } = mockPsn({
       played: [
-        Effect.succeed(withoutTotal(playedPage(firstPage, 0))),
-        Effect.succeed(
-          withoutTotal(
-            playedPage(
-              [
-                played({
-                  titleId: "second-page",
-                  name: "Second Page Game",
-                  category: "ps5_native_game",
-                  playDuration: "PT2H",
-                  playCount: 1,
-                }),
-              ],
-              0
-            )
+        withoutTotal(playedPage(firstPage, 0)),
+        withoutTotal(
+          playedPage(
+            [
+              played({
+                titleId: "second-page",
+                name: "Second Page Game",
+                category: "ps5_native_game",
+                playDuration: "PT2H",
+                playCount: 1,
+              }),
+            ],
+            0
           )
         ),
       ],
-      titles: [Effect.succeed(trophyPage([], 0))],
+      titles: [trophyPage([], 0)],
     });
 
-    const result = await runSignIn("npsso-token", layer);
+    const result = await runSignIn("npsso-token");
 
     expect(getPlayedGames).toHaveBeenCalledTimes(2);
     expect(result.games).toHaveLength(201);
@@ -834,35 +752,31 @@ describe(".signInEffect", () => {
     const firstTrophyPage = Array.from({ length: 800 }, (_, i) =>
       trophy({ trophyTitleName: `Filler Trophy ${i}`, progress: 1 })
     );
-    const { layer, getUserTitles } = fakeTransport({
+    const { getUserTitles } = mockPsn({
       played: [
-        Effect.succeed(
-          playedPage(
-            [
-              played({
-                titleId: "marker",
-                name: "Marker Trophy Game",
-                category: "ps5_native_game",
-                concept: { ...basePlayed.concept, name: "Marker Trophy Game" },
-                playDuration: "PT9H",
-                playCount: 4,
-              }),
-            ],
-            1
-          )
+        playedPage(
+          [
+            played({
+              titleId: "marker",
+              name: "Marker Trophy Game",
+              category: "ps5_native_game",
+              concept: { ...basePlayed.concept, name: "Marker Trophy Game" },
+              playDuration: "PT9H",
+              playCount: 4,
+            }),
+          ],
+          1
         ),
       ],
       titles: [
-        Effect.succeed(withoutTotal(trophyPage(firstTrophyPage, 0))),
-        Effect.succeed(
-          withoutTotal(
-            trophyPage([trophy({ trophyTitleName: "Marker Trophy Game", progress: 55 })], 0)
-          )
+        withoutTotal(trophyPage(firstTrophyPage, 0)),
+        withoutTotal(
+          trophyPage([trophy({ trophyTitleName: "Marker Trophy Game", progress: 55 })], 0)
         ),
       ],
     });
 
-    const result = await runSignIn("npsso-token", layer);
+    const result = await runSignIn("npsso-token");
 
     const marker = result.games.find((g) => g.titleId === "marker")!;
 

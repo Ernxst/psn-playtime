@@ -76,6 +76,7 @@
     "babel-plugin-react-compiler": "1.0.0",
     "knip": "6.21.0",
     "lefthook": "2.1.9",
+    "msw": "^2.15.0",
     "oxfmt": "0.56.0",
     "oxlint": "1.71.0",
     "oxlint-plugin-complexity": "2.1.4",

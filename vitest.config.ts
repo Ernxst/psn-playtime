@@ -61,6 +61,7 @@ export default defineConfig({
         test: {
           ...testDefaults,
           name: "node",
+          setupFiles: ["./src/test/msw.ts"],
           include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
           exclude: ["src/**/*.browser.test.tsx"],
         },

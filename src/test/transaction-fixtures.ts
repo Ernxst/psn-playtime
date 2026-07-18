@@ -158,3 +158,21 @@ export const allTransactions: ApiTransaction[] = [
   nullNamePurchase,
   walletFunding,
 ];
+
+export const transactionHistoryResponse = (
+  transactions: ApiTransaction[],
+  options: {
+    hasMore?: boolean;
+    nextEndDate?: string | null;
+    errors?: ReadonlyArray<{ readonly message: string }>;
+  } = {}
+) => ({
+  data: {
+    transactionHistoryRetrieve: {
+      transactions,
+      hasMore: options.hasMore ?? false,
+      nextEndDate: options.nextEndDate ?? null,
+    },
+  },
+  ...(options.errors ? { errors: options.errors } : {}),
+});
