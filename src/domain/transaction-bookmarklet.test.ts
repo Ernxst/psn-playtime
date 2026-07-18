@@ -12,7 +12,7 @@ import {
 } from "./transaction-bookmarklet";
 
 function bookmarkletBody(origin: string): string {
-  return decodeURIComponent(bookmarkletHref(origin).replace(/^javascript:/, ""));
+  return decodeURIComponent(bookmarkletHref(origin, "acc-1").replace(/^javascript:/, ""));
 }
 
 /**
@@ -39,9 +39,9 @@ async function minifiedBookmarkletBody(origin: string): Promise<string> {
   const [output] = outputFiles ?? [];
   const url = `data:text/javascript;base64,${Buffer.from(output?.text ?? "").toString("base64")}`;
   // oxlint-disable-next-line typescript/no-unsafe-assignment -- dynamic import of a freshly built artifact; its type is external to the project
-  const mod: { bookmarkletHref(o: string): string } = await import(url);
+  const mod: { bookmarkletHref(o: string, accountId: string): string } = await import(url);
 
-  return decodeURIComponent(mod.bookmarkletHref(origin).replace(/^javascript:/, ""));
+  return decodeURIComponent(mod.bookmarkletHref(origin, "acc-1").replace(/^javascript:/, ""));
 }
 
 /**
@@ -279,6 +279,13 @@ describe(".bookmarkletHref", () => {
     expect(body).toContain("window.open");
     expect(body).toContain("#data=");
     expect(body).toContain("location.href");
+  });
+
+  it("binds the handoff to the account that generated the bookmarklet", () => {
+    const body = bookmarkletBody("https://psn.example.dev");
+
+    expect(body).toContain('const ACCOUNT_ID = "acc-1"');
+    expect(body).toContain("accountId: ACCOUNT_ID");
   });
 
   it("does not stream via postMessage (COOP severs the opener)", () => {

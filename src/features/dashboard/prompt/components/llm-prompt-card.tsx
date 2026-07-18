@@ -392,7 +392,7 @@ function PromptPreview({ prompt, onlineId }: { prompt: string; onlineId: string 
 export function LlmPromptCard({ data }: { data: DashboardData }) {
   const [selectedId, setSelectedId] = useState<string>(PROMPT_VARIANTS[0].id);
   const [menuMode, setMenuMode] = useState(false);
-  const imported = useTransactionImport();
+  const imported = useTransactionImport(data.profile.accountId);
 
   const variants = availableVariants(hasTransactionHistory(imported?.transactions));
   const variant = variants.find((v) => v.id === selectedId) ?? PROMPT_VARIANTS[0];

@@ -62,6 +62,24 @@ describe(".load", () => {
   });
 });
 
+describe(".accountIds", () => {
+  it("returns the ids of every cached account", () => {
+    store.save(accountZ);
+    store.save(accountA);
+
+    expect(store.accountIds().sort()).toEqual(["acc-1", "acc-2"]);
+  });
+
+  it("drops the id of a removed account", () => {
+    store.save(accountZ);
+    store.save(accountA);
+
+    store.remove("acc-1");
+
+    expect(store.accountIds()).toEqual(["acc-2"]);
+  });
+});
+
 describe(".useActiveDashboard", () => {
   it("falls back to demo data when no account is active", async () => {
     await render(<ActiveOnlineId />, { wrapper: Provider });

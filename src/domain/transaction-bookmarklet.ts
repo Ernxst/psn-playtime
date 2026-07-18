@@ -195,12 +195,13 @@ export function mountImportOverlay(): {
   };
 }
 
-/** The IIFE body, parameterised by the app's origin and import URL. */
+/** The IIFE body, bound to the app and PSN account that created it. */
 // oxlint-disable-next-line eslint/max-lines-per-function -- a single self-contained bookmarklet IIFE string; splitting it would only fragment one literal
-function source(appOrigin: string, importUrl: string): string {
+function source(appOrigin: string, importUrl: string, accountId: string): string {
   return `(async () => {
   const APP_ORIGIN = ${JSON.stringify(appOrigin)};
   const IMPORT_URL = ${JSON.stringify(importUrl)};
+  const ACCOUNT_ID = ${JSON.stringify(accountId)};
   const ENDPOINT = ${JSON.stringify(TRANSACTION_HISTORY_ENDPOINT)};
   const HASH = ${JSON.stringify(TRANSACTION_HISTORY_HASH)};
   const LIMIT = 100;
@@ -307,7 +308,7 @@ function source(appOrigin: string, importUrl: string): string {
   // 2. Hand off via the opened tab's own URL fragment (#data=...). Same-origin
   //    COOP severs window.opener, so we never message — the receiver reads its
   //    own hash. Fall back to a same-tab redirect when the popup is blocked.
-  const payload = { v: ${HANDOFF_VERSION}, source: location.host, fetchedAt: new Date().toISOString(), transactions: rows };
+  const payload = { v: ${HANDOFF_VERSION}, accountId: ACCOUNT_ID, source: location.host, fetchedAt: new Date().toISOString(), transactions: rows };
   const encoded = encodeURIComponent(JSON.stringify(payload));
   log('payload: ' + rows.length + ' rows, ' + encoded.length + ' encoded bytes');
   if (encoded.length > MAX_FRAGMENT) warn('payload exceeds ~1.5MB encoded — the fragment handoff may be truncated by the browser');
@@ -326,7 +327,7 @@ function source(appOrigin: string, importUrl: string): string {
  * The full `javascript:` bookmarklet URI for the given app origin.
  * `appOrigin` is e.g. `https://psn.example.dev` (no trailing slash needed).
  */
-export function bookmarkletHref(appOrigin: string): string {
+export function bookmarkletHref(appOrigin: string, accountId: string): string {
   const origin = appOrigin.replace(/\/$/, "");
-  return `javascript:${encodeURIComponent(source(origin, `${origin}/import`))}`;
+  return `javascript:${encodeURIComponent(source(origin, `${origin}/import`, accountId))}`;
 }

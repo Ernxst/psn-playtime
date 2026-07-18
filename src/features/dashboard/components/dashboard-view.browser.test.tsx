@@ -115,12 +115,12 @@ describe("DashboardView", () => {
 
   it("keeps account-wide spend totals when a filter narrows the library", async () => {
     // A real, signed-in account: spend joins to the library and is account-wide.
-    testTransactionStore.save({
+    testTransactionStore.save(demoDashboard.profile.accountId, {
       transactions: [baseFor("DEMO-8", 3000), baseFor("DEMO-6", 2000)],
       importedAt: "2024-01-01T00:00:00.000Z",
       source: "store.playstation.com",
     });
-    onTestFinished(() => testTransactionStore.clear());
+    onTestFinished(() => testTransactionStore.clear(demoDashboard.profile.accountId));
 
     const { element } = createHarness(
       <DashboardView

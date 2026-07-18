@@ -34,13 +34,15 @@ const purchase: TransactionRow = {
   displayAmount: "£33.00",
 };
 
+const accountId = demoDashboard.profile.accountId;
+
 function seedImport() {
-  testTransactionStore.save({
+  testTransactionStore.save(accountId, {
     transactions: [purchase],
     importedAt: "2024-01-01T00:00:00.000Z",
     source: "store.playstation.com",
   });
-  onTestFinished(() => testTransactionStore.clear());
+  onTestFinished(() => testTransactionStore.clear(accountId));
 }
 
 /**
@@ -61,7 +63,7 @@ function renderControl() {
   const indexRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/",
-    component: RemoveTransactions,
+    component: () => <RemoveTransactions accountId={accountId} />,
   });
   const router = createRouter({
     routeTree: rootRoute.addChildren([indexRoute]),
@@ -73,7 +75,7 @@ function renderControl() {
 
 describe("RemoveTransactions", () => {
   it("stays hidden when no transactions are imported", async () => {
-    onTestFinished(() => testTransactionStore.clear());
+    onTestFinished(() => testTransactionStore.clear(accountId));
 
     await renderControl();
 
@@ -100,12 +102,12 @@ describe("RemoveTransactions", () => {
 
     // The first click only arms the confirm; nothing is cleared yet.
     await expect.element(page.getByRole("button", { name: "Confirm remove" })).toBeVisible();
-    expect(testTransactionStore.load()?.transactions).toHaveLength(1);
+    expect(testTransactionStore.load(accountId)?.transactions).toHaveLength(1);
 
     await page.getByRole("button", { name: "Cancel" }).click();
 
     await expect.element(page.getByRole("button", { name: "Remove" })).toBeVisible();
-    expect(testTransactionStore.load()?.transactions).toHaveLength(1);
+    expect(testTransactionStore.load(accountId)?.transactions).toHaveLength(1);
   });
 
   it("clears only the import on confirm, leaving dashboard data intact", async () => {
@@ -121,7 +123,7 @@ describe("RemoveTransactions", () => {
     await page.getByRole("button", { name: "Confirm remove" }).click();
 
     expect(clear).toHaveBeenCalledOnce();
-    expect(testTransactionStore.load()).toBeNull();
+    expect(testTransactionStore.load(accountId)).toBeNull();
     expect(success).toHaveBeenCalledExactlyOnceWith("Removed your imported transaction data.");
     // The account's cached games/snapshot are untouched by clearing the import.
     expect(testDashboardStore.load(demoDashboard.profile.accountId)?.games).toEqual(

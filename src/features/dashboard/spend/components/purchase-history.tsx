@@ -205,7 +205,7 @@ function PurchaseHistoryTable({ transactions }: { transactions: TransactionRow[]
 export function PurchaseHistorySection({ data }: { data: DashboardData }) {
   // Never show a real user's import alongside the demo library — call the hook
   // unconditionally, then hide for demo data or no import.
-  const imported = useTransactionImport();
+  const imported = useTransactionImport(data.profile.accountId);
   if (data.isDemo || !imported || imported.transactions.length === 0) return null;
 
   return <PurchaseHistoryTable transactions={imported.transactions} />;

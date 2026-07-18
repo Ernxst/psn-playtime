@@ -174,11 +174,13 @@ function Step({
 }
 
 /** The draggable bookmarklet link plus a copy fallback. */
-function BookmarkletActions() {
+function BookmarkletActions({ accountId }: { accountId: string }) {
   const [copied, flash] = useCopied();
 
   const copy = () => {
-    void navigator.clipboard.writeText(bookmarkletHref(window.location.origin)).then(flash);
+    void navigator.clipboard
+      .writeText(bookmarkletHref(window.location.origin, accountId))
+      .then(flash);
   };
 
   return (
@@ -193,7 +195,7 @@ function BookmarkletActions() {
           // Set the `javascript:` href imperatively at commit via a callback
           // ref: React strips it from JSX, and refs don't run during SSR, so
           // the server output stays free of the bookmarklet string.
-          if (el) el.href = bookmarkletHref(window.location.origin);
+          if (el) el.href = bookmarkletHref(window.location.origin, accountId);
         }}
         href="/import"
         aria-hidden="true"
@@ -211,7 +213,7 @@ function BookmarkletActions() {
 }
 
 /** The numbered install steps plus the copy/drag actions — the import how-to. */
-function ImportInstructions() {
+function ImportInstructions({ accountId, onlineId }: { accountId: string; onlineId: string }) {
   const canDragBookmarklet = !useMediaQuery("coarse-pointer");
 
   return (
@@ -221,7 +223,10 @@ function ImportInstructions() {
           <Step key={step.linkText ?? i} index={i} {...step} />
         ))}
       </ol>
-      <BookmarkletActions />
+      <p className="text-xs text-muted-foreground">
+        Transactions imported with this bookmarklet belong to {onlineId}.
+      </p>
+      <BookmarkletActions accountId={accountId} />
     </div>
   );
 }
@@ -255,7 +260,7 @@ function WhyImportInfo() {
 }
 
 /** Prompt shown until the user imports their transaction history. */
-function ImportSpendCard() {
+function ImportSpendCard({ data }: { data: DashboardData }) {
   return (
     <Card>
       <CardHeader>
@@ -269,7 +274,7 @@ function ImportSpendCard() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <ImportInstructions />
+        <ImportInstructions accountId={data.profile.accountId} onlineId={data.profile.onlineId} />
       </CardContent>
     </Card>
   );
@@ -279,7 +284,7 @@ function ImportSpendCard() {
  * Collapsed re-import affordance shown alongside the spend summary, so an
  * already-imported user can run the bookmarklet again to update their data.
  */
-function ReimportCard() {
+function ReimportCard({ data }: { data: DashboardData }) {
   return (
     <Card className="lg:col-span-3">
       <CardContent>
@@ -292,7 +297,10 @@ function ReimportCard() {
             />
           </summary>
           <div className="mt-4">
-            <ImportInstructions />
+            <ImportInstructions
+              accountId={data.profile.accountId}
+              onlineId={data.profile.onlineId}
+            />
           </div>
         </details>
       </CardContent>
@@ -421,11 +429,11 @@ function LeaderboardCard({ summary }: { summary: SpendSummary }) {
  * imported, then the spend-vs-playtime cards.
  */
 export function SpendSection({ data }: { data: DashboardData }) {
-  const imported = useTransactionImport();
+  const imported = useTransactionImport(data.profile.accountId);
   // Never join the user's real imported spend to the demo library — call the
   // hook unconditionally, then show the prompt for demo data or no import.
   if (data.isDemo || !imported || imported.transactions.length === 0) {
-    return <ImportSpendCard />;
+    return <ImportSpendCard data={data} />;
   }
 
   const summary = summariseSpend(data, imported.transactions);
@@ -435,7 +443,7 @@ export function SpendSection({ data }: { data: DashboardData }) {
       <ByYearCard summary={summary} />
       <LeaderboardCard summary={summary} />
       <ExportButtons data={data} transactions={imported.transactions} />
-      <ReimportCard />
+      <ReimportCard data={data} />
     </div>
   );
 }
@@ -457,7 +465,7 @@ function TitleSpendRow({ currency, title }: { currency: string; title: TitleSpen
  * lands, mirroring {@link SpendSection}.
  */
 export function SpentMostSection({ data }: { data: DashboardData }) {
-  const imported = useTransactionImport();
+  const imported = useTransactionImport(data.profile.accountId);
   if (data.isDemo || !imported || imported.transactions.length === 0) return null;
 
   const summary = summariseSpend(data, imported.transactions);
@@ -498,7 +506,7 @@ function AddOnRow({ summary }: { summary: AddOnSummary }) {
  * mirroring {@link SpendSection}.
  */
 export function AddOnsSection({ data }: { data: DashboardData }) {
-  const imported = useTransactionImport();
+  const imported = useTransactionImport(data.profile.accountId);
   if (data.isDemo || !imported || imported.transactions.length === 0) return null;
 
   const ranked = summariseAddOns(data, imported.transactions)

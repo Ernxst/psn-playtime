@@ -40,12 +40,12 @@ function mockPointer(coarse: boolean) {
 }
 
 function seed(transactions: TransactionRow[]) {
-  testTransactionStore.save({
+  testTransactionStore.save(demoDashboard.profile.accountId, {
     transactions,
     importedAt: "2024-01-01T00:00:00.000Z",
     source: "store.playstation.com",
   });
-  onTestFinished(() => testTransactionStore.clear());
+  onTestFinished(() => testTransactionStore.clear(demoDashboard.profile.accountId));
 }
 
 /** An add-on purchase matched to "FIFA 18" (titleId DEMO-1) in the demo library. */
@@ -108,7 +108,7 @@ function baseFor(titleId: string, amountMinor: number): TransactionRow {
 
 describe("SpendSection", () => {
   it("prompts for an import when no transactions are present", async () => {
-    onTestFinished(() => testTransactionStore.clear());
+    onTestFinished(() => testTransactionStore.clear(demoDashboard.profile.accountId));
 
     await renderWithAtoms(<SpendSection data={demoDashboard} />);
 
@@ -121,7 +121,7 @@ describe("SpendSection", () => {
   });
 
   it("walks coarse pointer users through bookmarking and editing the URL", async () => {
-    onTestFinished(() => testTransactionStore.clear());
+    onTestFinished(() => testTransactionStore.clear(demoDashboard.profile.accountId));
     mockPointer(true);
 
     await renderWithAtoms(<SpendSection data={demoDashboard} />);
@@ -136,7 +136,7 @@ describe("SpendSection", () => {
   });
 
   it("splits the mobile run step into labelled Safari and Chrome sub-steps", async () => {
-    onTestFinished(() => testTransactionStore.clear());
+    onTestFinished(() => testTransactionStore.clear(demoDashboard.profile.accountId));
     mockPointer(true);
 
     await renderWithAtoms(<SpendSection data={demoDashboard} />);
@@ -162,7 +162,7 @@ describe("SpendSection", () => {
   });
 
   it("explains why an import step is needed when the info control is activated", async () => {
-    onTestFinished(() => testTransactionStore.clear());
+    onTestFinished(() => testTransactionStore.clear(demoDashboard.profile.accountId));
 
     await renderWithAtoms(<SpendSection data={demoDashboard} />);
 
@@ -185,7 +185,7 @@ describe("SpendSection", () => {
   });
 
   it("tells fine pointer users they can drag the bookmarklet", async () => {
-    onTestFinished(() => testTransactionStore.clear());
+    onTestFinished(() => testTransactionStore.clear(demoDashboard.profile.accountId));
     mockPointer(false);
 
     await renderWithAtoms(<SpendSection data={demoDashboard} />);
@@ -200,19 +200,21 @@ describe("SpendSection", () => {
   });
 
   it("copies the bookmarklet and flashes confirmation when Copy is clicked", async () => {
-    onTestFinished(() => testTransactionStore.clear());
+    onTestFinished(() => testTransactionStore.clear(demoDashboard.profile.accountId));
     const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
 
     await renderWithAtoms(<SpendSection data={demoDashboard} />);
 
     await page.getByRole("button", { name: "Copy bookmarklet" }).click();
 
-    expect(writeText).toHaveBeenCalledExactlyOnceWith(bookmarkletHref(window.location.origin));
+    expect(writeText).toHaveBeenCalledExactlyOnceWith(
+      bookmarkletHref(window.location.origin, demoDashboard.profile.accountId)
+    );
     await expect.element(page.getByRole("button", { name: "Copied" })).toBeVisible();
   });
 
   it("keeps the drag affordance out of the tab order and accessibility tree", async () => {
-    onTestFinished(() => testTransactionStore.clear());
+    onTestFinished(() => testTransactionStore.clear(demoDashboard.profile.accountId));
 
     await renderWithAtoms(<SpendSection data={demoDashboard} />);
 
@@ -229,7 +231,7 @@ describe("SpendSection", () => {
   });
 
   it("links to PlayStation order history in the import instructions", async () => {
-    onTestFinished(() => testTransactionStore.clear());
+    onTestFinished(() => testTransactionStore.clear(demoDashboard.profile.accountId));
 
     await renderWithAtoms(<SpendSection data={demoDashboard} />);
 
@@ -292,7 +294,7 @@ describe("SpendSection", () => {
   });
 
   it("prompts a non-demo account to import when no transactions are present", async () => {
-    onTestFinished(() => testTransactionStore.clear());
+    onTestFinished(() => testTransactionStore.clear(demoDashboard.profile.accountId));
 
     await renderWithAtoms(<SpendSection data={realDashboard} />);
 
@@ -378,7 +380,7 @@ describe("AddOnsSection", () => {
   });
 
   it("hides the add-ons section when no transactions are imported", async () => {
-    onTestFinished(() => testTransactionStore.clear());
+    onTestFinished(() => testTransactionStore.clear(demoDashboard.profile.accountId));
 
     await renderWithAtoms(<AddOnsSection data={realDashboard} />);
 
@@ -425,7 +427,7 @@ describe("SpentMostSection", () => {
   });
 
   it("hides the spent-most section when no transactions are imported", async () => {
-    onTestFinished(() => testTransactionStore.clear());
+    onTestFinished(() => testTransactionStore.clear(demoDashboard.profile.accountId));
 
     await renderWithAtoms(<SpentMostSection data={realDashboard} />);
 

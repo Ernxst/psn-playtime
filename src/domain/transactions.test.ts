@@ -285,6 +285,7 @@ describe(".nonPurchaseRow", () => {
 
 const payload: HandoffPayload = {
   v: HANDOFF_VERSION,
+  accountId: "acc-1",
   source: "www.playstation.com",
   fetchedAt: "2024-01-01T00:00:00.000Z",
   transactions: flattenApiTransactions([preOrderPurchase]),

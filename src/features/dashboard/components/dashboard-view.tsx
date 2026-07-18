@@ -199,7 +199,7 @@ function SpendSections({ data }: { data: DashboardData }) {
         <AddOnsSection data={data} />
       </Section>
       <Section id="remove-transactions">
-        <RemoveTransactions />
+        <RemoveTransactions accountId={data.profile.accountId} />
       </Section>
     </>
   );

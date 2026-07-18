@@ -91,14 +91,15 @@ function mergeTransactions(
  */
 export function importTransactionsCsv(
   store: TransactionStore,
+  accountId: string,
   text: string
 ): Effect.Effect<CsvImportSummary, Schema.SchemaError> {
   return Effect.gen(function* () {
     const { rows } = parseCsv(text);
     const decoded = yield* Effect.forEach(rows, (row) => decodeRow(row));
     const incoming = decoded.map(toTransactionRow);
-    const merged = mergeTransactions(store.load(), incoming);
-    store.save({
+    const merged = mergeTransactions(store.load(accountId), incoming);
+    store.save(accountId, {
       transactions: merged.transactions,
       importedAt: new Date().toISOString(),
       source: merged.source,

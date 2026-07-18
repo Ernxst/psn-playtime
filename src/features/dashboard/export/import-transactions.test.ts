@@ -11,15 +11,17 @@ import { importTransactionsCsv } from "./import-transactions";
  * only persists in a browser (`typeof window`), so these node tests drive the
  * import against a plain implementation of the same public interface.
  */
-function memoryStore(initial: TransactionImport | null = null): TransactionStore {
-  let value = initial;
+function memoryStore(initial: Record<string, TransactionImport> = {}): TransactionStore {
+  let imports = initial;
   return {
-    load: () => value,
-    save: (next) => {
-      value = next;
+    migrateLegacy: () => undefined,
+    load: (accountId) => imports[accountId] ?? null,
+    save: (accountId, next) => {
+      imports = { ...imports, [accountId]: next };
     },
-    clear: () => {
-      value = null;
+    clear: (accountId) => {
+      const { [accountId]: _removed, ...rest } = imports;
+      imports = rest;
     },
   };
 }
@@ -65,14 +67,16 @@ const transactions: TransactionRow[] = [
 ];
 
 describe(".importTransactionsCsv", () => {
+  const accountId = "acc-1";
+
   it("reconstructs the exported transactions losslessly (round-trip)", async () => {
     const store = memoryStore();
     const csv = buildTransactionsCsv(transactions);
 
-    const summary = await Effect.runPromise(importTransactionsCsv(store, csv));
+    const summary = await Effect.runPromise(importTransactionsCsv(store, accountId, csv));
 
     expect(summary).toStrictEqual({ parsed: 2, added: 2, total: 2 });
-    expect(store.load()?.transactions).toStrictEqual(transactions);
+    expect(store.load(accountId)?.transactions).toStrictEqual(transactions);
   });
 
   it("tolerates reordered and extra columns, matching cells by header name", async () => {
@@ -82,10 +86,10 @@ describe(".importTransactionsCsv", () => {
       "ignored,line-9,2500,700000000000009,2025-08-29,WALLET_FUNDING,top-up,WALLET_FUNDING,1,£,£25.00,,,,",
     ].join("\r\n");
 
-    const summary = await Effect.runPromise(importTransactionsCsv(store, csv));
+    const summary = await Effect.runPromise(importTransactionsCsv(store, accountId, csv));
 
     expect(summary.added).toBe(1);
-    expect(store.load()?.transactions[0]).toMatchObject({
+    expect(store.load(accountId)?.transactions[0]).toMatchObject({
       key: "line-9",
       amountMinor: 2500,
       transactionId: "700000000000009",
@@ -94,31 +98,35 @@ describe(".importTransactionsCsv", () => {
 
   it("merges into the existing import and de-dupes by row key (idempotent re-import)", async () => {
     const store = memoryStore({
-      transactions,
-      importedAt: "2025-09-01T00:00:00.000Z",
-      source: "store.playstation.com",
+      [accountId]: {
+        transactions,
+        importedAt: "2025-09-01T00:00:00.000Z",
+        source: "store.playstation.com",
+      },
     });
     const csv = buildTransactionsCsv(transactions);
 
-    const summary = await Effect.runPromise(importTransactionsCsv(store, csv));
+    const summary = await Effect.runPromise(importTransactionsCsv(store, accountId, csv));
 
     expect(summary).toStrictEqual({ parsed: 2, added: 0, total: 2 });
-    expect(store.load()?.transactions).toStrictEqual(transactions);
-    expect(store.load()?.source).toBe("store.playstation.com");
+    expect(store.load(accountId)?.transactions).toStrictEqual(transactions);
+    expect(store.load(accountId)?.source).toBe("store.playstation.com");
   });
 
   it("appends only the genuinely new rows when merging a superset", async () => {
     const store = memoryStore({
-      transactions: [transactions[0]!],
-      importedAt: "2025-09-01T00:00:00.000Z",
-      source: "store.playstation.com",
+      [accountId]: {
+        transactions: [transactions[0]!],
+        importedAt: "2025-09-01T00:00:00.000Z",
+        source: "store.playstation.com",
+      },
     });
     const csv = buildTransactionsCsv(transactions);
 
-    const summary = await Effect.runPromise(importTransactionsCsv(store, csv));
+    const summary = await Effect.runPromise(importTransactionsCsv(store, accountId, csv));
 
     expect(summary).toStrictEqual({ parsed: 2, added: 1, total: 2 });
-    expect(store.load()?.transactions).toStrictEqual(transactions);
+    expect(store.load(accountId)?.transactions).toStrictEqual(transactions);
   });
 
   it("fails with a schema error and leaves the store untouched for a malformed CSV", async () => {
@@ -128,9 +136,27 @@ describe(".importTransactionsCsv", () => {
       "T1,line-1,2025-08-29,PRODUCT_PURCHASE,purchase,Hades,,,1,not-a-number,£,£15.99,,",
     ].join("\r\n");
 
-    const exit = await Effect.runPromiseExit(importTransactionsCsv(store, csv));
+    const exit = await Effect.runPromiseExit(importTransactionsCsv(store, accountId, csv));
 
     expect(exit).toSatisfy(Exit.isFailure);
-    expect(store.load()).toBeNull();
+    expect(store.load(accountId)).toBeNull();
+  });
+
+  it("does not merge an ownerless CSV into another account", async () => {
+    const other = "acc-2";
+    const store = memoryStore({
+      [other]: {
+        transactions: [transactions[0]!],
+        importedAt: "2025-09-01T00:00:00.000Z",
+        source: "store.playstation.com",
+      },
+    });
+
+    await Effect.runPromise(
+      importTransactionsCsv(store, accountId, buildTransactionsCsv(transactions))
+    );
+
+    expect(store.load(accountId)?.transactions).toStrictEqual(transactions);
+    expect(store.load(other)?.transactions).toStrictEqual([transactions[0]!]);
   });
 });

@@ -28,15 +28,15 @@ function ConfirmActions({ onConfirm, onCancel }: { onConfirm: () => void; onCanc
   );
 }
 
-export function RemoveTransactions() {
-  const imported = useTransactionImport();
+export function RemoveTransactions({ accountId }: { accountId: string }) {
+  const imported = useTransactionImport(accountId);
   const { transactionStore } = useRouteContext({ from: "__root__" });
   const [confirming, setConfirming] = useState(false);
 
   if (!imported || imported.transactions.length === 0) return null;
 
   function remove() {
-    transactionStore.clear();
+    transactionStore.clear(accountId);
     setConfirming(false);
     toast.success("Removed your imported transaction data.");
   }

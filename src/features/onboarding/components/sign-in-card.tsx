@@ -190,13 +190,14 @@ function Step({
 
 function useSignIn() {
   const navigate = useNavigate();
-  const { dashboardStore } = useRouteContext({ from: "__root__" });
+  const { dashboardStore, transactionStore } = useRouteContext({ from: "__root__" });
   return useMutation({
     mutationFn: (token: string) => signInWithToken({ data: { npsso: token } }),
     onSuccess: (data) => {
       // Cache the fetched data client-side and make it the active account; the
       // token is discarded here — revisits render from the cache without it.
       dashboardStore.save(data);
+      transactionStore.migrateLegacy();
       dashboardStore.setActive(data.profile.accountId);
       void navigate({ to: "/dashboard" });
     },
@@ -332,8 +333,8 @@ function ConfirmRemove({ onConfirm, onCancel }: { onConfirm: () => void; onCance
  * Two-step "remove account" control. The first click swaps to {@link ConfirmRemove}
  * rather than firing immediately. Confirming goes through the router-context
  * services — `dashboardStore.remove` drops the cached dashboard (and its active
- * pointer), `transactionStore.clear` wipes the imported transactions — never the
- * raw registry.
+ * pointer), `transactionStore.clear` wipes that account's imported transactions
+ * — never the raw registry.
  */
 function RemoveAccountButton({ account }: { account: CachedAccount }) {
   const [confirming, setConfirming] = useState(false);
@@ -356,7 +357,8 @@ function RemoveAccountButton({ account }: { account: CachedAccount }) {
     <ConfirmRemove
       onConfirm={() => {
         dashboardStore.remove(account.accountId);
-        transactionStore.clear();
+        transactionStore.clear(account.accountId);
+        transactionStore.migrateLegacy();
         setConfirming(false);
       }}
       onCancel={() => setConfirming(false)}
@@ -398,7 +400,7 @@ function restoreMessage({ added, total }: { added: number; total: number }): str
  * off the router-context {@link TransactionStore}, and toasts the row count or a
  * clear error — no effect, the whole flow hangs off the change event.
  */
-function RestoreTransactions() {
+function RestoreTransactionsButton({ account }: { account: CachedAccount }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const { transactionStore } = useRouteContext({ from: "__root__" });
 
@@ -410,7 +412,9 @@ function RestoreTransactions() {
     if (!file) return;
 
     const text = await file.text();
-    const exit = await Effect.runPromiseExit(importTransactionsCsv(transactionStore, text));
+    const exit = await Effect.runPromiseExit(
+      importTransactionsCsv(transactionStore, account.accountId, text)
+    );
     if (Exit.isSuccess(exit)) {
       toast.success(restoreMessage(exit.value));
     } else {
@@ -421,18 +425,34 @@ function RestoreTransactions() {
   }
 
   return (
-    <div className="flex flex-col items-center gap-1 pt-1">
+    <div>
       <input
         ref={inputRef}
         type="file"
         accept=".csv,text/csv"
-        aria-label="Restore transactions from CSV"
+        aria-label={`Restore ${account.onlineId} transactions from CSV`}
         className="sr-only"
         onChange={onChange}
       />
       <Button variant="ghost" size="sm" onClick={() => inputRef.current?.click()}>
-        <Upload className="size-4" /> Restore transactions from CSV
+        <Upload className="size-4" /> Restore for {account.onlineId}
       </Button>
+    </div>
+  );
+}
+
+/** Assign an owner explicitly when restoring an account-less transaction CSV. */
+function RestoreTransactions() {
+  const accounts = useCachedAccounts();
+  if (accounts.length === 0) return null;
+  return (
+    <div className="flex flex-col items-center gap-1 pt-1">
+      <p className="text-xs text-muted-foreground">Restore transactions from CSV:</p>
+      <div className="flex flex-wrap justify-center gap-1">
+        {accounts.map((account) => (
+          <RestoreTransactionsButton key={account.accountId} account={account} />
+        ))}
+      </div>
     </div>
   );
 }

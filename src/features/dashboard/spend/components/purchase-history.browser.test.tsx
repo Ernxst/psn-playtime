@@ -31,12 +31,12 @@ function row(overrides: Partial<TransactionRow> & Pick<TransactionRow, "key">): 
 }
 
 function seed(transactions: TransactionRow[]) {
-  testTransactionStore.save({
+  testTransactionStore.save(demoDashboard.profile.accountId, {
     transactions,
     importedAt: "2024-01-01T00:00:00.000Z",
     source: "store.playstation.com",
   });
-  onTestFinished(() => testTransactionStore.clear());
+  onTestFinished(() => testTransactionStore.clear(demoDashboard.profile.accountId));
 }
 
 describe("PurchaseHistorySection", () => {

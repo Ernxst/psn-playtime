@@ -125,6 +125,8 @@ const cachedAccountsAtom = Atom.map(dashboardsAtom, (dashboards): CachedAccount[
  * private implementation detail rather than a prop-drilled state container.
  */
 export interface DashboardStore {
+  /** Stable ids for every account with a cached dashboard. */
+  accountIds(): string[];
   /** Read one account's cached dashboard, or `null` when absent/SSR. */
   load(accountId: string): DashboardData | null;
   /** Persist an account's dashboard; notifies hook subscribers. */
@@ -151,6 +153,10 @@ export interface DashboardStore {
  */
 export function makeDashboardStore(registry: AtomRegistry.AtomRegistry): DashboardStore {
   return {
+    accountIds: () => {
+      if (typeof window === "undefined") return [];
+      return Object.keys(registry.get(dashboardsAtom));
+    },
     load: (accountId) => {
       if (typeof window === "undefined") return null;
       return registry.get(dashboardsAtom)[accountId] ?? null;
