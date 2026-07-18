@@ -274,6 +274,7 @@ describe("SignInCard", () => {
     testTransactionStore.clear(cachedAccount.profile.accountId);
     testDashboardStore.save(cachedAccount);
     testTransactionStore.save(cachedAccount.profile.accountId, importedTransactions);
+    localStorage.setItem(TRANSACTIONS_KEY, legacyRaw);
     const { element } = createHarness(<SignInCard />);
 
     await render(element);
@@ -286,6 +287,7 @@ describe("SignInCard", () => {
       .not.toBeInTheDocument();
     await expect.poll(() => testDashboardStore.load("acc-1")).toBeNull();
     await expect.poll(() => testTransactionStore.load(cachedAccount.profile.accountId)).toBeNull();
+    expect(localStorage.getItem(TRANSACTIONS_KEY)).toBe(legacyRaw);
   });
 
   it("does not assign or erase ownerless legacy transactions when removal leaves one account", async () => {
@@ -392,6 +394,7 @@ describe("SignInCard", () => {
     testTransactionStore.clear(secondAccount.profile.accountId);
     testDashboardStore.save(cachedAccount);
     testDashboardStore.save(secondAccount);
+    localStorage.setItem(TRANSACTIONS_KEY, legacyRaw);
     const csv = buildTransactionsCsv(importedTransactions.transactions);
     const file = new File([csv], "transactions.csv", { type: "text/csv" });
     const { element } = createHarness(
@@ -410,6 +413,7 @@ describe("SignInCard", () => {
       1
     );
     expect(testTransactionStore.load(secondAccount.profile.accountId)).toBeNull();
+    expect(localStorage.getItem(TRANSACTIONS_KEY)).toBe(legacyRaw);
   });
 
   it("re-importing the same CSV is idempotent and reports nothing new", async () => {

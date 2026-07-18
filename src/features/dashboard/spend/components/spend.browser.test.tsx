@@ -208,7 +208,11 @@ describe("SpendSection", () => {
     await page.getByRole("button", { name: "Copy bookmarklet" }).click();
 
     expect(writeText).toHaveBeenCalledExactlyOnceWith(
-      bookmarkletHref(window.location.origin, demoDashboard.profile.accountId)
+      bookmarkletHref(
+        window.location.origin,
+        demoDashboard.profile.accountId,
+        demoDashboard.profile.onlineId
+      )
     );
     await expect.element(page.getByRole("button", { name: "Copied" })).toBeVisible();
   });

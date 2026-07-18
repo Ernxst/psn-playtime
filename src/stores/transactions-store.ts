@@ -12,7 +12,7 @@ import type * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
 import { type TransactionImport, transactionImportSchema } from "@/domain/transactions";
 import { kvsRuntime } from "@/runtime/kvs.effect";
 
-const TRANSACTIONS_STORAGE_KEY = "psn-playtime:transactions";
+const TRANSACTIONS_STORAGE_KEY = "psn-playtime:transactions:accounts";
 
 /** Every persisted transaction import, keyed by its owning PSN account id. */
 const transactionImportsAtom = Atom.kvs({

@@ -174,12 +174,12 @@ function Step({
 }
 
 /** The draggable bookmarklet link plus a copy fallback. */
-function BookmarkletActions({ accountId }: { accountId: string }) {
+function BookmarkletActions({ accountId, onlineId }: { accountId: string; onlineId: string }) {
   const [copied, flash] = useCopied();
 
   const copy = () => {
     void navigator.clipboard
-      .writeText(bookmarkletHref(window.location.origin, accountId))
+      .writeText(bookmarkletHref(window.location.origin, accountId, onlineId))
       .then(flash);
   };
 
@@ -195,7 +195,7 @@ function BookmarkletActions({ accountId }: { accountId: string }) {
           // Set the `javascript:` href imperatively at commit via a callback
           // ref: React strips it from JSX, and refs don't run during SSR, so
           // the server output stays free of the bookmarklet string.
-          if (el) el.href = bookmarkletHref(window.location.origin, accountId);
+          if (el) el.href = bookmarkletHref(window.location.origin, accountId, onlineId);
         }}
         href="/import"
         aria-hidden="true"
@@ -226,7 +226,7 @@ function ImportInstructions({ accountId, onlineId }: { accountId: string; online
       <p className="text-xs text-muted-foreground">
         Transactions imported with this bookmarklet belong to {onlineId}.
       </p>
-      <BookmarkletActions accountId={accountId} />
+      <BookmarkletActions accountId={accountId} onlineId={onlineId} />
     </div>
   );
 }

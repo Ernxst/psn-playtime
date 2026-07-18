@@ -4,7 +4,8 @@ import type { TransactionImport } from "@/domain/transactions";
 import { createWindowStub } from "@/test/web-storage";
 import { makeTransactionStore } from "./transactions-store";
 
-const STORAGE_KEY = "psn-playtime:transactions";
+const LEGACY_STORAGE_KEY = "psn-playtime:transactions";
+const ACCOUNTS_STORAGE_KEY = "psn-playtime:transactions:accounts";
 
 const validImport: TransactionImport = {
   transactions: [
@@ -47,7 +48,7 @@ describe(".load", () => {
 
   it("returns null for malformed persisted data", () => {
     const win = stubWindow();
-    win.localStorage.setItem(STORAGE_KEY, "{ not valid json");
+    win.localStorage.setItem(ACCOUNTS_STORAGE_KEY, "{ not valid json");
 
     expect(makeStore().load("acc-1")).toBeNull();
   });
@@ -57,24 +58,24 @@ describe("ownerless legacy data", () => {
   it("is not attributed to any account on initial load", () => {
     const win = stubWindow();
     const raw = JSON.stringify(validImport);
-    win.localStorage.setItem(STORAGE_KEY, raw);
+    win.localStorage.setItem(LEGACY_STORAGE_KEY, raw);
 
     const store = makeStore();
 
     expect(store.load("acc-1")).toBeNull();
     expect(store.load("acc-2")).toBeNull();
-    expect(win.localStorage.getItem(STORAGE_KEY)).toBe(raw);
+    expect(win.localStorage.getItem(LEGACY_STORAGE_KEY)).toBe(raw);
   });
 
   it("is not erased when an account with no keyed data is cleared", () => {
     const win = stubWindow();
     const raw = JSON.stringify(validImport);
-    win.localStorage.setItem(STORAGE_KEY, raw);
+    win.localStorage.setItem(LEGACY_STORAGE_KEY, raw);
     const store = makeStore();
 
     store.clear("acc-1");
 
-    expect(win.localStorage.getItem(STORAGE_KEY)).toBe(raw);
+    expect(win.localStorage.getItem(LEGACY_STORAGE_KEY)).toBe(raw);
   });
 });
 
@@ -104,9 +105,10 @@ describe("account isolation", () => {
     expect(store.load("acc-2")).toEqual(second);
   });
 
-  it("allows an explicit import to supersede unresolved legacy data", () => {
+  it("preserves unresolved legacy bytes across keyed save and clear", () => {
     const win = stubWindow();
-    win.localStorage.setItem(STORAGE_KEY, JSON.stringify(validImport));
+    const raw = `  ${JSON.stringify(validImport)}\n`;
+    win.localStorage.setItem(LEGACY_STORAGE_KEY, raw);
     const store = makeStore();
     const explicit = { ...validImport, source: "explicit.account" };
 
@@ -114,6 +116,12 @@ describe("account isolation", () => {
 
     expect(store.load("acc-1")).toBeNull();
     expect(store.load("acc-2")).toEqual(explicit);
+    expect(win.localStorage.getItem(LEGACY_STORAGE_KEY)).toBe(raw);
+
+    store.clear("acc-2");
+
+    expect(store.load("acc-2")).toBeNull();
+    expect(win.localStorage.getItem(LEGACY_STORAGE_KEY)).toBe(raw);
   });
 });
 
