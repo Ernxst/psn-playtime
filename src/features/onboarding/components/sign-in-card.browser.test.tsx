@@ -16,11 +16,17 @@ vi.mock("@/server/api/account.effect", () => ({
 }));
 
 const ACTIVE_KEY = "psn-playtime:dashboard-active";
+const TRANSACTIONS_KEY = "psn-playtime:transactions";
 
 const cachedAccount = dashboardData({
   isDemo: false,
   profile: { accountId: "acc-1", onlineId: "Ernxst_" },
 });
+
+const secondAccount = {
+  ...cachedAccount,
+  profile: { ...cachedAccount.profile, accountId: "acc-2", onlineId: "Zoe" },
+};
 
 const importedTransactions: TransactionImport = {
   transactions: [
@@ -40,6 +46,8 @@ const importedTransactions: TransactionImport = {
   importedAt: "2024-01-02T00:00:00.000Z",
   source: "store.playstation.com",
 };
+
+const legacyRaw = JSON.stringify(importedTransactions);
 
 /** Decode the active-account pointer the dashboard kvs atom persists (JSON-encoded). */
 function readActiveId(): string | null {
@@ -196,6 +204,23 @@ describe("SignInCard", () => {
     await expect.poll(readActiveId).toBe("acc-1");
   });
 
+  it("does not assign ownerless legacy transactions to a newly signed-in account", async () => {
+    onTestFinished(() => localStorage.clear());
+    testTransactionStore.clear(cachedAccount.profile.accountId);
+    vi.mocked(signInWithToken).mockResolvedValue(cachedAccount);
+    const { element } = createHarness(<SignInCard />);
+    await render(element);
+    localStorage.setItem(TRANSACTIONS_KEY, legacyRaw);
+
+    await page.getByLabelText("npsso token").fill("a-valid-looking-token");
+    await page.getByText(/sign in to my PlayStation account/i).click();
+    await page.getByRole("button", { name: "Sign in" }).click();
+
+    await expect.poll(() => testDashboardStore.load("acc-1")).toEqual(cachedAccount);
+    expect(testTransactionStore.load("acc-1")).toBeNull();
+    expect(localStorage.getItem(TRANSACTIONS_KEY)).toBe(legacyRaw);
+  });
+
   it("lists a cached account so a revisit needs no token", async () => {
     onTestFinished(() => localStorage.clear());
     testDashboardStore.save(
@@ -216,6 +241,7 @@ describe("SignInCard", () => {
 
   it("offers a remove control for a cached account", async () => {
     onTestFinished(() => localStorage.clear());
+    testTransactionStore.clear(cachedAccount.profile.accountId);
     testDashboardStore.save(cachedAccount);
     const { element } = createHarness(<SignInCard />);
 
@@ -226,6 +252,7 @@ describe("SignInCard", () => {
 
   it("gates account removal behind an explicit confirm step and cancels without touching storage", async () => {
     onTestFinished(() => localStorage.clear());
+    testTransactionStore.clear(cachedAccount.profile.accountId);
     testDashboardStore.save(cachedAccount);
     const { element } = createHarness(<SignInCard />);
 
@@ -244,8 +271,10 @@ describe("SignInCard", () => {
 
   it("confirming removal wipes the account's cached games and its imported transactions", async () => {
     onTestFinished(() => localStorage.clear());
+    testTransactionStore.clear(cachedAccount.profile.accountId);
     testDashboardStore.save(cachedAccount);
-    testTransactionStore.save(importedTransactions);
+    testTransactionStore.save(cachedAccount.profile.accountId, importedTransactions);
+    localStorage.setItem(TRANSACTIONS_KEY, legacyRaw);
     const { element } = createHarness(<SignInCard />);
 
     await render(element);
@@ -257,7 +286,26 @@ describe("SignInCard", () => {
       .element(page.getByRole("button", { name: /Continue as Ernxst_/ }))
       .not.toBeInTheDocument();
     await expect.poll(() => testDashboardStore.load("acc-1")).toBeNull();
-    await expect.poll(() => testTransactionStore.load()).toBeNull();
+    await expect.poll(() => testTransactionStore.load(cachedAccount.profile.accountId)).toBeNull();
+    expect(localStorage.getItem(TRANSACTIONS_KEY)).toBe(legacyRaw);
+  });
+
+  it("does not assign or erase ownerless legacy transactions when removal leaves one account", async () => {
+    onTestFinished(() => localStorage.clear());
+    testTransactionStore.clear(cachedAccount.profile.accountId);
+    testTransactionStore.clear(secondAccount.profile.accountId);
+    testDashboardStore.save(cachedAccount);
+    testDashboardStore.save(secondAccount);
+    const { element } = createHarness(<SignInCard />);
+    await render(element);
+    localStorage.setItem(TRANSACTIONS_KEY, legacyRaw);
+
+    await page.getByRole("button", { name: "Remove Ernxst_" }).click();
+    await page.getByRole("button", { name: "Remove", exact: true }).click();
+
+    expect(testDashboardStore.load(secondAccount.profile.accountId)).toEqual(secondAccount);
+    expect(testTransactionStore.load(secondAccount.profile.accountId)).toBeNull();
+    expect(localStorage.getItem(TRANSACTIONS_KEY)).toBe(legacyRaw);
   });
 
   it("a failed sign-in surfaces the error message as a toast", async () => {
@@ -328,17 +376,25 @@ describe("SignInCard", () => {
   });
 
   it("offers a restore-transactions-from-CSV affordance", async () => {
+    onTestFinished(() => localStorage.clear());
+    testTransactionStore.clear(cachedAccount.profile.accountId);
+    testDashboardStore.save(cachedAccount);
     const { element } = createHarness(<SignInCard />);
 
     await render(element);
 
     await expect
-      .element(page.getByLabelText("Restore transactions from CSV"))
+      .element(page.getByLabelText("Restore Ernxst_ transactions from CSV"))
       .toHaveAttribute("type", "file");
   });
 
   it("restores transactions from a chosen CSV and toasts the imported count", async () => {
     onTestFinished(() => localStorage.clear());
+    testTransactionStore.clear(cachedAccount.profile.accountId);
+    testTransactionStore.clear(secondAccount.profile.accountId);
+    testDashboardStore.save(cachedAccount);
+    testDashboardStore.save(secondAccount);
+    localStorage.setItem(TRANSACTIONS_KEY, legacyRaw);
     const csv = buildTransactionsCsv(importedTransactions.transactions);
     const file = new File([csv], "transactions.csv", { type: "text/csv" });
     const { element } = createHarness(
@@ -350,14 +406,21 @@ describe("SignInCard", () => {
 
     await render(element);
 
-    await userEvent.upload(page.getByLabelText("Restore transactions from CSV"), file);
+    await userEvent.upload(page.getByLabelText("Restore Ernxst_ transactions from CSV"), file);
 
     await expect.element(page.getByText("Restored 1 transaction (1 in total).")).toBeVisible();
+    expect(testTransactionStore.load(cachedAccount.profile.accountId)?.transactions).toHaveLength(
+      1
+    );
+    expect(testTransactionStore.load(secondAccount.profile.accountId)).toBeNull();
+    expect(localStorage.getItem(TRANSACTIONS_KEY)).toBe(legacyRaw);
   });
 
   it("re-importing the same CSV is idempotent and reports nothing new", async () => {
     onTestFinished(() => localStorage.clear());
-    testTransactionStore.save(importedTransactions);
+    testTransactionStore.clear(cachedAccount.profile.accountId);
+    testDashboardStore.save(cachedAccount);
+    testTransactionStore.save(cachedAccount.profile.accountId, importedTransactions);
     const csv = buildTransactionsCsv(importedTransactions.transactions);
     const file = new File([csv], "transactions.csv", { type: "text/csv" });
     const { element } = createHarness(
@@ -369,14 +432,18 @@ describe("SignInCard", () => {
 
     await render(element);
 
-    await userEvent.upload(page.getByLabelText("Restore transactions from CSV"), file);
+    await userEvent.upload(page.getByLabelText("Restore Ernxst_ transactions from CSV"), file);
 
     await expect.element(page.getByText("Those transactions are already imported.")).toBeVisible();
-    await expect.poll(() => testTransactionStore.load()?.transactions).toHaveLength(1);
+    await expect
+      .poll(() => testTransactionStore.load(cachedAccount.profile.accountId)?.transactions)
+      .toHaveLength(1);
   });
 
   it("surfaces a clear error toast when the chosen file is not a valid transactions CSV", async () => {
     onTestFinished(() => localStorage.clear());
+    testTransactionStore.clear(cachedAccount.profile.accountId);
+    testDashboardStore.save(cachedAccount);
     const file = new File(["not,a,transactions\r\ncsv,at,all"], "junk.csv", { type: "text/csv" });
     const { element } = createHarness(
       <>
@@ -387,7 +454,7 @@ describe("SignInCard", () => {
 
     await render(element);
 
-    await userEvent.upload(page.getByLabelText("Restore transactions from CSV"), file);
+    await userEvent.upload(page.getByLabelText("Restore Ernxst_ transactions from CSV"), file);
 
     await expect
       .element(
@@ -396,7 +463,7 @@ describe("SignInCard", () => {
         )
       )
       .toBeVisible();
-    expect(testTransactionStore.load()).toBeNull();
+    expect(testTransactionStore.load(cachedAccount.profile.accountId)).toBeNull();
   });
 
   it("shows a signing-in spinner and locks the token input while the request is in flight", async () => {

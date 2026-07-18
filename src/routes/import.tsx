@@ -5,6 +5,7 @@ import {
   ImportReceiver,
   receiveHandoff,
 } from "@/features/import/components/import-receiver";
+import type { DashboardStore } from "@/stores/dashboard-store";
 import type { TransactionStore } from "@/stores/transactions-store";
 
 /**
@@ -15,9 +16,14 @@ import type { TransactionStore } from "@/stores/transactions-store";
  * registry the React hooks read). Returns the empty/invalid view state when the
  * page was opened without a usable handoff.
  */
-export function loadHandoff({ context }: { context: { transactionStore: TransactionStore } }) {
-  const result = receiveHandoff(context.transactionStore);
+export function loadHandoff({
+  context,
+}: {
+  context: { dashboardStore: DashboardStore; transactionStore: TransactionStore };
+}) {
+  const result = receiveHandoff(context.transactionStore, context.dashboardStore);
   if (result.status === "imported") {
+    context.dashboardStore.setActive(result.accountId);
     toast.success(`Imported ${result.count} transactions from your PlayStation history.`);
     throw redirect({ to: "/dashboard" });
   }

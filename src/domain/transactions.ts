@@ -64,7 +64,7 @@ export interface TransactionImport {
 }
 
 /** Current handoff payload version. Bump if the wire shape changes. */
-export const HANDOFF_VERSION = 3;
+export const HANDOFF_VERSION = 4;
 
 /** Fragment key carrying the handoff payload (`#data=...`). */
 export const HANDOFF_FRAGMENT_KEY = "data";
@@ -96,6 +96,8 @@ export interface ApiTransaction {
 /** The compact payload the bookmarklet hands to `/import` via the URL fragment. */
 export interface HandoffPayload {
   v: typeof HANDOFF_VERSION;
+  /** Stable PSN account id selected when the bookmarklet was created. */
+  accountId: string;
   /** Host the transactions were fetched from. */
   source: string;
   /** ISO timestamp the transactions were fetched. */
@@ -273,6 +275,7 @@ const transactionRowSchema = Schema.Struct({
 
 const handoffSchema = Schema.Struct({
   v: Schema.Literal(HANDOFF_VERSION),
+  accountId: Schema.String,
   source: Schema.String,
   fetchedAt: Schema.String,
   transactions: Schema.mutable(Schema.Array(transactionRowSchema)),

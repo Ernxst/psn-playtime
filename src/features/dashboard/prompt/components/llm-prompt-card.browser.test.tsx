@@ -34,12 +34,12 @@ function seedTransaction() {
     currency: "£",
     displayAmount: "£44.99",
   };
-  testTransactionStore.save({
+  testTransactionStore.save(demoDashboard.profile.accountId, {
     transactions: [transaction],
     importedAt: "2024-01-01T00:00:00.000Z",
     source: "store.playstation.com",
   });
-  onTestFinished(() => testTransactionStore.clear());
+  onTestFinished(() => testTransactionStore.clear(demoDashboard.profile.accountId));
 }
 
 /** Expand a collapsed category section by clicking its accordion trigger. */

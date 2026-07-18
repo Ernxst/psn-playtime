@@ -22,7 +22,9 @@ import {
 } from "./transaction-bookmarklet";
 
 function bookmarkletBody(origin: string): string {
-  return decodeURIComponent(bookmarkletHref(origin).replace(/^javascript:/, ""));
+  return decodeURIComponent(
+    bookmarkletHref(origin, "acc-1", "Ernxst_").replace(/^javascript:/, "")
+  );
 }
 
 /**
@@ -49,9 +51,12 @@ async function minifiedBookmarkletBody(origin: string): Promise<string> {
   const [output] = outputFiles ?? [];
   const url = `data:text/javascript;base64,${Buffer.from(output?.text ?? "").toString("base64")}`;
   // oxlint-disable-next-line typescript/no-unsafe-assignment -- dynamic import of a freshly built artifact; its type is external to the project
-  const mod: { bookmarkletHref(o: string): string } = await import(url);
+  const mod: { bookmarkletHref(o: string, accountId: string, onlineId: string): string } =
+    await import(url);
 
-  return decodeURIComponent(mod.bookmarkletHref(origin).replace(/^javascript:/, ""));
+  return decodeURIComponent(
+    mod.bookmarkletHref(origin, "acc-1", "Ernxst_").replace(/^javascript:/, "")
+  );
 }
 
 /**
@@ -123,6 +128,54 @@ function fakeDocument(): { document: unknown; created: FakeElement[] } {
   return { document, created };
 }
 
+async function runBookmarklet(identity: { ok: boolean; status: number; body: unknown }) {
+  const body = bookmarkletBody("https://psn.example.dev");
+  const { document, created } = fakeDocument();
+  const fetch = vi.fn(async (url: string) => {
+    if (url.includes("/user/details")) {
+      return {
+        ok: identity.ok,
+        status: identity.status,
+        json: () => Promise.resolve(identity.body),
+      };
+    }
+    return {
+      ok: true,
+      status: 200,
+      json: () =>
+        Promise.resolve({
+          data: {
+            transactionHistoryRetrieve: {
+              transactions: [],
+              hasMore: false,
+            },
+          },
+        }),
+    };
+  });
+  let openedTarget: string | null = null;
+  const open = vi.fn((target: string) => {
+    openedTarget = target;
+    return {};
+  });
+
+  await vm.runInNewContext(body, {
+    document,
+    fetch,
+    window: { open },
+    location: { host: "www.playstation.com" },
+    console: { log: () => {}, warn: () => {} },
+    setTimeout,
+  });
+
+  return {
+    fetch,
+    open,
+    openedTarget,
+    message: created.find((element) => element.attrs["aria-live"] === "polite"),
+  };
+}
+
 /**
  * Mount the overlay from a *minified* bookmarklet body in a `vm` realm with a
  * document stub. Slicing the embedded `// Progress overlay` region and running it
@@ -131,7 +184,7 @@ function fakeDocument(): { document: unknown; created: FakeElement[] } {
  * the PSN page. Returns the live controller plus the `aria-live` message node.
  */
 function runEmbeddedOverlay(body: string): { overlay: OverlayController; message: FakeElement } {
-  const region = body.slice(body.indexOf("// Progress overlay"), body.indexOf("// 1. Replay"));
+  const region = body.slice(body.indexOf("// Progress overlay"), body.indexOf("// 1. Verify"));
   const { document, created } = fakeDocument();
   const script = `(() => { ${region}\nreturn overlay; })()`;
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- vm output from a freshly built artifact run in a child realm; its type is external to the project
@@ -340,6 +393,58 @@ describe(".bookmarkletHref", () => {
     expect(body).toContain("window.open");
     expect(body).toContain("#data=");
     expect(body).toContain("location.href");
+  });
+
+  it("binds the handoff to the account that generated the bookmarklet", () => {
+    const body = bookmarkletBody("https://psn.example.dev");
+
+    expect(body).toContain('const ACCOUNT_ID = "acc-1"');
+    expect(body).toContain('const ONLINE_ID = "Ernxst_"');
+    expect(body).toContain("accountId: ACCOUNT_ID");
+  });
+
+  it("rejects a mismatched PlayStation session before fetching or handing off transactions", async () => {
+    const { fetch, open, message } = await runBookmarklet({
+      ok: true,
+      status: 200,
+      body: { handle: "OtherPlayer" },
+    });
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(open).not.toHaveBeenCalled();
+    expect(message?.textContent).toContain(
+      "this bookmarklet belongs to Ernxst_, but PlayStation is signed in as OtherPlayer"
+    );
+    expect(message?.textContent).toContain("if your Online ID changed");
+  });
+
+  it.each([
+    [{ ok: false, status: 401, body: { message: "User is not authorized!" } }, "not signed in"],
+    [{ ok: true, status: 200, body: {} }, "not signed in"],
+  ])(
+    "rejects an unverifiable PlayStation session before transaction fetch",
+    async (identity, text) => {
+      const { fetch, open, message } = await runBookmarklet(identity);
+
+      expect(fetch).toHaveBeenCalledTimes(1);
+      expect(open).not.toHaveBeenCalled();
+      expect(message?.textContent).toContain(text);
+    }
+  );
+
+  it("fetches transactions and stamps the bound account only after an exact identity match", async () => {
+    const { fetch, open, openedTarget } = await runBookmarklet({
+      ok: true,
+      status: 200,
+      body: { handle: "Ernxst_" },
+    });
+
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(open).toHaveBeenCalledOnce();
+    const payload: unknown = JSON.parse(
+      decodeURIComponent(String(openedTarget).split("#data=")[1] ?? "")
+    );
+    expect(payload).toMatchObject({ accountId: "acc-1", transactions: [] });
   });
 
   it("does not stream via postMessage (COOP severs the opener)", () => {

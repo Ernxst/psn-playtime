@@ -38,6 +38,9 @@ import {
 /** The GraphQL endpoint the checkout app calls for transaction history. */
 export const TRANSACTION_HISTORY_ENDPOINT = "https://web.np.playstation.com/api/graphql/v1//op";
 
+/** Credentialed identity endpoint used by PlayStation's current web toolbar. */
+export const AUTHENTICATED_ACCOUNT_ENDPOINT = "https://io.playstation.com/user/details";
+
 /** Persisted-query hash for `transactionHistoryRetrieve` (may rotate). */
 const TRANSACTION_HISTORY_HASH = "f04fe7c7d8498bee5cd0615400eceb07d77eab097d118475ac9fa0c8446b3a42";
 
@@ -96,6 +99,7 @@ export function dedupeTransactions<T extends { id: string }>(rows: T[]): T[] {
  */
 export function importErrorMessage(message: string): string {
   const m = String(message || "");
+  if (m.startsWith("Account mismatch:")) return m;
   // Status-specific patterns first: the 403/429 messages the fetch loop throws
   // also contain "signed in", which the session fallback would otherwise claim.
   const rules: [RegExp, string][] = [
@@ -195,12 +199,15 @@ export function mountImportOverlay(): {
   };
 }
 
-/** The IIFE body, parameterised by the app's origin and import URL. */
+/** The IIFE body, bound to the app and PSN account that created it. */
 // oxlint-disable-next-line eslint/max-lines-per-function -- a single self-contained bookmarklet IIFE string; splitting it would only fragment one literal
-function source(appOrigin: string, importUrl: string): string {
+function source(appOrigin: string, importUrl: string, accountId: string, onlineId: string): string {
   return `(async () => {
   const APP_ORIGIN = ${JSON.stringify(appOrigin)};
   const IMPORT_URL = ${JSON.stringify(importUrl)};
+  const ACCOUNT_ID = ${JSON.stringify(accountId)};
+  const ONLINE_ID = ${JSON.stringify(onlineId)};
+  const ACCOUNT_ENDPOINT = ${JSON.stringify(AUTHENTICATED_ACCOUNT_ENDPOINT)};
   const ENDPOINT = ${JSON.stringify(TRANSACTION_HISTORY_ENDPOINT)};
   const HASH = ${JSON.stringify(TRANSACTION_HISTORY_HASH)};
   const LIMIT = 100;
@@ -238,7 +245,23 @@ function source(appOrigin: string, importUrl: string): string {
   const ${mountImportOverlay.name} = ${mountImportOverlay.toString()};
   const overlay = ${mountImportOverlay.name}();
 
-  // 1. Replay the GraphQL request the checkout iframe uses, cookie-authenticated.
+  // 1. Verify the PlayStation browser session belongs to the account that
+  //    created this bookmarklet. The live PlayStation toolbar uses this same
+  //    credentialed endpoint and reads its canonical online id from \`handle\`.
+  const fetchOnlineId = async () => {
+    const res = await fetch(ACCOUNT_ENDPOINT, {
+      credentials: 'include',
+      headers: { accept: 'application/json' },
+    });
+    const json = await res.json().catch(() => null);
+    const onlineId = json && typeof json.handle === 'string' ? json.handle.replace(/"/g, '') : '';
+    if (!res.ok || !onlineId) {
+      throw new Error('Could not verify the signed-in PlayStation account (HTTP ' + res.status + '). Sign in, then retry.');
+    }
+    return onlineId;
+  };
+
+  // 2. Replay the GraphQL request the checkout iframe uses, cookie-authenticated.
   //    Returns the data node when usable (even if the response also has errors,
   //    e.g. a strict-schema null productName); throws only when no data.
   const fetchPage = async (endDate) => {
@@ -293,6 +316,10 @@ function source(appOrigin: string, importUrl: string): string {
 
   let rows;
   try {
+    const onlineId = await fetchOnlineId();
+    if (onlineId !== ONLINE_ID) {
+      throw new Error('Account mismatch: this bookmarklet belongs to ' + ONLINE_ID + ', but PlayStation is signed in as ' + onlineId + '. Switch accounts, or refresh this account in Playtime and copy a new bookmarklet if your Online ID changed.');
+    }
     const transactions = await collect();
     rows = ${flattenApiTransactions.name}(transactions);
   } catch (err) {
@@ -304,10 +331,10 @@ function source(appOrigin: string, importUrl: string): string {
   log('flattened ' + rows.length + ' rows');
   if (rows.length === 0) warn('no transactions returned — nothing to import');
 
-  // 2. Hand off via the opened tab's own URL fragment (#data=...). Same-origin
+  // 3. Hand off via the opened tab's own URL fragment (#data=...). Same-origin
   //    COOP severs window.opener, so we never message — the receiver reads its
   //    own hash. Fall back to a same-tab redirect when the popup is blocked.
-  const payload = { v: ${HANDOFF_VERSION}, source: location.host, fetchedAt: new Date().toISOString(), transactions: rows };
+  const payload = { v: ${HANDOFF_VERSION}, accountId: ACCOUNT_ID, source: location.host, fetchedAt: new Date().toISOString(), transactions: rows };
   const encoded = encodeURIComponent(JSON.stringify(payload));
   log('payload: ' + rows.length + ' rows, ' + encoded.length + ' encoded bytes');
   if (encoded.length > MAX_FRAGMENT) warn('payload exceeds ~1.5MB encoded — the fragment handoff may be truncated by the browser');
@@ -326,7 +353,7 @@ function source(appOrigin: string, importUrl: string): string {
  * The full `javascript:` bookmarklet URI for the given app origin.
  * `appOrigin` is e.g. `https://psn.example.dev` (no trailing slash needed).
  */
-export function bookmarkletHref(appOrigin: string): string {
+export function bookmarkletHref(appOrigin: string, accountId: string, onlineId: string): string {
   const origin = appOrigin.replace(/\/$/, "");
-  return `javascript:${encodeURIComponent(source(origin, `${origin}/import`))}`;
+  return `javascript:${encodeURIComponent(source(origin, `${origin}/import`, accountId, onlineId))}`;
 }

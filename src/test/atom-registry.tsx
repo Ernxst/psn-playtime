@@ -11,18 +11,10 @@ import { makeTransactionStore, type TransactionStore } from "@/stores/transactio
  * the React hooks rendered under {@link TestAtomProvider} read and write the
  * same registry — the property the reactivity tests depend on.
  */
-export const testRegistry: AtomRegistry.AtomRegistry = AtomRegistry.make({
+const testRegistry: AtomRegistry.AtomRegistry = AtomRegistry.make({
   scheduleTask,
   defaultIdleTTL: 400,
 });
-
-/**
- * The transaction store the app's `getContext` builds, mirrored for tests: it
- * closes over {@link testRegistry}, the same registry {@link TestAtomProvider}
- * seeds, so `testTransactionStore.save(...)` re-renders consumers reading
- * `useTransactionImport` under that provider.
- */
-export const testTransactionStore: TransactionStore = makeTransactionStore(testRegistry);
 
 /**
  * The dashboard store the app's `getContext` builds, mirrored for tests: it
@@ -32,6 +24,9 @@ export const testTransactionStore: TransactionStore = makeTransactionStore(testR
  * provider.
  */
 export const testDashboardStore: DashboardStore = makeDashboardStore(testRegistry);
+
+/** The account-keyed transaction store bound to the shared test registry. */
+export const testTransactionStore: TransactionStore = makeTransactionStore(testRegistry);
 
 /** Provider bound to {@link testRegistry} for `render(ui, { wrapper: TestAtomProvider })`. */
 export function TestAtomProvider({ children }: { readonly children: ReactNode }) {

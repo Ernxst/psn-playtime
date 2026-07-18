@@ -1,10 +1,10 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
 import { Toaster } from "@/components/ui/sonner";
 import { buildAccountCsv, buildGamesCsv } from "@/features/dashboard/export/csv";
 import type { GamePlay, ProfileSummary } from "@/server/providers/account/snapshot";
-import { testDashboardStore } from "@/test/atom-registry";
+import { testDashboardStore, testTransactionStore } from "@/test/atom-registry";
 import { createHarness } from "@/test/harness";
 import { RestoreDashboardCard } from "./restore-dashboard-card";
 
@@ -43,6 +43,12 @@ function csvFile(name: string, content: string): File {
 const gamesFile = () =>
   csvFile("psn-games.csv", buildGamesCsv(games, [{ name: "Netflix", hours: 5 }]));
 const accountFile = () => csvFile("psn-account.csv", buildAccountCsv(profile));
+const transactionsKey = "psn-playtime:transactions";
+const legacyRaw = JSON.stringify({
+  transactions: [],
+  importedAt: "2024-01-02T00:00:00.000Z",
+  source: "store.playstation.com",
+});
 
 describe("RestoreDashboardCard", () => {
   it("renders the restore card with both file pickers", async () => {
@@ -82,6 +88,21 @@ describe("RestoreDashboardCard", () => {
 
     save.mockRestore();
     setActive.mockRestore();
+  });
+
+  it("does not assign ownerless legacy transactions to the restored dashboard", async () => {
+    onTestFinished(() => localStorage.clear());
+    testTransactionStore.clear(profile.accountId);
+    await render(createHarness(<RestoreDashboardCard />).element);
+    localStorage.setItem(transactionsKey, legacyRaw);
+
+    await page.getByLabelText("Games CSV").upload(gamesFile());
+    await page.getByLabelText("Account CSV").upload(accountFile());
+    await page.getByRole("button", { name: /restore dashboard/i }).click();
+
+    await expect.poll(() => testDashboardStore.load(profile.accountId)).not.toBeNull();
+    expect(testTransactionStore.load(profile.accountId)).toBeNull();
+    expect(localStorage.getItem(transactionsKey)).toBe(legacyRaw);
   });
 
   it("surfaces an error and does not cache when a CSV is malformed", async () => {

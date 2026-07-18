@@ -12,8 +12,8 @@ export function getContext() {
   // same instance so imperative writes notify those hooks. localStorage is the
   // source of truth, so a per-request registry is correct — kvs atoms re-read it.
   const atomRegistry = AtomRegistry.make({ scheduleTask, defaultIdleTTL: 400 });
-  const transactionStore = makeTransactionStore(atomRegistry);
   const dashboardStore = makeDashboardStore(atomRegistry);
+  const transactionStore = makeTransactionStore(atomRegistry);
 
   return {
     queryClient,

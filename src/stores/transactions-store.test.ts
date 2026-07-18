@@ -2,8 +2,10 @@ import * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { TransactionImport } from "@/domain/transactions";
 import { createWindowStub } from "@/test/web-storage";
+import { makeTransactionStore } from "./transactions-store";
 
-const STORAGE_KEY = "psn-playtime:transactions";
+const LEGACY_STORAGE_KEY = "psn-playtime:transactions";
+const ACCOUNTS_STORAGE_KEY = "psn-playtime:transactions:accounts";
 
 const validImport: TransactionImport = {
   transactions: [
@@ -24,121 +26,110 @@ const validImport: TransactionImport = {
   source: "store.playstation.com",
 };
 
-/**
- * Build the store from a fresh module import so its module-level snapshot cache
- * never leaks across tests. The registry is unused by `load` and a no-op for the
- * windowless `save`/`clear` guards, so a bare registry suffices here.
- */
-async function importStore() {
-  const { makeTransactionStore } = await import("./transactions-store");
+function makeStore() {
   return makeTransactionStore(AtomRegistry.make());
 }
 
+function stubWindow() {
+  const win = createWindowStub();
+  vi.stubGlobal("window", win);
+  vi.stubGlobal("localStorage", win.localStorage);
+  return win;
+}
+
 afterEach(() => {
-  vi.resetModules();
+  vi.unstubAllGlobals();
 });
 
 describe(".load", () => {
-  it("returns null during server render when there is no window", async () => {
-    const store = await importStore();
-
-    expect(store.load()).toBeNull();
+  it("returns null during server render", () => {
+    expect(makeStore().load("acc-1")).toBeNull();
   });
 
-  it("returns null when no import has been persisted", async () => {
-    vi.stubGlobal("window", createWindowStub());
-    const store = await importStore();
+  it("returns null for malformed persisted data", () => {
+    const win = stubWindow();
+    win.localStorage.setItem(ACCOUNTS_STORAGE_KEY, "{ not valid json");
 
-    expect(store.load()).toBeNull();
-  });
-
-  it("returns the decoded import when valid data is persisted", async () => {
-    const win = createWindowStub();
-    win.localStorage.setItem(STORAGE_KEY, JSON.stringify(validImport));
-    vi.stubGlobal("window", win);
-    const store = await importStore();
-
-    expect(store.load()).toEqual(validImport);
-  });
-
-  it("decodes a persisted import that has no transactions", async () => {
-    const empty: TransactionImport = { ...validImport, transactions: [] };
-    const win = createWindowStub();
-    win.localStorage.setItem(STORAGE_KEY, JSON.stringify(empty));
-    vi.stubGlobal("window", win);
-    const store = await importStore();
-
-    expect(store.load()).toEqual(empty);
-  });
-
-  it("returns null when the persisted JSON is malformed", async () => {
-    const win = createWindowStub();
-    win.localStorage.setItem(STORAGE_KEY, "{ not valid json");
-    vi.stubGlobal("window", win);
-    const store = await importStore();
-
-    expect(store.load()).toBeNull();
-  });
-
-  it("returns null when the persisted JSON does not match the import schema", async () => {
-    const win = createWindowStub();
-    win.localStorage.setItem(STORAGE_KEY, JSON.stringify({ transactions: "nope", importedAt: 1 }));
-    vi.stubGlobal("window", win);
-    const store = await importStore();
-
-    expect(store.load()).toBeNull();
-  });
-
-  it("returns null when the persisted JSON is the literal null written by a clear", async () => {
-    const win = createWindowStub();
-    win.localStorage.setItem(STORAGE_KEY, "null");
-    vi.stubGlobal("window", win);
-    const store = await importStore();
-
-    expect(store.load()).toBeNull();
-  });
-
-  it("returns the cached reference when the raw string is unchanged between reads", async () => {
-    const win = createWindowStub();
-    win.localStorage.setItem(STORAGE_KEY, JSON.stringify(validImport));
-    vi.stubGlobal("window", win);
-    const store = await importStore();
-
-    const first = store.load();
-    const second = store.load();
-
-    expect(second).toBe(first);
-  });
-
-  it("re-reads from storage when the persisted raw string changes", async () => {
-    const win = createWindowStub();
-    win.localStorage.setItem(STORAGE_KEY, JSON.stringify(validImport));
-    vi.stubGlobal("window", win);
-    const store = await importStore();
-
-    const first = store.load();
-
-    const next: TransactionImport = { ...validImport, source: "another.host" };
-    win.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    const second = store.load();
-
-    expect(first).toEqual(validImport);
-    expect(second).toEqual(next);
+    expect(makeStore().load("acc-1")).toBeNull();
   });
 });
 
-describe(".save", () => {
-  it("does nothing during server render when there is no window", async () => {
-    const store = await importStore();
+describe("ownerless legacy data", () => {
+  it("is not attributed to any account on initial load", () => {
+    const win = stubWindow();
+    const raw = JSON.stringify(validImport);
+    win.localStorage.setItem(LEGACY_STORAGE_KEY, raw);
 
-    expect(() => store.save(validImport)).not.toThrow();
+    const store = makeStore();
+
+    expect(store.load("acc-1")).toBeNull();
+    expect(store.load("acc-2")).toBeNull();
+    expect(win.localStorage.getItem(LEGACY_STORAGE_KEY)).toBe(raw);
+  });
+
+  it("is not erased when an account with no keyed data is cleared", () => {
+    const win = stubWindow();
+    const raw = JSON.stringify(validImport);
+    win.localStorage.setItem(LEGACY_STORAGE_KEY, raw);
+    const store = makeStore();
+
+    store.clear("acc-1");
+
+    expect(win.localStorage.getItem(LEGACY_STORAGE_KEY)).toBe(raw);
   });
 });
 
-describe(".clear", () => {
-  it("does nothing during server render when there is no window", async () => {
-    const store = await importStore();
+describe("account isolation", () => {
+  it("saves distinct imports for distinct accounts", () => {
+    stubWindow();
+    const store = makeStore();
+    const second = { ...validImport, source: "second.account" };
 
-    expect(() => store.clear()).not.toThrow();
+    store.save("acc-1", validImport);
+    store.save("acc-2", second);
+
+    expect(store.load("acc-1")).toEqual(validImport);
+    expect(store.load("acc-2")).toEqual(second);
+  });
+
+  it("clears one account without clearing another", () => {
+    stubWindow();
+    const store = makeStore();
+    const second = { ...validImport, source: "second.account" };
+    store.save("acc-1", validImport);
+    store.save("acc-2", second);
+
+    store.clear("acc-1");
+
+    expect(store.load("acc-1")).toBeNull();
+    expect(store.load("acc-2")).toEqual(second);
+  });
+
+  it("preserves unresolved legacy bytes across keyed save and clear", () => {
+    const win = stubWindow();
+    const raw = `  ${JSON.stringify(validImport)}\n`;
+    win.localStorage.setItem(LEGACY_STORAGE_KEY, raw);
+    const store = makeStore();
+    const explicit = { ...validImport, source: "explicit.account" };
+
+    store.save("acc-2", explicit);
+
+    expect(store.load("acc-1")).toBeNull();
+    expect(store.load("acc-2")).toEqual(explicit);
+    expect(win.localStorage.getItem(LEGACY_STORAGE_KEY)).toBe(raw);
+
+    store.clear("acc-2");
+
+    expect(store.load("acc-2")).toBeNull();
+    expect(win.localStorage.getItem(LEGACY_STORAGE_KEY)).toBe(raw);
+  });
+});
+
+describe("server writes", () => {
+  it("ignore save and clear", () => {
+    const store = makeStore();
+
+    expect(() => store.save("acc-1", validImport)).not.toThrow();
+    expect(() => store.clear("acc-1")).not.toThrow();
   });
 });

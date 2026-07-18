@@ -2,6 +2,7 @@ import { getRouteApi } from "@tanstack/react-router";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { decodeHandoff, type HandoffPayload, type TransactionRow } from "@/domain/transactions";
+import type { DashboardStore } from "@/stores/dashboard-store";
 import type { TransactionStore } from "@/stores/transactions-store";
 
 /** A running, de-duped accumulation of imported transactions. */
@@ -20,9 +21,9 @@ function mergeRow(acc: Accumulator, tx: TransactionRow): boolean {
 }
 
 /** Seed the accumulator from any already-persisted import so re-runs append. */
-function seedAccumulator(store: TransactionStore): Accumulator {
+function seedAccumulator(store: TransactionStore, accountId: string): Accumulator {
   const acc: Accumulator = { seen: new Set(), transactions: [], source: "" };
-  const existing = store.load();
+  const existing = store.load(accountId);
   if (!existing) return acc;
   acc.source = existing.source;
   for (const tx of existing.transactions) mergeRow(acc, tx);
@@ -38,7 +39,7 @@ function appendPayload(store: TransactionStore, acc: Accumulator, payload: Hando
   let added = 0;
   for (const tx of payload.transactions) if (mergeRow(acc, tx)) added += 1;
   if (acc.source === "") acc.source = payload.source;
-  store.save({
+  store.save(payload.accountId, {
     transactions: acc.transactions,
     importedAt: new Date().toISOString(),
     source: acc.source,
@@ -50,7 +51,7 @@ function appendPayload(store: TransactionStore, acc: Accumulator, payload: Hando
 export type HandoffResult =
   | { status: "empty" }
   | { status: "invalid" }
-  | { status: "imported"; count: number };
+  | { status: "imported"; count: number; accountId: string };
 
 /** The view states the receiver renders when it does not redirect. */
 type Settled = Exclude<HandoffResult, { status: "imported" }>["status"];
@@ -64,17 +65,21 @@ type Settled = Exclude<HandoffResult, { status: "imported" }>["status"];
  * so the address bar's fragment is readable; `imported` tells the loader to
  * redirect to the dashboard.
  */
-export function receiveHandoff(store: TransactionStore): HandoffResult {
-  const acc = seedAccumulator(store);
+export function receiveHandoff(
+  store: TransactionStore,
+  dashboardStore: DashboardStore
+): HandoffResult {
   const payload = decodeHandoff(window.location.hash);
 
   if (!payload) return { status: "empty" };
   if (payload.transactions.length === 0) return { status: "invalid" };
+  if (dashboardStore.load(payload.accountId) === null) return { status: "invalid" };
 
+  const acc = seedAccumulator(store, payload.accountId);
   appendPayload(store, acc, payload);
   // Clear the (large) fragment from the address bar before redirecting.
   window.history.replaceState(null, "", window.location.pathname);
-  return { status: "imported", count: acc.transactions.length };
+  return { status: "imported", count: acc.transactions.length, accountId: payload.accountId };
 }
 
 const route = getRouteApi("/import");

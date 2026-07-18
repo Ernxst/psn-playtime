@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
+import { demoDashboard } from "@/domain/mock";
 import {
   encodeHandoff,
   flattenApiTransactions,
@@ -18,17 +19,20 @@ import {
   type TransactionRow,
 } from "@/domain/transactions";
 import { loadHandoff } from "@/routes/import";
+import type { DashboardStore } from "@/stores/dashboard-store";
 import type { TransactionStore } from "@/stores/transactions-store";
-import { testTransactionStore } from "@/test/atom-registry";
+import { testDashboardStore, testTransactionStore } from "@/test/atom-registry";
 import { multiProductPurchase } from "@/test/transaction-fixtures";
 import { ImportPending, ImportReceiver, receiveHandoff } from "./import-receiver";
 
 /** Two compact rows (base game + add-on) the bookmarklet would hand off. */
 const rows = flattenApiTransactions([multiProductPurchase]);
+const accountId = demoDashboard.profile.accountId;
 
 function payloadOf(transactions: TransactionRow[]): HandoffPayload {
   return {
     v: HANDOFF_VERSION,
+    accountId,
     source: "www.playstation.com",
     fetchedAt: "2024-01-01T00:00:00.000Z",
     transactions,
@@ -36,7 +40,7 @@ function payloadOf(transactions: TransactionRow[]): HandoffPayload {
 }
 
 function seedPrior(transactions: TransactionRow[]) {
-  testTransactionStore.save({
+  testTransactionStore.save(accountId, {
     transactions,
     importedAt: "2024-01-01T00:00:00.000Z",
     source: "www.playstation.com",
@@ -44,13 +48,21 @@ function seedPrior(transactions: TransactionRow[]) {
 }
 
 function cleanUp() {
-  testTransactionStore.clear();
+  testTransactionStore.clear(accountId);
+  testDashboardStore.remove(accountId);
   window.location.hash = "";
+}
+
+function seedAccount() {
+  testDashboardStore.save(demoDashboard);
 }
 
 /** Render the real `/import` route (client loader + components) at `/import`. */
 function renderImportRoute() {
-  const rootRoute = createRootRouteWithContext<{ transactionStore: TransactionStore }>()({
+  const rootRoute = createRootRouteWithContext<{
+    dashboardStore: DashboardStore;
+    transactionStore: TransactionStore;
+  }>()({
     component: () => <Outlet />,
   });
   const importRoute = createRoute({
@@ -68,7 +80,10 @@ function renderImportRoute() {
   const router = createRouter({
     routeTree: rootRoute.addChildren([importRoute, dashboardRoute]),
     history: createMemoryHistory({ initialEntries: ["/import"] }),
-    context: { transactionStore: testTransactionStore },
+    context: {
+      dashboardStore: testDashboardStore,
+      transactionStore: testTransactionStore,
+    },
   });
 
   return render(<RouterProvider router={router} />);
@@ -77,50 +92,54 @@ function renderImportRoute() {
 describe(".receiveHandoff", () => {
   it("reports the imported count and persists the de-duped rows", () => {
     onTestFinished(cleanUp);
+    seedAccount();
     window.location.hash = `#${encodeHandoff(payloadOf(rows))}`;
 
-    const result = receiveHandoff(testTransactionStore);
+    const result = receiveHandoff(testTransactionStore, testDashboardStore);
 
-    expect(result).toEqual({ status: "imported", count: 2 });
-    expect(testTransactionStore.load()?.transactions).toHaveLength(2);
+    expect(result).toEqual({ status: "imported", accountId, count: 2 });
+    expect(testTransactionStore.load(accountId)?.transactions).toHaveLength(2);
   });
 
   it("clears the URL fragment after a successful import", () => {
     onTestFinished(cleanUp);
+    seedAccount();
     window.location.hash = `#${encodeHandoff(payloadOf(rows))}`;
 
-    receiveHandoff(testTransactionStore);
+    receiveHandoff(testTransactionStore, testDashboardStore);
 
     expect(window.location.hash).toBe("");
   });
 
   it("appends onto a prior import, de-duping by row key", () => {
     onTestFinished(cleanUp);
+    seedAccount();
     seedPrior([rows[0]!]);
     window.location.hash = `#${encodeHandoff(payloadOf(rows))}`;
 
-    const result = receiveHandoff(testTransactionStore);
+    const result = receiveHandoff(testTransactionStore, testDashboardStore);
 
     // The prior row repeats and only the second row is appended.
-    expect(result).toEqual({ status: "imported", count: 2 });
-    expect(testTransactionStore.load()?.transactions).toHaveLength(2);
+    expect(result).toEqual({ status: "imported", accountId, count: 2 });
+    expect(testTransactionStore.load(accountId)?.transactions).toHaveLength(2);
   });
 
   it("reports an empty handoff and persists nothing when the fragment is absent", () => {
     onTestFinished(cleanUp);
     window.location.hash = "";
 
-    const result = receiveHandoff(testTransactionStore);
+    const result = receiveHandoff(testTransactionStore, testDashboardStore);
 
     expect(result).toEqual({ status: "empty" });
-    expect(testTransactionStore.load()).toBeNull();
+    expect(testTransactionStore.load(accountId)).toBeNull();
   });
 
   it("reports an invalid handoff when the fragment carries no rows", () => {
     onTestFinished(cleanUp);
+    seedAccount();
     window.location.hash = `#${encodeHandoff(payloadOf([]))}`;
 
-    const result = receiveHandoff(testTransactionStore);
+    const result = receiveHandoff(testTransactionStore, testDashboardStore);
 
     expect(result).toEqual({ status: "invalid" });
   });
@@ -129,23 +148,34 @@ describe(".receiveHandoff", () => {
     onTestFinished(cleanUp);
     window.location.hash = `#data=${encodeURIComponent(JSON.stringify({ v: 99, transactions: "nope" }))}`;
 
-    const result = receiveHandoff(testTransactionStore);
+    const result = receiveHandoff(testTransactionStore, testDashboardStore);
 
     expect(result).toEqual({ status: "empty" });
-    expect(testTransactionStore.load()).toBeNull();
+    expect(testTransactionStore.load(accountId)).toBeNull();
+  });
+
+  it("rejects a handoff for an account that is not cached", () => {
+    onTestFinished(cleanUp);
+    window.location.hash = `#${encodeHandoff(payloadOf(rows))}`;
+
+    const result = receiveHandoff(testTransactionStore, testDashboardStore);
+
+    expect(result).toEqual({ status: "invalid" });
+    expect(testTransactionStore.load(accountId)).toBeNull();
   });
 });
 
 describe("ImportReceiver", () => {
   it("redirects to the dashboard and toasts after importing the fragment", async () => {
     onTestFinished(cleanUp);
+    seedAccount();
     const success = vi.spyOn(toast, "success");
     window.location.hash = `#${encodeHandoff(payloadOf(rows))}`;
 
     await renderImportRoute();
 
     await expect.element(page.getByText("dashboard view")).toBeVisible();
-    expect(testTransactionStore.load()?.transactions).toHaveLength(2);
+    expect(testTransactionStore.load(accountId)?.transactions).toHaveLength(2);
     expect(success).toHaveBeenCalledExactlyOnceWith(
       "Imported 2 transactions from your PlayStation history."
     );
@@ -163,6 +193,7 @@ describe("ImportReceiver", () => {
 
   it("shows the invalid state when the fragment carries no rows", async () => {
     onTestFinished(cleanUp);
+    seedAccount();
     window.location.hash = `#${encodeHandoff(payloadOf([]))}`;
 
     await renderImportRoute();
