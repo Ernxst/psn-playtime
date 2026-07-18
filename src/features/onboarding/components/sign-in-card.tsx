@@ -13,6 +13,7 @@ import { Field, FieldControl, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
+import { normalizeNpsso } from "@/domain/npsso";
 import { importTransactionsCsv } from "@/features/dashboard/export/import-transactions";
 import { signInWithToken } from "@/server/api/account.effect";
 import { type CachedAccount, useCachedAccounts } from "@/stores/dashboard-store";
@@ -21,23 +22,6 @@ import { type CachedAccount, useCachedAccounts } from "@/stores/dashboard-store"
 // `useCachedAccounts` also reads). Reading it via `from: "__root__"` resolves
 // from anywhere in the tree, so writers go through the service rather than the
 // raw registry.
-
-/**
- * Reduce a pasted npsso value to the bare token.
- *
- * Tolerates the three real-world paste shapes:
- * - the full JSON the ssocookie page renders: `{"npsso":"<token>"}`
- * - the value with its surrounding quotes: `"<token>"`
- * - the bare token: `<token>`
- */
-export function normalizeNpsso(input: string): string {
-  const trimmed = input.trim();
-  const jsonMatch = trimmed.match(/"?npsso"?\s*:\s*"([^"]+)"/);
-  if (jsonMatch?.[1]) {
-    return jsonMatch[1].trim();
-  }
-  return trimmed.replace(/^[{}"\s]+|[{}"\s]+$/g, "").trim();
-}
 
 const STEPS: Array<{
   text: string;

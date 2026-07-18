@@ -58,6 +58,7 @@ const LazyTimelineSection = lazy(() =>
 
 interface Props {
   data: DashboardData;
+  onRefresh: (npsso: string) => Promise<void>;
   onSignOut: () => void;
   signingOut: boolean;
 }
@@ -293,32 +294,38 @@ function useDeferredFilters(filters: DashboardFilters): DashboardFilters {
   return useMemo(() => ({ ...filters, search: deferredSearch }), [filters, deferredSearch]);
 }
 
-export function DashboardView({ data, onSignOut, signingOut }: Props) {
+function DashboardTopBar({ onlineId }: { onlineId: string }) {
+  return (
+    <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b border-border bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <SidebarTrigger className="hit-area-2" />
+      <Separator orientation="vertical" className="mr-1 h-5" />
+      <span className="truncate font-semibold">{onlineId}</span>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="ml-auto hit-area-2"
+        render={
+          <Link to="/" aria-label="Go to home page">
+            <Home />
+          </Link>
+        }
+      />
+    </header>
+  );
+}
+
+export function DashboardView(props: Props) {
+  const { data } = props;
   const { profile } = data;
   const [filters, setFilters] = useState<DashboardFilters>(defaultFilters);
-  const resetFilters = () => setFilters(defaultFilters);
   const deferredFilters = useDeferredFilters(filters);
   return (
     <SidebarProvider>
       <DashboardSidebar />
       <SidebarInset>
-        <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b border-border bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-          <SidebarTrigger className="hit-area-2" />
-          <Separator orientation="vertical" className="mr-1 h-5" />
-          <span className="truncate font-semibold">{profile.onlineId}</span>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="ml-auto hit-area-2"
-            render={
-              <Link to="/" aria-label="Go to home page">
-                <Home />
-              </Link>
-            }
-          />
-        </header>
+        <DashboardTopBar onlineId={profile.onlineId} />
         <div className="mx-auto w-full max-w-6xl space-y-6 p-4 sm:p-6">
-          <DashboardHeader data={data} onSignOut={onSignOut} signingOut={signingOut} />
+          <DashboardHeader {...props} />
           {data.isDemo ? <DemoBanner /> : null}
           <div className="space-y-3">
             <TimeframeControl
@@ -327,7 +334,11 @@ export function DashboardView({ data, onSignOut, signingOut }: Props) {
             />
             <FilterBar data={data} filters={filters} onChange={setFilters} />
           </div>
-          <DashboardContent data={data} filters={deferredFilters} onClearFilters={resetFilters} />
+          <DashboardContent
+            data={data}
+            filters={deferredFilters}
+            onClearFilters={() => setFilters(defaultFilters)}
+          />
         </div>
       </SidebarInset>
     </SidebarProvider>

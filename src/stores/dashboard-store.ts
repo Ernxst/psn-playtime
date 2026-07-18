@@ -2,10 +2,10 @@ import { useAtomValue } from "@effect/atom-react";
 /**
  * Client-side cache of dashboard data, keyed by PSN account.
  *
- * The npsso token is needed ONLY to fetch an account the first time; the derived
- * (non-secret) `DashboardData` is then persisted in `localStorage` so revisits
- * render from the cache with no token. An "active account" pointer records which
- * cached account the dashboard currently shows.
+ * The npsso token is used transiently for the initial fetch and any manual
+ * refresh; the derived (non-secret) `DashboardData` is persisted in
+ * `localStorage` so revisits render from the cache with no token. An "active
+ * account" pointer records which cached account the dashboard currently shows.
  *
  * Persistence lives on the same Effect/Atom boundary as `transactions-store`:
  * two `Atom.kvs` nodes over the per-request {@link AtomRegistry} (a record of
@@ -17,7 +17,7 @@ import { useAtomValue } from "@effect/atom-react";
  * keep a stable snapshot reference between renders (no `useSyncExternalStore`,
  * no custom storage events, no module-level memo).
  *
- * No TTL, no refresh, no clear UI: clearing is a manual browser-storage action.
+ * There is no TTL or automatic refresh. A manual refresh requires a fresh token.
  *
  * Cross-tab `storage`-event sync is intentionally not provided; same-tab writes
  * notify subscribers through the shared registry.

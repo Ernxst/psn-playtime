@@ -4,7 +4,7 @@ import type { DashboardData } from "@/server/providers/account/snapshot";
 import { fmtRelative } from "../format";
 
 const CACHE_EXPLANATION =
-  "Your data is cached in this browser from when you last signed in, so it may be behind your latest activity.";
+  "Your data is cached in this browser from your last sign-in or refresh, so it may be behind your latest activity.";
 
 /**
  * Subtle freshness signal for the dashboard. Real data shows when it was last

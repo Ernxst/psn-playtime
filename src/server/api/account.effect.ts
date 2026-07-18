@@ -7,10 +7,10 @@
  * (`@/server/providers/account/psn/provider.effect`); this module exports the
  * boundary program as an effect that declares that port on its `R` channel and
  * wraps it in a `createServerFn` handler, with the real layer provided by the
- * server runtime via `runServer`. The npsso token is used transiently to load an
- * account once; it is never stored server-side. The derived `DashboardData` is
- * cached client-side (`@/stores/dashboard-store`), which is the source for
- * revisits.
+ * server runtime via `runServer`. The npsso token is used transiently for an
+ * initial load or manual refresh; it is never stored server-side. The derived
+ * `DashboardData` is cached client-side (`@/stores/dashboard-store`), which is
+ * the source for revisits.
  */
 import { createServerFn } from "@tanstack/react-start";
 import * as Data from "effect/Data";

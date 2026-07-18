@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeNpsso } from "./sign-in-card";
+import { normalizeNpsso } from "@/domain/npsso";
 
 const token = "a".repeat(64);
 
