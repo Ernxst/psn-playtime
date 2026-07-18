@@ -75,15 +75,13 @@ deploying via `pnpm build:cf && npx wrangler deploy --dry-run`.
 
 ## Genre classification
 
-Each title is tagged with a coarse genre. Fast keyword rules (`enrich.ts`) run
-first; any title they can't place (it falls back to `"Other"`) is looked up in
-the [RAWG](https://rawg.io/apidocs) games database server-side and its genres
-mapped onto our buckets. Lookups are cached per build to respect RAWG's rate
-limits.
+Titles with missing genre or franchise data are enriched through the
+[RAWG](https://rawg.io/apidocs) games database after the dashboard loads.
+Successful lookups are cached for the worker process, then persisted with the
+enriched dashboard in the browser.
 
-This is **opt-in**: set `RAWG_API_KEY` to enable it. With no key — including in
-CI — RAWG is skipped and classification uses the keyword rules alone, so
-behaviour is unchanged. Copy `.env.example` to `.env` and add your free key:
+This is **opt-in**: set `RAWG_API_KEY` to enable it. With no key, RAWG enrichment
+is skipped. Copy `.env.example` to `.env` and add your free key:
 
 ```bash
 cp .env.example .env   # then set RAWG_API_KEY
@@ -97,23 +95,10 @@ cp .env.example .env   # then set RAWG_API_KEY
 
 - **TanStack Start** (SSR) + **TanStack Query**
 - **Tailwind v4** + **shadcn/ui** + bazza `hit-area`, charts via **Recharts**
-- **psn-api** for PSN data, **zod** for input validation
+- **psn-api** for PSN data, **Effect Schema** for input validation
 - **oxlint** + **oxfmt** + **tsgo**, **lefthook** git hooks, **knip**
 - Vitest **browser mode** (Playwright/Chromium) for component tests
 
-## Layout
-
-| Path                        | Role                                                        |
-| --------------------------- | ----------------------------------------------------------- |
-| `src/lib/psn/types.ts`      | The `DashboardData` contract (server produces, UI consumes) |
-| `src/server/psn.ts`         | Server functions: token exchange + fetch + normalise        |
-| `src/lib/psn/enrich.ts`     | Genre/franchise/app classification (keyword rules)          |
-| `src/server/rawg.ts`        | RAWG genre lookup + mapping (fallback for `"Other"` titles) |
-| `src/lib/psn/analytics.ts`  | Pure selectors → chart-ready series                         |
-| `src/lib/psn/mock.ts`       | Bundled demo dataset                                        |
-| `src/routes/`               | `/` onboarding, `/dashboard`                                |
-| `src/components/dashboard/` | KPIs, charts, insights, games table                         |
-
 > Demo numbers are derived from a real PSN export and are illustrative.
 
-See [`docs/architecture.md`](./docs/architecture.md) for the full source map of every directory under `src/`.
+See [`docs/architecture.md`](./docs/architecture.md) for the source map.

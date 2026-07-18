@@ -1,7 +1,7 @@
 name: Feature request
 description: Suggest an idea for this project
 title: "feat: "
-labels: ["enhancement"]
+labels: ["enhancement", "ready-for-human"]
 body:
   - type: markdown
     attributes:
@@ -19,6 +19,45 @@ body:
     attributes:
       label: Describe the solution
       description: Concrete API, UI, or behavior. If it involves a new dependency, argue why it's necessary.
+    validations:
+      required: true
+  - type: textarea
+    id: observable
+    attributes:
+      label: Observable success
+      description: What must be observed to prove the requested behavior is complete?
+    validations:
+      required: true
+  - type: dropdown
+    id: verification
+    attributes:
+      label: Verification layer
+      description: Which evidence is required? Select every applicable layer.
+      multiple: true
+      options:
+        - Static, configuration, or build check
+        - Automated logic test
+        - Browser interaction
+        - Visual observation
+        - Performance measurement
+        - Human validation
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: Name blocking issues, access, data, or decisions. Write "None" when unblocked.
+    validations:
+      required: true
+  - type: dropdown
+    id: human-input
+    attributes:
+      label: Human input
+      description: Does completion require human judgement, access, direction, or manual validation?
+      options:
+        - Required
+        - Not required
     validations:
       required: true
   - type: textarea

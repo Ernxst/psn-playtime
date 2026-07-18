@@ -6,6 +6,16 @@
 - Do not infer missing requirements, project structure, architecture, or intent.
 - If a required change falls outside scope, stop and report it.
 
+# Operating workflow
+
+- Keep dependent implementation slices on one draft pull request. Split work only when it is independently reviewable and revertible.
+- Before editing, verify the active branch, worktree, and ownership of any existing changes.
+- Put verification evidence and reviewer-facing explanations directly on the pull request.
+- Own the complete repair loop: implement, verify, request independent review, repair findings, re-review the exact head, then merge when authorised.
+- Do not wait for the user to relay reviewer returns or ask for an already-authorised merge.
+- Define the observable success condition and its verification layer before implementation. Static gates do not prove runtime, browser, visual, interaction, or performance outcomes.
+- Do not use a closing keyword for an epic unless the pull request completes the entire epic.
+
 # Committing / Opening a Pull Request
 
 Follow the [Contribution Guide](./CONTRIBUTING.md)

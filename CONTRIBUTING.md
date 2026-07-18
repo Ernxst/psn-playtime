@@ -4,7 +4,7 @@
 
 - pnpm 9.15.4
 - Node.js 26.x
-- A browser with WebGPU support
+- A Chromium-based browser
 
 ## Setup
 
@@ -95,10 +95,23 @@ Before summarising, verify each claim against added/removed lines in the diff. U
 ## Pull requests
 
 1. Open an issue first (unless it's a trivial fix) to discuss the approach.
-2. Keep PRs focused — one logical change per PR.
+2. Keep dependent implementation on one draft pull request. Split work only when it is independently reviewable and revertible.
 3. Fill out the [pull request template](./.github/PULL_REQUEST_TEMPLATE.md) completely.
 4. Do not open a PR with a custom body that skips the template sections.
 5. In `## Summary`, explain the change in terms of behaviour, intent, and why it matters — do not just restate the diff.
+6. Put verification evidence and reviewer-facing explanations directly on the pull request.
+7. Resolve review findings, re-run the relevant verification, and request re-review of the exact head before merging.
+8. Do not use a closing keyword for an epic unless the pull request completes the entire epic.
+
+## Issue readiness
+
+Every issue defines its observable success condition, verification layer, dependencies, and required human input before implementation begins.
+
+- `ready-for-agent` — fully specified and executable without further human input
+- `ready-for-human` — awaiting judgement, access, direction, or manual validation
+- `blocked` — cannot proceed until a named dependency or condition is resolved
+
+Replace the previous state label when an issue changes state. State labels describe actionability; type and area labels describe the work.
 
 ## Labelling issues
 
@@ -124,8 +137,8 @@ Never file an issue bare. Every issue gets **at least one type label**, plus a *
 - `observability` — logging, tracing, metrics, error reporting
 - `a11y` — accessibility
 
-Opening an issue through the [issue forms](./.github/ISSUE_TEMPLATE) applies the `bug` / `enhancement` type label automatically; add any further type or grouping labels by hand.
+Opening an issue through the [issue forms](./.github/ISSUE_TEMPLATE) applies the type label and marks it `ready-for-human` for triage. Add any further type or grouping labels by hand.
 
 ## Questions?
 
-Open a [discussion](https://github.com/galaxiajs/shard/discussions) or an issue.
+Open an [issue](https://github.com/Ernxst/psn-playtime/issues).

@@ -1,7 +1,7 @@
 name: Bug report
 description: Something is broken
 title: "bug: "
-labels: ["bug"]
+labels: ["bug", "ready-for-human"]
 body:
   - type: markdown
     attributes:
@@ -29,8 +29,47 @@ body:
     id: environment
     attributes:
       label: Environment
-      description: Browser & version, OS, `bun --version`.
-      placeholder: "Chrome 138 / macOS 15 / bun 1.2.0"
+      description: Browser and version, OS, `node --version`, and `pnpm --version`.
+      placeholder: "Chrome 138 / macOS 15 / Node 26 / pnpm 9.15.4"
+    validations:
+      required: true
+  - type: textarea
+    id: observable
+    attributes:
+      label: Observable success
+      description: What must be observed to prove this bug is resolved?
+    validations:
+      required: true
+  - type: dropdown
+    id: verification
+    attributes:
+      label: Verification layer
+      description: Which evidence is required? Select every applicable layer.
+      multiple: true
+      options:
+        - Static, configuration, or build check
+        - Automated logic test
+        - Browser interaction
+        - Visual observation
+        - Performance measurement
+        - Human validation
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: Name blocking issues, access, data, or decisions. Write "None" when unblocked.
+    validations:
+      required: true
+  - type: dropdown
+    id: human-input
+    attributes:
+      label: Human input
+      description: Does completion require human judgement, access, direction, or manual validation?
+      options:
+        - Required
+        - Not required
     validations:
       required: true
   - type: textarea
