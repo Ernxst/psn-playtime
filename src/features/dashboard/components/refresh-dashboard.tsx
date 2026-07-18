@@ -53,7 +53,15 @@ function useRefresh(onRefresh: Props["onRefresh"]) {
 function TokenHelp() {
   return (
     <p className="text-sm text-muted-foreground">
-      Sign in to PlayStation in this browser, then copy the npsso value from the{" "}
+      <a
+        href="https://www.playstation.com/"
+        target="_blank"
+        rel="noreferrer"
+        className="font-medium text-primary underline decoration-primary/40 underline-offset-4 hover:decoration-primary"
+      >
+        Sign in to PlayStation
+      </a>{" "}
+      in this browser, then copy the npsso value from the{" "}
       <a
         href="https://ca.account.sony.com/api/v1/ssocookie"
         target="_blank"
