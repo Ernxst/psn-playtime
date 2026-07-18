@@ -23,7 +23,9 @@ export function fmtDate(iso?: string): string {
 export function fmtRelative(iso?: string): string {
   if (!iso) return "—";
   try {
-    return formatDistanceToNow(parseISO(iso), { addSuffix: true });
+    const now = new Date();
+    const date = parseISO(iso);
+    return formatDistanceToNow(date > now ? now : date, { addSuffix: true });
   } catch {
     return "—";
   }

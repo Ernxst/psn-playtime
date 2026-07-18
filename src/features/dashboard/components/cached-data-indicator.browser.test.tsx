@@ -16,6 +16,15 @@ describe("CachedDataIndicator", () => {
     await expect.element(page.getByText("Updated 3 days ago")).toBeVisible();
   });
 
+  it("shows a fresh update in the past tense", async () => {
+    const fetchedAt = new Date(Date.now() + 10_000).toISOString();
+    const data = { ...demoDashboard, isDemo: false, fetchedAt };
+
+    await render(<CachedDataIndicator data={data} />);
+
+    await expect.element(page.getByText("Updated less than a minute ago")).toBeVisible();
+  });
+
   it("reveals the cache explanation on hover for real data", async () => {
     const data = { ...demoDashboard, isDemo: false };
 
