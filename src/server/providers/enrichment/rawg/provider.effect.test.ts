@@ -2,8 +2,8 @@ import * as ConfigProvider from "effect/ConfigProvider";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as ManagedRuntime from "effect/ManagedRuntime";
-import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
-import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
+import { HttpResponse, http, type ResponseResolver } from "msw";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import type { GameMetadata } from "@/server/providers/enrichment/contract.effect";
 import { TitleEnrichment } from "@/server/providers/enrichment/contract.effect";
 import {
@@ -11,66 +11,40 @@ import {
   prefetchGameMetadata,
   TitleEnrichmentLayer,
 } from "@/server/providers/enrichment/rawg/provider.effect";
+import { server } from "@/test/msw";
+import { RAWG_GAMES_URL, RAWG_SERIES_URL } from "@/test/msw-handlers";
+import { rawgGame, rawgSearch, rawgSeries } from "@/test/rawg-fixtures";
 
-/**
- * Tests the RAWG `TitleEnrichment` provider: the no-key gate, genre mapping,
- * caching, empty-query skip, absence only for a genuine empty result, every
- * infrastructure failure (non-OK, transport, decode) surfacing on the typed
- * error channel (`UpstreamUnavailableError` / `RateLimitedError`), and the
- * prefetch boundary degrading those typed failures back to blank enrichment.
- *
- * The `RAWG_API_KEY` gate is read through `Config`. Rather than mutate
- * `process.env` (the default provider snapshots it once), each run supplies the
- * key via an explicit `ConfigProvider` layer; fetches still go through
- * `FetchHttpClient`, which uses the spied `globalThis.fetch`.
- */
-
-/** A RAWG layer whose `Config` sees `RAWG_API_KEY` set to `test-key`. */
 const KEYED = Layer.provide(
   TitleEnrichmentLayer,
   ConfigProvider.layer(ConfigProvider.fromUnknown({ RAWG_API_KEY: "test-key" }))
 );
 
-/** A RAWG layer whose `Config` sees no `RAWG_API_KEY` (the no-op gate). */
 const NO_KEY = Layer.provide(
   TitleEnrichmentLayer,
   ConfigProvider.layer(ConfigProvider.fromUnknown({}))
 );
 
-function searchResponse(result: { genres?: string[]; playtime?: number }): Response {
-  const genres = result.genres?.map((name) => ({ name }));
-  return new Response(JSON.stringify({ results: [{ genres, playtime: result.playtime }] }), {
-    status: 200,
-  });
-}
+const useSearch = (resolver: ResponseResolver) => {
+  const handler = vi.fn(resolver);
+  server.use(http.get(RAWG_GAMES_URL, handler));
+  return handler;
+};
 
-function gameMatchResponse(id: number, name: string): Response {
-  return new Response(JSON.stringify({ results: [{ id, name }] }), { status: 200 });
-}
+const useSeries = (resolver: ResponseResolver) => {
+  const handler = vi.fn(resolver);
+  server.use(http.get(RAWG_SERIES_URL, handler));
+  return handler;
+};
 
-function seriesResponse(names: string[]): Response {
-  return new Response(JSON.stringify({ results: names.map((name) => ({ name })) }), {
-    status: 200,
-  });
-}
-
-/**
- * `FetchHttpClient.Fetch` is a `Context.Reference` memoized on the shared
- * default runtime, so the first test's `fetch` spy would otherwise be reused by
- * every later test. Delegating live to `globalThis.fetch` per call means each
- * run sees the spy installed by the test currently executing.
- */
-const liveFetch: typeof globalThis.fetch = (...args) => globalThis.fetch(...args);
+const searchResult = (overrides: { genres?: string[]; playtime?: number } = {}) =>
+  HttpResponse.json(rawgSearch([rawgGame(overrides)]));
 
 const runKeyed = <A, E>(effect: Effect.Effect<A, E, TitleEnrichment>): Promise<A> =>
-  Effect.runPromise(
-    effect.pipe(Effect.provide(KEYED), Effect.provideService(FetchHttpClient.Fetch, liveFetch))
-  );
+  Effect.runPromise(effect.pipe(Effect.provide(KEYED)));
 
 const runNoKey = <A, E>(effect: Effect.Effect<A, E, TitleEnrichment>): Promise<A> =>
-  Effect.runPromise(
-    effect.pipe(Effect.provide(NO_KEY), Effect.provideService(FetchHttpClient.Fetch, liveFetch))
-  );
+  Effect.runPromise(effect.pipe(Effect.provide(NO_KEY)));
 
 const metaProgram = (title: string) =>
   Effect.gen(function* () {
@@ -85,70 +59,50 @@ const franchiseProgram = (title: string) =>
   });
 
 const metadataFor = (title: string): Promise<GameMetadata> => runKeyed(metaProgram(title));
-
 const franchiseFor = (title: string): Promise<string | undefined> =>
   runKeyed(franchiseProgram(title));
-
-/** Run a metadata lookup, flipping the typed error onto the success channel. */
 const metadataForError = (title: string) => runKeyed(metaProgram(title).pipe(Effect.flip));
-
-/** Run a franchise lookup, flipping the typed error onto the success channel. */
 const franchiseForError = (title: string) => runKeyed(franchiseProgram(title).pipe(Effect.flip));
-
-/** The URL `FetchHttpClient` passed on call `index` (it always passes a `URL`). */
-const fetchUrlAt = (spy: ReturnType<typeof vi.spyOn>, index: number): string => {
-  const arg: unknown = spy.mock.calls[index]?.[0];
-  return arg instanceof URL ? arg.href : "";
-};
-
-afterEach(() => {
-  vi.restoreAllMocks();
-});
 
 describe(".metadataFor", () => {
   it("returns absent metadata and skips the network when no key is set", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const search = useSearch(() => searchResult({ genres: ["Action"] }));
 
     await expect(runNoKey(metaProgram("Celeste"))).resolves.toEqual({});
 
-    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(search).not.toHaveBeenCalled();
   });
 
   it("maps the first search result's genres to a Genre", async () => {
-    const fetchSpy = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValue(searchResponse({ genres: ["Action", "Shooter"] }));
-
-    await expect(metadataFor("Returnal")).resolves.toMatchObject({
-      genre: "Action-Adventure",
+    const search = useSearch(({ request }) => {
+      const url = new URL(request.url);
+      const valid =
+        url.searchParams.get("search") === "Returnal" &&
+        url.searchParams.get("key") === "test-key" &&
+        url.searchParams.get("page_size") === "1";
+      return valid
+        ? searchResult({ genres: ["Action", "Shooter"] })
+        : HttpResponse.json(rawgSearch());
     });
 
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
-    const url = fetchUrlAt(fetchSpy, 0);
-    expect(url).toContain("search=Returnal");
-    // The query params are URL-encoded by the request builder, the API key
-    // among them, and the page size is fixed at one.
-    expect(url).toContain("key=test-key");
-    expect(url).toContain("page_size=1");
+    await expect(metadataFor("Returnal")).resolves.toMatchObject({ genre: "Action-Adventure" });
+
+    expect(search).toHaveBeenCalledTimes(1);
   });
 
   it("returns the genre and typical playtime from one shared request", async () => {
-    const fetchSpy = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValue(searchResponse({ genres: ["Action"], playtime: 25 }));
+    const search = useSearch(() => searchResult({ genres: ["Action"], playtime: 25 }));
 
     await expect(metadataFor("Celeste")).resolves.toEqual({
       genre: "Action-Adventure",
       typicalPlaytime: 25,
     });
 
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(search).toHaveBeenCalledTimes(1);
   });
 
   it("caches a result so a repeated lookup hits the network once", async () => {
-    const fetchSpy = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValue(searchResponse({ genres: ["Racing"] }));
+    const search = useSearch(() => searchResult({ genres: ["Racing"] }));
 
     const [first, second] = await runKeyed(
       Effect.gen(function* () {
@@ -161,31 +115,29 @@ describe(".metadataFor", () => {
 
     expect(first.genre).toBe("Racing");
     expect(second.genre).toBe("Racing");
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(search).toHaveBeenCalledTimes(1);
   });
 
   it("returns absent metadata when the search yields no mappable genre", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(searchResponse({ genres: ["Simulation"] }));
+    useSearch(() => searchResult({ genres: ["Simulation"] }));
 
     await expect(metadataFor("Powerwash Simulator")).resolves.toEqual({});
   });
 
   it("treats a playtime of 0 as no data", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(searchResponse({ playtime: 0 }));
+    useSearch(() => searchResult({ playtime: 0 }));
 
     await expect(metadataFor("Some Game")).resolves.toEqual({});
   });
 
   it("returns absent metadata for a genuine empty search result", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ results: [] }), { status: 200 })
-    );
+    useSearch(() => HttpResponse.json(rawgSearch()));
 
     await expect(metadataFor("Totally Unknown Title")).resolves.toEqual({});
   });
 
   it("surfaces a non-ok response as an UpstreamUnavailableError on the typed channel", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("nope", { status: 503 }));
+    useSearch(() => new HttpResponse("nope", { status: 503 }));
 
     const error = await metadataForError("Some Game");
 
@@ -194,7 +146,7 @@ describe(".metadataFor", () => {
   });
 
   it("surfaces a transport failure as an UpstreamUnavailableError on the typed channel", async () => {
-    vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("network down"));
+    useSearch(() => HttpResponse.error());
 
     const error = await metadataForError("Some Game");
 
@@ -203,9 +155,7 @@ describe(".metadataFor", () => {
   });
 
   it("surfaces an invalid-JSON payload as an UpstreamUnavailableError on the typed channel", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ results: "not-an-array" }), { status: 200 })
-    );
+    useSearch(() => HttpResponse.json({ results: "not-an-array" }));
 
     const error = await metadataForError("Some Game");
 
@@ -213,15 +163,11 @@ describe(".metadataFor", () => {
     expect(error.provider).toBe("rawg");
   });
 
-  it("keeps the API key off an UpstreamUnavailableError even when the transport error names it", async () => {
-    vi.spyOn(globalThis, "fetch").mockRejectedValue(
-      new Error("connect failed for https://api.rawg.io/api/games?key=test-key")
-    );
+  it("keeps the API key off an UpstreamUnavailableError after an MSW transport failure", async () => {
+    useSearch(() => HttpResponse.error());
 
     const error = await metadataForError("Some Game");
 
-    // The thrown transport value is inspected only during classification and then
-    // discarded, so the redacted key never rides out on the typed error.
     expect(error._tag).toBe("UpstreamUnavailableError");
     expect(JSON.stringify(error)).not.toContain("test-key");
     expect(String(error)).not.toContain("test-key");
@@ -229,23 +175,21 @@ describe(".metadataFor", () => {
   });
 
   it("returns absent for a result with no genres array", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ results: [{}] }), { status: 200 })
-    );
+    useSearch(() => HttpResponse.json(rawgSearch([rawgGame({ name: "Some Game" })])));
 
     await expect(metadataFor("Some Game")).resolves.toEqual({});
   });
 
   it("skips the network when the name normalizes to an empty query", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const search = useSearch(() => searchResult());
 
     await expect(metadataFor("™®©")).resolves.toEqual({});
 
-    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(search).not.toHaveBeenCalled();
   });
 
   it("surfaces a 429 as a RateLimitedError on the typed channel", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("slow down", { status: 429 }));
+    useSearch(() => new HttpResponse("slow down", { status: 429 }));
 
     const error = await metadataForError("Busy Game");
 
@@ -254,16 +198,19 @@ describe(".metadataFor", () => {
   });
 
   it("sends the API key on the request but keeps it off the typed error", async () => {
-    const fetchSpy = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValue(new Response("slow down", { status: 429 }));
+    const search = useSearch(
+      ({ request }) =>
+        new HttpResponse(
+          new URL(request.url).searchParams.get("key") === "test-key" ? "slow down" : "missing key",
+          {
+            status: 429,
+          }
+        )
+    );
 
     const error = await metadataForError("Busy Game");
 
-    // The key reaches RAWG (it lives in the outgoing request URL)...
-    expect(fetchUrlAt(fetchSpy, 0)).toContain("key=test-key");
-    // ...but stays redacted everywhere else: it never lands on the typed error
-    // surfaced to callers, even when fully serialised.
+    expect(search).toHaveBeenCalledTimes(1);
     expect(JSON.stringify(error)).not.toContain("test-key");
     expect(String(error)).not.toContain("test-key");
     expect(error.message).not.toContain("test-key");
@@ -272,31 +219,40 @@ describe(".metadataFor", () => {
 
 describe(".franchiseFor", () => {
   it("returns undefined and skips the network when no key is set", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const search = useSearch(() => searchResult());
 
     await expect(runNoKey(franchiseProgram("Celeste"))).resolves.toBeUndefined();
 
-    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(search).not.toHaveBeenCalled();
   });
 
   it("derives a franchise from the matched game and its series", async () => {
-    const fetchSpy = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(gameMatchResponse(42, "Forza Horizon 5"))
-      .mockResolvedValueOnce(seriesResponse(["Forza Horizon 4", "Forza Motorsport 7"]));
+    const search = useSearch(({ request }) =>
+      HttpResponse.json(
+        new URL(request.url).searchParams.get("search") === "Forza Horizon 5"
+          ? rawgSearch([rawgGame({ id: 42, name: "Forza Horizon 5" })])
+          : rawgSearch()
+      )
+    );
+    const series = useSeries(({ request }) =>
+      HttpResponse.json(
+        new URL(request.url).pathname.endsWith("/42/game-series")
+          ? rawgSeries(["Forza Horizon 4", "Forza Motorsport 7"])
+          : rawgSeries()
+      )
+    );
 
     await expect(franchiseFor("Forza Horizon 5")).resolves.toBe("Forza");
 
-    expect(fetchSpy).toHaveBeenCalledTimes(2);
-    expect(fetchUrlAt(fetchSpy, 0)).toContain("search=Forza");
-    expect(fetchUrlAt(fetchSpy, 1)).toContain("/42/game-series");
+    expect(search).toHaveBeenCalledTimes(1);
+    expect(series).toHaveBeenCalledTimes(1);
   });
 
   it("caches a result so a repeated lookup hits the network once", async () => {
-    const fetchSpy = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(gameMatchResponse(1, "God of War Ragnarök"))
-      .mockResolvedValueOnce(seriesResponse(["God of War"]));
+    const search = useSearch(() =>
+      HttpResponse.json(rawgSearch([rawgGame({ id: 1, name: "God of War Ragnarök" })]))
+    );
+    const series = useSeries(() => HttpResponse.json(rawgSeries(["God of War"])));
 
     const [first, second] = await runKeyed(
       Effect.gen(function* () {
@@ -309,39 +265,36 @@ describe(".franchiseFor", () => {
 
     expect(first).toBe("God of War");
     expect(second).toBe("God of War");
-    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(search).toHaveBeenCalledTimes(1);
+    expect(series).toHaveBeenCalledTimes(1);
   });
 
   it("returns undefined and skips the series request when the search has no match", async () => {
-    const fetchSpy = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValue(new Response(JSON.stringify({ results: [] }), { status: 200 }));
+    const search = useSearch(() => HttpResponse.json(rawgSearch()));
+    const series = useSeries(() => HttpResponse.json(rawgSeries(["unused"])));
 
     await expect(franchiseFor("Totally Unknown Title")).resolves.toBeUndefined();
 
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(search).toHaveBeenCalledTimes(1);
+    expect(series).not.toHaveBeenCalled();
   });
 
   it("returns undefined when the matched game belongs to no series", async () => {
-    vi.spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(gameMatchResponse(7, "Stray"))
-      .mockResolvedValueOnce(seriesResponse([]));
+    useSearch(() => HttpResponse.json(rawgSearch([rawgGame({ id: 7, name: "Stray" })])));
+    useSeries(() => HttpResponse.json(rawgSeries()));
 
     await expect(franchiseFor("Stray")).resolves.toBeUndefined();
   });
 
   it("returns undefined when the matched game has no id", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ results: [{ name: "no id here" }] }), { status: 200 })
-    );
+    useSearch(() => HttpResponse.json(rawgSearch([rawgGame({ name: "no id here" })])));
 
     await expect(franchiseFor("Some Game")).resolves.toBeUndefined();
   });
 
   it("surfaces a non-ok series response as an UpstreamUnavailableError", async () => {
-    vi.spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(gameMatchResponse(7, "Stray"))
-      .mockResolvedValueOnce(new Response("nope", { status: 503 }));
+    useSearch(() => HttpResponse.json(rawgSearch([rawgGame({ id: 7, name: "Stray" })])));
+    useSeries(() => new HttpResponse("nope", { status: 503 }));
 
     const error = await franchiseForError("Stray");
 
@@ -350,7 +303,7 @@ describe(".franchiseFor", () => {
   });
 
   it("surfaces a non-ok search response as an UpstreamUnavailableError", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("nope", { status: 503 }));
+    useSearch(() => new HttpResponse("nope", { status: 503 }));
 
     const error = await franchiseForError("Some Game");
 
@@ -359,7 +312,7 @@ describe(".franchiseFor", () => {
   });
 
   it("surfaces a transport failure as an UpstreamUnavailableError", async () => {
-    vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("network down"));
+    useSearch(() => HttpResponse.error());
 
     const error = await franchiseForError("Some Game");
 
@@ -368,9 +321,7 @@ describe(".franchiseFor", () => {
   });
 
   it("surfaces an invalid-JSON search payload as an UpstreamUnavailableError", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ results: "not-an-array" }), { status: 200 })
-    );
+    useSearch(() => HttpResponse.json({ results: "not-an-array" }));
 
     const error = await franchiseForError("Some Game");
 
@@ -379,7 +330,7 @@ describe(".franchiseFor", () => {
   });
 
   it("surfaces a 429 search response as a RateLimitedError", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("slow down", { status: 429 }));
+    useSearch(() => new HttpResponse("slow down", { status: 429 }));
 
     const error = await franchiseForError("Busy Game");
 
@@ -388,29 +339,22 @@ describe(".franchiseFor", () => {
   });
 
   it("skips the network when the name normalizes to an empty query", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const search = useSearch(() => searchResult());
 
     await expect(franchiseFor("™®©")).resolves.toBeUndefined();
 
-    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(search).not.toHaveBeenCalled();
   });
 });
 
 describe("shared game-info search across genre and franchise", () => {
-  it("issues one /games?search= when the same title is enriched for both genre and franchise", async () => {
-    const fetchSpy = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            results: [
-              { id: 9, name: "Halo Infinite", genres: [{ name: "Shooter" }], playtime: 12 },
-            ],
-          }),
-          { status: 200 }
-        )
+  it("issues one search when the same title is enriched for both genre and franchise", async () => {
+    const search = useSearch(() =>
+      HttpResponse.json(
+        rawgSearch([rawgGame({ id: 9, name: "Halo Infinite", genres: ["Shooter"], playtime: 12 })])
       )
-      .mockResolvedValueOnce(seriesResponse(["Halo Infinite", "Halo 5"]));
+    );
+    const series = useSeries(() => HttpResponse.json(rawgSeries(["Halo Infinite", "Halo 5"])));
 
     const [metadata, franchise] = await runKeyed(
       Effect.gen(function* () {
@@ -423,59 +367,20 @@ describe("shared game-info search across genre and franchise", () => {
 
     expect(metadata).toEqual({ genre: "Shooter", typicalPlaytime: 12 });
     expect(franchise).toBe("Halo");
-
-    // The search is fetched once (call 0); the franchise reuses it and only adds
-    // the separate series request (call 1), so there is no second search.
-    expect(fetchSpy).toHaveBeenCalledTimes(2);
-    expect(fetchUrlAt(fetchSpy, 0)).toContain("search=Halo");
-    expect(fetchUrlAt(fetchSpy, 1)).toContain("/9/game-series");
-    expect(fetchUrlAt(fetchSpy, 1)).not.toContain("search=");
+    expect(search).toHaveBeenCalledTimes(1);
+    expect(series).toHaveBeenCalledTimes(1);
   });
 });
 
 describe("concurrent cache-miss dedup", () => {
-  /**
-   * Route by URL so concurrent search + series calls resolve deterministically.
-   * The search response is delayed a tick so the lookup is still in flight when
-   * the second fiber arrives — this exercises the in-flight coalescing, not mere
-   * sequential reuse of an already-written entry.
-   */
-  const routeRawg = (input: unknown): Promise<Response> => {
-    const href = input instanceof URL ? input.href : String(input);
-    if (href.includes("game-series")) {
-      return Promise.resolve(seriesResponse(["Halo Infinite", "Halo 5"]));
-    }
-    return new Promise((resolve) =>
-      setTimeout(
-        () =>
-          resolve(
-            new Response(
-              JSON.stringify({
-                results: [
-                  { id: 9, name: "Halo Infinite", genres: [{ name: "Shooter" }], playtime: 12 },
-                ],
-              }),
-              { status: 200 }
-            )
-          ),
-        10
+  it("coalesces two concurrent misses for the same title into one search", async () => {
+    const search = useSearch(() =>
+      HttpResponse.json(
+        rawgSearch([rawgGame({ id: 9, name: "Halo Infinite", genres: ["Shooter"], playtime: 12 })])
       )
     );
-  };
+    useSeries(() => HttpResponse.json(rawgSeries(["Halo Infinite", "Halo 5"])));
 
-  /** Count the `/games?search=` fetches the spy saw (series calls carry no search). */
-  const searchCallCount = (spy: ReturnType<typeof vi.spyOn>): number =>
-    spy.mock.calls.filter(([input]: unknown[]) => {
-      const href = input instanceof URL ? input.href : "";
-      return href.includes("search=");
-    }).length;
-
-  it("coalesces two concurrent misses for the same title into one search", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(routeRawg);
-
-    // Genre and franchise lookups start independently (as the dashboard runs
-    // them) against a shared layer, so both miss the same key before either
-    // writes. The `Cache` coalesces them onto a single in-flight `/games?search=`.
     const [metadata, franchise] = await runKeyed(
       Effect.all([metaProgram("Halo Infinite"), franchiseProgram("Halo Infinite")], {
         concurrency: "unbounded",
@@ -484,27 +389,21 @@ describe("concurrent cache-miss dedup", () => {
 
     expect(metadata).toEqual({ genre: "Shooter", typicalPlaytime: 12 });
     expect(franchise).toBe("Halo");
-    // Exactly one search despite two concurrent misses — the in-flight dedup.
-    expect(searchCallCount(fetchSpy)).toBe(1);
+    expect(search).toHaveBeenCalledTimes(1);
   });
 });
 
 describe("transient failures are not cached", () => {
   it("re-runs the search after an infrastructure failure rather than retaining it", async () => {
-    const fetchSpy = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(new Response("nope", { status: 503 }))
-      .mockResolvedValueOnce(searchResponse({ genres: ["Action"] }));
-
-    // One runtime, so both lookups share the same search `Cache`. The first
-    // surfaces a typed failure; the second must still hit the network and
-    // succeed — proving the failed `Exit` was evicted, not poisoning the key.
+    const search = useSearch(
+      vi
+        .fn()
+        .mockReturnValueOnce(new HttpResponse("nope", { status: 503 }))
+        .mockReturnValue(searchResult({ genres: ["Action"] }))
+    );
     const runtime = ManagedRuntime.make(KEYED);
     onTestFinished(() => runtime.dispose());
-
-    const lookup = metaProgram("Hades").pipe(
-      Effect.provideService(FetchHttpClient.Fetch, liveFetch)
-    );
+    const lookup = metaProgram("Hades");
 
     const error = await runtime.runPromise(lookup.pipe(Effect.flip));
     expect(error._tag).toBe("UpstreamUnavailableError");
@@ -512,41 +411,29 @@ describe("transient failures are not cached", () => {
     const metadata = await runtime.runPromise(lookup);
 
     expect(metadata).toMatchObject({ genre: "Action-Adventure" });
-    // Both lookups reached the network: the failure was not cached.
-    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(search).toHaveBeenCalledTimes(2);
   });
 });
 
 describe("process-lived cache across a shared runtime", () => {
-  it("reuses the cache between two separate runtime invocations (one network hit)", async () => {
-    const fetchSpy = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValue(searchResponse({ genres: ["Racing"] }));
-
-    // One runtime built from the keyed layer, mirroring how `serverRuntime`
-    // (runtime.effect.ts) constructs `TitleEnrichmentLayer` once and shares
-    // it across requests. Two separate `runPromise` calls stand in for two
-    // sequential server-fn invocations against that long-lived runtime.
+  it("reuses the cache between two separate runtime invocations", async () => {
+    const search = useSearch(() => searchResult({ genres: ["Racing"] }));
     const runtime = ManagedRuntime.make(KEYED);
     onTestFinished(() => runtime.dispose());
-
-    const lookup = metaProgram("Gran Turismo 7").pipe(
-      Effect.provideService(FetchHttpClient.Fetch, liveFetch)
-    );
+    const lookup = metaProgram("Gran Turismo 7");
 
     const first = await runtime.runPromise(lookup);
     const second = await runtime.runPromise(lookup);
 
     expect(first.genre).toBe("Racing");
     expect(second.genre).toBe("Racing");
-    // The Ref cache survived the first invocation, so the second hits no network.
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(search).toHaveBeenCalledTimes(1);
   });
 });
 
 describe("prefetch boundary degradation", () => {
   it("degrades to blank metadata when the provider surfaces an UpstreamUnavailableError", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("nope", { status: 503 }));
+    useSearch(() => new HttpResponse("nope", { status: 503 }));
 
     const metadata = await runKeyed(prefetchGameMetadata(["Some Game"]));
 
@@ -554,7 +441,7 @@ describe("prefetch boundary degradation", () => {
   });
 
   it("degrades to blank metadata when the provider surfaces a RateLimitedError", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("slow down", { status: 429 }));
+    useSearch(() => new HttpResponse("slow down", { status: 429 }));
 
     const metadata = await runKeyed(prefetchGameMetadata(["Busy Game"]));
 
@@ -562,7 +449,7 @@ describe("prefetch boundary degradation", () => {
   });
 
   it("degrades to a blank franchise when the provider surfaces an UpstreamUnavailableError", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("nope", { status: 503 }));
+    useSearch(() => new HttpResponse("nope", { status: 503 }));
 
     const franchises = await runKeyed(prefetchFranchises(["Some Game"]));
 

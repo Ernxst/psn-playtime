@@ -1,7 +1,16 @@
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
+import * as Schema from "effect/Schema";
 import { build } from "esbuild";
-import { describe, expect, it, vi } from "vitest";
+import { HttpResponse, http } from "msw";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
+import { server } from "@/test/msw";
+import {
+  multiProductPurchase,
+  nullNamePurchase,
+  transactionHistoryResponse,
+  walletFunding,
+} from "@/test/transaction-fixtures";
 import {
   bookmarkletHref,
   buildTransactionHistoryUrl,
@@ -9,6 +18,7 @@ import {
   importErrorMessage,
   mountImportOverlay,
   TRANSACTION_HISTORY_ENDPOINT,
+  type TransactionHistoryQuery,
 } from "./transaction-bookmarklet";
 
 function bookmarkletBody(origin: string): string {
@@ -196,6 +206,57 @@ function directDocument(options: { existing?: DirectElement; body?: DirectElemen
   return { document, created, documentElement };
 }
 
+async function runNetworkBookmarklet(): Promise<{
+  href: string;
+  message: DirectElement;
+  open: ReturnType<typeof vi.fn>;
+}> {
+  vi.useFakeTimers({ toFake: ["setTimeout"] });
+  onTestFinished(() => {
+    vi.useRealTimers();
+  });
+  const body = bookmarkletBody("https://psn.example.dev");
+  const dom = directDocument();
+  const location = { host: "store.playstation.com", href: "https://store.playstation.com/" };
+  const open = vi.fn(() => null);
+  const crypto = { randomUUID: () => "request-id" };
+  const context = {
+    document: dom.document,
+    fetch: globalThis.fetch,
+    location,
+    window: { crypto, open },
+    crypto,
+    console: { log: vi.fn(), warn: vi.fn() },
+    setTimeout: globalThis.setTimeout,
+  };
+
+  await vm.runInNewContext(body, context);
+  vi.advanceTimersByTime(1500);
+
+  const message =
+    dom.created.find((element) => element.attrs["aria-live"] === "polite") ??
+    (() => {
+      throw new Error("bookmarklet did not create an aria-live message node");
+    })();
+  return { href: location.href, message, open };
+}
+
+function importedPayload(href: string): unknown {
+  const encoded = new URL(href).hash.replace(/^#data=/, "");
+  return JSON.parse(decodeURIComponent(encoded)) as unknown;
+}
+
+const TransactionHistoryQuerySchema = Schema.Struct({
+  startDate: Schema.String,
+  endDate: Schema.String,
+  limit: Schema.Number,
+});
+
+function transactionQuery(request: Request): TransactionHistoryQuery {
+  const raw: unknown = JSON.parse(new URL(request.url).searchParams.get("variables") ?? "{}");
+  return Schema.decodeUnknownSync(TransactionHistoryQuerySchema)(raw);
+}
+
 describe(".importErrorMessage", () => {
   it.each([
     ["unexpected response (HTTP 401) — are you signed in to PlayStation?", "not signed in"],
@@ -368,6 +429,103 @@ describe(".bookmarkletHref", () => {
         displayAmount: "€1.234,56",
       },
     ]);
+  });
+});
+
+describe("bookmarklet transaction-history workflow", () => {
+  it("executes the authenticated GraphQL request through successful pagination", async () => {
+    const cursor = "2024-01-01T00:00:00.000Z";
+    server.use(
+      http.get(TRANSACTION_HISTORY_ENDPOINT, ({ request }) => {
+        const url = new URL(request.url);
+        const variables = transactionQuery(request);
+        const valid =
+          url.searchParams.get("operationName") === "transactionHistoryRetrieve" &&
+          variables.limit === 100 &&
+          variables.startDate === "1994-01-01T00:00:00.000Z" &&
+          request.credentials === "include" &&
+          request.headers.get("apollographql-client-name") === "@sie-ppr-web-checkout/app" &&
+          request.headers.get("x-psn-storefront-type") === "checkout:pdc" &&
+          request.headers.get("x-psn-request-id") === "request-id";
+        return HttpResponse.json(
+          valid
+            ? variables.endDate === cursor
+              ? transactionHistoryResponse([multiProductPurchase, walletFunding])
+              : transactionHistoryResponse([multiProductPurchase], {
+                  hasMore: true,
+                  nextEndDate: cursor,
+                })
+            : { errors: [{ message: "invalid request" }] }
+        );
+      })
+    );
+
+    const result = await runNetworkBookmarklet();
+
+    expect(result.open).toHaveBeenCalledTimes(1);
+    expect(importedPayload(result.href)).toMatchObject({
+      v: 3,
+      source: "store.playstation.com",
+      transactions: [
+        { transactionId: multiProductPurchase.id, key: "111111111111" },
+        { transactionId: multiProductPurchase.id, key: "111111111112" },
+        { transactionId: walletFunding.id, kind: "top-up" },
+      ],
+    });
+  });
+
+  it("continues with usable transaction data when GraphQL also returns errors", async () => {
+    server.use(
+      http.get(TRANSACTION_HISTORY_ENDPOINT, () =>
+        HttpResponse.json(
+          transactionHistoryResponse([nullNamePurchase], {
+            errors: [{ message: "productName was null" }],
+          })
+        )
+      )
+    );
+
+    const result = await runNetworkBookmarklet();
+
+    expect(result.open).toHaveBeenCalledTimes(1);
+    expect(importedPayload(result.href)).toMatchObject({
+      transactions: [{ transactionId: nullNamePurchase.id }],
+    });
+  });
+
+  it("leaves the first-page failure visible and does not hand off an import", async () => {
+    server.use(
+      http.get(TRANSACTION_HISTORY_ENDPOINT, () =>
+        HttpResponse.json({ errors: [{ message: "PersistedQueryNotFound" }] })
+      )
+    );
+
+    const result = await runNetworkBookmarklet();
+
+    expect(result.open).not.toHaveBeenCalled();
+    expect(result.href).toBe("https://store.playstation.com/");
+    expect(result.message.textContent).toBe("Import failed: PersistedQueryNotFound");
+  });
+
+  it("hands off the collected rows when a later page fails", async () => {
+    const cursor = "2024-01-01T00:00:00.000Z";
+    server.use(
+      http.get(TRANSACTION_HISTORY_ENDPOINT, ({ request }) => {
+        const variables = transactionQuery(request);
+        return HttpResponse.json(
+          variables.endDate === cursor
+            ? { errors: [{ message: "later page unavailable" }] }
+            : transactionHistoryResponse([walletFunding], { hasMore: true, nextEndDate: cursor })
+        );
+      })
+    );
+
+    const result = await runNetworkBookmarklet();
+
+    expect(result.open).toHaveBeenCalledTimes(1);
+    expect(importedPayload(result.href)).toMatchObject({
+      transactions: [{ transactionId: walletFunding.id, kind: "top-up" }],
+    });
   });
 });
 

@@ -2,11 +2,12 @@ import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import { page, userEvent } from "vitest/browser";
 import { Toaster } from "@/components/ui/sonner";
-import { demoDashboard } from "@/domain/mock";
 import type { TransactionImport } from "@/domain/transactions";
 import { buildTransactionsCsv } from "@/features/dashboard/export/csv";
 import { signInWithToken } from "@/server/api/account.effect";
+import type { DashboardData } from "@/server/providers/account/snapshot";
 import { testDashboardStore, testTransactionStore } from "@/test/atom-registry";
+import { dashboardData } from "@/test/dashboard-fixtures";
 import { createHarness } from "@/test/harness";
 import { SignInCard } from "./sign-in-card";
 
@@ -16,11 +17,10 @@ vi.mock("@/server/api/account.effect", () => ({
 
 const ACTIVE_KEY = "psn-playtime:dashboard-active";
 
-const cachedAccount = {
-  ...demoDashboard,
+const cachedAccount = dashboardData({
   isDemo: false,
-  profile: { ...demoDashboard.profile, accountId: "acc-1", onlineId: "Ernxst_" },
-};
+  profile: { accountId: "acc-1", onlineId: "Ernxst_" },
+});
 
 const importedTransactions: TransactionImport = {
   transactions: [
@@ -176,11 +176,10 @@ describe("SignInCard", () => {
 
   it("submitting a token after acknowledging caches the fetched account and makes it active", async () => {
     onTestFinished(() => localStorage.clear());
-    const account = {
-      ...demoDashboard,
+    const account = dashboardData({
       isDemo: false,
-      profile: { ...demoDashboard.profile, accountId: "acc-1", onlineId: "Ernxst_" },
-    };
+      profile: { accountId: "acc-1", onlineId: "Ernxst_" },
+    });
     vi.mocked(signInWithToken).mockResolvedValue(account);
     const { element } = createHarness(<SignInCard />);
 
@@ -199,11 +198,12 @@ describe("SignInCard", () => {
 
   it("lists a cached account so a revisit needs no token", async () => {
     onTestFinished(() => localStorage.clear());
-    testDashboardStore.save({
-      ...demoDashboard,
-      isDemo: false,
-      profile: { ...demoDashboard.profile, accountId: "acc-1", onlineId: "Ernxst_" },
-    });
+    testDashboardStore.save(
+      dashboardData({
+        isDemo: false,
+        profile: { accountId: "acc-1", onlineId: "Ernxst_" },
+      })
+    );
     const { element } = createHarness(<SignInCard />);
 
     await render(element);
@@ -401,7 +401,7 @@ describe("SignInCard", () => {
 
   it("shows a signing-in spinner and locks the token input while the request is in flight", async () => {
     onTestFinished(() => localStorage.clear());
-    let resolveSignIn: (value: typeof demoDashboard) => void = () => {};
+    let resolveSignIn: (value: DashboardData) => void = () => {};
     vi.mocked(signInWithToken).mockReturnValue(
       new Promise((resolve) => {
         resolveSignIn = resolve;
@@ -418,6 +418,6 @@ describe("SignInCard", () => {
     await expect.element(page.getByRole("button", { name: /signing in/i })).toBeDisabled();
     await expect.element(page.getByLabelText("npsso token")).toBeDisabled();
 
-    resolveSignIn(demoDashboard);
+    resolveSignIn(dashboardData());
   });
 });

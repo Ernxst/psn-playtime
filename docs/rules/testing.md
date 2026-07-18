@@ -28,7 +28,7 @@ You MUST follow existing testing patterns. Test: initial render, user interactio
 - `.finally()` for per-test teardown
 - Testing what the TypeScript compiler can catch
 - `vi.resetModules()` / `vi.restoreAllMocks()` outside of `onTestFinished` or `afterEach` — use the appropriate cleanup hook instead
-- Mocking our own repo code / wrappers (e.g. `@/server/*`) — mock the third-party SDK or the network (MSW) it delegates to instead
+- Mocking our own repo code / wrappers (e.g. `@/server/*`) — mock the third-party SDK or the network (MSW) it delegates to instead; the generated TanStack server-function client proxy exception below is the only exception
 - `mockImplementation` for throwing errors - use `mockThrow` instead
 - `mockImplementation(promise)` for returning a promise - use `mockReturnValue(promise)` instead
 - `expect(await promise).to...` - use `await expect(promise).resolves.to...` or extract the resolved value into a variable
@@ -72,9 +72,10 @@ You MUST follow existing testing patterns. Test: initial render, user interactio
 ## Mocking Policy
 
 - **Default**: no mocks, spies, stubs, or test doubles
-- Do not mock anything defined in this repo — if untestable without mocking internal code → refactor
+- Do not mock anything defined in this repo — if untestable without mocking internal code → refactor, except for the generated TanStack server-function client proxy described below
 - **Network is mocked with MSW**, not ad-hoc `fetch`/SDK stubs: intercept the real third-party HTTP (RAWG, psn-api's requests) at the network boundary. Centralise handlers in `src/test/` and override per-test. This is the one sanctioned place to "mock" — it stands in for the real third-party service, never for our own code.
 - Non-network third-party seams with no real test context (e.g. the `@tanstack/react-start/server` cookie helpers) may be module-mocked minimally, or driven via the shared request-context helper.
+- Browser component tests may module-mock only a generated TanStack server-function client proxy when the isolated browser project has no TanStack Start HTTP host to execute it. The corresponding server effect must be integration-tested separately through its real provider and MSW-backed remote network boundary. This exception does not permit mocking providers, transports, domain wrappers, or any ordinary repository module.
 - Never add test-only helpers to source files — put them in the test file or under `src/test/`
 - Never refactor source code solely to make it testable via dependency injection — if the real implementation is testable, test it directly
 
@@ -90,7 +91,7 @@ You MUST follow existing testing patterns. Test: initial render, user interactio
 
 ### Rule
 
-Never mock your wrapper. Only mock the real third-party SDK call it delegates to.
+Never mock providers, transports, or domain wrappers. Only mock the real third-party SDK call or network it delegates to; the generated TanStack server-function client proxy exception above is the sole exception.
 
 ---
 

@@ -4,7 +4,6 @@ import * as Redacted from "effect/Redacted";
 import type {
   AuthTokensResponse,
   ProfileFromUserNameResponse,
-  TrophyTitle,
   UserPlayedGamesResponse,
   UserTitlesResponse,
 } from "psn-api";
@@ -17,111 +16,19 @@ import {
   type PsnTransportShape,
 } from "@/server/providers/account/psn/transport.effect";
 import type { DashboardSourceError } from "@/server/providers/errors.effect";
+import {
+  psnAuthTokens as authTokens,
+  psnPlayedPage as playedPage,
+  psnPlayedTitle as played,
+  psnProfile as profile,
+  psnTrophyPage as trophyPage,
+  psnTrophyTitle as trophy,
+} from "@/test/psn-fixtures";
 import type { DashboardData } from "../snapshot";
 
 /** A transport failure carrying `message` as its raw cause, as the live layer would. */
 function psnFailure(message: string): Effect.Effect<never, PsnTransportError> {
   return Effect.fail(new PsnTransportError({ cause: new Error(message) }));
-}
-
-type ProfileBody = ProfileFromUserNameResponse["profile"];
-type PlayedTitle = UserPlayedGamesResponse["titles"][number];
-
-const authTokens: AuthTokensResponse = {
-  accessToken: "access-token",
-  expiresIn: 3600,
-  idToken: "id-token",
-  refreshToken: "refresh-token",
-  refreshTokenExpiresIn: 7200,
-  scope: "psn:mobile.v2.core psn:clientapp",
-  tokenType: "bearer",
-};
-
-const baseProfile: ProfileBody = {
-  onlineId: "Ernxst_",
-  accountId: "acc-1",
-  npId: "np-1",
-  avatarUrls: [{ size: "xl", avatarUrl: "https://img/xl" }],
-  plus: 1,
-  aboutMe: "Hello there",
-  languagesUsed: ["en"],
-  trophySummary: {
-    level: 220,
-    progress: 70,
-    earnedTrophies: { bronze: 887, silver: 188, gold: 54, platinum: 9 },
-  },
-  isOfficiallyVerified: false,
-  personalDetail: { firstName: "", lastName: "", profilePictureUrls: [] },
-  personalDetailSharing: "no",
-  personalDetailSharingRequestMessageFlag: false,
-  primaryOnlineStatus: "offline",
-  presences: [],
-  friendRelation: "no-relation",
-  requestMessageFlag: false,
-  blocking: false,
-  following: false,
-  consoleAvailability: { availabilityStatus: "unavailable" },
-};
-
-function profile(overrides: Partial<ProfileBody> = {}): ProfileFromUserNameResponse {
-  return { profile: { ...baseProfile, ...overrides } };
-}
-
-const basePlayed: PlayedTitle = {
-  titleId: "",
-  name: "",
-  localizedName: "",
-  imageUrl: "",
-  localizedImageUrl: "",
-  category: "ps4_game",
-  service: "none",
-  playCount: 0,
-  concept: {
-    id: 0,
-    titleIds: [],
-    name: "",
-    media: { audios: [], videos: [], images: [] },
-  },
-  media: {},
-  firstPlayedDateTime: "",
-  lastPlayedDateTime: "",
-  playDuration: "PT0S",
-};
-
-function played(overrides: Partial<PlayedTitle>): PlayedTitle {
-  return { ...basePlayed, ...overrides };
-}
-
-const baseTrophy: TrophyTitle = {
-  npServiceName: "trophy",
-  npCommunicationId: "",
-  trophySetVersion: "01.00",
-  trophyTitleName: "",
-  trophyTitleIconUrl: "",
-  trophyTitlePlatform: "PS4",
-  hasTrophyGroups: false,
-  definedTrophies: { bronze: 0, silver: 0, gold: 0, platinum: 0 },
-  progress: 0,
-  earnedTrophies: { bronze: 0, silver: 0, gold: 0, platinum: 0 },
-  hiddenFlag: false,
-  lastUpdatedDateTime: "",
-};
-
-function trophy(overrides: Partial<TrophyTitle>): TrophyTitle {
-  return { ...baseTrophy, ...overrides };
-}
-
-function playedPage(titles: PlayedTitle[], totalItemCount: number): UserPlayedGamesResponse {
-  return { titles, totalItemCount, nextOffset: 0, previousOffset: 0 };
-}
-
-function trophyPage(trophies: TrophyTitle[], totalItemCount: number): UserTitlesResponse {
-  return {
-    trophyTitles: trophies,
-    totalItemCount,
-    nextOffset: 0,
-    previousOffset: 0,
-  };
 }
 
 /**
