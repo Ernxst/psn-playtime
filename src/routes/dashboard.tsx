@@ -9,6 +9,7 @@ import {
   rawgGenresQueryOptions,
   shouldPersistEnrichment,
 } from "@/features/dashboard/enrichment/query";
+import { signInWithToken } from "@/server/api/account.effect";
 import type { DashboardData, GamePlay, Genre } from "@/server/providers/account/snapshot";
 import { useActiveDashboard } from "@/stores/dashboard-store";
 
@@ -116,6 +117,13 @@ function DashboardCachedView({ data }: { data: DashboardData }) {
   return (
     <DashboardView
       data={enrichedData}
+      onRefresh={async (npsso) => {
+        const refreshed = await signInWithToken({ data: { npsso } });
+        if (refreshed.profile.accountId !== data.profile.accountId) {
+          throw new Error("That token belongs to a different PlayStation account.");
+        }
+        dashboardStore.save(refreshed);
+      }}
       onSignOut={() => {
         dashboardStore.clearActive();
         toast.success("Signed out — showing demo data.");

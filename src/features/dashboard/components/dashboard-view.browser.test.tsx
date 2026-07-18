@@ -28,7 +28,12 @@ function baseFor(titleId: string, amountMinor: number): TransactionRow {
 describe("DashboardView", () => {
   it("composes the header, KPIs, chart sections and games table from the data", async () => {
     const { element } = createHarness(
-      <DashboardView data={demoDashboard} onSignOut={vi.fn()} signingOut={false} />
+      <DashboardView
+        data={demoDashboard}
+        onRefresh={vi.fn()}
+        onSignOut={vi.fn()}
+        signingOut={false}
+      />
     );
 
     await render(element);
@@ -45,7 +50,12 @@ describe("DashboardView", () => {
 
   it("shows the demo banner for the demo dataset and offers no sign-out", async () => {
     const { element } = createHarness(
-      <DashboardView data={demoDashboard} onSignOut={vi.fn()} signingOut={false} />
+      <DashboardView
+        data={demoDashboard}
+        onRefresh={vi.fn()}
+        onSignOut={vi.fn()}
+        signingOut={false}
+      />
     );
 
     await render(element);
@@ -59,6 +69,7 @@ describe("DashboardView", () => {
     const { element } = createHarness(
       <DashboardView
         data={{ ...demoDashboard, isDemo: false }}
+        onRefresh={vi.fn()}
         onSignOut={onSignOut}
         signingOut={false}
       />
@@ -75,7 +86,12 @@ describe("DashboardView", () => {
 
   it("choosing a timeframe recomputes the scoped library", async () => {
     const { element } = createHarness(
-      <DashboardView data={demoDashboard} onSignOut={vi.fn()} signingOut={false} />
+      <DashboardView
+        data={demoDashboard}
+        onRefresh={vi.fn()}
+        onSignOut={vi.fn()}
+        signingOut={false}
+      />
     );
 
     await render(element);
@@ -91,7 +107,12 @@ describe("DashboardView", () => {
 
   it("narrowing the library narrows the AI prompt", async () => {
     const { element } = createHarness(
-      <DashboardView data={demoDashboard} onSignOut={vi.fn()} signingOut={false} />
+      <DashboardView
+        data={demoDashboard}
+        onRefresh={vi.fn()}
+        onSignOut={vi.fn()}
+        signingOut={false}
+      />
     );
 
     await render(element);
@@ -125,6 +146,7 @@ describe("DashboardView", () => {
     const { element } = createHarness(
       <DashboardView
         data={{ ...demoDashboard, isDemo: false }}
+        onRefresh={vi.fn()}
         onSignOut={vi.fn()}
         signingOut={false}
       />
@@ -155,6 +177,7 @@ describe("DashboardView", () => {
     const { element } = createHarness(
       <DashboardView
         data={{ ...demoDashboard, games: [] }}
+        onRefresh={vi.fn()}
         onSignOut={vi.fn()}
         signingOut={false}
       />
@@ -167,7 +190,12 @@ describe("DashboardView", () => {
 
   it("shows the no-matches state and restores the library when filters are cleared", async () => {
     const { element } = createHarness(
-      <DashboardView data={demoDashboard} onSignOut={vi.fn()} signingOut={false} />
+      <DashboardView
+        data={demoDashboard}
+        onRefresh={vi.fn()}
+        onSignOut={vi.fn()}
+        signingOut={false}
+      />
     );
 
     await render(element);
@@ -183,7 +211,12 @@ describe("DashboardView", () => {
 
   it("keeps the search input responsive while the deferred filter settles", async () => {
     const { element } = createHarness(
-      <DashboardView data={demoDashboard} onSignOut={vi.fn()} signingOut={false} />
+      <DashboardView
+        data={demoDashboard}
+        onRefresh={vi.fn()}
+        onSignOut={vi.fn()}
+        signingOut={false}
+      />
     );
 
     await render(element);
@@ -201,7 +234,12 @@ describe("DashboardView", () => {
 
   it("searching by name narrows the scoped library", async () => {
     const { element } = createHarness(
-      <DashboardView data={demoDashboard} onSignOut={vi.fn()} signingOut={false} />
+      <DashboardView
+        data={demoDashboard}
+        onRefresh={vi.fn()}
+        onSignOut={vi.fn()}
+        signingOut={false}
+      />
     );
 
     await render(element);
