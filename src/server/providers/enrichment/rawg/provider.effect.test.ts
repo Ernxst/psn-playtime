@@ -163,7 +163,7 @@ describe(".metadataFor", () => {
     expect(error.provider).toBe("rawg");
   });
 
-  it("keeps the API key off an UpstreamUnavailableError after a transport failure", async () => {
+  it("keeps the API key off an UpstreamUnavailableError after an MSW transport failure", async () => {
     useSearch(() => HttpResponse.error());
 
     const error = await metadataForError("Some Game");

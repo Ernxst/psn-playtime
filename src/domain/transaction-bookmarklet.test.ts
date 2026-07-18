@@ -1,8 +1,9 @@
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
+import * as Schema from "effect/Schema";
 import { build } from "esbuild";
 import { HttpResponse, http } from "msw";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { server } from "@/test/msw";
 import {
   multiProductPurchase,
@@ -210,6 +211,10 @@ async function runNetworkBookmarklet(): Promise<{
   message: DirectElement;
   open: ReturnType<typeof vi.fn>;
 }> {
+  vi.useFakeTimers({ toFake: ["setTimeout"] });
+  onTestFinished(() => {
+    vi.useRealTimers();
+  });
   const body = bookmarkletBody("https://psn.example.dev");
   const dom = directDocument();
   const location = { host: "store.playstation.com", href: "https://store.playstation.com/" };
@@ -222,13 +227,17 @@ async function runNetworkBookmarklet(): Promise<{
     window: { crypto, open },
     crypto,
     console: { log: vi.fn(), warn: vi.fn() },
-    setTimeout: () => 0,
+    setTimeout: globalThis.setTimeout,
   };
 
   await vm.runInNewContext(body, context);
+  vi.advanceTimersByTime(1500);
 
-  const message = dom.created.find((element) => element.attrs["aria-live"] === "polite");
-  if (!message) throw new Error("bookmarklet did not create an aria-live message node");
+  const message =
+    dom.created.find((element) => element.attrs["aria-live"] === "polite") ??
+    (() => {
+      throw new Error("bookmarklet did not create an aria-live message node");
+    })();
   return { href: location.href, message, open };
 }
 
@@ -237,16 +246,15 @@ function importedPayload(href: string): unknown {
   return JSON.parse(decodeURIComponent(encoded)) as unknown;
 }
 
-function transactionQuery(request: Request): Partial<TransactionHistoryQuery> {
+const TransactionHistoryQuerySchema = Schema.Struct({
+  startDate: Schema.String,
+  endDate: Schema.String,
+  limit: Schema.Number,
+});
+
+function transactionQuery(request: Request): TransactionHistoryQuery {
   const raw: unknown = JSON.parse(new URL(request.url).searchParams.get("variables") ?? "{}");
-  if (typeof raw !== "object" || raw === null) return {};
-  return {
-    ...("endDate" in raw && typeof raw.endDate === "string" ? { endDate: raw.endDate } : {}),
-    ...("limit" in raw && typeof raw.limit === "number" ? { limit: raw.limit } : {}),
-    ...("startDate" in raw && typeof raw.startDate === "string"
-      ? { startDate: raw.startDate }
-      : {}),
-  };
+  return Schema.decodeUnknownSync(TransactionHistoryQuerySchema)(raw);
 }
 
 describe(".importErrorMessage", () => {
@@ -435,6 +443,7 @@ describe("bookmarklet transaction-history workflow", () => {
           url.searchParams.get("operationName") === "transactionHistoryRetrieve" &&
           variables.limit === 100 &&
           variables.startDate === "1994-01-01T00:00:00.000Z" &&
+          request.credentials === "include" &&
           request.headers.get("apollographql-client-name") === "@sie-ppr-web-checkout/app" &&
           request.headers.get("x-psn-storefront-type") === "checkout:pdc" &&
           request.headers.get("x-psn-request-id") === "request-id";

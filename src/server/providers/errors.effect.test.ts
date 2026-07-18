@@ -62,10 +62,10 @@ describe(".providerError", () => {
     });
   });
 
-  it("keeps raw upstream text (a URL/token) off the typed error entirely, not just out of the reason", () => {
-    const secret = "SECRET-abc123";
-    const leaky = new Error(`GET https://api.example.com?token=${secret} failed: 500`);
-    const error = providerError("psn")(leaky);
+  it("keeps a RAWG API key named by a transport diagnostic off the typed error entirely", () => {
+    const secret = "test-key";
+    const leaky = new Error(`connect failed for https://api.rawg.io/api/games?key=${secret}`);
+    const error = providerError("rawg")(leaky);
 
     expect(error).toBeInstanceOf(UpstreamUnavailableError);
     if (!(error instanceof UpstreamUnavailableError)) throw new Error("expected unavailable");
@@ -77,7 +77,7 @@ describe(".providerError", () => {
     const serialised = JSON.stringify(Object.entries(error));
     expect(serialised).not.toContain("https://");
     expect(serialised).not.toContain(secret);
-    expect(serialised).not.toContain("api.example.com");
+    expect(serialised).not.toContain("api.rawg.io");
   });
 
   it("discards a non-Error thrown value rather than surfacing it on the error", () => {

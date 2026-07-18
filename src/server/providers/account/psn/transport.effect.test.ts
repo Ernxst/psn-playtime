@@ -40,7 +40,9 @@ describe("PsnTransportLive", () => {
     server.use(
       http.get(`${PSN_AUTH_URL}/authorize`, ({ request }) => {
         const url = new URL(request.url);
-        const valid = url.searchParams.get("response_type") === "code";
+        const valid =
+          url.searchParams.get("response_type") === "code" &&
+          request.headers.get("cookie") === "npsso=npsso-token";
         return new HttpResponse(null, {
           status: 302,
           headers: valid ? { Location: "https://example.test/redirect/?code=verified-code" } : {},
@@ -58,7 +60,9 @@ describe("PsnTransportLive", () => {
       http.get(PSN_PLAYED_GAMES_URL, ({ request }) => {
         const url = new URL(request.url);
         return HttpResponse.json(
-          url.searchParams.get("limit") === "200" && url.searchParams.get("offset") === "400"
+          request.headers.get("authorization") === "Bearer access-token" &&
+            url.searchParams.get("limit") === "200" &&
+            url.searchParams.get("offset") === "400"
             ? played
             : psnPlayedPage()
         );
@@ -66,7 +70,9 @@ describe("PsnTransportLive", () => {
       http.get(PSN_TROPHY_TITLES_URL, ({ request }) => {
         const url = new URL(request.url);
         return HttpResponse.json(
-          url.searchParams.get("limit") === "800" && url.searchParams.get("offset") === "1600"
+          request.headers.get("authorization") === "Bearer access-token" &&
+            url.searchParams.get("limit") === "800" &&
+            url.searchParams.get("offset") === "1600"
             ? trophies
             : psnTrophyPage()
         );
