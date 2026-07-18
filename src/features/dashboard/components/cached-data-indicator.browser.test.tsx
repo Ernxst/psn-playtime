@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { demoDashboard } from "@/domain/mock";
 import { CachedDataIndicator } from "./cached-data-indicator";
 
@@ -28,7 +29,11 @@ describe("CachedDataIndicator", () => {
   it("reveals the cache explanation on hover for real data", async () => {
     const data = { ...demoDashboard, isDemo: false };
 
-    await render(<CachedDataIndicator data={data} />);
+    await render(
+      <TooltipProvider delay={0}>
+        <CachedDataIndicator data={data} />
+      </TooltipProvider>
+    );
 
     await page.getByRole("button", { name: /Updated/ }).hover();
 

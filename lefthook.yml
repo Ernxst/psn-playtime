@@ -46,7 +46,7 @@ pre-commit:
         - "package.json"
         - "pnpm-lock.yaml"
         - "**/*.{ts,tsx}"
-      run: pnpm run test --browser.headless
+      run: pnpm exec vitest --run --changed --browser.headless
 
 pre-push:
   skip:

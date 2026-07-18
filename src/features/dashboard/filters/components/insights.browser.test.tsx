@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { demoDashboard } from "@/domain/mock";
 import { AppsExcludedNote, ComebacksCard, LifespansCard, RecencyCard, ValueCard } from "./insights";
 
@@ -26,7 +27,11 @@ describe("RecencyCard", () => {
   });
 
   it("recency card exposes the lifetime caveat as an accessible tooltip", async () => {
-    await render(<RecencyCard data={demoDashboard} />);
+    await render(
+      <TooltipProvider delay={0}>
+        <RecencyCard data={demoDashboard} />
+      </TooltipProvider>
+    );
 
     await page
       .getByRole("button", { name: /lifetime/ })

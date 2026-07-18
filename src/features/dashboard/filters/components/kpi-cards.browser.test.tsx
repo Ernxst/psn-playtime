@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { demoDashboard } from "@/domain/mock";
+import { LIFETIME_HOURS_CAVEAT } from "@/features/dashboard/filters/analytics";
 import { KpiCards } from "./kpi-cards";
 
 describe("KpiCards", () => {
@@ -29,13 +31,15 @@ describe("KpiCards", () => {
   });
 
   it("exposes the lifetime caveat as an accessible tooltip on the headline figures", async () => {
-    await render(<KpiCards data={demoDashboard} />);
+    await render(
+      <TooltipProvider delay={0}>
+        <KpiCards data={demoDashboard} />
+      </TooltipProvider>
+    );
 
     await page.getByRole("button").first().hover();
 
-    await expect
-      .element(page.getByText(/PSN can under-report or miss play time for some titles/))
-      .toBeVisible();
+    await expect.element(page.getByText(LIFETIME_HOURS_CAVEAT, { exact: true })).toBeVisible();
   });
 
   it("reframes the headline as games-last-played when a timeframe is active", async () => {
