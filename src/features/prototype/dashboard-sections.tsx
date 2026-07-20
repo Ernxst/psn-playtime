@@ -11,7 +11,7 @@ import {
   topGamesByHours,
 } from "@/features/dashboard/filters/analytics";
 import { fmtDate, fmtHours, fmtNumber } from "@/features/dashboard/format";
-import { summariseAddOns, summariseSpend } from "@/features/dashboard/spend/spend";
+import { isAddOnPurchase, summariseAddOns, summariseSpend } from "@/features/dashboard/spend/spend";
 import type { DashboardData, GamePlay } from "@/server/providers/account/snapshot";
 import { GamePoster } from "./poster";
 import { prototypeTransactions } from "./prototype-data";
@@ -53,18 +53,10 @@ function OverviewMetrics({ data }: { data: DashboardData }) {
         value={fmtHours(totals.totalHours)}
         detail={`≈ ${fmtNumber(totals.days)} days non-stop`}
       />
-      <Metric
-        label="Games played"
-        value={fmtNumber(totals.gamesPlayed)}
-        detail={`${fmtNumber(totals.sessions)} sessions`}
-      />
+      <Metric label="Games played" value={fmtNumber(totals.gamesPlayed)} detail="Distinct titles" />
+      <Metric label="Sessions" value={fmtNumber(totals.sessions)} detail="Total launches" />
       <Metric label="Avg per game" value={fmtHours(hoursPerGame)} detail="Lifetime hours" />
       <Metric label="Avg session" value={fmtHours(hoursPerSession)} detail="Across all launches" />
-      <Metric
-        label="Trophy level"
-        value={fmtNumber(totals.trophyLevel)}
-        detail={`${fmtNumber(data.profile.totalTrophies)} trophies`}
-      />
     </div>
   );
 }
@@ -348,6 +340,8 @@ function MatchSelect({
 function TransactionFilters({
   query,
   onQuery,
+  purchasedAfter,
+  onPurchasedAfter,
   kind,
   onKind,
   match,
@@ -355,6 +349,8 @@ function TransactionFilters({
 }: {
   query: string;
   onQuery: (value: string) => void;
+  purchasedAfter: string;
+  onPurchasedAfter: (value: string) => void;
   kind: KindFilter;
   onKind: (value: KindFilter) => void;
   match: MatchFilter;
@@ -368,8 +364,13 @@ function TransactionFilters({
       </div>
       <PurchaseSearch value={query} onChange={onQuery} />
       <label>
-        Purchase date
-        <input type="date" aria-label="Purchase date from" defaultValue="2022-01-01" />
+        Purchased from
+        <input
+          type="date"
+          aria-label="Purchase date from"
+          value={purchasedAfter}
+          onChange={(event) => onPurchasedAfter(event.currentTarget.value)}
+        />
       </label>
       <KindSelect value={kind} onChange={onKind} />
       <MatchSelect value={match} onChange={onMatch} />
@@ -397,27 +398,74 @@ function LedgerRow({ row, data }: { row: TransactionRow; data: DashboardData }) 
   );
 }
 
+type LedgerSort = "date" | "product" | "kind" | "match" | "original" | "discount" | "paid";
+
+const ledgerColumns: ReadonlyArray<{ key: LedgerSort; label: string }> = [
+  { key: "date", label: "Date" },
+  { key: "product", label: "Product" },
+  { key: "kind", label: "Type" },
+  { key: "match", label: "Match" },
+  { key: "original", label: "Original" },
+  { key: "discount", label: "Discount" },
+  { key: "paid", label: "Paid" },
+];
+
+const ledgerValue: Record<
+  LedgerSort,
+  (row: TransactionRow, data: DashboardData) => string | number
+> = {
+  date: (row) => row.date,
+  product: (row) => row.productName,
+  kind: (row) => row.kind,
+  match: (row, data) => (matchesGame(row, data) ? 1 : 0),
+  original: (row) => row.originalPriceMinor ?? -1,
+  discount: (row) => row.discountMinor ?? 0,
+  paid: (row) => row.amountMinor,
+};
+
+function compareLedger(left: string | number, right: string | number): number {
+  if (typeof left === "number" && typeof right === "number") return left - right;
+  return String(left).localeCompare(String(right));
+}
+
+function sortLedgerRows(
+  rows: TransactionRow[],
+  data: DashboardData,
+  sort: LedgerSort,
+  descending: boolean
+) {
+  return rows.toSorted((left, right) => {
+    const comparison = compareLedger(ledgerValue[sort](left, data), ledgerValue[sort](right, data));
+    return descending ? -comparison : comparison;
+  });
+}
+
 function Ledger({ rows, data }: { rows: TransactionRow[]; data: DashboardData }) {
+  const [sort, setSort] = useState<LedgerSort>("date");
   const [descending, setDescending] = useState(true);
-  const sorted = rows.toSorted((a, b) =>
-    descending ? b.date.localeCompare(a.date) : a.date.localeCompare(b.date)
-  );
+  const sorted = sortLedgerRows(rows, data, sort, descending);
+
+  function changeSort(next: LedgerSort) {
+    if (next === sort) {
+      setDescending((value) => !value);
+      return;
+    }
+    setSort(next);
+    setDescending(next !== "product");
+  }
+
   return (
     <section className="playloom-ledger" aria-label="Purchase history ledger">
       <table>
         <thead>
           <tr>
-            <th>
-              <button type="button" onClick={() => setDescending((value) => !value)}>
-                Date {descending ? "↓" : "↑"}
-              </button>
-            </th>
-            <th>Product</th>
-            <th>Type</th>
-            <th>Match</th>
-            <th>Original</th>
-            <th>Discount</th>
-            <th>Paid</th>
+            {ledgerColumns.map((column) => (
+              <th key={column.key}>
+                <button type="button" onClick={() => changeSort(column.key)}>
+                  {column.label} {sort === column.key ? (descending ? "↓" : "↑") : "↕"}
+                </button>
+              </th>
+            ))}
           </tr>
         </thead>
         <tbody>
@@ -433,7 +481,7 @@ function Ledger({ rows, data }: { rows: TransactionRow[]; data: DashboardData })
 type SpendSummary = ReturnType<typeof summariseSpend>;
 type AddOnSummaries = ReturnType<typeof summariseAddOns>;
 
-function SpendMetrics({ summary }: { summary: SpendSummary }) {
+function SpendMetrics({ summary, discounts }: { summary: SpendSummary; discounts: number }) {
   return (
     <div className="playloom-metric-strip playloom-spend-strip">
       <Metric
@@ -457,9 +505,9 @@ function SpendMetrics({ summary }: { summary: SpendSummary }) {
         detail="Per purchase line"
       />
       <Metric
-        label="Wallet top-ups"
-        value={`£${summary.topUpTotal.toFixed(2)}`}
-        detail="Shown separately"
+        label="Discounts"
+        value={`£${discounts.toFixed(2)}`}
+        detail="Saved from original prices"
       />
     </div>
   );
@@ -491,12 +539,25 @@ function SpendTitles({ data, summary }: { data: DashboardData; summary: SpendSum
       <h4>Most spent</h4>
       {summary.byTitle.map((title) => {
         const game = data.games.find((candidate) => candidate.titleId === title.titleId);
+        const rows = game
+          ? prototypeTransactions.filter(
+              (row) =>
+                row.skuId?.includes(game.titleId) ||
+                row.productName.toLowerCase().includes(game.name.toLowerCase())
+            )
+          : [];
+        const addOns = rows
+          .filter((row) => isAddOnPurchase(row, game))
+          .reduce((total, row) => total + row.amountMinor / 100, 0);
+        const base = title.spend - addOns;
         return (
           <div key={title.titleId} className="playloom-spend-title">
             {game && <GamePoster game={game} />}
             <span>
               <strong>{title.name}</strong>
-              <small>Base and add-ons</small>
+              <small>
+                Base £{base.toFixed(2)} · Add-ons £{addOns.toFixed(2)}
+              </small>
               <div className="playloom-bar">
                 <i style={{ width: `${(title.spend / max) * 100}%` }} />
               </div>
@@ -532,38 +593,64 @@ function SpendAddOns({ data, addOns }: { data: DashboardData; addOns: AddOnSumma
   );
 }
 
-function transactionRows(data: DashboardData, query: string, kind: KindFilter, match: MatchFilter) {
+interface TransactionFilterValues {
+  query: string;
+  purchasedAfter: string;
+  kind: KindFilter;
+  match: MatchFilter;
+}
+
+function transactionRows(data: DashboardData, filters: TransactionFilterValues) {
   return prototypeTransactions.filter((row) => {
     const matched = matchesGame(row, data);
     return (
-      row.productName.toLowerCase().includes(query.toLowerCase()) &&
-      (kind === "all" || row.kind === kind) &&
-      (match === "all" || (match === "matched") === matched)
+      row.productName.toLowerCase().includes(filters.query.toLowerCase()) &&
+      (filters.purchasedAfter === "" || row.date.slice(0, 10) >= filters.purchasedAfter) &&
+      (filters.kind === "all" || row.kind === filters.kind) &&
+      (filters.match === "all" || (filters.match === "matched") === matched)
     );
   });
 }
 
-export function PrototypeSpending({ data }: { data: DashboardData }) {
+function SpendingLedger({ data }: { data: DashboardData }) {
   const [query, setQuery] = useState("");
+  const [purchasedAfter, setPurchasedAfter] = useState("");
   const [kind, setKind] = useState<KindFilter>("all");
   const [match, setMatch] = useState<MatchFilter>("all");
+  const filters = { query, purchasedAfter, kind, match };
+  return (
+    <div>
+      <h4 className="playloom-subheading">Purchase history</h4>
+      <TransactionFilters
+        query={query}
+        onQuery={setQuery}
+        purchasedAfter={purchasedAfter}
+        onPurchasedAfter={setPurchasedAfter}
+        kind={kind}
+        onKind={setKind}
+        match={match}
+        onMatch={setMatch}
+      />
+      <Ledger rows={transactionRows(data, filters)} data={data} />
+    </div>
+  );
+}
+
+export function PrototypeSpending({ data }: { data: DashboardData }) {
   const summary = summariseSpend(data, prototypeTransactions);
+  const discounts = prototypeTransactions.reduce(
+    (total, row) => total + (row.discountMinor ?? 0) / 100,
+    0
+  );
   return (
     <div className="space-y-10">
-      <SpendMetrics summary={summary} />
+      <SpendMetrics summary={summary} discounts={discounts} />
+      <p className="playloom-spend-topups">
+        Wallet top-ups: <strong>£{summary.topUpTotal.toFixed(2)}</strong> · shown separately from
+        spend
+      </p>
       <SpendYears summary={summary} />
-      <div>
-        <h4 className="playloom-subheading">Purchase history</h4>
-        <TransactionFilters
-          query={query}
-          onQuery={setQuery}
-          kind={kind}
-          onKind={setKind}
-          match={match}
-          onMatch={setMatch}
-        />
-        <Ledger rows={transactionRows(data, query, kind, match)} data={data} />
-      </div>
+      <SpendingLedger data={data} />
       <div className="playloom-spend-grid">
         <SpendTitles data={data} summary={summary} />
         <SpendAddOns data={data} addOns={summariseAddOns(data, prototypeTransactions)} />

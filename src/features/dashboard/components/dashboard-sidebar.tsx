@@ -79,8 +79,6 @@ function activeSectionStore() {
   };
 }
 
-// The existing dashboard contract uses link semantics but scrolls without mutating the URL hash.
-// oxlint-disable jsx-a11y/prefer-tag-over-role
 function ChapterNav() {
   const [store] = useState(activeSectionStore);
   const active = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getServerSnapshot);
@@ -89,28 +87,25 @@ function ChapterNav() {
     <nav aria-label="Dashboard chapters" className="playloom-spine-nav">
       {chapters.map((chapter) => (
         <div key={chapter.label}>
-          <span>{chapter.label}</span>
+          <span data-active={chapter.sections.some(([id]) => id === active)}>{chapter.label}</span>
           {chapter.sections.map(([id, label]) => (
-            <button
+            <a
               key={id}
-              type="button"
-              role="link"
+              href={`#${id}`}
               aria-current={active === id ? "location" : undefined}
               data-active={active === id}
               onClick={() => {
-                document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
                 if (isMobile) setOpenMobile(false);
               }}
             >
               {label}
-            </button>
+            </a>
           ))}
         </div>
       ))}
     </nav>
   );
 }
-// oxlint-enable jsx-a11y/prefer-tag-over-role
 
 export function DashboardSidebar({
   profile = demoDashboard.profile,

@@ -118,11 +118,18 @@ function Dashboard() {
       />
     );
   }
-  if (state === "signed-in") return <DashboardCachedView data={safeSignedInDashboard(data)} />;
+  if (state === "signed-in")
+    return <DashboardCachedView data={safeSignedInDashboard(data)} safeDemo />;
   return <DashboardCachedView data={prototypeDashboard(data)} />;
 }
 
-function DashboardCachedView({ data }: { data: DashboardData }) {
+function DashboardCachedView({
+  data,
+  safeDemo = false,
+}: {
+  data: DashboardData;
+  safeDemo?: boolean;
+}) {
   const { dashboardStore } = Route.useRouteContext();
   const { data: rawgGenres = [], status: genresStatus } = useQuery(rawgGenresQueryOptions(data));
   const { data: rawgFranchises = [], status: franchisesStatus } = useQuery(
@@ -150,13 +157,15 @@ function DashboardCachedView({ data }: { data: DashboardData }) {
   // layer in tests without mocking our own wrapper, which docs/rules/testing.md
   // forbids.
   useEffect(() => {
+    if (safeDemo) return;
     if (!shouldPersistEnrichment(data, genresStatus, franchisesStatus)) return;
     dashboardStore.save({ ...enrichedData, enriched: true });
-  }, [dashboardStore, data, enrichedData, genresStatus, franchisesStatus]);
+  }, [dashboardStore, data, enrichedData, genresStatus, franchisesStatus, safeDemo]);
 
   return (
     <DashboardView
       data={enrichedData}
+      safeDemo={safeDemo}
       onRefresh={async (npsso) => {
         const refreshed = await signInWithToken({ data: { npsso } });
         if (refreshed.profile.accountId !== data.profile.accountId) {
