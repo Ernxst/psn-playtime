@@ -1,63 +1,21 @@
 # Effect (the library)
 
-Conventions for [Effect](https://effect.website) v4 and `@effect/atom`. This is
-**not** the React `useEffect` rule — for that, see [Effects](./effects.md).
+Project-specific conventions for [Effect](https://effect.website) v4. For React
+`useEffect`, see [React effects](./effects.md). The global Effect skill governs
+general API selection and verification; this file records only local version and
+architecture decisions.
 
-We run Effect **v4 beta** (`effect@4.0.0-beta.91`) with the atom React bindings
-(`@effect/atom-react@4.0.0-beta.91`). The atom **core** lives inside `effect`
-itself at `effect/unstable/reactivity/*` — there is no separate atom-core
-package to install. v4 beta APIs differ from v3 and from most training data;
-ground every API against the local source before using it.
+The project pins `effect@4.0.0-beta.91` and `@effect/atom-react@4.0.0-beta.91`.
+Atom core comes from `effect/unstable/reactivity/*`. Verify every API against the
+installed source because v3 examples and later v4 APIs may not apply.
 
-## Imports
+Local conventions:
 
-- Namespace imports from subpaths: `import * as Effect from "effect/Effect"`,
-  `import * as Layer from "effect/Layer"`, `import * as Atom from
-"effect/unstable/reactivity/Atom"`.
-- React bindings come from `@effect/atom-react` (`RegistryContext`,
-  `useAtomValue`, `useAtom`, …).
-
-## Services
-
-- Define services with `Context.Service` (v4 replaces v3's `Context.Tag` /
-  `Effect.Service`). The capability contracts are make-less — an implementation
-  layer supplies the behaviour (see [Capability contracts](#capability-contracts)):
-
-  ```ts
-  export class TitleEnrichment extends Context.Service<TitleEnrichment, TitleEnrichmentShape>()(
-    "psn-playtime/server/providers/enrichment/contract.effect/TitleEnrichment"
-  ) {}
-  ```
-
-- Identifier strings are the **deterministic key** the `deterministicKeys` rule
-  derives from the file path: `psn-playtime/<path-from-src>/<ServiceName>` (no
-  extension). The strict typecheck (below) fails on any other key.
-- Prefer `yield* Service` inside `Effect.gen` over `Service.use(...)` so
-  dependencies stay explicit at the call site.
-
-## Layers
-
-- Build a service's layer from a `make` effect with `Layer.effect(Service,
-make)`, or `Layer.succeed(Service, value)` for a constant; v4 does **not**
-  auto-generate a `Default` layer.
-- Name the primary layer `layer`; use descriptive suffixes for variants
-  (`layerTest`, `layerConfig`). Do not use v3's `Default` / `Live`.
-- Wire dependencies with `Layer.provide`; there is no `dependencies` option.
-- Compose the composition root with `Layer.mergeAll`.
-
-## Tagged errors
-
-- Model failures as data with `Data.TaggedError("Name")<{ … }>`; never `throw`.
-- Keep the `_tag` stable and descriptive (e.g. `RateLimitedError`),
-  since it is the literal matched by `Effect.catchTag`.
-- Recover on the typed channel with `Effect.catchTag` / `Effect.catchTags`.
-
-## Error-channel policy
-
-- Expected failures belong on the **error channel** (`E`), recovered explicitly.
-- Defects (`Effect.die`, thrown exceptions) are for truly unrecoverable bugs.
-- An Effect's `R` (requirements) must be fully provided by a layer before it is
-  run; never widen `R` to `never` by casting.
+- Import namespaces from Effect subpaths and React bindings from `@effect/atom-react`.
+- Define make-less capability contracts with `Context.Service`; implementations live in layers.
+- Service keys follow `psn-playtime/<path-from-src>/<ServiceName>` and are enforced by the Effect language service.
+- Read services with `yield* Service`; name primary layers `layer` and variants `layerTest` or `layerConfig`.
+- Model expected failures with stable `Data.TaggedError` tags and recover through the typed error channel.
 
 ## Runtimes
 
@@ -104,19 +62,10 @@ rule set. Anything outside that convention is checked only by the base
   strict `**/*.effect.ts(x)` include — test ergonomics (gen, inline closures)
   are not held to the production rules.
 
-### How enforcement works
-
-- `tsconfig.effect.json` extends `tsconfig.json`, adds the
-  `@effect/language-service` plugin with every diagnostic set to `error`
-  (`diagnosticSeverity`), and includes only `**/*.effect.ts(x)`.
-- `@typescript/native-preview`'s `tsgo` does not load TS language-service
-  plugins on its own. `@effect/tsgo` ships a `tsgo` fork that does; its
-  `effect-tsgo patch` command (run by the `prepare` script on install) swaps the
-  native-preview binary for the fork. After patching, the plugin's diagnostics
-  surface during typecheck — not just in the editor.
-- `pnpm run typecheck:effect` runs `tsgo --noEmit -p tsconfig.effect.json`.
-  `pnpm run typecheck` chains it after the base check, so CI, the gate, and the
-  lefthook pre-commit hook all fail on a rule violation.
+`pnpm typecheck` includes `tsconfig.effect.json`, whose Effect language-service
+diagnostics apply to production `*.effect.ts(x)` files. Effectful tests retain
+the `.effect.` marker but end in `.test.ts(x)` and intentionally use normal test
+ergonomics.
 
 ### What the rules forbid (in `*.effect.ts(x)`)
 
@@ -149,11 +98,3 @@ make-less `Context.Service<Self, Shape>()("key")` declaration; its implementatio
   There is no `NotFound` (no match = success). Safe to expose: the closed
   `ProviderSource` union (`"psn" | "rawg"`) as structured context and fixed
   `reason` codes — never raw vendor text, a `cause`, URLs, or tokens.
-
-## Definition of Done
-
-- Every API used is grounded in the local Effect source, not recalled.
-- Services are `Context.Service`; layers are named `layer`; errors are
-  `Data.TaggedError` and recovered via `catchTag`.
-- Effects run only through a `ManagedRuntime`/atom runtime at the edges.
-- New code adds no project-level `useEffect`.
