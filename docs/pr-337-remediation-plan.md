@@ -9,9 +9,9 @@ This is a controlled presentation-layer rebuild on the existing PR, not another 
 ## Prepared kickoff state
 
 - Remote draft PR head: `2bb3082c52411652956c60557447df06d7e7e456`.
-- Local candidate commit: `657571f97cbd426d183a484752135fc967b6cc0f` (`refactor(prototype): localise profile refresh styling`). It localises profile and refresh presentation and removes 199 lines from the global override layer. Preserve it as unreviewed candidate work; do not push or treat it as an approved slice until Phase 0 validation and independent review pass.
+- Candidate localisation slice: `657571f97cbd426d183a484752135fc967b6cc0f` (`refactor(prototype): localise profile refresh styling`) followed by `db426df` (`fix(prototype): repair localised profile controls`). Together they localise profile and refresh presentation, remove 199 lines from the global override layer, restore 44px refresh-sheet targets, and replace repeated palette literals with semantic Playloom tokens. Focused and full repository gates pass, and independent code/runtime review found no pre-kickoff blocker. Preserve this as candidate work; it is not rendered product approval and must still pass the Phase 2 user gate.
 - Four incomplete dashboard recordings from the stopped capture loop are quarantined in stash `82b13d73449fc5218fa4eae5bf2e755b11e4fe32` (`quarantine: stale PR 337 dashboard recordings`). Do not restore or cite them as evidence. Delete the stash only after final replacement evidence is delivered and verified.
-- The PR worktree is clean at kickoff and one commit ahead of the remote branch.
+- Confirm the PR worktree is clean and the remote branch points at the complete preparation head before kickoff.
 
 ## Sources of truth
 
