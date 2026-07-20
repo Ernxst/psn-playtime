@@ -24,6 +24,13 @@ pre-commit:
       run: pnpm exec oxlint --fix {staged_files}
       stage_fixed: true
 
+    lint-dependencies:
+      glob:
+        - "package.json"
+        - "pnpm-lock.yaml"
+        - ".syncpackrc.json"
+      run: pnpm run lint:dependencies
+
     typecheck:
       glob:
         - "*.{js,ts,jsx,tsx}"
