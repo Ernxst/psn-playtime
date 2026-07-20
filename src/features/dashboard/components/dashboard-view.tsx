@@ -1,20 +1,26 @@
 import { Link } from "@tanstack/react-router";
-import { Home, Info } from "lucide-react";
-import {
-  lazy,
-  Suspense,
-  useCallback,
-  useDeferredValue,
-  useMemo,
-  useRef,
-  useState,
-  useSyncExternalStore,
-} from "react";
+import { Check, ChevronDown, Home, Info, LogOut, RefreshCw, UserPlus } from "lucide-react";
+import { useDeferredValue, useState } from "react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from "@/components/ui/popover";
+import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
+import {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTab } from "@/components/ui/tabs";
+import { RefreshDashboard } from "@/features/dashboard/components/refresh-dashboard";
+import { RemoveTransactions } from "@/features/dashboard/components/remove-transactions";
+import { ExportButtons } from "@/features/dashboard/export/components/export-buttons";
 import {
   applyFilters,
   currentYear,
@@ -23,7 +29,6 @@ import {
   type Timeframe,
 } from "@/features/dashboard/filters/analytics";
 import { FilterBar } from "@/features/dashboard/filters/components/filter-bar";
-import { GamesTable } from "@/features/dashboard/filters/components/games-table";
 import {
   AppsExcludedNote,
   ComebacksCard,
@@ -31,7 +36,7 @@ import {
   RecencyCard,
   ValueCard,
 } from "@/features/dashboard/filters/components/insights";
-import { KpiCards } from "@/features/dashboard/filters/components/kpi-cards";
+import { fmtNumber } from "@/features/dashboard/format";
 import { LlmPromptCard } from "@/features/dashboard/prompt/components/llm-prompt-card";
 import { PurchaseHistorySection } from "@/features/dashboard/spend/components/purchase-history";
 import {
@@ -40,22 +45,20 @@ import {
   SpentMostSection,
 } from "@/features/dashboard/spend/components/spend";
 import { TrophySection } from "@/features/dashboard/trophies/components/trophies";
+import {
+  HistoryViews,
+  PlatinumShelf,
+  ProfileOverview,
+  ProfileRanks,
+  PrototypeLibrary,
+  PrototypeSpending,
+} from "@/features/prototype/dashboard-sections";
+import { prototypeTransactions } from "@/features/prototype/prototype-data";
+import { useMediaQuery } from "@/hooks/use-media-query";
 import type { DashboardData } from "@/server/providers/account/snapshot";
-import { AccountSwitcher } from "./account-switcher";
-import { DashboardHeader } from "./dashboard-header";
+import { useTransactionImport } from "@/stores/transactions-store";
 import { DashboardSidebar } from "./dashboard-sidebar";
-import { RemoveTransactions } from "./remove-transactions";
 import { DashboardEmpty, DashboardNoMatches } from "./states";
-
-const LazyTopGamesSection = lazy(() =>
-  import("./chart-sections").then((module) => ({ default: module.TopGamesSection }))
-);
-const LazyGenresFranchisesSection = lazy(() =>
-  import("./chart-sections").then((module) => ({ default: module.GenresFranchisesSection }))
-);
-const LazyTimelineSection = lazy(() =>
-  import("./chart-sections").then((module) => ({ default: module.TimelineSection }))
-);
 
 interface Props {
   data: DashboardData;
@@ -64,76 +67,45 @@ interface Props {
   signingOut: boolean;
 }
 
-function DemoBanner() {
-  return (
-    <div className="flex items-start gap-2 rounded-lg border border-border bg-muted/40 p-3 text-sm">
-      <Info className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-      <p className="text-muted-foreground">
-        You're viewing the <span className="font-medium text-foreground">demo dataset</span>. Sign
-        in with your PSN token on the home page to see your own playtime.
-      </p>
-    </div>
-  );
-}
-
 const TIMEFRAMES: ReadonlyArray<{ value: Timeframe; label: string }> = [
   { value: "all", label: "All time" },
-  { value: "last-12-months", label: "Last 12 months" },
-  { value: "last-2-years", label: "Last 2 years" },
-  { value: "this-year", label: `This year (${currentYear()})` },
+  { value: "last-12-months", label: "12 months" },
+  { value: "last-2-years", label: "2 years" },
+  { value: "this-year", label: "This year" },
 ];
 
-/** Human phrase for the active timeframe, used to reframe filtered hour totals. */
-function timeframePhrase(timeframe: Timeframe): string | undefined {
-  switch (timeframe) {
-    case "all":
-      return undefined;
-    case "last-12-months":
-      return "the last 12 months";
-    case "last-2-years":
-      return "the last 2 years";
-    case "this-year":
-      return `${currentYear()}`;
-  }
-}
-
-function TimeframeControl({
-  value,
-  onValueChange,
+function ChapterHeading({
+  number,
+  title,
+  children,
 }: {
-  value: Timeframe;
-  onValueChange: (value: Timeframe) => void;
+  number: string;
+  title: string;
+  children: string;
 }) {
   return (
-    <div className="flex flex-col gap-1">
-      <div className="overflow-x-auto">
-        <Tabs
-          value={value}
-          onValueChange={(next) => {
-            const match = TIMEFRAMES.find((t) => t.value === next);
-            if (match) onValueChange(match.value);
-          }}
-        >
-          <TabsList>
-            {TIMEFRAMES.map((t) => (
-              <TabsTab key={t.value} value={t.value}>
-                {t.label}
-              </TabsTab>
-            ))}
-          </TabsList>
-        </Tabs>
+    <header className="playloom-chapter-heading">
+      <span>{number}</span>
+      <div>
+        <h2>{title}</h2>
+        <p>{children}</p>
       </div>
-      <p className="text-xs text-muted-foreground">
-        Windowed by last-played activity, not hours-in-period. PSN only reports lifetime hours per
-        game.
-      </p>
-    </div>
+    </header>
   );
 }
 
-function Section({ id, children }: { id: string; children: React.ReactNode }) {
+function Section({
+  id,
+  title,
+  children,
+}: {
+  id: string;
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
-    <section id={id} className="scroll-mt-20 space-y-4">
+    <section id={id} className="playloom-section" aria-labelledby={`${id}-title`}>
+      <h3 id={`${id}-title`}>{title}</h3>
       {children}
     </section>
   );
@@ -187,128 +159,161 @@ function DeferredSection({ children, height }: { children: React.ReactNode; heig
   );
 }
 
-function SpendSections({ data }: { data: DashboardData }) {
+function TimeframeControl({
+  value,
+  onChange,
+}: {
+  value: Timeframe;
+  onChange: (value: Timeframe) => void;
+}) {
   return (
-    <>
-      <Section id="spend">
-        <SpendSection data={data} />
-      </Section>
-      <Section id="purchase-history">
-        <PurchaseHistorySection data={data} />
-      </Section>
-      <Section id="spent-most">
-        <SpentMostSection data={data} />
-      </Section>
-      <Section id="add-ons">
-        <AddOnsSection data={data} />
-      </Section>
-      <Section id="remove-transactions">
-        <RemoveTransactions accountId={data.profile.accountId} />
-      </Section>
-    </>
-  );
-}
-
-function InsightsSection({ data }: { data: DashboardData }) {
-  return (
-    <Section id="insights">
-      <div className="grid gap-4 lg:grid-cols-3">
-        <ValueCard data={data} />
-        <RecencyCard data={data} />
-        <LifespansCard data={data} />
-        <ComebacksCard data={data} />
-        <AppsExcludedNote data={data} />
+    <div className="playloom-timeframe">
+      <div>
+        <strong>Game filters</strong>
+        <span>Applies to Profile, History and Library</span>
       </div>
-    </Section>
-  );
-}
-
-interface DashboardBodyProps {
-  /** Filter-scoped library powering the game-centric views. */
-  data: DashboardData;
-  /** Unfiltered, account-wide library for the spend sections. */
-  accountData: DashboardData;
-  timeframe: Timeframe;
-}
-
-function DashboardBody({ data, accountData, timeframe }: DashboardBodyProps) {
-  return (
-    <div className="space-y-6">
-      <Section id="overview">
-        <KpiCards data={data} timeframePhrase={timeframePhrase(timeframe)} />
-      </Section>
-      <Section id="top-games">
-        <DeferredSection height={430}>
-          <LazyTopGamesSection data={data} />
-        </DeferredSection>
-      </Section>
-      <Section id="genres-franchises">
-        <DeferredSection height={390}>
-          <LazyGenresFranchisesSection data={data} />
-        </DeferredSection>
-      </Section>
-      <Section id="timeline">
-        <DeferredSection height={350}>
-          <LazyTimelineSection data={data} />
-        </DeferredSection>
-      </Section>
-      <Section id="trophies">
-        <TrophySection data={data} />
-      </Section>
-      <InsightsSection data={data} />
-      <Section id="ask-ai">
-        <LlmPromptCard data={data} />
-      </Section>
-      <SpendSections data={accountData} />
-      <Section id="all-games">
-        <GamesTable data={data} />
-      </Section>
+      <Tabs
+        value={value}
+        onValueChange={(next) => {
+          const match = TIMEFRAMES.find((timeframe) => timeframe.value === next);
+          if (match) onChange(match.value);
+        }}
+      >
+        <TabsList aria-label={`Last-played timeframe; current year ${currentYear()}`}>
+          {TIMEFRAMES.map((timeframe) => (
+            <TabsTab key={timeframe.value} value={timeframe.value}>
+              {timeframe.label}
+            </TabsTab>
+          ))}
+        </TabsList>
+      </Tabs>
     </div>
   );
 }
 
-function DashboardContent({
-  data,
-  filters,
-  onClearFilters,
-}: {
-  data: DashboardData;
-  filters: DashboardFilters;
-  onClearFilters: () => void;
-}) {
-  const scoped = useMemo(() => applyFilters(data, filters), [data, filters]);
-  if (scoped.games.length === 0) {
-    return data.games.length > 0 ? (
-      <DashboardNoMatches onClear={onClearFilters} />
-    ) : (
-      <DashboardEmpty />
-    );
-  }
-  return <DashboardBody data={scoped} accountData={data} timeframe={filters.timeframe} />;
-}
-
-/**
- * Defer only the free-text search so typing keeps the search input responsive (it stays
- * bound to the immediate `filters`), while the expensive `applyFilters` re-filter lags
- * behind to the settled term. Every other facet still applies immediately.
- */
-function useDeferredFilters(filters: DashboardFilters): DashboardFilters {
-  const deferredSearch = useDeferredValue(filters.search);
-  return useMemo(() => ({ ...filters, search: deferredSearch }), [filters, deferredSearch]);
-}
-
-function DashboardTopBar({ profile }: { profile: DashboardData["profile"] }) {
+function SafeRefreshContent({ pending, onSimulate }: { pending: boolean; onSimulate: () => void }) {
   return (
-    <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b border-border bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <SidebarTrigger className="hit-area-2" />
-      <Separator orientation="vertical" className="mr-1 h-5" />
-      <AccountSwitcher profile={profile} />
+    <>
+      <SheetHeader>
+        <SheetTitle>Refresh PlayStation data</SheetTitle>
+        <SheetDescription>
+          Safe signed-in demo. This evaluates the account workflow without accepting or sending a
+          real token.
+        </SheetDescription>
+      </SheetHeader>
+      <div className="space-y-4 px-4 text-sm">
+        <div className="playloom-trust-note">
+          In the real flow, an NPSSO token is password-equivalent, sent once through the server to
+          PlayStation, never stored, and the resulting dashboard stays in this browser.
+        </div>
+        <p className="text-muted-foreground">
+          Your chapter, scroll position and active filters stay intact.
+        </p>
+      </div>
+      <SheetFooter>
+        <SheetClose render={<Button variant="outline" />} disabled={pending}>
+          Cancel
+        </SheetClose>
+        <Button loading={pending} onClick={onSimulate}>
+          Simulate refresh
+        </Button>
+      </SheetFooter>
+    </>
+  );
+}
+
+function SafeRefresh({ onComplete }: { onComplete: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [pending, setPending] = useState(false);
+  const isMobile = useMediaQuery("max-md");
+  const simulate = () => {
+    setPending(true);
+    window.setTimeout(() => {
+      setPending(false);
+      setOpen(false);
+      onComplete();
+    }, 700);
+  };
+  return (
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetTrigger render={<Button variant="outline" size="sm" />}>
+        <RefreshCw /> Refresh
+      </SheetTrigger>
+      <SheetContent
+        side={isMobile ? "bottom" : "right"}
+        className="playloom-refresh-sheet sm:max-w-md"
+      >
+        <SafeRefreshContent pending={pending} onSimulate={simulate} />
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function ProfileMenu({ profile }: { profile: DashboardData["profile"] }) {
+  return (
+    <PopoverContent align="end" className="w-80 max-w-[calc(100vw-2rem)]">
+      <PopoverTitle>Profile and connected accounts</PopoverTitle>
+      <p className="mt-1 text-xs text-muted-foreground">
+        One person, with platform accounts as import sources.
+      </p>
+      <div className="playloom-account-row mt-4">
+        <span className="playloom-platform-dot">PS</span>
+        <div>
+          <strong>PlayStation · {profile.onlineId}</strong>
+          <small>Active · refreshed just now</small>
+        </div>
+        <Check aria-label="Active account" />
+      </div>
+      <Button variant="ghost" className="mt-2 w-full justify-start" render={<Link to="/" />}>
+        <UserPlus /> Add PlayStation account
+      </Button>
+      <Separator className="my-3" />
+      <Button variant="ghost" className="w-full justify-start" render={<Link to="/dashboard" />}>
+        Explore demo profile
+      </Button>
+    </PopoverContent>
+  );
+}
+
+function ProfileControl({ data }: { data: DashboardData }) {
+  const { profile } = data;
+  return (
+    <Popover>
+      <PopoverTrigger
+        render={
+          <Button
+            variant="ghost"
+            className="playloom-profile-trigger"
+            aria-label={`Open profile menu for ${profile.onlineId}`}
+          />
+        }
+      >
+        <Avatar className="size-9">
+          <AvatarImage src={profile.avatarUrl} alt="" />
+          <AvatarFallback>{profile.onlineId.slice(0, 2).toUpperCase()}</AvatarFallback>
+        </Avatar>
+        <span>
+          <strong>{profile.onlineId}</strong>
+          <small>Personal profile</small>
+        </span>
+        <ChevronDown aria-hidden="true" />
+      </PopoverTrigger>
+      <ProfileMenu profile={profile} />
+    </Popover>
+  );
+}
+
+function TopBar({ data }: { data: DashboardData }) {
+  return (
+    <header className="playloom-topbar">
+      <SidebarTrigger />
+      <span className="playloom-mobile-wordmark">Playloom</span>
+      <ProfileControl data={data} />
       <Button
         variant="ghost"
         size="icon"
-        className="ml-auto hit-area-2"
         render={
-          <Link to="/" aria-label="Go to home page">
+          <Link to="/" aria-label="Go to Playloom home">
             <Home />
           </Link>
         }
@@ -317,31 +322,265 @@ function DashboardTopBar({ profile }: { profile: DashboardData["profile"] }) {
   );
 }
 
-export function DashboardView(props: Props) {
-  const { data } = props;
+function ProfileSummary({ data, refreshed }: { data: DashboardData; refreshed: boolean }) {
+  const account = data.profile.isPlus ? "PlayStation Plus" : "PlayStation account";
+  const refreshedAt = new Date(data.fetchedAt).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+  return (
+    <div>
+      <p className="playloom-kicker">A life in games</p>
+      <h1>{data.profile.onlineId}</h1>
+      <p>{data.profile.aboutMe}</p>
+      <div className="playloom-profile-meta">
+        <span>{account}</span>
+        <span>Trophy level {fmtNumber(data.profile.trophyLevel)}</span>
+        <Progress value={data.profile.levelProgress} aria-label="Progress to next trophy level" />
+        <span>{data.profile.levelProgress}% to next</span>
+      </div>
+      <div className="playloom-updated">
+        <span className="playloom-status-dot" />
+        {refreshed ? "Refreshed just now" : `Last refreshed ${refreshedAt}`}
+      </div>
+    </div>
+  );
+}
+
+function AccountActions({ props, onSafeRefresh }: { props: Props; onSafeRefresh: () => void }) {
+  if (props.data.isDemo) return null;
+  const safeDemo = props.data.profile.accountId === "playloom-safe-demo";
+  const refresh = safeDemo ? (
+    <SafeRefresh onComplete={onSafeRefresh} />
+  ) : (
+    <RefreshDashboard onRefresh={props.onRefresh} />
+  );
+  return (
+    <div className="playloom-account-actions">
+      {refresh}
+      <Button variant="ghost" size="sm" onClick={props.onSignOut} disabled={props.signingOut}>
+        <LogOut /> {props.signingOut ? "Signing out…" : "Sign out"}
+      </Button>
+    </div>
+  );
+}
+
+function Marquee(props: Props) {
+  const [refreshed, setRefreshed] = useState(false);
+  return (
+    <header className="playloom-marquee">
+      <ProfileSummary data={props.data} refreshed={refreshed} />
+      <AccountActions props={props} onSafeRefresh={() => setRefreshed(true)} />
+    </header>
+  );
+}
+
+function DemoNotice() {
+  return (
+    <div className="playloom-demo-notice">
+      <Info />
+      <span>
+        This <strong>demo dataset</strong> is a stable Playloom profile. Artwork and purchases are
+        local fixtures; no network data is required.
+      </span>
+      <Link to="/dashboard" search={{ prototypeState: "signed-in" }}>
+        Open safe signed-in demo
+      </Link>
+    </div>
+  );
+}
+
+function ProfileChapter({ data }: { data: DashboardData }) {
+  return (
+    <div className="playloom-chapter playloom-chapter-profile">
+      <ChapterHeading number="01" title="Profile">
+        The shape of your gaming life, from the games you return to and the patterns they leave
+        behind.
+      </ChapterHeading>
+      <Section id="overview" title="Overview">
+        <ProfileOverview data={data} />
+      </Section>
+      <Section id="top-games" title="Top games">
+        <ProfileRanks data={data} mode="games" />
+      </Section>
+      <Section id="genres" title="Genres">
+        <ProfileRanks data={data} mode="genres" />
+      </Section>
+      <Section id="franchises" title="Franchises">
+        <ProfileRanks data={data} mode="franchises" />
+      </Section>
+      <Section id="insights" title="Insights">
+        <div className="playloom-insights">
+          <ValueCard data={data} />
+          <RecencyCard data={data} />
+          <LifespansCard data={data} />
+          <ComebacksCard data={data} />
+          <AppsExcludedNote data={data} />
+        </div>
+      </Section>
+    </div>
+  );
+}
+
+function HistoryChapter({ data }: { data: DashboardData }) {
+  return (
+    <div className="playloom-chapter playloom-chapter-history">
+      <ChapterHeading number="02" title="History">
+        A chronological record of when each world entered your life, and the sessions and trophies
+        around it.
+      </ChapterHeading>
+      <HistoryViews data={data} />
+      <Section id="trophies" title="Trophies">
+        <PlatinumShelf data={data} />
+        <TrophySection data={data} />
+      </Section>
+    </div>
+  );
+}
+
+function SpendingChapter({ data }: { data: DashboardData }) {
+  return (
+    <div className="playloom-chapter playloom-chapter-spending">
+      <ChapterHeading number="03" title="Spending">
+        What the library cost, kept separate from when those games were last played.
+      </ChapterHeading>
+      <Section id="spending" title="Spending and purchase history">
+        <PrototypeSpending data={data} />
+      </Section>
+      <Section id="purchase-data" title="Connected purchase data">
+        <div className="space-y-6">
+          <div id="spend">
+            <SpendSection data={data} />
+          </div>
+          <div id="purchase-history">
+            <PurchaseHistorySection data={data} />
+          </div>
+          <div id="spent-most">
+            <SpentMostSection data={data} />
+          </div>
+          <div id="add-ons">
+            <AddOnsSection data={data} />
+          </div>
+        </div>
+      </Section>
+    </div>
+  );
+}
+
+function LibraryChapter({ data }: { data: DashboardData }) {
+  return (
+    <div className="playloom-chapter playloom-chapter-library">
+      <ChapterHeading number="04" title="Library">
+        Every title in the archive, still filterable and sortable without losing information on
+        mobile.
+      </ChapterHeading>
+      <Section id="library" title="All games">
+        <PrototypeLibrary data={data} />
+      </Section>
+    </div>
+  );
+}
+
+function ToolsChapter({ data }: { data: DashboardData }) {
+  const imported = useTransactionImport(data.profile.accountId);
+  const stableDemo = data.isDemo || data.profile.accountId === "playloom-safe-demo";
+  const transactions = imported?.transactions ?? (stableDemo ? prototypeTransactions : []);
+  return (
+    <div className="playloom-chapter playloom-chapter-tools">
+      <ChapterHeading number="05" title="Tools">
+        Ask questions of the archive, move your data, or remove local records.
+      </ChapterHeading>
+      <Section id="ask-ai" title="Ask AI">
+        <LlmPromptCard data={data} />
+      </Section>
+      <Section id="data-controls" title="Data controls">
+        <div className="playloom-tools-grid">
+          <ExportButtons data={data} transactions={transactions} />
+          <RemoveTransactions accountId={data.profile.accountId} />
+        </div>
+      </Section>
+    </div>
+  );
+}
+
+function DashboardChapters({ data, account }: { data: DashboardData; account: DashboardData }) {
+  return (
+    <>
+      <ProfileChapter data={data} />
+      <HistoryChapter data={data} />
+      <SpendingChapter data={account} />
+      <LibraryChapter data={data} />
+      <ToolsChapter data={data} />
+    </>
+  );
+}
+
+function FilterScope({
+  data,
+  filters,
+  onChange,
+}: {
+  data: DashboardData;
+  filters: DashboardFilters;
+  onChange: (filters: DashboardFilters) => void;
+}) {
+  return (
+    <div className="playloom-filter-scope">
+      <TimeframeControl
+        value={filters.timeframe}
+        onChange={(timeframe) => onChange({ ...filters, timeframe })}
+      />
+      <FilterBar data={data} filters={filters} onChange={onChange} />
+    </div>
+  );
+}
+
+function DashboardResult({
+  source,
+  scoped,
+  onClear,
+}: {
+  source: DashboardData;
+  scoped: DashboardData;
+  onClear: () => void;
+}) {
+  if (scoped.games.length > 0) return <DashboardChapters data={scoped} account={source} />;
+  if (source.games.length === 0) return <DashboardEmpty />;
+  return <DashboardNoMatches onClear={onClear} />;
+}
+
+function ReadingSurface(props: Props) {
   const [filters, setFilters] = useState<DashboardFilters>(defaultFilters);
-  const deferredFilters = useDeferredFilters(filters);
+  const deferredSearch = useDeferredValue(filters.search);
+  const scoped = applyFilters(props.data, { ...filters, search: deferredSearch });
+  return (
+    <main className="playloom-reading-surface">
+      <Marquee {...props} />
+      {props.data.isDemo && <DemoNotice />}
+      <FilterScope data={props.data} filters={filters} onChange={setFilters} />
+      <DashboardResult
+        source={props.data}
+        scoped={scoped}
+        onClear={() => setFilters(defaultFilters)}
+      />
+      <footer className="playloom-mobile-footer">
+        <a href="https://rawg.io" target="_blank" rel="noreferrer">
+          Game metadata and artwork provided by RAWG
+        </a>
+      </footer>
+    </main>
+  );
+}
+
+export function DashboardView(props: Props) {
   return (
     <SidebarProvider>
-      <DashboardSidebar />
-      <SidebarInset>
-        <DashboardTopBar profile={data.profile} />
-        <div className="mx-auto w-full max-w-6xl space-y-6 p-4 sm:p-6">
-          <DashboardHeader {...props} />
-          {data.isDemo ? <DemoBanner /> : null}
-          <div className="space-y-3">
-            <TimeframeControl
-              value={filters.timeframe}
-              onValueChange={(timeframe) => setFilters((prev) => ({ ...prev, timeframe }))}
-            />
-            <FilterBar data={data} filters={filters} onChange={setFilters} />
-          </div>
-          <DashboardContent
-            data={data}
-            filters={deferredFilters}
-            onClearFilters={() => setFilters(defaultFilters)}
-          />
-        </div>
+      <DashboardSidebar profile={props.data.profile} />
+      <SidebarInset className="playloom-shell">
+        <TopBar data={props.data} />
+        <ReadingSurface {...props} />
       </SidebarInset>
     </SidebarProvider>
   );

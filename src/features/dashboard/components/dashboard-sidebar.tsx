@@ -1,103 +1,77 @@
 import { Link } from "@tanstack/react-router";
-import {
-  Banknote,
-  CalendarRange,
-  Coins,
-  Gamepad2,
-  Gift,
-  LayoutDashboard,
-  Lightbulb,
-  type LucideIcon,
-  PieChart,
-  Receipt,
-  Sparkles,
-  Trophy,
-} from "lucide-react";
 import { useState, useSyncExternalStore } from "react";
 import {
   Sidebar,
   SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
+  SidebarFooter,
   SidebarHeader,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarRail,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { demoDashboard } from "@/domain/mock";
+import type { ProfileSummary } from "@/server/providers/account/snapshot";
 
-interface Section {
-  id: string;
-  label: string;
-  icon: LucideIcon;
-}
+const chapters = [
+  {
+    label: "Profile",
+    sections: [
+      ["overview", "Overview"],
+      ["top-games", "Top games"],
+      ["genres", "Genres"],
+      ["franchises", "Franchises"],
+      ["insights", "Insights"],
+    ],
+  },
+  {
+    label: "History",
+    sections: [
+      ["timeline", "Timeline"],
+      ["sessions", "Sessions"],
+      ["trophies", "Trophies"],
+    ],
+  },
+  {
+    label: "Spending",
+    sections: [
+      ["spending", "Summary & ledger"],
+      ["purchase-data", "Connected purchase data"],
+    ],
+  },
+  { label: "Library", sections: [["library", "All games"]] },
+  {
+    label: "Tools",
+    sections: [
+      ["ask-ai", "Ask AI"],
+      ["data-controls", "Data controls"],
+    ],
+  },
+] as const;
 
-const DASHBOARD_SECTIONS: readonly Section[] = [
-  { icon: LayoutDashboard, id: "overview", label: "Overview" },
-  { icon: Trophy, id: "top-games", label: "Top games" },
-  { icon: PieChart, id: "genres-franchises", label: "Genres & franchises" },
-  { icon: CalendarRange, id: "timeline", label: "Timeline" },
-  { icon: Trophy, id: "trophies", label: "Trophies" },
-  { icon: Lightbulb, id: "insights", label: "Insights" },
-  { icon: Sparkles, id: "ask-ai", label: "Ask an AI" },
-  { icon: Coins, id: "spend", label: "Spend" },
-  { icon: Receipt, id: "purchase-history", label: "Purchase history" },
-  { icon: Banknote, id: "spent-most", label: "Spent the most on" },
-  { icon: Gift, id: "add-ons", label: "Spent extra on" },
-  { icon: Gamepad2, id: "all-games", label: "All games" },
-];
+const ids = chapters.flatMap((chapter) => chapter.sections.map(([id]) => id));
 
-const SECTION_IDS: readonly string[] = DASHBOARD_SECTIONS.map((section) => section.id);
-
-const OBSERVER_OPTIONS: IntersectionObserverInit = {
-  rootMargin: "-15% 0px -75% 0px",
-  threshold: 0,
-};
-
-/** The topmost section currently intersecting the viewport, if any. */
-function topVisibleSection(entries: readonly IntersectionObserverEntry[]): string | undefined {
-  const visible = entries
-    .filter((entry) => entry.isIntersecting)
-    .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
-  return visible[0]?.target.id;
-}
-
-/** SSR-safe scroll-spy store: an IntersectionObserver feeds the section in view. */
-function createActiveSectionStore(): {
-  subscribe: (onStoreChange: () => void) => () => void;
-  getSnapshot: () => string;
-  getServerSnapshot: () => string;
-} {
+function activeSectionStore() {
   let active = "overview";
   let notify: (() => void) | undefined;
-
-  function setActive(id: string): void {
-    if (id === active) return;
-    active = id;
-    notify?.();
-  }
-
   return {
-    subscribe(onStoreChange) {
+    subscribe: (onStoreChange: () => void) => {
       notify = onStoreChange;
-      let observer: IntersectionObserver | undefined;
-      const timer = window.setTimeout(() => {
-        observer = new IntersectionObserver((entries) => {
-          const id = topVisibleSection(entries);
-          if (id) setActive(id);
-        }, OBSERVER_OPTIONS);
-        for (const id of SECTION_IDS) {
-          const el = document.getElementById(id);
-          if (el) observer.observe(el);
-        }
-      }, 0);
-
+      const observer = new IntersectionObserver(
+        (entries) => {
+          const first = entries
+            .filter((entry) => entry.isIntersecting)
+            .toSorted((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+          if (!first || first.target.id === active) return;
+          active = first.target.id;
+          notify?.();
+        },
+        { rootMargin: "-15% 0px -72%", threshold: 0 }
+      );
+      for (const id of ids) {
+        const section = document.getElementById(id);
+        if (section) observer.observe(section);
+      }
       return () => {
         notify = undefined;
-        window.clearTimeout(timer);
-        observer?.disconnect();
+        observer.disconnect();
       };
     },
     getSnapshot: () => active,
@@ -105,72 +79,72 @@ function createActiveSectionStore(): {
   };
 }
 
-/** SSR-safe scroll-spy: tracks which section is in view. */
-function useActiveSection(): string {
-  const [store] = useState(createActiveSectionStore);
-  return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getServerSnapshot);
-}
-
-function NavMenu({
-  active,
-  onNavigate,
-}: {
-  active: string;
-  onNavigate: (id: string) => (event: React.MouseEvent<HTMLAnchorElement>) => void;
-}): React.ReactElement {
+// The existing dashboard contract uses link semantics but scrolls without mutating the URL hash.
+// oxlint-disable jsx-a11y/prefer-tag-over-role
+function ChapterNav() {
+  const [store] = useState(activeSectionStore);
+  const active = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getServerSnapshot);
+  const { isMobile, setOpenMobile } = useSidebar();
   return (
-    <SidebarMenu>
-      {DASHBOARD_SECTIONS.map((section) => (
-        <SidebarMenuItem key={section.id}>
-          <SidebarMenuButton
-            isActive={active === section.id}
-            tooltip={section.label}
-            render={
-              <a href={`#${section.id}`} onClick={onNavigate(section.id)}>
-                <section.icon />
-                <span>{section.label}</span>
-              </a>
-            }
-          />
-        </SidebarMenuItem>
+    <nav aria-label="Dashboard chapters" className="playloom-spine-nav">
+      {chapters.map((chapter) => (
+        <div key={chapter.label}>
+          <span>{chapter.label}</span>
+          {chapter.sections.map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              role="link"
+              aria-current={active === id ? "location" : undefined}
+              data-active={active === id}
+              onClick={() => {
+                document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+                if (isMobile) setOpenMobile(false);
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       ))}
-    </SidebarMenu>
+    </nav>
   );
 }
+// oxlint-enable jsx-a11y/prefer-tag-over-role
 
-export function DashboardSidebar(): React.ReactElement {
-  const active = useActiveSection();
-  const { setOpenMobile, isMobile } = useSidebar();
-
-  const handleNavigate =
-    (id: string) =>
-    (event: React.MouseEvent<HTMLAnchorElement>): void => {
-      event.preventDefault();
-      document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
-      if (isMobile) setOpenMobile(false);
-    };
-
+export function DashboardSidebar({
+  profile = demoDashboard.profile,
+}: {
+  profile?: ProfileSummary;
+}) {
   return (
-    <Sidebar collapsible="offcanvas">
-      <SidebarHeader>
-        <Link
-          to="/"
-          aria-label="PSN Playtime — go to home page"
-          className="hit-area-1 flex items-center gap-2 rounded-md px-2 py-1 outline-none transition-colors hover:text-primary focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <Gamepad2 className="size-5 text-primary" />
-          <span className="font-semibold group-data-[collapsible=icon]:hidden">PSN Playtime</span>
+    <Sidebar collapsible="offcanvas" className="playloom-spine">
+      <SidebarHeader className="playloom-spine-header">
+        <Link to="/" aria-label="Playloom — go to home page">
+          Playloom
         </Link>
+        <p>
+          Your gaming life,
+          <br />
+          woven together.
+        </p>
+        <div className="playloom-spine-profile">
+          <span>{profile.onlineId.slice(0, 2).toUpperCase()}</span>
+          <div>
+            <strong>{profile.onlineId}</strong>
+            <small>Personal profile</small>
+          </div>
+        </div>
       </SidebarHeader>
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Sections</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <NavMenu active={active} onNavigate={handleNavigate} />
-          </SidebarGroupContent>
-        </SidebarGroup>
+        <ChapterNav />
       </SidebarContent>
-      <SidebarRail />
+      <SidebarFooter className="playloom-spine-footer">
+        <a href="https://rawg.io" target="_blank" rel="noreferrer">
+          Game metadata and artwork provided by RAWG
+        </a>
+        <span>Prototype · Issue #327</span>
+      </SidebarFooter>
     </Sidebar>
   );
 }
