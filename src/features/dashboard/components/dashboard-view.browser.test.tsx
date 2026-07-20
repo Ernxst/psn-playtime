@@ -529,25 +529,44 @@ describe("DashboardView", () => {
       "Purchase totals and import controls are unavailable"
     );
     await expect
-      .element(
-        page.getByText("Purchase history rows are unavailable while this archive is partial.")
-      )
+      .element(page.getByText("Purchase history rows are unavailable in this evaluation state."))
       .toBeVisible();
     await expect
-      .element(page.getByText("Most-spent rankings are unavailable while this archive is partial."))
+      .element(page.getByText("Most-spent rankings are unavailable in this evaluation state."))
       .toBeVisible();
     await expect
-      .element(
-        page.getByText("Add-on purchase insights are unavailable while this archive is partial.")
-      )
+      .element(page.getByText("Add-on purchase insights are unavailable in this evaluation state."))
       .toBeVisible();
     await expect
       .element(
         page.getByText(
-          "Purchase totals and import controls are unavailable while this archive is partial."
+          "Purchase totals and import controls are unavailable in this evaluation state."
         )
       )
       .toBeVisible();
+    await expect
+      .element(page.getByText("Transaction data is unavailable in this evaluation state."))
+      .toBeVisible();
+  });
+
+  it("renders fixture data at every demo purchase destination", async () => {
+    const { element } = createHarness(
+      <DashboardView
+        data={demoDashboard}
+        onRefresh={vi.fn()}
+        onSignOut={vi.fn()}
+        signingOut={false}
+      />
+    );
+
+    await render(element);
+
+    expect(document.getElementById("purchase-history")?.textContent).toContain("Satisfactory");
+    expect(document.getElementById("purchase-history")?.textContent).toContain("£32.99");
+    expect(document.getElementById("spent-most")?.textContent).toContain("Cyberpunk 2077");
+    expect(document.getElementById("spent-most")?.textContent).toContain("£44.98");
+    expect(document.getElementById("add-ons")?.textContent).toContain("Cyberpunk 2077");
+    expect(document.getElementById("add-ons")?.textContent).toContain("1 add-on");
   });
 
   it("explains every direct purchase destination when no transactions were imported", async () => {

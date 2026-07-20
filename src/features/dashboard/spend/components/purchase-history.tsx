@@ -200,13 +200,19 @@ function PurchaseHistoryTable({ transactions }: { transactions: TransactionRow[]
 
 /**
  * Dashboard purchase-history section: the raw imported transactions as a
- * sortable table. Demo accounts and accounts without an import receive an
- * explicit empty state so the direct destination remains useful.
+ * sortable table. Accounts without transactions receive an explicit empty
+ * state so the direct destination remains useful.
  */
-export function PurchaseHistorySection({ data }: { data: DashboardData }) {
-  // Never show a real user's import alongside the demo library.
+export function PurchaseHistorySection({
+  data,
+  transactions,
+}: {
+  data: DashboardData;
+  transactions?: TransactionRow[];
+}) {
   const imported = useTransactionImport(data.profile.accountId);
-  if (data.isDemo || !imported || imported.transactions.length === 0) {
+  const rows = transactions ?? (data.isDemo ? [] : (imported?.transactions ?? []));
+  if (rows.length === 0) {
     return (
       <Card>
         <CardHeader>
@@ -219,5 +225,5 @@ export function PurchaseHistorySection({ data }: { data: DashboardData }) {
     );
   }
 
-  return <PurchaseHistoryTable transactions={imported.transactions} />;
+  return <PurchaseHistoryTable transactions={rows} />;
 }

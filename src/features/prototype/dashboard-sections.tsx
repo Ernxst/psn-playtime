@@ -745,18 +745,17 @@ function SpendingLedger({
 export function PrototypeSpending({
   data,
   transactions = prototypeTransactions,
+  unavailableMessage = "No imported purchase history is available for this account. Purchase destinations remain available below.",
 }: {
   data: DashboardData;
   transactions?: TransactionRow[];
+  unavailableMessage?: string;
 }) {
   if (transactions.length === 0) {
     return (
       <div className="border-y border-[var(--playloom-rule)] py-6 text-sm">
         <strong>Purchase transactions unavailable</strong>
-        <p className="mt-2 text-muted-foreground">
-          No imported purchase history is available for this account. Purchase destinations remain
-          available below.
-        </p>
+        <p className="mt-2 text-muted-foreground">{unavailableMessage}</p>
       </div>
     );
   }

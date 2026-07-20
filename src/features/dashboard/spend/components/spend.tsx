@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
 import { bookmarkletHref } from "@/domain/transaction-bookmarklet";
+import type { TransactionRow } from "@/domain/transactions";
 import { useCopied } from "@/features/dashboard/components/copy-button";
 import { ExportButtons } from "@/features/dashboard/export/components/export-buttons";
 import { fmtHours } from "@/features/dashboard/format";
@@ -424,25 +425,35 @@ function LeaderboardCard({ summary }: { summary: SpendSummary }) {
   );
 }
 
+interface TransactionSectionProps {
+  data: DashboardData;
+  transactions?: TransactionRow[];
+}
+
+function useSectionTransactions(data: DashboardData, transactions?: TransactionRow[]) {
+  const imported = useTransactionImport(data.profile.accountId);
+  if (transactions) return transactions;
+  if (data.isDemo) return [];
+  return imported?.transactions ?? [];
+}
+
 /**
  * Dashboard spend section. Shows the import prompt until transactions are
  * imported, then the spend-vs-playtime cards.
  */
-export function SpendSection({ data }: { data: DashboardData }) {
-  const imported = useTransactionImport(data.profile.accountId);
-  // Never join the user's real imported spend to the demo library — call the
-  // hook unconditionally, then show the prompt for demo data or no import.
-  if (data.isDemo || !imported || imported.transactions.length === 0) {
+export function SpendSection({ data, transactions }: TransactionSectionProps) {
+  const rows = useSectionTransactions(data, transactions);
+  if (rows.length === 0) {
     return <ImportSpendCard data={data} />;
   }
 
-  const summary = summariseSpend(data, imported.transactions);
+  const summary = summariseSpend(data, rows);
   return (
     <div className="grid gap-4 lg:grid-cols-3">
       <TotalsCard summary={summary} />
       <ByYearCard summary={summary} />
       <LeaderboardCard summary={summary} />
-      <ExportButtons data={data} transactions={imported.transactions} />
+      <ExportButtons data={data} transactions={rows} />
       <ReimportCard data={data} />
     </div>
   );
@@ -472,12 +483,12 @@ function TitleSpendRow({ currency, title }: { currency: string; title: TitleSpen
  * Games ranked by total spend (base game + add-ons), highest first — surfacing
  * the titles the most money went on, distinct from {@link AddOnsSection} (which
  * ranks by add-on count). Every matched title with spend shows, including ones
- * with no playtime. Demo accounts and accounts without matching purchases
- * receive an explicit destination state.
+ * with no playtime. Accounts without matching purchases receive an explicit
+ * destination state.
  */
-export function SpentMostSection({ data }: { data: DashboardData }) {
-  const imported = useTransactionImport(data.profile.accountId);
-  if (data.isDemo || !imported || imported.transactions.length === 0) {
+export function SpentMostSection({ data, transactions }: TransactionSectionProps) {
+  const rows = useSectionTransactions(data, transactions);
+  if (rows.length === 0) {
     return (
       <EmptySpendCard title="No most-spent ranking yet">
         Import purchase transactions to see which games received the most spending.
@@ -485,7 +496,7 @@ export function SpentMostSection({ data }: { data: DashboardData }) {
     );
   }
 
-  const summary = summariseSpend(data, imported.transactions);
+  const summary = summariseSpend(data, rows);
   if (summary.byTitle.length === 0) {
     return (
       <EmptySpendCard title="No matched game spending">
@@ -525,12 +536,12 @@ function AddOnRow({ summary }: { summary: AddOnSummary }) {
 /**
  * Games the user bought add-ons, DLC or in-game items for — a willingness-to-
  * invest signal distinct from base-game spend. Ranked by number of add-on
- * purchases. Demo accounts and accounts without matching purchases receive an
- * explicit destination state.
+ * purchases. Accounts without matching purchases receive an explicit
+ * destination state.
  */
-export function AddOnsSection({ data }: { data: DashboardData }) {
-  const imported = useTransactionImport(data.profile.accountId);
-  if (data.isDemo || !imported || imported.transactions.length === 0) {
+export function AddOnsSection({ data, transactions }: TransactionSectionProps) {
+  const rows = useSectionTransactions(data, transactions);
+  if (rows.length === 0) {
     return (
       <EmptySpendCard title="No add-on purchases yet">
         Import purchase transactions to see add-ons matched to games in this archive.
@@ -538,7 +549,7 @@ export function AddOnsSection({ data }: { data: DashboardData }) {
     );
   }
 
-  const ranked = summariseAddOns(data, imported.transactions)
+  const ranked = summariseAddOns(data, rows)
     .slice()
     .sort((a, b) => b.addOnCount - a.addOnCount || a.name.localeCompare(b.name));
   if (ranked.length === 0) {
