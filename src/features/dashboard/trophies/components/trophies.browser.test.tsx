@@ -47,15 +47,14 @@ describe("TrophySection", () => {
   });
 
   it("gives the trophy-split chart an accessible name covering each type", async () => {
-    const { container } = await render(<TrophySection data={demoDashboard} />);
+    await render(<TrophySection data={demoDashboard} />);
 
-    const chart = container.querySelector('[role="img"]');
-    if (!chart) throw new Error("expected the trophy-split chart to expose role=img");
-
-    expect(chart).toHaveAttribute(
-      "aria-label",
-      "Earned trophies by type: 9 platinum, 54 gold, 188 silver, 887 bronze."
-    );
+    await expect
+      .element(page.getByRole("img"))
+      .toHaveAttribute(
+        "aria-label",
+        "Earned trophies by type: 9 platinum, 54 gold, 188 silver, 887 bronze."
+      );
   });
 
   it("scopes per-game stats to matched games and excludes titles with no trophy list", async () => {

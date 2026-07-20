@@ -7,7 +7,7 @@ describe("DashboardSkeleton", () => {
   it("skeleton renders placeholder blocks while the dashboard loads", async () => {
     const { container } = await render(<DashboardSkeleton />);
 
-    expect(container.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(0);
+    expect(container.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(12);
   });
 });
 

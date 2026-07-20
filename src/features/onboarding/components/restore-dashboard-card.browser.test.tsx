@@ -70,7 +70,6 @@ describe("RestoreDashboardCard", () => {
   });
 
   it("reconstructs and caches the dashboard from the picked CSVs", async () => {
-    const save = vi.spyOn(testDashboardStore, "save");
     const setActive = vi.spyOn(testDashboardStore, "setActive");
 
     await render(createHarness(<RestoreDashboardCard />).element);
@@ -79,14 +78,15 @@ describe("RestoreDashboardCard", () => {
     await page.getByLabelText("Account CSV").upload(accountFile());
     await page.getByRole("button", { name: /restore dashboard/i }).click();
 
-    await vi.waitFor(() => expect(save).toHaveBeenCalledTimes(1));
-    const saved = save.mock.calls[0]?.[0];
-    expect(saved?.profile.accountId).toBe("acc-42");
-    expect(saved?.games.map((g) => g.name)).toStrictEqual(["Hades"]);
-    expect(saved?.meta.appsExcluded).toStrictEqual([{ name: "Netflix", hours: 5 }]);
-    expect(setActive).toHaveBeenCalledWith("acc-42");
+    await expect.poll(() => testDashboardStore.load("acc-42")?.profile.accountId).toBe("acc-42");
+    expect(testDashboardStore.load("acc-42")?.games.map((game) => game.name)).toStrictEqual([
+      "Hades",
+    ]);
+    expect(testDashboardStore.load("acc-42")?.meta.appsExcluded).toStrictEqual([
+      { name: "Netflix", hours: 5 },
+    ]);
+    expect(setActive).toHaveBeenCalledExactlyOnceWith("acc-42");
 
-    save.mockRestore();
     setActive.mockRestore();
   });
 

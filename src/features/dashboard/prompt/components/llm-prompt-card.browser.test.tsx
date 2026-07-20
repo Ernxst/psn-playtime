@@ -93,12 +93,10 @@ describe("LlmPromptCard", () => {
     expect(writeText).toHaveBeenCalledExactlyOnceWith(
       expect.stringContaining("FOLLOW-UP QUESTIONS")
     );
-    await vi.waitFor(() =>
-      expect(open).toHaveBeenCalledExactlyOnceWith(
-        "https://chatgpt.com/",
-        "_blank",
-        "noopener,noreferrer"
-      )
+    expect(open).toHaveBeenCalledExactlyOnceWith(
+      "https://chatgpt.com/",
+      "_blank",
+      "noopener,noreferrer"
     );
   });
 
@@ -113,12 +111,10 @@ describe("LlmPromptCard", () => {
     expect(writeText).toHaveBeenCalledExactlyOnceWith(
       expect.stringContaining("FOLLOW-UP QUESTIONS")
     );
-    await vi.waitFor(() =>
-      expect(open).toHaveBeenCalledExactlyOnceWith(
-        "https://claude.ai/new",
-        "_blank",
-        "noopener,noreferrer"
-      )
+    expect(open).toHaveBeenCalledExactlyOnceWith(
+      "https://claude.ai/new",
+      "_blank",
+      "noopener,noreferrer"
     );
   });
 

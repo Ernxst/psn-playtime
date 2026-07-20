@@ -1,7 +1,7 @@
 import { scheduleTask } from "@effect/atom-react";
 import * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
 import { useReducer } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
 import { demoDashboard } from "@/domain/mock";
@@ -148,7 +148,7 @@ describe(".useCachedAccounts", () => {
 
     await render(<Probe />, { wrapper: Provider });
     await expect.element(page.getByRole("button", { name: "Re-render" })).toBeVisible();
-    await vi.waitFor(() => expect(refs.at(-1)).toHaveLength(1));
+    expect(refs).toHaveLength(1);
 
     const stable = refs.at(-1);
     await page.getByRole("button", { name: "Re-render" }).click();

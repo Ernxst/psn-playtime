@@ -154,11 +154,7 @@ async function runBookmarklet(identity: { ok: boolean; status: number; body: unk
         }),
     };
   });
-  let openedTarget: string | null = null;
-  const open = vi.fn((target: string) => {
-    openedTarget = target;
-    return {};
-  });
+  const open = vi.fn(() => ({}));
 
   await vm.runInNewContext(body, {
     document,
@@ -172,7 +168,6 @@ async function runBookmarklet(identity: { ok: boolean; status: number; body: unk
   return {
     fetch,
     open,
-    openedTarget,
     message: created.find((element) => element.attrs["aria-live"] === "polite"),
   };
 }
@@ -437,18 +432,16 @@ describe(".bookmarkletHref", () => {
   );
 
   it("fetches transactions and stamps the bound account only after an exact identity match", async () => {
-    const { fetch, open, openedTarget } = await runBookmarklet({
+    const { fetch, open } = await runBookmarklet({
       ok: true,
       status: 200,
       body: { handle: "Ernxst_" },
     });
 
     expect(fetch).toHaveBeenCalledTimes(2);
-    expect(open).toHaveBeenCalledTimes(1);
-    const payload: unknown = JSON.parse(
-      decodeURIComponent(String(openedTarget).split("#data=")[1] ?? "")
+    expect(open).toHaveBeenCalledExactlyOnceWith(
+      expect.stringMatching(/#data=.*%22accountId%22%3A%22acc-1%22.*%22transactions%22%3A%5B%5D/)
     );
-    expect(payload).toMatchObject({ accountId: "acc-1", transactions: [] });
   });
 
   it("does not stream via postMessage (COOP severs the opener)", () => {
@@ -684,7 +677,9 @@ describe(".mountImportOverlay", () => {
 
     overlay.error("unexpected response (HTTP 429) — are you signed in to PlayStation?");
 
-    expect(message.textContent).toContain("rate-limiting");
+    expect(message.textContent).toBe(
+      "PlayStation is rate-limiting requests. Wait a minute, then run the bookmarklet again."
+    );
   });
 
   it("mounts a live overlay wired to the host DOM and updates through its lifecycle", () => {

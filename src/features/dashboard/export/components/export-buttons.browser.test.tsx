@@ -114,7 +114,8 @@ describe("ExportButtons", () => {
     await page.getByRole("button", { name: "Export transactions (CSV)" }).click();
 
     expect(click).toHaveBeenCalledTimes(2);
-    expect(download).toHaveBeenCalledWith("psn-account.csv");
-    expect(download).toHaveBeenCalledWith("psn-transactions.csv");
+    expect(download).toHaveBeenCalledTimes(2);
+    expect(download).toHaveBeenNthCalledWith(1, "psn-account.csv");
+    expect(download).toHaveBeenNthCalledWith(2, "psn-transactions.csv");
   });
 });

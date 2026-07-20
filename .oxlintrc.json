@@ -1,7 +1,7 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "plugins": ["react", "typescript", "unicorn", "oxc", "jsx-a11y", "jsdoc", "unicorn", "vitest"],
-  "jsPlugins": ["oxlint-plugin-complexity"],
+  "jsPlugins": ["oxlint-plugin-complexity", "./tools/oxlint/test-contract.mjs"],
   "env": {
     "browser": true,
     "es2024": true
@@ -78,9 +78,35 @@
             "toHaveBeenCalled": "Assert the exact call count"
           }
         ],
+        "test-contract/no-wait-for": "error",
+        "test-contract/no-test-timers": "error",
+        "test-contract/no-boolean-expect": "error",
+        "test-contract/no-finally": "error",
+        "test-contract/no-control-flow": "error",
+        "test-contract/no-assertion-in-callback": "error",
+        "test-contract/no-mock-calls": "error",
+        "test-contract/no-inexact-cardinality": "error",
+        "test-contract/no-broad-dom-text": "error",
+        "test-contract/no-internal-module-mock": [
+          "error",
+          {
+            "allow": ["@/server/api/account.effect"]
+          }
+        ],
+        "test-contract/no-ambiguous-called-with": "error",
+        "test-contract/no-callback-capture": "error",
+        "test-contract/no-mock-implementation-shortcut": "error",
+        "test-contract/no-global-mock-cleanup": "error",
         "eslint/max-lines-per-function": "off",
         "complexity/complexity": "off",
         "max-nested-callbacks": "off"
+      }
+    },
+    {
+      "files": ["tools/oxlint/*.mjs"],
+      "rules": {
+        "typescript/no-unsafe-assignment": "off",
+        "complexity/complexity": "off"
       }
     }
   ]

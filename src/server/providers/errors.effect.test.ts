@@ -67,9 +67,10 @@ describe(".providerError", () => {
     const leaky = new Error(`connect failed for https://api.rawg.io/api/games?key=${secret}`);
     const error = providerError("rawg")(leaky);
 
-    expect(error).toBeInstanceOf(UpstreamUnavailableError);
-    if (!(error instanceof UpstreamUnavailableError)) throw new Error("expected unavailable");
-    expect(error.reason).toBe("upstream_error");
+    expect(error).toMatchObject({
+      _tag: "UpstreamUnavailableError",
+      reason: "upstream_error",
+    });
 
     // The raw thrown value must appear NOWHERE on the typed error — not in
     // `reason`, not in a `cause`, not in any other own field.
@@ -83,9 +84,10 @@ describe(".providerError", () => {
   it("discards a non-Error thrown value rather than surfacing it on the error", () => {
     const error = providerError("psn")("plain string failure");
 
-    expect(error).toBeInstanceOf(UpstreamUnavailableError);
-    if (!(error instanceof UpstreamUnavailableError)) throw new Error("expected unavailable");
-    expect(error.reason).toBe("upstream_error");
+    expect(error).toMatchObject({
+      _tag: "UpstreamUnavailableError",
+      reason: "upstream_error",
+    });
     expect(error).not.toHaveProperty("cause");
     expect(JSON.stringify(Object.entries(error))).not.toContain("plain string failure");
   });
