@@ -114,4 +114,20 @@ describe("RefreshDashboard", () => {
     expect(onRefresh).toHaveBeenCalledExactlyOnceWith("playloom-demo-credential");
     expect(onComplete).toHaveBeenCalledTimes(1);
   });
+
+  it("keeps every refresh sheet control at least 44 pixels high", async () => {
+    await render(view(vi.fn(), { safeDemo: true }));
+
+    await page.getByRole("button", { name: "Refresh" }).click();
+
+    const preview = page.getByRole("button", { name: "Preview rejected credential" }).element();
+    const close = page.getByRole("button", { name: "Close" }).element();
+    const cancel = page.getByRole("button", { name: "Cancel" }).element();
+    const submit = page.getByRole("button", { name: "Refresh data" }).element();
+
+    expect(preview.getBoundingClientRect().height).toBeGreaterThanOrEqual(44);
+    expect(close.getBoundingClientRect().height).toBeGreaterThanOrEqual(44);
+    expect(cancel.getBoundingClientRect().height).toBeGreaterThanOrEqual(44);
+    expect(submit.getBoundingClientRect().height).toBeGreaterThanOrEqual(44);
+  });
 });

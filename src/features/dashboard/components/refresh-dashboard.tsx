@@ -231,7 +231,7 @@ function RefreshStatus({ refresh }: { refresh: ReturnType<typeof useRefresh> }) 
           element?.focus();
         }}
         tabIndex={-1}
-        className="grid gap-2 border-l-[3px] border-[#204eb8] bg-[#204eb8]/7 p-3 text-[0.6875rem] text-[#555960] outline-none"
+        className="grid gap-2 border-l-[3px] border-primary bg-primary/7 p-3 text-[0.6875rem] text-muted-foreground outline-none"
       >
         <Progress value={68} aria-label="Refresh in progress" className="h-1.25 gap-0" />
         <span>Refreshing playtime and trophies…</span>
@@ -242,7 +242,7 @@ function RefreshStatus({ refresh }: { refresh: ReturnType<typeof useRefresh> }) 
   return (
     <p
       id="refresh-error"
-      className="border-l-[3px] border-[#b74236] bg-[#b74236]/8 px-3 py-2.5 text-[0.6875rem] leading-[1.45] text-[#8d2f27]"
+      className="border-l-[3px] border-destructive bg-destructive/8 px-3 py-2.5 text-[0.6875rem] leading-[1.45] text-destructive-foreground"
       role="alert"
     >
       {refresh.error}
@@ -254,7 +254,7 @@ function RefreshForm({ refresh }: { refresh: ReturnType<typeof useRefresh> }) {
   return (
     <form id="refresh-dashboard" className="space-y-4" onSubmit={refresh.submit}>
       {refresh.safeDemo ? (
-        <div className="border-l-[3px] border-[#204eb8] bg-[#204eb8]/7 p-4 text-sm leading-[1.6]">
+        <div className="border-l-[3px] border-primary bg-primary/7 p-4 text-sm leading-[1.6]">
           No token or network request is used. The fixed credential below exists only to make
           validation, failure retention, progress and success states evaluable.
         </div>
@@ -267,6 +267,7 @@ function RefreshForm({ refresh }: { refresh: ReturnType<typeof useRefresh> }) {
           type="button"
           variant="ghost"
           size="sm"
+          className="min-h-11"
           onClick={refresh.previewFailure}
           disabled={refresh.pending}
         >
@@ -280,14 +281,14 @@ function RefreshForm({ refresh }: { refresh: ReturnType<typeof useRefresh> }) {
 
 function RefreshHeader({ description }: { description: string }) {
   return (
-    <SheetHeader className="border-b border-[#c8bdab] px-6 py-5">
-      <p className="text-[0.625rem] font-bold tracking-[0.14em] text-[#204eb8] uppercase">
+    <SheetHeader className="border-b border-[var(--playloom-rule-strong)] px-6 py-5">
+      <p className="text-[0.625rem] font-bold tracking-[0.14em] text-primary uppercase">
         Archive status
       </p>
       <SheetTitle className="font-[Fraunces_Variable] text-2xl font-semibold">
         Refresh PlayStation data
       </SheetTitle>
-      <SheetDescription className="text-[#555960]">{description}</SheetDescription>
+      <SheetDescription>{description}</SheetDescription>
     </SheetHeader>
   );
 }
@@ -300,16 +301,20 @@ function RefreshSheet({ refresh }: { refresh: ReturnType<typeof useRefresh> }) {
   return (
     <SheetPopup
       side={isMobile ? "bottom" : "right"}
-      className="border-[#c8bdab] bg-[#f8f4ea] text-[#24262b] shadow-[-12px_0_30px_rgb(36_38_43/12%)] sm:max-w-md max-sm:max-h-[calc(100dvh-3rem)]"
+      className="border-[var(--playloom-rule-strong)] bg-[var(--playloom-paper-raised)] text-foreground shadow-[-12px_0_30px_var(--playloom-shadow)] sm:max-w-md max-sm:max-h-[calc(100dvh-3rem)]"
+      closeProps={{ className: "min-h-11 min-w-11 rounded-none" }}
     >
       <RefreshHeader description={description} />
       <SheetPanel>
         <RefreshForm refresh={refresh} />
       </SheetPanel>
-      <SheetFooter className="border-[#c8bdab] bg-[#eee7da] px-6 py-4 max-sm:flex-col sm:justify-between">
+      <SheetFooter className="border-[var(--playloom-rule-strong)] bg-[var(--playloom-paper-recessed)] px-6 py-4 max-sm:flex-col sm:justify-between">
         <SheetClose
           render={
-            <Button variant="ghost" className="rounded-none text-[#24262b] hover:bg-[#204eb8]/8" />
+            <Button
+              variant="ghost"
+              className="min-h-11 rounded-none text-foreground hover:bg-accent"
+            />
           }
           disabled={refresh.pending}
         >
@@ -319,7 +324,7 @@ function RefreshSheet({ refresh }: { refresh: ReturnType<typeof useRefresh> }) {
           type="submit"
           form="refresh-dashboard"
           loading={refresh.pending}
-          className="rounded-none border-[#204eb8] bg-[#204eb8] text-white hover:bg-[#173b91]"
+          className="min-h-11 rounded-none border-primary bg-primary text-primary-foreground hover:bg-accent-foreground"
         >
           Refresh data
         </Button>

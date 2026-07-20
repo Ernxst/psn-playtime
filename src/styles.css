@@ -57,10 +57,14 @@
 :root {
   --playloom-paper: #f3efe5;
   --playloom-paper-deep: #e7e0d1;
+  --playloom-paper-raised: #f8f4ea;
+  --playloom-paper-recessed: #eee7da;
   --playloom-ink: #171a1f;
   --playloom-ink-soft: #30343b;
   --playloom-cobalt: #204eb8;
   --playloom-rule: rgb(23 26 31 / 15%);
+  --playloom-rule-strong: #c8bdab;
+  --playloom-shadow: rgb(36 38 43 / 12%);
   --background: var(--playloom-paper);
   --foreground: var(--playloom-ink);
   --card: rgb(255 253 247 / 74%);

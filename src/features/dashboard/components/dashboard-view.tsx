@@ -208,7 +208,7 @@ function ImportSource({
       render={
         <button
           type="button"
-          className="grid w-full grid-cols-[2.125rem_minmax(0,1fr)_1.25rem] items-center gap-2.5 border border-transparent p-2.5 text-left transition-colors duration-200 hover:border-[#204eb8]/25 hover:bg-[#204eb8]/8 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#204eb8]"
+          className="grid w-full grid-cols-[2.125rem_minmax(0,1fr)_1.25rem] items-center gap-2.5 border border-transparent p-2.5 text-left transition-colors duration-200 hover:border-primary/25 hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           aria-label={
             current ? `${account.onlineId}, active account` : `Switch to ${account.onlineId}`
           }
@@ -231,7 +231,7 @@ function ImportSource({
 
 function SourceMark({ label }: { label: string }) {
   return (
-    <span className="grid aspect-square place-items-center bg-[#204eb8] text-[0.625rem] font-extrabold text-white">
+    <span className="grid aspect-square place-items-center bg-primary text-[0.625rem] font-extrabold text-primary-foreground">
       {label}
     </span>
   );
@@ -255,7 +255,7 @@ function ProfileSources({ data }: { data: DashboardData }) {
   const accounts = profileAccounts(data, useCachedAccounts());
   const { dashboardStore } = useRouteContext({ from: "__root__" });
   return (
-    <div className="mt-4 border-t border-[#c8bdab] pt-3">
+    <div className="mt-4 border-t border-[var(--playloom-rule-strong)] pt-3">
       <small className="mb-2 block text-[0.5625rem] font-bold tracking-[0.12em] text-muted-foreground uppercase">
         Connected import sources
       </small>
@@ -276,7 +276,7 @@ function ProfileMenu({ data }: { data: DashboardData }) {
   return (
     <PopoverContent
       align="end"
-      className="w-80 max-w-[calc(100vw-2rem)] rounded-none border-[#c8bdab] bg-[#f8f4ea] p-5 text-[#24262b] shadow-[0_12px_30px_rgb(36_38_43/12%)] before:rounded-none"
+      className="w-80 max-w-[calc(100vw-2rem)] rounded-none border-[var(--playloom-rule-strong)] bg-[var(--playloom-paper-raised)] p-5 text-foreground shadow-[0_12px_30px_var(--playloom-shadow)] before:rounded-none"
     >
       <PopoverTitle className="font-[Fraunces_Variable] text-xl font-semibold">
         {profile.onlineId}
@@ -285,14 +285,14 @@ function ProfileMenu({ data }: { data: DashboardData }) {
       <ProfileSources data={data} />
       <Button
         variant="ghost"
-        className="mt-3 w-full justify-start rounded-none border border-[#c8bdab] bg-transparent text-[#24262b] hover:bg-[#204eb8]/8"
+        className="mt-3 w-full justify-start rounded-none border border-[var(--playloom-rule-strong)] bg-transparent text-foreground hover:bg-accent"
         render={<Link to="/" />}
       >
         <UserPlus /> Add PlayStation account
       </Button>
-      <Separator className="my-3 bg-[#c8bdab]" />
+      <Separator className="my-3 bg-[var(--playloom-rule-strong)]" />
       <div className="grid grid-cols-[2.125rem_minmax(0,1fr)] items-center gap-2.5 px-2.5 pb-2 pt-1">
-        <span className="grid aspect-square place-items-center bg-[#204eb8] text-[0.625rem] font-extrabold text-white">
+        <span className="grid aspect-square place-items-center bg-primary text-[0.625rem] font-extrabold text-primary-foreground">
           PL
         </span>
         <div className="flex flex-col">
@@ -302,7 +302,7 @@ function ProfileMenu({ data }: { data: DashboardData }) {
       </div>
       <Button
         variant="ghost"
-        className="w-full justify-start rounded-none text-[#24262b] hover:bg-[#204eb8]/8"
+        className="w-full justify-start rounded-none text-foreground hover:bg-accent"
         render={<Link to="/dashboard" />}
       >
         Explore demo profile
@@ -319,7 +319,7 @@ function ProfileControl({ data }: { data: DashboardData }) {
         render={
           <Button
             variant="ghost"
-            className="h-11 min-w-0 rounded-none px-2 text-[#24262b] hover:bg-[#204eb8]/8 focus-visible:ring-[#204eb8]"
+            className="h-11 min-w-0 rounded-none px-2 text-foreground hover:bg-accent focus-visible:ring-ring"
             aria-label={`Open profile menu for ${profile.onlineId}`}
           />
         }
@@ -368,16 +368,16 @@ function ProfileSummary({ data, refreshed }: { data: DashboardData; refreshed: b
   });
   return (
     <div>
-      <p className="text-[0.6875rem] font-bold tracking-[0.14em] text-[#204eb8] uppercase">
+      <p className="text-[0.6875rem] font-bold tracking-[0.14em] text-primary uppercase">
         A life in games
       </p>
       <h1 className="mt-2 max-w-[12ch] font-[Fraunces_Variable] text-[clamp(3.5rem,8vw,6.875rem)] font-[570] tracking-[-0.065em] leading-[0.9] text-balance">
         {data.profile.onlineId}
       </h1>
-      <p className="mt-5 max-w-[48ch] text-[0.9375rem] leading-[1.65] text-[#4f535a] text-pretty">
+      <p className="mt-5 max-w-[48ch] text-[0.9375rem] leading-[1.65] text-muted-foreground text-pretty">
         {data.profile.aboutMe}
       </p>
-      <div className="mt-4 flex max-w-130 items-center gap-2.5 text-[0.625rem] text-[#555960]">
+      <div className="mt-4 flex max-w-130 items-center gap-2.5 text-[0.625rem] text-muted-foreground">
         <span>{account}</span>
         <span>Trophy level {fmtNumber(data.profile.trophyLevel)}</span>
         <Progress
@@ -387,8 +387,8 @@ function ProfileSummary({ data, refreshed }: { data: DashboardData; refreshed: b
         />
         <span>{data.profile.levelProgress}% to next</span>
       </div>
-      <div className="mt-6 flex items-center gap-2 text-[0.6875rem] text-[#676b71] tabular-nums">
-        <span className="size-1.75 rounded-full bg-[#417443] shadow-[0_0_0_3px_rgb(65_116_67/12%)]" />
+      <div className="mt-6 flex items-center gap-2 text-[0.6875rem] text-muted-foreground tabular-nums">
+        <span className="size-1.75 rounded-full bg-success-foreground shadow-[0_0_0_3px_color-mix(in_oklab,var(--success-foreground)_12%,transparent)]" />
         {refreshed ? "Refreshed just now" : `Last refreshed ${refreshedAt}`}
       </div>
     </div>
@@ -420,7 +420,7 @@ function AccountActions({ props, onSafeRefresh }: { props: Props; onSafeRefresh:
 function Marquee(props: Props) {
   const [refreshed, setRefreshed] = useState(false);
   return (
-    <header className="flex min-h-[22rem] justify-between gap-8 overflow-hidden bg-[radial-gradient(circle_at_85%_10%,rgb(37_80_181/14%),transparent_34%),linear-gradient(145deg,#f8f4ea_0%,#e9e2d4_100%)] px-[clamp(1.5rem,6vw,5.25rem)] pt-14 pb-10 max-sm:min-h-0 max-sm:flex-col max-sm:px-5 max-sm:pt-12 max-sm:pb-9">
+    <header className="flex min-h-[22rem] justify-between gap-8 overflow-hidden bg-[radial-gradient(circle_at_85%_10%,color-mix(in_oklab,var(--primary)_14%,transparent),transparent_34%),linear-gradient(145deg,var(--playloom-paper-raised)_0%,var(--playloom-paper-deep)_100%)] px-[clamp(1.5rem,6vw,5.25rem)] pt-14 pb-10 max-sm:min-h-0 max-sm:flex-col max-sm:px-5 max-sm:pt-12 max-sm:pb-9">
       <ProfileSummary data={props.data} refreshed={refreshed} />
       <AccountActions props={props} onSafeRefresh={() => setRefreshed(true)} />
     </header>
