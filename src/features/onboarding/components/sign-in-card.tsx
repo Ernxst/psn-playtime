@@ -439,13 +439,13 @@ function RestoreTransactions() {
   );
 }
 
-export function SignInCard() {
+export function SignInCard({ showDemoLink = true }: { showDemoLink?: boolean }) {
   return (
     <Card>
       <CardHeader>
         <CardTitle>Connect your account</CardTitle>
         <CardDescription>
-          We use a one-time PSN token (npsso) to read your library. It never leaves this session.
+          Your one-time NPSSO token is sent through the server to PlayStation and is never stored.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
@@ -460,11 +460,13 @@ export function SignInCard() {
         </div>
         <RiskDetails />
         <TokenForm />
-        <div className="flex items-center justify-center pt-1">
-          <Button render={<Link to="/dashboard" />} variant="ghost" size="sm">
-            Or explore the demo instead
-          </Button>
-        </div>
+        {showDemoLink ? (
+          <div className="flex items-center justify-center pt-1">
+            <Button render={<Link to="/dashboard" />} variant="ghost" size="sm">
+              Or explore the demo instead
+            </Button>
+          </div>
+        ) : null}
         <RestoreTransactions />
       </CardContent>
     </Card>

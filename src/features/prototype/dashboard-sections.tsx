@@ -1,0 +1,719 @@
+import { ArrowDown, ArrowUp, Search } from "lucide-react";
+import { useState } from "react";
+import { Input } from "@/components/ui/input";
+import type { TransactionRow } from "@/domain/transactions";
+import {
+  bingeVsDipIn,
+  genreBreakdown,
+  headlineTotals,
+  hoursByYear,
+  topFranchises,
+  topGamesByHours,
+} from "@/features/dashboard/filters/analytics";
+import { fmtDate, fmtHours, fmtNumber } from "@/features/dashboard/format";
+import { summariseAddOns, summariseSpend } from "@/features/dashboard/spend/spend";
+import type { DashboardData, GamePlay } from "@/server/providers/account/snapshot";
+import { GamePoster } from "./poster";
+import { prototypeTransactions } from "./prototype-data";
+
+function Metric({ label, value, detail }: { label: string; value: string; detail: string }) {
+  return (
+    <div className="playloom-metric">
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <small>{detail}</small>
+    </div>
+  );
+}
+
+function OverviewArt({ game }: { game: GamePlay | undefined }) {
+  if (!game) return null;
+  return (
+    <div className="playloom-overview-art">
+      <GamePoster game={game} featured />
+      <div>
+        <span>Most played</span>
+        <strong>{game.name}</strong>
+        <small>
+          {fmtHours(game.hours)} across {fmtNumber(game.playCount)} launches
+        </small>
+      </div>
+    </div>
+  );
+}
+
+function OverviewMetrics({ data }: { data: DashboardData }) {
+  const totals = headlineTotals(data);
+  const hoursPerGame = totals.gamesPlayed === 0 ? 0 : totals.totalHours / totals.gamesPlayed;
+  const hoursPerSession = totals.sessions === 0 ? 0 : totals.totalHours / totals.sessions;
+  return (
+    <div className="playloom-metric-strip">
+      <Metric
+        label="Lifetime play"
+        value={fmtHours(totals.totalHours)}
+        detail={`≈ ${fmtNumber(totals.days)} days non-stop`}
+      />
+      <Metric
+        label="Games played"
+        value={fmtNumber(totals.gamesPlayed)}
+        detail={`${fmtNumber(totals.sessions)} sessions`}
+      />
+      <Metric label="Avg per game" value={fmtHours(hoursPerGame)} detail="Lifetime hours" />
+      <Metric label="Avg session" value={fmtHours(hoursPerSession)} detail="Across all launches" />
+      <Metric
+        label="Trophy level"
+        value={fmtNumber(totals.trophyLevel)}
+        detail={`${fmtNumber(data.profile.totalTrophies)} trophies`}
+      />
+    </div>
+  );
+}
+
+export function ProfileOverview({ data }: { data: DashboardData }) {
+  return (
+    <div className="playloom-overview">
+      <OverviewArt game={data.games[0]} />
+      <OverviewMetrics data={data} />
+      <p className="playloom-caveat">
+        PSN reports lifetime hours per game. Time filters select games by last-played date; they do
+        not turn lifetime hours into hours played during the period.
+      </p>
+    </div>
+  );
+}
+
+export function PlatinumShelf({ data }: { data: DashboardData }) {
+  const games = data.games.filter((game) => (game.trophy?.earned.platinum ?? 0) > 0).slice(0, 8);
+  if (games.length === 0) return null;
+  return (
+    <section className="mb-6 border-b border-border pb-6" aria-label="Platinum games">
+      <header className="mb-4 flex items-baseline justify-between gap-4">
+        <strong>Your platinum shelf</strong>
+        <span className="text-xs text-muted-foreground">
+          Most recently played first · exact trophy details follow below
+        </span>
+      </header>
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(7.5rem,1fr))] gap-4">
+        {games.map((game) => (
+          <article className="grid min-w-0 gap-1.5" key={game.titleId}>
+            <GamePoster game={game} />
+            <strong className="truncate text-xs">{game.name}</strong>
+            <span className="text-[10px] text-muted-foreground">
+              {game.trophy?.progress ?? 100}% complete
+            </span>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function gameForName(data: DashboardData, name: string): GamePlay {
+  return data.games.find((game) => game.name === name) ?? data.games[0]!;
+}
+
+function RankedGame({
+  data,
+  name,
+  hours,
+  rank,
+  featured,
+}: {
+  data: DashboardData;
+  name: string;
+  hours: number;
+  rank: number;
+  featured: boolean;
+}) {
+  const game = gameForName(data, name);
+  const max = data.games[0]?.hours ?? hours;
+  return (
+    <article className={`playloom-ranked-game ${featured ? "is-featured" : ""}`}>
+      <span className="playloom-rank">{String(rank).padStart(2, "0")}</span>
+      <GamePoster game={game} featured={featured} />
+      <div className="playloom-ranked-copy">
+        <strong>{name}</strong>
+        <span>
+          {game.platform} · {fmtNumber(game.playCount)} launches
+        </span>
+        <div className="playloom-bar">
+          <i style={{ width: `${Math.max(3, (hours / max) * 100)}%` }} />
+        </div>
+      </div>
+      <b>{fmtHours(hours)}</b>
+    </article>
+  );
+}
+
+function TopGames({ data }: { data: DashboardData }) {
+  return (
+    <>
+      <h4 className="playloom-subheading">Top games by hours</h4>
+      <div className="playloom-ranked-list">
+        {topGamesByHours(data, 10).map((row, index) => (
+          <RankedGame key={row.name} data={data} {...row} rank={index + 1} featured={index === 0} />
+        ))}
+      </div>
+    </>
+  );
+}
+
+function Genres({ data }: { data: DashboardData }) {
+  const rows = genreBreakdown(data);
+  const max = rows[0]?.hours ?? 1;
+  return (
+    <div className="playloom-distribution">
+      {rows.map((row) => (
+        <div key={row.genre}>
+          <strong>{row.genre}</strong>
+          <div className="playloom-bar">
+            <i style={{ width: `${(row.hours / max) * 100}%` }} />
+          </div>
+          <span>
+            {fmtHours(row.hours)} · {row.share}% · {fmtNumber(row.games)} games
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function Franchises({ data }: { data: DashboardData }) {
+  const rows = topFranchises(data, 8);
+  return (
+    <div className="playloom-franchises">
+      {rows.map((row, index) => {
+        const games = data.games.filter((game) => game.franchise === row.franchise).slice(0, 3);
+        return (
+          <article key={row.franchise}>
+            <span>{String(index + 1).padStart(2, "0")}</span>
+            <div className="playloom-cover-stack">
+              {games.map((game) => (
+                <GamePoster key={game.titleId} game={game} />
+              ))}
+            </div>
+            <strong>{row.franchise}</strong>
+            <small>
+              {fmtHours(row.hours)} · {fmtNumber(row.games)} games
+            </small>
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
+export function ProfileRanks({
+  data,
+  mode,
+}: {
+  data: DashboardData;
+  mode: "games" | "genres" | "franchises";
+}) {
+  if (mode === "games") return <TopGames data={data} />;
+  if (mode === "genres") return <Genres data={data} />;
+  return <Franchises data={data} />;
+}
+
+function YearView({ data }: { data: DashboardData }) {
+  const rows = hoursByYear(data);
+  const max = Math.max(...rows.map((row) => row.hours), 1);
+  return (
+    <div className="playloom-year-view">
+      {rows.map((row) => (
+        <div key={row.year}>
+          <span>{row.year}</span>
+          <div>
+            <i style={{ height: `${Math.max(5, (row.hours / max) * 100)}%` }} />
+          </div>
+          <strong>{fmtHours(row.hours)}</strong>
+          <small>{fmtNumber(row.games)} games</small>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SessionView({ data }: { data: DashboardData }) {
+  const rows = bingeVsDipIn(data, 10);
+  const max = rows[0]?.hoursPerSession ?? 1;
+  return (
+    <div className="playloom-session-view">
+      {rows.map((row) => (
+        <div key={row.name}>
+          <strong>{row.name}</strong>
+          <div className="playloom-bar">
+            <i style={{ width: `${(row.hoursPerSession / max) * 100}%` }} />
+          </div>
+          <span>
+            {row.hoursPerSession} h/session · {fmtNumber(row.playCount)} launches
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function HistoryViews({ data }: { data: DashboardData }) {
+  return (
+    <>
+      <section id="timeline" className="playloom-section" aria-labelledby="timeline-title">
+        <h3 id="timeline-title">Timeline</h3>
+        <YearView data={data} />
+        <p className="playloom-caveat">
+          Proxy view: each game’s complete lifetime hours sit in the year it was most recently
+          played, because PSN does not provide historic hour totals.
+        </p>
+      </section>
+      <section id="sessions" className="playloom-section" aria-labelledby="sessions-title">
+        <h3 id="sessions-title">Sessions</h3>
+        <SessionView data={data} />
+      </section>
+    </>
+  );
+}
+
+type MatchFilter = "all" | "matched" | "unmatched";
+type KindFilter = "all" | TransactionRow["kind"];
+
+function matchesGame(transaction: TransactionRow, data: DashboardData): boolean {
+  const product = transaction.productName.toLowerCase();
+  return data.games.some(
+    (game) => product.includes(game.name.toLowerCase()) || transaction.skuId?.includes(game.titleId)
+  );
+}
+
+function PurchaseSearch({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  return (
+    <div className="playloom-purchase-search">
+      <Search />
+      <Input
+        aria-label="Search products"
+        value={value}
+        onChange={(event) => onChange(event.currentTarget.value)}
+        placeholder="Search products"
+      />
+    </div>
+  );
+}
+
+function kindFilter(value: string): KindFilter {
+  if (value === "purchase" || value === "top-up") return value;
+  return "all";
+}
+
+function matchFilter(value: string): MatchFilter {
+  if (value === "matched" || value === "unmatched") return value;
+  return "all";
+}
+
+function KindSelect({
+  value,
+  onChange,
+}: {
+  value: KindFilter;
+  onChange: (value: KindFilter) => void;
+}) {
+  return (
+    <label>
+      Type
+      <select value={value} onChange={(event) => onChange(kindFilter(event.currentTarget.value))}>
+        <option value="all">All</option>
+        <option value="purchase">Purchases</option>
+        <option value="top-up">Top-ups</option>
+      </select>
+    </label>
+  );
+}
+
+function MatchSelect({
+  value,
+  onChange,
+}: {
+  value: MatchFilter;
+  onChange: (value: MatchFilter) => void;
+}) {
+  return (
+    <label>
+      Match
+      <select value={value} onChange={(event) => onChange(matchFilter(event.currentTarget.value))}>
+        <option value="all">All</option>
+        <option value="matched">Matched</option>
+        <option value="unmatched">Unmatched</option>
+      </select>
+    </label>
+  );
+}
+
+function TransactionFilters({
+  query,
+  onQuery,
+  kind,
+  onKind,
+  match,
+  onMatch,
+}: {
+  query: string;
+  onQuery: (value: string) => void;
+  kind: KindFilter;
+  onKind: (value: KindFilter) => void;
+  match: MatchFilter;
+  onMatch: (value: MatchFilter) => void;
+}) {
+  return (
+    <div className="playloom-transaction-filters">
+      <div>
+        <strong>Purchase filters</strong>
+        <span>Applies only to Spending</span>
+      </div>
+      <PurchaseSearch value={query} onChange={onQuery} />
+      <label>
+        Purchase date
+        <input type="date" aria-label="Purchase date from" defaultValue="2022-01-01" />
+      </label>
+      <KindSelect value={kind} onChange={onKind} />
+      <MatchSelect value={match} onChange={onMatch} />
+    </div>
+  );
+}
+
+function money(minor: number): string {
+  return `£${(minor / 100).toFixed(2)}`;
+}
+
+function LedgerRow({ row, data }: { row: TransactionRow; data: DashboardData }) {
+  const original = row.originalPriceMinor === undefined ? "—" : money(row.originalPriceMinor);
+  const discount = row.discountMinor ? `−${money(row.discountMinor)}` : "—";
+  return (
+    <tr>
+      <td data-label="Date">{fmtDate(row.date)}</td>
+      <td data-label="Product">{row.productName}</td>
+      <td data-label="Type">{row.kind === "purchase" ? "Purchase" : "Top-up"}</td>
+      <td data-label="Match">{matchesGame(row, data) ? "Matched" : "Unmatched"}</td>
+      <td data-label="Original">{original}</td>
+      <td data-label="Discount">{discount}</td>
+      <td data-label="Paid">{money(row.amountMinor)}</td>
+    </tr>
+  );
+}
+
+function Ledger({ rows, data }: { rows: TransactionRow[]; data: DashboardData }) {
+  const [descending, setDescending] = useState(true);
+  const sorted = rows.toSorted((a, b) =>
+    descending ? b.date.localeCompare(a.date) : a.date.localeCompare(b.date)
+  );
+  return (
+    <section className="playloom-ledger" aria-label="Purchase history ledger">
+      <table>
+        <thead>
+          <tr>
+            <th>
+              <button type="button" onClick={() => setDescending((value) => !value)}>
+                Date {descending ? "↓" : "↑"}
+              </button>
+            </th>
+            <th>Product</th>
+            <th>Type</th>
+            <th>Match</th>
+            <th>Original</th>
+            <th>Discount</th>
+            <th>Paid</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map((row) => (
+            <LedgerRow key={row.key} row={row} data={data} />
+          ))}
+        </tbody>
+      </table>
+    </section>
+  );
+}
+
+type SpendSummary = ReturnType<typeof summariseSpend>;
+type AddOnSummaries = ReturnType<typeof summariseAddOns>;
+
+function SpendMetrics({ summary }: { summary: SpendSummary }) {
+  return (
+    <div className="playloom-metric-strip playloom-spend-strip">
+      <Metric
+        label="Total spend"
+        value={`£${summary.totalSpend.toFixed(2)}`}
+        detail={`${summary.purchaseCount} purchases`}
+      />
+      <Metric
+        label="Matched spend"
+        value={`£${(summary.totalSpend - summary.unmatchedSpend).toFixed(2)}`}
+        detail={`${summary.paidGames} played titles`}
+      />
+      <Metric
+        label="Unmatched"
+        value={`£${summary.unmatchedSpend.toFixed(2)}`}
+        detail="Subscriptions and unknowns"
+      />
+      <Metric
+        label="Average paid"
+        value={`£${(summary.totalSpend / summary.purchaseCount).toFixed(2)}`}
+        detail="Per purchase line"
+      />
+      <Metric
+        label="Wallet top-ups"
+        value={`£${summary.topUpTotal.toFixed(2)}`}
+        detail="Shown separately"
+      />
+    </div>
+  );
+}
+
+function SpendYears({ summary }: { summary: SpendSummary }) {
+  const max = Math.max(...summary.byYear.map((year) => year.spend), 1);
+  return (
+    <div className="playloom-spend-years">
+      <h4>Spend by year</h4>
+      {summary.byYear.map((year) => (
+        <div key={year.year}>
+          <span>{year.year}</span>
+          <div className="playloom-bar">
+            <i style={{ width: `${(year.spend / max) * 100}%` }} />
+          </div>
+          <strong>£{year.spend.toFixed(2)}</strong>
+          <small>{year.purchases} purchases</small>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SpendTitles({ data, summary }: { data: DashboardData; summary: SpendSummary }) {
+  const max = Math.max(...summary.byTitle.map((title) => title.spend), 1);
+  return (
+    <div>
+      <h4>Most spent</h4>
+      {summary.byTitle.map((title) => {
+        const game = data.games.find((candidate) => candidate.titleId === title.titleId);
+        return (
+          <div key={title.titleId} className="playloom-spend-title">
+            {game && <GamePoster game={game} />}
+            <span>
+              <strong>{title.name}</strong>
+              <small>Base and add-ons</small>
+              <div className="playloom-bar">
+                <i style={{ width: `${(title.spend / max) * 100}%` }} />
+              </div>
+            </span>
+            <b>£{title.spend.toFixed(2)}</b>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function SpendAddOns({ data, addOns }: { data: DashboardData; addOns: AddOnSummaries }) {
+  return (
+    <div>
+      <h4>Add-ons</h4>
+      {addOns.map((entry) => {
+        const game = data.games.find((candidate) => candidate.titleId === entry.titleId);
+        const label = entry.addOnCount === 1 ? "add-on" : "add-ons";
+        return (
+          <div key={entry.titleId} className="playloom-addon">
+            {game && <GamePoster game={game} />}
+            <span>
+              <strong>{entry.name}</strong>
+              <small>
+                {entry.addOnCount} {label}
+              </small>
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function transactionRows(data: DashboardData, query: string, kind: KindFilter, match: MatchFilter) {
+  return prototypeTransactions.filter((row) => {
+    const matched = matchesGame(row, data);
+    return (
+      row.productName.toLowerCase().includes(query.toLowerCase()) &&
+      (kind === "all" || row.kind === kind) &&
+      (match === "all" || (match === "matched") === matched)
+    );
+  });
+}
+
+export function PrototypeSpending({ data }: { data: DashboardData }) {
+  const [query, setQuery] = useState("");
+  const [kind, setKind] = useState<KindFilter>("all");
+  const [match, setMatch] = useState<MatchFilter>("all");
+  const summary = summariseSpend(data, prototypeTransactions);
+  return (
+    <div className="space-y-10">
+      <SpendMetrics summary={summary} />
+      <SpendYears summary={summary} />
+      <div>
+        <h4 className="playloom-subheading">Purchase history</h4>
+        <TransactionFilters
+          query={query}
+          onQuery={setQuery}
+          kind={kind}
+          onKind={setKind}
+          match={match}
+          onMatch={setMatch}
+        />
+        <Ledger rows={transactionRows(data, query, kind, match)} data={data} />
+      </div>
+      <div className="playloom-spend-grid">
+        <SpendTitles data={data} summary={summary} />
+        <SpendAddOns data={data} addOns={summariseAddOns(data, prototypeTransactions)} />
+      </div>
+      <p className="playloom-caveat">
+        Transactions are matched to played titles by stable SKU where available, then validated
+        title matching. Unmatched spend stays visible rather than being guessed.
+      </p>
+    </div>
+  );
+}
+
+type LibrarySort = "name" | "hours" | "playCount" | "firstPlayed" | "lastPlayed" | "trophies";
+
+const libraryColumns: ReadonlyArray<{ key: LibrarySort; label: string }> = [
+  { key: "name", label: "Game" },
+  { key: "hours", label: "Lifetime hours" },
+  { key: "playCount", label: "Sessions" },
+  { key: "firstPlayed", label: "First played" },
+  { key: "lastPlayed", label: "Last played" },
+  { key: "trophies", label: "Trophies" },
+];
+
+function trophyProgress(game: GamePlay): number | undefined {
+  return game.trophy?.progress;
+}
+
+type LibraryValue = string | number | undefined;
+const libraryValue: Record<LibrarySort, (game: GamePlay) => LibraryValue> = {
+  name: (game) => game.name,
+  hours: (game) => game.hours,
+  playCount: (game) => game.playCount,
+  firstPlayed: (game) => game.firstPlayed,
+  lastPlayed: (game) => game.lastPlayed,
+  trophies: trophyProgress,
+};
+
+function compareLibraryValues(left: LibraryValue, right: LibraryValue): number {
+  if (left === undefined) return 1;
+  if (right === undefined) return -1;
+  if (typeof left === "number" && typeof right === "number") return left - right;
+  return String(left).localeCompare(String(right));
+}
+
+function sortGames(games: readonly GamePlay[], sort: LibrarySort, descending: boolean) {
+  return games.toSorted((left, right) => {
+    const comparison = compareLibraryValues(libraryValue[sort](left), libraryValue[sort](right));
+    return descending ? -comparison : comparison;
+  });
+}
+
+function LibraryHead({
+  sort,
+  descending,
+  onSort,
+}: {
+  sort: LibrarySort;
+  descending: boolean;
+  onSort: (sort: LibrarySort) => void;
+}) {
+  return (
+    <thead>
+      <tr>
+        {libraryColumns.map((column) => (
+          <th key={column.key}>
+            <button type="button" onClick={() => onSort(column.key)}>
+              {column.label}
+              {sort === column.key && (descending ? <ArrowDown /> : <ArrowUp />)}
+            </button>
+          </th>
+        ))}
+      </tr>
+    </thead>
+  );
+}
+
+function LibraryRow({ game }: { game: GamePlay }) {
+  const trophies = trophyProgress(game);
+  const trophyLabel = trophies === undefined ? "—" : `${trophies}%`;
+  return (
+    <tr>
+      <td data-label="Game">
+        <GamePoster game={game} />
+        <span>
+          <strong title={game.name}>{game.name}</strong>
+          <small>{game.platform}</small>
+        </span>
+      </td>
+      <td data-label="Lifetime hours">{fmtHours(game.hours)}</td>
+      <td data-label="Sessions">{fmtNumber(game.playCount)}</td>
+      <td data-label="First played">{fmtDate(game.firstPlayed)}</td>
+      <td data-label="Last played">{fmtDate(game.lastPlayed)}</td>
+      <td data-label="Trophies">{trophyLabel}</td>
+    </tr>
+  );
+}
+
+function LibraryTable({
+  games,
+  sort,
+  descending,
+  onSort,
+}: {
+  games: readonly GamePlay[];
+  sort: LibrarySort;
+  descending: boolean;
+  onSort: (sort: LibrarySort) => void;
+}) {
+  return (
+    <div className="playloom-library-scroll">
+      <table>
+        <LibraryHead sort={sort} descending={descending} onSort={onSort} />
+        <tbody>
+          {games.map((game) => (
+            <LibraryRow key={game.titleId} game={game} />
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+export function PrototypeLibrary({ data }: { data: DashboardData }) {
+  const [sort, setSort] = useState<LibrarySort>("hours");
+  const [descending, setDescending] = useState(true);
+
+  function changeSort(next: LibrarySort) {
+    if (next === sort) {
+      setDescending((value) => !value);
+      return;
+    }
+    setSort(next);
+    setDescending(next !== "name");
+  }
+
+  return (
+    <section className="playloom-library" aria-label="Every game you've played">
+      <header>
+        <strong>Every game you've played</strong>
+        <span>
+          {fmtNumber(data.meta.totalGames)} titles in total · tap a column to sort · lifetime PSN
+          hours may under-report real play time
+        </span>
+      </header>
+      <LibraryTable
+        games={sortGames(data.games, sort, descending)}
+        sort={sort}
+        descending={descending}
+        onSort={changeSort}
+      />
+    </section>
+  );
+}
