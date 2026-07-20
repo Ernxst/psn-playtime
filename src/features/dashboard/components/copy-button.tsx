@@ -74,7 +74,7 @@ export function CopyButton({
       size={isIcon ? "icon" : undefined}
       variant="outline"
       disabled={disabled}
-      onClick={handleCopy}
+      onClick={() => void handleCopy()}
       aria-label={isIcon ? text : undefined}
       className={cn("gap-2", className)}
     >

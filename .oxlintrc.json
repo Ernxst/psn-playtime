@@ -1,7 +1,7 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "extends": ["./tools/oxlint/test-contract.json"],
-  "plugins": ["react", "typescript", "unicorn", "oxc", "jsx-a11y", "jsdoc", "unicorn", "vitest"],
+  "plugins": ["react", "typescript", "unicorn", "oxc", "jsx-a11y", "jsdoc", "vitest", "import"],
   "jsPlugins": [
     "oxlint-plugin-complexity",
     "./tools/oxlint/test-contract.mjs",
@@ -30,7 +30,14 @@
     "typescript/no-explicit-any": "error",
     "typescript/no-unsafe-type-assertion": "error",
     "typescript/no-floating-promises": "error",
+    "typescript/no-misused-promises": "error",
+    "typescript/no-unnecessary-condition": "error",
     "typescript/no-unsafe-assignment": "error",
+    "typescript/switch-exhaustiveness-check": "error",
+    "import/no-cycle": "error",
+    "import/no-self-import": "error",
+    "oxc/no-accumulating-spread": "error",
+    "react/react-compiler": "error",
     "no-extra-boolean-cast": "error",
     "max-depth": ["error", 3],
     "max-nested-callbacks": ["error", 3],

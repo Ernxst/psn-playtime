@@ -49,8 +49,9 @@ async function minifiedBookmarkletBody(origin: string): Promise<string> {
   // Import the minified bundle as a real module (deps are bundled in, so a self
   // contained `data:` URL needs no resolution and bypasses Vite's transform) and
   // generate from it, so `bookmarkletHref` embeds the renamed helper bindings.
-  const [output] = outputFiles ?? [];
-  const url = `data:text/javascript;base64,${Buffer.from(output?.text ?? "").toString("base64")}`;
+  const [output] = outputFiles;
+  if (!output) throw new Error("esbuild produced no bookmarklet output");
+  const url = `data:text/javascript;base64,${Buffer.from(output.text).toString("base64")}`;
   // oxlint-disable-next-line typescript/no-unsafe-assignment -- dynamic import of a freshly built artifact; its type is external to the project
   const mod: { bookmarkletHref(o: string, accountId: string, onlineId: string): string } =
     await import(url);

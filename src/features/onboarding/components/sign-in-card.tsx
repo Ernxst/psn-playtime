@@ -414,7 +414,7 @@ function RestoreTransactionsButton({ account }: { account: CachedAccount }) {
         accept=".csv,text/csv"
         aria-label={`Restore ${account.onlineId} transactions from CSV`}
         className="sr-only"
-        onChange={onChange}
+        onChange={(event) => void onChange(event)}
       />
       <Button variant="ghost" size="sm" onClick={() => inputRef.current?.click()}>
         <Upload className="size-4" /> Restore for {account.onlineId}

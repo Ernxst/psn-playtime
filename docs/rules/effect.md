@@ -67,16 +67,6 @@ diagnostics apply to production `*.effect.ts(x)` files. Effectful tests retain
 the `.effect.` marker but end in `.test.ts(x)` and intentionally use normal test
 ergonomics.
 
-### What the rules forbid (in `*.effect.ts(x)`)
-
-Globals that hide effects are banned in favour of Effect-native equivalents:
-`Date` → `DateTime`/`Clock`, `Math.random`/`crypto.randomUUID` → `Random`,
-`fetch` → `HttpClient`, `console` → `Effect.log*`, `process.env` → `Config`,
-timers/`new Promise`/`async function` → Effect combinators, and `node:*`
-imports → `@effect/platform`. Style rules also require pipeable/do-notation form
-and the path-derived service keys above. Ground replacements in the local Effect
-source before reaching for a global.
-
 ## Capability contracts
 
 The provider-grouped contracts decouple the app from any one upstream. Each is a

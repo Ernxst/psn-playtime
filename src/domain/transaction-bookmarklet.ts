@@ -175,6 +175,7 @@ export function mountImportOverlay(): {
   msg.textContent = "Fetching your transactions… Keep this tab open.";
   box.appendChild(title);
   box.appendChild(msg);
+  // oxlint-disable-next-line typescript/no-unnecessary-condition -- the bookmarklet can execute before a document body exists
   (document.body || document.documentElement).appendChild(box);
   const paint = (text: string, accent: string) => {
     msg.textContent = text;

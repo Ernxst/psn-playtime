@@ -63,6 +63,7 @@
           "effectFnOpportunity": "error",
           "effectMapFlatten": "error",
           "effectMapVoid": "error",
+          "importFromBarrel": "error",
           "effectSucceedWithVoid": "error",
           "missedPipeableOpportunity": "error",
           "missingEffectServiceDependency": "error",

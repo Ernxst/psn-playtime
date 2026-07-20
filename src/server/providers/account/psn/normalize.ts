@@ -253,6 +253,7 @@ function toGamePlay(
     imageUrl: title.imageUrl.length > 0 ? title.imageUrl : undefined,
     platform: platformOf(title.category, title.name),
     hours,
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- psn-api can omit playCount despite its declared type
     playCount: title.playCount ?? 0,
     firstPlayed: isoDate(title.firstPlayedDateTime),
     lastPlayed: isoDate(title.lastPlayedDateTime),
@@ -262,6 +263,7 @@ function toGamePlay(
     genre: "Other",
     franchise: undefined,
     isApp: false,
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- psn-api can omit concept despite its declared type
     trophy: trophyFor(trophyMap, [title.name, title.concept?.name ?? ""]),
   };
 }

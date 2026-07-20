@@ -164,6 +164,7 @@ function PurchaseHistoryContent({ table }: { table: TableInstance<TransactionRow
   );
 }
 
+// oxlint-disable-next-line react/react-compiler -- TanStack Table returns functions the compiler cannot safely memoise
 function PurchaseHistoryTable({ transactions }: { transactions: TransactionRow[] }) {
   const [sorting, setSorting] = useState<SortingState>([{ id: "date", desc: true }]);
 

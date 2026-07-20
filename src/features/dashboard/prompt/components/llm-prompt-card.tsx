@@ -281,6 +281,7 @@ function OpenInChatButton({ prompt, label, url, site }: OpenInChatButtonProps) {
   const [status, setStatus] = useState<"blocked" | "error">("error");
 
   const openChat = () => {
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- feature detection protects older and non-secure browser contexts despite the DOM type
     if (!navigator.clipboard?.writeText) {
       setStatus("error");
       flash();

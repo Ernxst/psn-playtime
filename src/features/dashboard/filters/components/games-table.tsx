@@ -143,6 +143,7 @@ function GamesTableContent({ table }: { table: TableInstance<GameRow> }) {
   );
 }
 
+// oxlint-disable-next-line react/react-compiler -- TanStack Table returns functions the compiler cannot safely memoise
 export function GamesTable({ data }: { data: DashboardData }) {
   const [sorting, setSorting] = useState<SortingState>([{ id: "hours", desc: true }]);
 

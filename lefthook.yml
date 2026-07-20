@@ -21,7 +21,7 @@ pre-commit:
       # staged file in a config-only commit) makes it exit 1 ("No files found
       # to lint"). Scope the trigger to code files so config-only commits skip.
       glob: "*.{js,ts,jsx,tsx}"
-      run: pnpm exec oxlint --fix {staged_files}
+      run: pnpm exec oxlint --fix --deny-warnings {staged_files}
       stage_fixed: true
 
     lint-dependencies:
