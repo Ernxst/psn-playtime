@@ -38,6 +38,24 @@ describe("DashboardSidebar", () => {
     expect(window.location.hash).toBe("#top-games");
   });
 
+  it("renders desktop chapter navigation at the md breakpoint", async () => {
+    await page.viewport(768, 900);
+    onTestFinished(() => page.viewport(1280, 800));
+
+    const { element } = createHarness(
+      <SidebarProvider>
+        <DashboardSidebar />
+      </SidebarProvider>
+    );
+
+    await render(element);
+
+    await expect
+      .element(page.getByRole("navigation", { name: "Dashboard chapters" }))
+      .toBeVisible();
+    await expect.element(page.getByRole("link", { name: "Overview" })).toBeVisible();
+  });
+
   it.each(dashboardSectionIds)(
     "lands the desktop cold hash for %s at its sticky destination",
     async (id) => {
