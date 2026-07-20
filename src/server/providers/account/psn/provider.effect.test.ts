@@ -224,22 +224,22 @@ describe(".loadDashboard", () => {
 
   it("fails with CredentialRejectedError before any snapshot fetch runs when the npsso exchange is rejected", async () => {
     const calls: TransportCalls = { exchanges: 0, fetches: 0 };
-    expect(
-      await loadDashboardTag(countingTransport(calls, { exchangeNpsso: psnFailure("nope") }))
-    ).toBe("CredentialRejectedError");
+    await expect(
+      loadDashboardTag(countingTransport(calls, { exchangeNpsso: psnFailure("nope") }))
+    ).resolves.toBe("CredentialRejectedError");
     expect(calls.fetches).toBe(0);
   });
 
   it("fails with RateLimitedError when PSN signals HTTP 429", async () => {
-    expect(
-      await loadDashboardTag(fakeTransport({ profile: psnFailure("429 Too Many Requests") }))
-    ).toBe("RateLimitedError");
+    await expect(
+      loadDashboardTag(fakeTransport({ profile: psnFailure("429 Too Many Requests") }))
+    ).resolves.toBe("RateLimitedError");
   });
 
   it("fails with UpstreamUnavailableError on a non-429 fetch failure", async () => {
-    expect(
-      await loadDashboardTag(fakeTransport({ profile: psnFailure("503 service unavailable") }))
-    ).toBe("UpstreamUnavailableError");
+    await expect(
+      loadDashboardTag(fakeTransport({ profile: psnFailure("503 service unavailable") }))
+    ).resolves.toBe("UpstreamUnavailableError");
   });
 
   it("flags trophies unavailable when the trophy fetch fails, keeping playtime and profile intact", async () => {

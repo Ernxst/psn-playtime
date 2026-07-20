@@ -43,6 +43,6 @@ describe("DashboardSource", () => {
       Effect.provide(accountTestLayer)
     );
 
-    expect(await Effect.runPromise(program)).toBe("rejected");
+    await expect(Effect.runPromise(program)).resolves.toBe("rejected");
   });
 });

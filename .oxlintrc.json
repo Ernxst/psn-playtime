@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "unicorn", "oxc", "jsx-a11y", "jsdoc", "unicorn"],
+  "plugins": ["react", "typescript", "unicorn", "oxc", "jsx-a11y", "jsdoc", "unicorn", "vitest"],
   "jsPlugins": ["oxlint-plugin-complexity"],
   "env": {
     "browser": true,
@@ -64,6 +64,20 @@
         "no-empty-function": "off",
         "vitest/require-mock-type-parameters": "off",
         "vitest/no-standalone-expect": "off", // breaks when you use test.extend
+        "vitest/no-conditional-expect": "error",
+        "vitest/no-conditional-tests": "error",
+        "vitest/prefer-each": "error",
+        "vitest/prefer-expect-resolves": "error",
+        "vitest/prefer-called-times": "error",
+        "vitest/prefer-called-exactly-once-with": "error",
+        "vitest/no-restricted-matchers": [
+          "error",
+          {
+            "toBeTruthy": "Assert the exact value",
+            "toBeFalsy": "Assert the exact value",
+            "toHaveBeenCalled": "Assert the exact call count"
+          }
+        ],
         "eslint/max-lines-per-function": "off",
         "complexity/complexity": "off",
         "max-nested-callbacks": "off"

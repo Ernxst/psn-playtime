@@ -52,7 +52,7 @@ describe("TitleEnrichment", () => {
         Effect.provide(enrichmentTestLayer)
       );
 
-    expect(await Effect.runPromise(lookup("Busy Game"))).toBe("rate:rawg");
-    expect(await Effect.runPromise(lookup("Other Game"))).toBe("down:upstream_error");
+    await expect(Effect.runPromise(lookup("Busy Game"))).resolves.toBe("rate:rawg");
+    await expect(Effect.runPromise(lookup("Other Game"))).resolves.toBe("down:upstream_error");
   });
 });

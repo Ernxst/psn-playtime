@@ -444,7 +444,7 @@ describe(".bookmarkletHref", () => {
     });
 
     expect(fetch).toHaveBeenCalledTimes(2);
-    expect(open).toHaveBeenCalledOnce();
+    expect(open).toHaveBeenCalledTimes(1);
     const payload: unknown = JSON.parse(
       decodeURIComponent(String(openedTarget).split("#data=")[1] ?? "")
     );

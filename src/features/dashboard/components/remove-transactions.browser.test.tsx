@@ -122,7 +122,7 @@ describe("RemoveTransactions", () => {
     await page.getByRole("button", { name: "Remove" }).click();
     await page.getByRole("button", { name: "Confirm remove" }).click();
 
-    expect(clear).toHaveBeenCalledOnce();
+    expect(clear).toHaveBeenCalledTimes(1);
     expect(testTransactionStore.load(accountId)).toBeNull();
     expect(success).toHaveBeenCalledExactlyOnceWith("Removed your imported transaction data.");
     // The account's cached games/snapshot are untouched by clearing the import.
