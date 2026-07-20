@@ -1,9 +1,19 @@
 import { describe, expect, it, onTestFinished } from "vitest";
 import { render } from "vitest-browser-react";
-import { page } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { createHarness } from "@/test/harness";
-import { DashboardSidebar } from "./dashboard-sidebar";
+import { alignHashDestination, dashboardSectionIds, DashboardSidebar } from "./dashboard-sidebar";
+
+function HashDestination({ id }: { id: string }) {
+  return (
+    <div style={{ minHeight: 1800, paddingTop: 1200 }}>
+      <section id={id} aria-label={`${id} destination`} tabIndex={-1}>
+        Destination
+      </section>
+    </div>
+  );
+}
 
 describe("DashboardSidebar", () => {
   it("updates the URL hash when a section anchor is chosen", async () => {
@@ -27,6 +37,68 @@ describe("DashboardSidebar", () => {
 
     expect(window.location.hash).toBe("#top-games");
   });
+
+  it.each(dashboardSectionIds)(
+    "lands the desktop cold hash for %s at its sticky destination",
+    async (id) => {
+      await page.viewport(1280, 800);
+      window.history.replaceState(null, "", `#${id}`);
+      onTestFinished(() => {
+        window.history.replaceState(null, "", window.location.pathname);
+        window.scrollTo(0, 0);
+        return page.viewport(1280, 800);
+      });
+      const { element } = createHarness(
+        <SidebarProvider>
+          <DashboardSidebar />
+          <HashDestination id={id} />
+        </SidebarProvider>
+      );
+
+      await render(element);
+      alignHashDestination();
+
+      await expect
+        .element(page.getByRole("region", { name: `${id} destination` }))
+        .toBeInViewport();
+      expect(document.querySelector(`a[href="#${id}"]`)).toHaveAttribute(
+        "aria-current",
+        "location"
+      );
+    }
+  );
+
+  it.each(dashboardSectionIds)(
+    "lands the mobile cold hash for %s and agrees with the drawer",
+    async (id) => {
+      await page.viewport(390, 844);
+      window.history.replaceState(null, "", `#${id}`);
+      onTestFinished(() => {
+        window.history.replaceState(null, "", window.location.pathname);
+        window.scrollTo(0, 0);
+        return page.viewport(1280, 800);
+      });
+      const { element } = createHarness(
+        <SidebarProvider>
+          <SidebarTrigger />
+          <DashboardSidebar />
+          <HashDestination id={id} />
+        </SidebarProvider>
+      );
+
+      await render(element);
+      alignHashDestination();
+
+      await expect
+        .element(page.getByRole("region", { name: `${id} destination` }))
+        .toBeInViewport();
+      await page.getByRole("button", { name: "Toggle Sidebar" }).click();
+      expect(document.querySelector(`a[href="#${id}"]`)).toHaveAttribute(
+        "aria-current",
+        "location"
+      );
+    }
+  );
 
   it("marks the overview section active on first render", async () => {
     await page.viewport(1280, 800);
@@ -65,29 +137,50 @@ describe("DashboardSidebar", () => {
     await expect.element(page.getByRole("link", { name: "Purchase import" })).toBeVisible();
   });
 
-  it("names and closes the scrollable mobile chapter drawer", async () => {
+  it("restores mobile drawer scroll on dismissal and keeps destination navigation", async () => {
     await page.viewport(480, 800);
-    onTestFinished(() => page.viewport(1280, 800));
+    onTestFinished(() => {
+      window.history.replaceState(null, "", window.location.pathname);
+      window.scrollTo(0, 0);
+      return page.viewport(1280, 800);
+    });
 
     const { element } = createHarness(
       <SidebarProvider>
-        <SidebarTrigger />
+        <div style={{ minHeight: 2200, paddingTop: 400 }}>
+          <SidebarTrigger />
+          <section
+            id="insights"
+            aria-labelledby="insights-test-title"
+            tabIndex={-1}
+            style={{ marginTop: 1000 }}
+          >
+            <h2 id="insights-test-title">Insights destination</h2>
+          </section>
+        </div>
         <DashboardSidebar />
       </SidebarProvider>
     );
 
     await render(element);
+    window.scrollTo(0, 300);
 
     await page.getByRole("button", { name: "Toggle Sidebar" }).click();
-
     await expect.element(page.getByRole("dialog", { name: "Navigate Playloom" })).toBeVisible();
     await expect.element(page.getByRole("button", { name: "Close" })).toBeVisible();
-    const insightsLink = page.getByRole("link", { name: "Insights" });
+    await userEvent.keyboard("{Escape}");
 
-    await expect.element(insightsLink).toBeVisible();
+    expect(window.scrollY).toBe(300);
+    await page.getByRole("button", { name: "Toggle Sidebar" }).click();
+    await page.getByRole("link", { name: "Insights" }).click();
 
-    await insightsLink.click();
+    expect(window.location.hash).toBe("#insights");
+    expect(window.scrollY).toBeGreaterThan(800);
+    await expect.element(page.getByRole("region", { name: "Insights destination" })).toHaveFocus();
 
-    await expect.element(insightsLink).not.toBeInTheDocument();
+    await page.getByRole("button", { name: "Toggle Sidebar" }).click();
+    await expect
+      .element(page.getByRole("link", { name: "Insights" }))
+      .toHaveAttribute("aria-current", "location");
   });
 });

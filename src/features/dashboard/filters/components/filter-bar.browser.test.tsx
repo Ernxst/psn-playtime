@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import { page, userEvent } from "vitest/browser";
 import { demoDashboard } from "@/domain/mock";
@@ -45,16 +45,14 @@ describe("FilterBar", () => {
   });
 
   it("preserves document scroll and restores trigger focus when the sheet closes", async () => {
-    const { container } = await render(
-      <div data-test-scroll style={{ height: 200, overflow: "auto" }}>
-        <div style={{ minHeight: 1200, paddingTop: 400 }}>
-          <ControlledFilterBar />
-        </div>
+    onTestFinished(() => window.scrollTo(0, 0));
+    await render(
+      <div style={{ minHeight: 1800, paddingTop: 400 }}>
+        <ControlledFilterBar />
       </div>
     );
-    const scroller = container.querySelector<HTMLElement>("[data-test-scroll]");
-    if (scroller) scroller.scrollTop = 320;
-    expect(scroller?.scrollTop).toBe(320);
+    window.scrollTo(0, 320);
+    expect(window.scrollY).toBe(320);
     const trigger = page.getByRole("button", { name: "Filter games" });
 
     await trigger.click();
@@ -62,7 +60,7 @@ describe("FilterBar", () => {
     await userEvent.keyboard("{Escape}");
 
     await expect.element(trigger).toHaveFocus();
-    expect(scroller?.scrollTop).toBe(320);
+    expect(window.scrollY).toBe(320);
   });
 
   it("reports search and checkbox changes through the controlled filter model", async () => {
@@ -200,7 +198,64 @@ describe("FilterBar", () => {
     expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ minTrophyProgress: 1 }));
   });
 
-  it("selections persist across facets and reveal the clear-all control", async () => {
+  it("gives every filter option an accessible name and a full-row target", async () => {
+    await render(<ControlledFilterBar data={withTrophies} />);
+
+    await page.getByRole("button", { name: "Filter games" }).click();
+
+    const expected = [
+      "Action-Adventure",
+      "Indie/Casual",
+      "Open World",
+      "Other",
+      "RPG",
+      "Racing",
+      "Shooter",
+      "Sports",
+      "Survival/Craft",
+      "PS4",
+      "PS5",
+      "Battlefield",
+      "Call of Duty",
+      "Cyberpunk",
+      "F1",
+      "FIFA / EA FC",
+      "Fall Guys",
+      "Fortnite",
+      "Forza",
+      "Gears of War",
+      "God of War",
+      "Grand Theft Auto",
+      "Horizon",
+      "Mass Effect",
+      "Minecraft",
+      "NBA 2K",
+      "Need for Speed",
+      "No Man's Sky",
+      "Satisfactory",
+      "Star Wars",
+      "Subnautica",
+      "The Witcher",
+      "Tom Clancy",
+      "Tomb Raider",
+      "Warhammer 40K",
+      "Has a platinum",
+    ];
+    const options = Array.from(document.querySelectorAll<HTMLElement>('[role="checkbox"]'));
+    const names = options.map((option) => option.closest("label")?.textContent?.trim());
+    const heights = options.map(
+      (option) => option.closest("label")?.getBoundingClientRect().height ?? 0
+    );
+
+    expect(names).toEqual(expected);
+    expect(Math.min(...heights)).toBeGreaterThanOrEqual(44);
+    await expect.element(page.getByRole("checkbox", { name: "Open World" })).toBeVisible();
+    await expect.element(page.getByRole("checkbox", { name: "Call of Duty" })).toBeVisible();
+    await expect.element(page.getByRole("checkbox", { name: "Grand Theft Auto" })).toBeVisible();
+    await expect.element(page.getByRole("checkbox", { name: "No Man's Sky" })).toBeVisible();
+  });
+
+  it("retains checkbox facets and reports their selected counts", async () => {
     await render(<ControlledFilterBar data={withTrophies} />);
 
     await page.getByRole("button", { name: "Filter games" }).click();
@@ -227,6 +282,7 @@ describe("FilterBar", () => {
     );
 
     await expect.element(page.getByRole("status")).toHaveTextContent("12 games shown");
+    expect(document.querySelectorAll('[aria-live="polite"]').length).toBe(1);
 
     await rerender(
       <FilterBar

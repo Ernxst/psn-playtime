@@ -128,10 +128,12 @@ function OnboardingHero() {
 
 function Connect() {
   return (
-    <section className="playloom-connect" aria-labelledby="connect-title">
+    <section id="connect" className="playloom-connect" aria-labelledby="connect-title">
       <div>
         <span>Connect</span>
-        <h2 id="connect-title">Bring in your PlayStation history.</h2>
+        <h2 id="connect-title" tabIndex={-1}>
+          Bring in your PlayStation history.
+        </h2>
         <p>
           One guided flow using the existing token steps and acknowledgement. No other platform
           connection is implied.

@@ -94,9 +94,6 @@
   --sidebar-border: rgb(255 255 255 / 10%);
 }
 
-html {
-  scroll-behavior: smooth;
-}
 body {
   -webkit-font-smoothing: antialiased;
   background: var(--playloom-paper);
@@ -157,101 +154,6 @@ body::before {
   color: #64676c;
   font-size: 10px;
   line-height: 1.55;
-}
-
-.playloom-poster {
-  position: relative;
-  aspect-ratio: 3 / 4;
-  min-width: 48px;
-  overflow: hidden;
-  border-radius: 2px;
-  background: #1c2028;
-  box-shadow:
-    0 0 0 1px rgb(0 0 0 / 10%),
-    0 12px 32px rgb(17 20 25 / 16%);
-  transition-property: transform, box-shadow;
-  transition-duration: 180ms;
-}
-.playloom-poster[data-tone="0"] {
-  --playloom-poster-tone: #18365d;
-}
-.playloom-poster[data-tone="1"] {
-  --playloom-poster-tone: #70402d;
-}
-.playloom-poster[data-tone="2"] {
-  --playloom-poster-tone: #244d42;
-}
-.playloom-poster[data-tone="3"] {
-  --playloom-poster-tone: #552f48;
-}
-.playloom-poster[data-tone="4"] {
-  --playloom-poster-tone: #3e405f;
-}
-.playloom-poster:hover {
-  transform: translateY(-2px);
-  box-shadow:
-    0 0 0 1px rgb(0 0 0 / 10%),
-    0 17px 38px rgb(17 20 25 / 22%);
-}
-.playloom-poster-art {
-  position: absolute;
-  inset: 0;
-  background-image: url("/playloom/poster-atlas.png");
-  background-repeat: no-repeat;
-  background-size: 300% 200%;
-}
-.playloom-poster-psn {
-  position: absolute;
-  z-index: 1;
-  inset: 0 0 auto;
-  width: 100%;
-  height: 75%;
-  object-fit: cover;
-}
-.playloom-poster-extension {
-  position: absolute;
-  z-index: 1;
-  inset: 75% 0 0;
-  background: var(--playloom-poster-tone);
-}
-.playloom-poster-caption {
-  position: absolute;
-  z-index: 2;
-  inset: auto 0 0;
-  display: flex;
-  min-height: 28%;
-  flex-direction: column;
-  justify-content: flex-end;
-  gap: 2px;
-  background: linear-gradient(
-    transparent,
-    color-mix(in srgb, var(--playloom-poster-tone) 92%, black) 44%
-  );
-  color: white;
-  padding: 22px 8px 7px;
-}
-.playloom-poster-caption span {
-  display: -webkit-box;
-  overflow: hidden;
-  font-size: 8px;
-  font-weight: 700;
-  line-height: 1.25;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
-.playloom-poster-caption small {
-  color: rgb(255 255 255 / 62%);
-  font-size: 6px;
-}
-.playloom-poster-fallback {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  background: linear-gradient(155deg, #173d96, #191c22 68%);
-  color: rgb(255 255 255 / 88%);
-  font-family: "Fraunces Variable", serif;
-  font-size: 25px;
 }
 
 .playloom-metric-strip {
@@ -1148,15 +1050,11 @@ body::before {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  html {
-    scroll-behavior: auto;
-  }
   *,
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
   }
 }
 

@@ -115,6 +115,40 @@ describe("DashboardView", () => {
     }
   );
 
+  it.each([
+    [1440, 900, "purchase-history"],
+    [390, 844, "data-controls"],
+  ])("settles the %i by %i route surface at the cold %s hash", async (width, height, id) => {
+    await page.viewport(width, height);
+    window.history.replaceState(null, "", `#${id}`);
+    onTestFinished(() => {
+      window.history.replaceState(null, "", window.location.pathname);
+      window.scrollTo(0, 0);
+      return page.viewport(1280, 800);
+    });
+    const { element } = createHarness(
+      <DashboardView
+        data={prototypeDashboard(demoDashboard)}
+        onRefresh={vi.fn()}
+        onSignOut={vi.fn()}
+        signingOut={false}
+      />
+    );
+
+    await render(element);
+
+    const target = document.getElementById(id);
+    expect(window.location.hash).toBe(`#${id}`);
+    expect(target).not.toBeNull();
+    await expect
+      .element(
+        page.getByText(id === "data-controls" ? "Data controls" : "Purchase history").first()
+      )
+      .toBeInViewport();
+    expect(target?.getBoundingClientRect().top).toBeGreaterThanOrEqual(0);
+    expect(target?.getBoundingClientRect().top).toBeLessThanOrEqual(100);
+  });
+
   it("shows the demo banner for the demo dataset and offers no sign-out", async () => {
     const { element } = createHarness(
       <DashboardView
@@ -204,21 +238,18 @@ describe("DashboardView", () => {
 
   it("keeps the profile overlay anchored and restores focus at nonzero scroll", async () => {
     const { element } = createHarness(
-      <DashboardView
-        data={demoDashboard}
-        onRefresh={vi.fn()}
-        onSignOut={vi.fn()}
-        signingOut={false}
-      />
-    );
-    const { container } = await render(
-      <div data-test-scroll style={{ height: 300, overflow: "auto" }}>
-        {element}
+      <div style={{ paddingTop: 600 }}>
+        <DashboardView
+          data={demoDashboard}
+          onRefresh={vi.fn()}
+          onSignOut={vi.fn()}
+          signingOut={false}
+        />
       </div>
     );
-    const scroller = container.querySelector<HTMLElement>("[data-test-scroll]");
-    if (scroller) scroller.scrollTop = 240;
-    expect(scroller?.scrollTop).toBe(240);
+    await render(element);
+    window.scrollTo(0, 240);
+    expect(window.scrollY).toBe(240);
     const trigger = page.getByRole("button", { name: /Open profile menu/ });
     const before = trigger.element().getBoundingClientRect();
 
@@ -232,7 +263,25 @@ describe("DashboardView", () => {
     await userEvent.keyboard("{Escape}");
 
     await expect.element(trigger).toHaveFocus();
-    expect(scroller?.scrollTop).toBe(240);
+    expect(window.scrollY).toBe(240);
+  });
+
+  it("targets the existing PlayStation connection task when adding an account", async () => {
+    const { element } = createHarness(
+      <DashboardView
+        data={demoDashboard}
+        onRefresh={vi.fn()}
+        onSignOut={vi.fn()}
+        signingOut={false}
+      />
+    );
+
+    await render(element);
+    await page.getByRole("button", { name: /Open profile menu/ }).click();
+
+    await expect
+      .element(page.getByRole("link", { name: "Add PlayStation account" }))
+      .toHaveAttribute("href", "/#connect");
   });
 
   it("switches connected import sources through the profile control", async () => {
@@ -293,11 +342,9 @@ describe("DashboardView", () => {
       "Discount ↕",
       "Paid ↕",
     ]);
-    sortButtons[1]?.click();
-    await vi.waitFor(() => {
-      const firstProduct = container.querySelector(".playloom-ledger tbody tr td:nth-child(2)");
-      expect(firstProduct?.textContent).toContain("Cyberpunk");
-    });
+    await page.getByRole("button", { name: "Product ↕" }).click();
+    const firstProduct = container.querySelector(".playloom-ledger tbody tr td:nth-child(2)");
+    expect(firstProduct?.textContent).toContain("Cyberpunk");
   });
 
   it("keeps account-wide spend totals when a filter narrows the library", async () => {
@@ -372,10 +419,57 @@ describe("DashboardView", () => {
     await page.getByRole("searchbox", { name: "Search games by name" }).fill("zzzzzznomatch");
 
     await expect.element(page.getByText("No games match your filters")).toBeVisible();
+    expect(document.getElementById("spending")).not.toBeNull();
+    expect(document.getElementById("ask-ai")).not.toBeNull();
+    expect(document.getElementById("data-controls")).not.toBeNull();
+    expect(document.getElementById("library")).not.toBeNull();
+    await expect.element(page.getByRole("link", { name: "Purchase history" })).toBeVisible();
 
     await page.getByRole("button", { name: "Clear all filters" }).click();
 
     await expect.element(page.getByText(/98 titles in total/)).toBeVisible();
+  });
+
+  it("disables timeframe radios with the other filters for an empty archive", async () => {
+    const { element } = createHarness(
+      <DashboardView
+        data={{ ...demoDashboard, games: [] }}
+        onRefresh={vi.fn()}
+        onSignOut={vi.fn()}
+        signingOut={false}
+      />
+    );
+
+    await render(element);
+
+    await expect.element(page.getByRole("radio", { name: "All time" })).toBeDisabled();
+    await expect.element(page.getByRole("radio", { name: "12 months" })).toBeDisabled();
+    await expect.element(page.getByRole("radio", { name: "2 years" })).toBeDisabled();
+    await expect.element(page.getByRole("radio", { name: "This year" })).toBeDisabled();
+  });
+
+  it("keeps partial and signed-in archives free of demo purchase transactions", async () => {
+    const signedIn = { ...demoDashboard, isDemo: false };
+    const { element } = createHarness(
+      <DashboardView
+        data={signedIn}
+        partialData
+        onRefresh={vi.fn()}
+        onSignOut={vi.fn()}
+        signingOut={false}
+      />
+    );
+
+    const { container } = await render(element);
+    const spending = container.querySelector("#spending")?.textContent ?? "";
+
+    expect(spending).toContain("Purchase transactions unavailable");
+    expect(spending).not.toContain("£155.95");
+    expect(spending).not.toContain("Wallet top-ups: £50.00");
+    expect(document.getElementById("purchase-history")).not.toBeNull();
+    expect(document.getElementById("spent-most")).not.toBeNull();
+    expect(document.getElementById("add-ons")).not.toBeNull();
+    expect(document.getElementById("data-controls")).not.toBeNull();
   });
 
   it("keeps the search input responsive while the deferred filter settles", async () => {

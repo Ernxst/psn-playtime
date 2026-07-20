@@ -127,10 +127,11 @@ function partialDashboard(data: DashboardData): DashboardData {
 
 const prototypeViews: Record<PrototypeState, (data: DashboardData) => ReactNode> = {
   loading: () => <DashboardSkeleton />,
-  error: () => (
+  error: (data) => (
     <DashboardError
       message="PlayStation could not return this archive. Your existing browser data is unchanged."
       onRetry={() => window.location.assign("/dashboard")}
+      profile={data.profile}
     />
   ),
   empty: (data) => <DashboardCachedView data={emptyDashboard(data)} />,
@@ -168,8 +169,8 @@ function DashboardCachedView({ data, safeDemo = false, partialData = false }: Ca
     rawgFranchisesQueryOptions(data)
   );
   const enrichedData = useMemo(
-    () => mergeRawgEnrichment(data, rawgGenres, rawgFranchises),
-    [data, rawgGenres, rawgFranchises]
+    () => (partialData ? data : mergeRawgEnrichment(data, rawgGenres, rawgFranchises)),
+    [data, partialData, rawgGenres, rawgFranchises]
   );
 
   // Fire-and-forget: write the enriched snapshot to localStorage (via the
@@ -189,10 +190,10 @@ function DashboardCachedView({ data, safeDemo = false, partialData = false }: Ca
   // layer in tests without mocking our own wrapper, which docs/rules/testing.md
   // forbids.
   useEffect(() => {
-    if (safeDemo) return;
+    if (safeDemo || partialData) return;
     if (!shouldPersistEnrichment(data, genresStatus, franchisesStatus)) return;
     dashboardStore.save({ ...enrichedData, enriched: true });
-  }, [dashboardStore, data, enrichedData, genresStatus, franchisesStatus, safeDemo]);
+  }, [dashboardStore, data, enrichedData, franchisesStatus, genresStatus, partialData, safeDemo]);
 
   return (
     <DashboardView

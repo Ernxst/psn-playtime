@@ -11,23 +11,32 @@ import {
 } from "@/components/ui/empty";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
+import type { ProfileSummary } from "@/server/providers/account/snapshot";
 import { DashboardSidebar } from "./dashboard-sidebar";
 
-function StateShell({ children, busy = false }: { children: React.ReactNode; busy?: boolean }) {
+function StateShell({
+  children,
+  busy = false,
+  profile,
+}: {
+  children: React.ReactNode;
+  busy?: boolean;
+  profile?: ProfileSummary;
+}) {
   return (
     <SidebarProvider>
-      <DashboardSidebar />
-      <SidebarInset className="min-w-0 overflow-x-clip bg-[var(--playloom-paper)]">
+      <DashboardSidebar profile={profile} />
+      <SidebarInset
+        className="min-w-0 overflow-x-clip bg-[var(--playloom-paper)]"
+        aria-busy={busy || undefined}
+      >
         <header className="sticky top-0 z-30 flex min-h-15 items-center gap-3 border-b border-[var(--playloom-rule)] bg-[rgb(243_239_229/96%)] px-5 backdrop-blur-md">
           <SidebarTrigger className="size-11 md:hidden" aria-label="Open chapter navigation" />
           <span className="font-[Fraunces_Variable] text-xl font-semibold">Playloom</span>
         </header>
-        <main
-          className="min-h-[calc(100dvh-3.75rem)] bg-[var(--playloom-paper)] text-[var(--playloom-ink)]"
-          aria-busy={busy || undefined}
-        >
+        <div className="min-h-[calc(100dvh-3.75rem)] bg-[var(--playloom-paper)] text-[var(--playloom-ink)]">
           {children}
-        </main>
+        </div>
       </SidebarInset>
     </SidebarProvider>
   );
@@ -61,9 +70,36 @@ export function DashboardSkeleton() {
   );
 }
 
-export function DashboardError({ message, onRetry }: { message: string; onRetry?: () => void }) {
+function ErrorActions({ onRetry }: { onRetry?: () => void }) {
   return (
-    <StateShell>
+    <div className="flex flex-wrap gap-3">
+      {onRetry && (
+        <Button className="min-h-11 rounded-none" onClick={onRetry}>
+          Try again
+        </Button>
+      )}
+      <Button variant="outline" className="min-h-11 rounded-none" render={<Link to="/" />}>
+        Home
+      </Button>
+    </div>
+  );
+}
+
+function focusHeading(heading: HTMLHeadingElement | null): void {
+  heading?.focus();
+}
+
+export function DashboardError({
+  message,
+  onRetry,
+  profile,
+}: {
+  message: string;
+  onRetry?: () => void;
+  profile?: ProfileSummary;
+}) {
+  return (
+    <StateShell profile={profile}>
       <section
         className="mx-auto grid min-h-[calc(100dvh-3.75rem)] max-w-3xl content-center gap-6 px-6 py-16"
         role="alert"
@@ -76,6 +112,8 @@ export function DashboardError({ message, onRetry }: { message: string; onRetry?
           </p>
           <h1
             id="dashboard-error-title"
+            ref={focusHeading}
+            tabIndex={-1}
             className="font-[Fraunces_Variable] text-[clamp(2.5rem,6vw,4.5rem)] font-semibold tracking-[-0.055em] leading-none"
           >
             Couldn't load this archive
@@ -83,16 +121,7 @@ export function DashboardError({ message, onRetry }: { message: string; onRetry?
           <p className="max-w-[60ch] text-muted-foreground">{message}</p>
           <p className="text-sm">Your saved browser data is unchanged.</p>
         </div>
-        <div className="flex flex-wrap gap-3">
-          {onRetry && (
-            <Button className="min-h-11 rounded-none" onClick={onRetry}>
-              Try again
-            </Button>
-          )}
-          <Button variant="outline" className="min-h-11 rounded-none" render={<Link to="/" />}>
-            Home
-          </Button>
-        </div>
+        <ErrorActions onRetry={onRetry} />
       </section>
     </StateShell>
   );

@@ -97,21 +97,20 @@ function CheckboxFacet<T extends string>({
         {legend} <span className="font-normal text-muted-foreground">({selected.length})</span>
       </legend>
       <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
-        {options.map((option) => {
-          const id = `filter-${legend}-${option}`;
-          return (
-            <div key={option} className="flex min-w-0 items-center gap-2">
-              <Checkbox
-                id={id}
-                checked={selected.includes(option)}
-                onCheckedChange={() => onToggle(option)}
-              />
-              <Label htmlFor={id} className="truncate text-sm font-normal" title={option}>
-                {option}
-              </Label>
-            </div>
-          );
-        })}
+        {options.map((option) => (
+          <Label
+            key={option}
+            className="flex min-h-11 min-w-0 cursor-pointer items-center gap-2 text-sm font-normal"
+            title={option}
+          >
+            <Checkbox
+              className="size-4 shrink-0 rounded-none border-[var(--playloom-rule-strong)] shadow-none"
+              checked={selected.includes(option)}
+              onCheckedChange={() => onToggle(option)}
+            />
+            <span className="truncate">{option}</span>
+          </Label>
+        ))}
       </div>
     </fieldset>
   );
@@ -126,18 +125,18 @@ function FranchiseOption({
   filters: DashboardFilters;
   set: Setter;
 }) {
-  const id = `filter-Franchise-${franchise}`;
   return (
-    <div className="flex min-w-0 items-center gap-2">
+    <Label
+      className="flex min-h-11 min-w-0 cursor-pointer items-center gap-2 text-sm font-normal"
+      title={franchise}
+    >
       <Checkbox
-        id={id}
+        className="size-4 shrink-0 rounded-none border-[var(--playloom-rule-strong)] shadow-none"
         checked={filters.franchises.includes(franchise)}
         onCheckedChange={() => set({ franchises: toggle(filters.franchises, franchise) })}
       />
-      <Label htmlFor={id} className="truncate text-sm font-normal" title={franchise}>
-        {franchise}
-      </Label>
-    </div>
+      <span className="truncate">{franchise}</span>
+    </Label>
   );
 }
 
@@ -260,16 +259,14 @@ function TrophyFacet({ options, filters, set }: FilterControlProps) {
   return (
     <fieldset className="space-y-3 border-t border-[var(--playloom-rule)] pt-5">
       <legend className="pr-3 text-sm font-bold">Trophies</legend>
-      <div className="flex items-center gap-2">
+      <Label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm font-normal">
         <Checkbox
-          id="filter-platinum"
+          className="size-4 shrink-0 rounded-none border-[var(--playloom-rule-strong)] shadow-none"
           checked={filters.hasPlatinum}
           onCheckedChange={(checked) => set({ hasPlatinum: checked })}
         />
-        <Label htmlFor="filter-platinum" className="text-sm font-normal">
-          Has a platinum
-        </Label>
-      </div>
+        Has a platinum
+      </Label>
       <Label className="grid gap-1.5 text-xs">
         Minimum trophy progress
         <Input
@@ -383,9 +380,9 @@ function FilterSheetPopup({
         <SheetDescription>
           Applies to Profile, History and Library. Results update immediately.
         </SheetDescription>
-        <output className="text-sm font-bold tabular-nums" aria-live="polite">
-          {count} games shown
-        </output>
+        <p className="text-sm font-bold tabular-nums">
+          {count === 0 ? "No games match" : `${count} games shown`}
+        </p>
       </SheetHeader>
       <SheetPanel className="px-5 py-4">
         <FilterControls options={options} filters={filters} set={set} />

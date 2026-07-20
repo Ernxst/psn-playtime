@@ -16,7 +16,15 @@ import type { DashboardData, GamePlay } from "@/server/providers/account/snapsho
 import { GamePoster } from "./poster";
 import { prototypeTransactions } from "./prototype-data";
 
-function Metric({ label, value, detail }: { label: string; value: string; detail: string }) {
+function OverviewMetric({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+}) {
   return (
     <div className="flex min-w-0 flex-col gap-1 border-l border-[var(--playloom-rule)] py-2 pl-4 first:border-l-0 first:pl-0 max-sm:border-l-0 max-sm:border-t max-sm:py-3 max-sm:pl-0 max-sm:first:border-t-0">
       <span className="text-[0.625rem] font-bold tracking-[0.08em] text-muted-foreground uppercase">
@@ -34,9 +42,7 @@ function OverviewArt({ game }: { game: GamePlay | undefined }) {
   if (!game) return null;
   return (
     <div className="grid grid-cols-[minmax(6.5rem,9rem)_minmax(0,1fr)] items-end gap-5">
-      <div className="[&_.playloom-poster]:aspect-[2/3]">
-        <GamePoster game={game} featured />
-      </div>
+      <GamePoster game={game} featured />
       <div className="flex min-w-0 flex-col pb-2">
         <span className="text-[0.625rem] font-bold tracking-[0.12em] text-primary uppercase">
           Most played
@@ -58,15 +64,23 @@ function OverviewMetrics({ data }: { data: DashboardData }) {
   const hoursPerSession = totals.sessions === 0 ? 0 : totals.totalHours / totals.sessions;
   return (
     <div className="grid grid-cols-5 border-y border-[var(--playloom-rule)] py-2 max-sm:grid-cols-1">
-      <Metric
+      <OverviewMetric
         label="Lifetime play"
         value={fmtHours(totals.totalHours)}
         detail={`≈ ${fmtNumber(totals.days)} days non-stop`}
       />
-      <Metric label="Games played" value={fmtNumber(totals.gamesPlayed)} detail="Distinct titles" />
-      <Metric label="Sessions" value={fmtNumber(totals.sessions)} detail="Total launches" />
-      <Metric label="Avg per game" value={fmtHours(hoursPerGame)} detail="Lifetime hours" />
-      <Metric label="Avg session" value={fmtHours(hoursPerSession)} detail="Across all launches" />
+      <OverviewMetric
+        label="Games played"
+        value={fmtNumber(totals.gamesPlayed)}
+        detail="Distinct titles"
+      />
+      <OverviewMetric label="Sessions" value={fmtNumber(totals.sessions)} detail="Total launches" />
+      <OverviewMetric label="Avg per game" value={fmtHours(hoursPerGame)} detail="Lifetime hours" />
+      <OverviewMetric
+        label="Avg session"
+        value={fmtHours(hoursPerSession)}
+        detail="Across all launches"
+      />
     </div>
   );
 }
@@ -262,7 +276,12 @@ function SessionView({ data }: { data: DashboardData }) {
 export function HistoryViews({ data }: { data: DashboardData }) {
   return (
     <>
-      <section id="timeline" className="playloom-section" aria-labelledby="timeline-title">
+      <section
+        id="timeline"
+        className="playloom-section"
+        aria-labelledby="timeline-title"
+        tabIndex={-1}
+      >
         <h3 id="timeline-title">Timeline</h3>
         <YearView data={data} />
         <p className="playloom-caveat">
@@ -270,7 +289,12 @@ export function HistoryViews({ data }: { data: DashboardData }) {
           played, because PSN does not provide historic hour totals.
         </p>
       </section>
-      <section id="sessions" className="playloom-section" aria-labelledby="sessions-title">
+      <section
+        id="sessions"
+        className="playloom-section"
+        aria-labelledby="sessions-title"
+        tabIndex={-1}
+      >
         <h3 id="sessions-title">Sessions</h3>
         <SessionView data={data} />
       </section>
@@ -494,30 +518,62 @@ function Ledger({ rows, data }: { rows: TransactionRow[]; data: DashboardData })
 type SpendSummary = ReturnType<typeof summariseSpend>;
 type AddOnSummaries = ReturnType<typeof summariseAddOns>;
 
+function SpendMetric({
+  label,
+  value,
+  detail,
+  divided = false,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+  divided?: boolean;
+}) {
+  return (
+    <div
+      className={`playloom-metric flex min-w-0 flex-col gap-[5px] py-[22px] pr-[18px] max-sm:py-[18px] max-sm:pr-3 ${divided ? "border-l border-[var(--playloom-rule)] pl-[18px] max-sm:pl-3" : "pl-0"}`}
+    >
+      <span className="text-[9px] font-bold tracking-[0.08em] text-[#666a70] uppercase">
+        {label}
+      </span>
+      <strong className="overflow-hidden font-[Fraunces_Variable] text-[clamp(22px,3vw,36px)] font-semibold tracking-[-0.035em] text-ellipsis tabular-nums">
+        {value}
+      </strong>
+      <small className="overflow-hidden text-ellipsis whitespace-nowrap text-[9px] text-[#707379]">
+        {detail}
+      </small>
+    </div>
+  );
+}
+
 function SpendMetrics({ summary, discounts }: { summary: SpendSummary; discounts: number }) {
   return (
     <div className="playloom-metric-strip playloom-spend-strip">
-      <Metric
+      <SpendMetric
         label="Total spend"
         value={`£${summary.totalSpend.toFixed(2)}`}
         detail={`${summary.purchaseCount} purchases`}
       />
-      <Metric
+      <SpendMetric
+        divided
         label="Matched spend"
         value={`£${(summary.totalSpend - summary.unmatchedSpend).toFixed(2)}`}
         detail={`${summary.paidGames} played titles`}
       />
-      <Metric
+      <SpendMetric
+        divided
         label="Unmatched"
         value={`£${summary.unmatchedSpend.toFixed(2)}`}
         detail="Subscriptions and unknowns"
       />
-      <Metric
+      <SpendMetric
+        divided
         label="Average paid"
         value={`£${(summary.totalSpend / summary.purchaseCount).toFixed(2)}`}
         detail="Per purchase line"
       />
-      <Metric
+      <SpendMetric
+        divided
         label="Discounts"
         value={`£${discounts.toFixed(2)}`}
         detail="Saved from original prices"
@@ -545,40 +601,67 @@ function SpendYears({ summary }: { summary: SpendSummary }) {
   );
 }
 
-function SpendTitles({ data, summary }: { data: DashboardData; summary: SpendSummary }) {
+function SpendTitleRow({
+  data,
+  title,
+  transactions,
+  max,
+}: {
+  data: DashboardData;
+  title: SpendSummary["byTitle"][number];
+  transactions: TransactionRow[];
+  max: number;
+}) {
+  const game = data.games.find((candidate) => candidate.titleId === title.titleId);
+  const rows = game
+    ? transactions.filter(
+        (row) =>
+          row.skuId?.includes(game.titleId) ||
+          row.productName.toLowerCase().includes(game.name.toLowerCase())
+      )
+    : [];
+  const addOns = rows
+    .filter((row) => isAddOnPurchase(row, game))
+    .reduce((total, row) => total + row.amountMinor / 100, 0);
+  return (
+    <div className="playloom-spend-title">
+      {game && <GamePoster game={game} />}
+      <span>
+        <strong>{title.name}</strong>
+        <small>
+          Base £{(title.spend - addOns).toFixed(2)} · Add-ons £{addOns.toFixed(2)}
+        </small>
+        <div className="playloom-bar">
+          <i style={{ width: `${(title.spend / max) * 100}%` }} />
+        </div>
+      </span>
+      <b>£{title.spend.toFixed(2)}</b>
+    </div>
+  );
+}
+
+function SpendTitles({
+  data,
+  summary,
+  transactions,
+}: {
+  data: DashboardData;
+  summary: SpendSummary;
+  transactions: TransactionRow[];
+}) {
   const max = Math.max(...summary.byTitle.map((title) => title.spend), 1);
   return (
     <div>
       <h4>Most spent</h4>
-      {summary.byTitle.map((title) => {
-        const game = data.games.find((candidate) => candidate.titleId === title.titleId);
-        const rows = game
-          ? prototypeTransactions.filter(
-              (row) =>
-                row.skuId?.includes(game.titleId) ||
-                row.productName.toLowerCase().includes(game.name.toLowerCase())
-            )
-          : [];
-        const addOns = rows
-          .filter((row) => isAddOnPurchase(row, game))
-          .reduce((total, row) => total + row.amountMinor / 100, 0);
-        const base = title.spend - addOns;
-        return (
-          <div key={title.titleId} className="playloom-spend-title">
-            {game && <GamePoster game={game} />}
-            <span>
-              <strong>{title.name}</strong>
-              <small>
-                Base £{base.toFixed(2)} · Add-ons £{addOns.toFixed(2)}
-              </small>
-              <div className="playloom-bar">
-                <i style={{ width: `${(title.spend / max) * 100}%` }} />
-              </div>
-            </span>
-            <b>£{title.spend.toFixed(2)}</b>
-          </div>
-        );
-      })}
+      {summary.byTitle.map((title) => (
+        <SpendTitleRow
+          key={title.titleId}
+          data={data}
+          title={title}
+          transactions={transactions}
+          max={max}
+        />
+      ))}
     </div>
   );
 }
@@ -613,8 +696,12 @@ interface TransactionFilterValues {
   match: MatchFilter;
 }
 
-function transactionRows(data: DashboardData, filters: TransactionFilterValues) {
-  return prototypeTransactions.filter((row) => {
+function transactionRows(
+  data: DashboardData,
+  transactions: TransactionRow[],
+  filters: TransactionFilterValues
+) {
+  return transactions.filter((row) => {
     const matched = matchesGame(row, data);
     return (
       row.productName.toLowerCase().includes(filters.query.toLowerCase()) &&
@@ -625,7 +712,13 @@ function transactionRows(data: DashboardData, filters: TransactionFilterValues) 
   });
 }
 
-function SpendingLedger({ data }: { data: DashboardData }) {
+function SpendingLedger({
+  data,
+  transactions,
+}: {
+  data: DashboardData;
+  transactions: TransactionRow[];
+}) {
   const [query, setQuery] = useState("");
   const [purchasedAfter, setPurchasedAfter] = useState("");
   const [kind, setKind] = useState<KindFilter>("all");
@@ -644,17 +737,31 @@ function SpendingLedger({ data }: { data: DashboardData }) {
         match={match}
         onMatch={setMatch}
       />
-      <Ledger rows={transactionRows(data, filters)} data={data} />
+      <Ledger rows={transactionRows(data, transactions, filters)} data={data} />
     </div>
   );
 }
 
-export function PrototypeSpending({ data }: { data: DashboardData }) {
-  const summary = summariseSpend(data, prototypeTransactions);
-  const discounts = prototypeTransactions.reduce(
-    (total, row) => total + (row.discountMinor ?? 0) / 100,
-    0
-  );
+export function PrototypeSpending({
+  data,
+  transactions = prototypeTransactions,
+}: {
+  data: DashboardData;
+  transactions?: TransactionRow[];
+}) {
+  if (transactions.length === 0) {
+    return (
+      <div className="border-y border-[var(--playloom-rule)] py-6 text-sm">
+        <strong>Purchase transactions unavailable</strong>
+        <p className="mt-2 text-muted-foreground">
+          No imported purchase history is available for this account. Purchase destinations remain
+          available below.
+        </p>
+      </div>
+    );
+  }
+  const summary = summariseSpend(data, transactions);
+  const discounts = transactions.reduce((total, row) => total + (row.discountMinor ?? 0) / 100, 0);
   return (
     <div className="space-y-10">
       <SpendMetrics summary={summary} discounts={discounts} />
@@ -663,10 +770,10 @@ export function PrototypeSpending({ data }: { data: DashboardData }) {
         spend
       </p>
       <SpendYears summary={summary} />
-      <SpendingLedger data={data} />
+      <SpendingLedger data={data} transactions={transactions} />
       <div className="playloom-spend-grid">
-        <SpendTitles data={data} summary={summary} />
-        <SpendAddOns data={data} addOns={summariseAddOns(data, prototypeTransactions)} />
+        <SpendTitles data={data} summary={summary} transactions={transactions} />
+        <SpendAddOns data={data} addOns={summariseAddOns(data, transactions)} />
       </div>
       <p className="playloom-caveat">
         Transactions are matched to played titles by stable SKU where available, then validated

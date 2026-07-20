@@ -56,6 +56,8 @@ export type SidebarContextProps = {
   setOpen: (open: boolean) => void;
   openMobile: boolean;
   setOpenMobile: (open: boolean) => void;
+  selectMobileDestination: (id: string) => void;
+  completeMobileChange: () => void;
   isMobile: boolean;
   toggleSidebar: () => void;
 };
@@ -86,7 +88,31 @@ export function SidebarProvider({
   onOpenChange?: (open: boolean) => void;
 }): React.ReactElement {
   const isMobile = useMediaQuery("max-md");
-  const [openMobile, setOpenMobile] = React.useState(false);
+  const [openMobile, setMobileOpen] = React.useState(false);
+  const mobileScroll = React.useRef(0);
+  const mobileDestination = React.useRef<string | null>(null);
+  const setOpenMobile = React.useCallback((next: boolean) => {
+    if (next) {
+      mobileScroll.current = window.scrollY;
+      mobileDestination.current = null;
+    }
+    setMobileOpen(next);
+  }, []);
+  const selectMobileDestination = React.useCallback((id: string) => {
+    mobileDestination.current = id;
+    setMobileOpen(false);
+  }, []);
+  const completeMobileChange = React.useCallback(() => {
+    const destination = mobileDestination.current;
+    if (destination) {
+      const target = document.getElementById(destination);
+      target?.scrollIntoView();
+      target?.focus({ preventScroll: true });
+      mobileDestination.current = null;
+      return;
+    }
+    window.scrollTo(0, mobileScroll.current);
+  }, []);
 
   // This is the internal state of the sidebar.
   // We use openProp and setOpenProp for control from outside the component.
@@ -114,8 +140,8 @@ export function SidebarProvider({
 
   // Helper to toggle the sidebar.
   const toggleSidebar = React.useCallback(() => {
-    return isMobile ? setOpenMobile((open) => !open) : setOpen((open) => !open);
-  }, [isMobile, setOpen]);
+    return isMobile ? setOpenMobile(!openMobile) : setOpen((open) => !open);
+  }, [isMobile, openMobile, setOpen, setOpenMobile]);
 
   // Fire-and-forget global subscription: register a window keydown listener
   // (a browser event system) for the Cmd/Ctrl+B shortcut for this provider's
@@ -140,15 +166,27 @@ export function SidebarProvider({
 
   const contextValue = React.useMemo<SidebarContextProps>(
     () => ({
+      completeMobileChange,
       isMobile,
       open,
       openMobile,
+      selectMobileDestination,
       setOpen,
       setOpenMobile,
       state,
       toggleSidebar,
     }),
-    [state, open, setOpen, isMobile, openMobile, toggleSidebar]
+    [
+      completeMobileChange,
+      state,
+      open,
+      setOpen,
+      isMobile,
+      openMobile,
+      selectMobileDestination,
+      setOpenMobile,
+      toggleSidebar,
+    ]
   );
 
   return (
@@ -190,14 +228,7 @@ export function Sidebar({
   mobileTitle?: string;
   mobileDescription?: string;
 }): React.ReactElement {
-  const { isMobile, state, openMobile, setOpenMobile } = useSidebar();
-  const scroll = React.useRef(0);
-  const preserveScroll = (open: boolean) => {
-    if (open) scroll.current = window.scrollY;
-    setOpenMobile(open);
-    window.scrollTo(0, scroll.current);
-    window.requestAnimationFrame(() => window.scrollTo(0, scroll.current));
-  };
+  const { completeMobileChange, isMobile, state, openMobile, setOpenMobile } = useSidebar();
 
   if (collapsible === "none") {
     return (
@@ -218,8 +249,8 @@ export function Sidebar({
     return (
       <Sheet
         modal="trap-focus"
-        onOpenChange={preserveScroll}
-        onOpenChangeComplete={() => window.scrollTo(0, scroll.current)}
+        onOpenChange={setOpenMobile}
+        onOpenChangeComplete={completeMobileChange}
         open={openMobile}
         {...props}
       >
@@ -257,7 +288,7 @@ export function Sidebar({
       {/* This is what handles the sidebar gap on desktop */}
       <div
         className={cn(
-          "relative w-(--sidebar-width) bg-transparent transition-[width] duration-200 ease-linear",
+          "relative w-(--sidebar-width) bg-transparent",
           "group-data-[collapsible=offcanvas]:w-0",
           "group-data-[side=right]:rotate-180",
           variant === "floating" || variant === "inset"
@@ -268,7 +299,7 @@ export function Sidebar({
       />
       <div
         className={cn(
-          "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear md:flex",
+          "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) md:flex",
           side === "left"
             ? "left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]"
             : "right-0 group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]",
@@ -351,9 +382,9 @@ export function SidebarRail({
 export function SidebarInset({
   className,
   ...props
-}: React.ComponentProps<"div">): React.ReactElement {
+}: React.ComponentProps<"main">): React.ReactElement {
   return (
-    <div
+    <main
       className={cn(
         "relative flex w-full flex-1 flex-col bg-background",
         "md:peer-data-[variant=inset]:peer-data-[state=collapsed]:ms-2 md:peer-data-[variant=inset]:m-2 md:peer-data-[variant=inset]:ms-0 md:peer-data-[variant=inset]:rounded-xl md:peer-data-[variant=inset]:shadow-sm/5",

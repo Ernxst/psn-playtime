@@ -49,7 +49,22 @@ const chapters = [
   },
 ] as const;
 
-const ids = chapters.flatMap((chapter) => chapter.sections.map(([id]) => id));
+export const dashboardSectionIds = chapters.flatMap((chapter) =>
+  chapter.sections.map(([id]) => id)
+);
+
+function hashSection(): string | undefined {
+  const id = window.location.hash.slice(1);
+  return dashboardSectionIds.some((sectionId) => sectionId === id) ? id : undefined;
+}
+
+export function alignHashDestination(): void {
+  const id = hashSection();
+  if (!id) return;
+  const align = () => document.getElementById(id)?.scrollIntoView();
+  align();
+  window.requestAnimationFrame(() => window.requestAnimationFrame(align));
+}
 
 function activeSectionStore() {
   let active = "overview";
@@ -57,6 +72,8 @@ function activeSectionStore() {
   return {
     subscribe: (onStoreChange: () => void) => {
       notify = onStoreChange;
+      const hashed = hashSection();
+      if (hashed) active = hashed;
       const observer = new IntersectionObserver(
         (entries) => {
           const first = entries
@@ -68,7 +85,7 @@ function activeSectionStore() {
         },
         { rootMargin: "-15% 0px -72%", threshold: 0 }
       );
-      for (const id of ids) {
+      for (const id of dashboardSectionIds) {
         const section = document.getElementById(id);
         if (section) observer.observe(section);
       }
@@ -77,15 +94,48 @@ function activeSectionStore() {
         observer.disconnect();
       };
     },
+    activate: (id: string) => {
+      if (id === active) return;
+      active = id;
+      notify?.();
+    },
     getSnapshot: () => active,
     getServerSnapshot: () => "overview",
   };
 }
 
+function ChapterLink({
+  id,
+  label,
+  active,
+  onActivate,
+}: {
+  id: string;
+  label: string;
+  active: boolean;
+  onActivate: () => void;
+}) {
+  const { isMobile, selectMobileDestination } = useSidebar();
+  return (
+    <a
+      className="flex min-h-10 items-center border-l border-white/15 px-3 text-[0.8125rem] text-white/60 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#7599f4] hover:text-white aria-[current=location]:border-[#7599f4] aria-[current=location]:bg-[linear-gradient(90deg,rgb(49_91_191/22%),transparent)] aria-[current=location]:text-white [@media(pointer:coarse)]:min-h-11"
+      href={`#${id}`}
+      aria-current={active ? "location" : undefined}
+      data-active={active}
+      onClick={() => {
+        onActivate();
+        if (isMobile) selectMobileDestination(id);
+      }}
+    >
+      {label}
+    </a>
+  );
+}
+
 function ChapterNav() {
   const [store] = useState(activeSectionStore);
   const active = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getServerSnapshot);
-  const { isMobile, setOpenMobile } = useSidebar();
+  const { isMobile } = useSidebar();
   return (
     <nav
       aria-label={isMobile ? "Navigate Playloom" : "Dashboard chapters"}
@@ -100,18 +150,13 @@ function ChapterNav() {
             {chapter.label}
           </span>
           {chapter.sections.map(([id, label]) => (
-            <a
-              className="flex min-h-10 items-center border-l border-white/15 px-3 text-[0.8125rem] text-white/60 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#7599f4] hover:text-white aria-[current=location]:border-[#7599f4] aria-[current=location]:bg-[linear-gradient(90deg,rgb(49_91_191/22%),transparent)] aria-[current=location]:text-white"
+            <ChapterLink
               key={id}
-              href={`#${id}`}
-              aria-current={active === id ? "location" : undefined}
-              data-active={active === id}
-              onClick={() => {
-                if (isMobile) setOpenMobile(false);
-              }}
-            >
-              {label}
-            </a>
+              id={id}
+              label={label}
+              active={active === id}
+              onActivate={() => store.activate(id)}
+            />
           ))}
         </div>
       ))}
@@ -170,7 +215,7 @@ export function DashboardSidebar({
   return (
     <Sidebar
       collapsible="offcanvas"
-      className="border-0 bg-[var(--playloom-ink)] text-[#f5efe2] [&_[data-slot=sidebar-inner]]:border-0 [&_[data-slot=sidebar-inner]]:bg-[var(--playloom-ink)]"
+      className="border-0 bg-[var(--playloom-ink)] text-[#f5efe2]"
       mobileTitle="Navigate Playloom"
       mobileDescription="Choose a dashboard chapter. Every destination is available in this scrollable drawer."
     >

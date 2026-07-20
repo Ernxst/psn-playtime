@@ -1,6 +1,7 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
+import { demoDashboard } from "@/domain/mock";
 import { createHarness } from "@/test/harness";
 import {
   DashboardEmpty,
@@ -25,14 +26,23 @@ describe("DashboardSkeleton", () => {
 
 describe("DashboardError", () => {
   it("keeps the shell and offers contextual recovery", async () => {
+    await page.viewport(1280, 800);
+    onTestFinished(() => page.viewport(1280, 800));
     const onRetry = vi.fn();
-    const { element } = createHarness(<DashboardError message="Token expired" onRetry={onRetry} />);
+    const profile = { ...demoDashboard.profile, onlineId: "ActiveArchive" };
+    const { element } = createHarness(
+      <DashboardError message="Token expired" onRetry={onRetry} profile={profile} />
+    );
     const { container } = await render(element);
 
     expect(container.querySelectorAll("main").length).toBe(1);
     await expect.element(page.getByText("Couldn't load this archive")).toBeVisible();
+    await expect
+      .element(page.getByRole("heading", { name: "Couldn't load this archive" }))
+      .toHaveFocus();
+    await expect.element(page.getByText("ActiveArchive")).toBeVisible();
     await expect.element(page.getByText("Your saved browser data is unchanged.")).toBeVisible();
-    await expect.element(page.getByRole("link", { name: "Home" })).toBeVisible();
+    await expect.element(page.getByRole("link", { name: "Home", exact: true })).toBeVisible();
 
     await page.getByRole("button", { name: "Try again" }).click();
 

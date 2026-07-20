@@ -52,7 +52,7 @@ import { prototypeTransactions } from "@/features/prototype/prototype-data";
 import type { DashboardData } from "@/server/providers/account/snapshot";
 import { type CachedAccount, useCachedAccounts } from "@/stores/dashboard-store";
 import { useTransactionImport } from "@/stores/transactions-store";
-import { DashboardSidebar } from "./dashboard-sidebar";
+import { alignHashDestination, DashboardSidebar } from "./dashboard-sidebar";
 import { DashboardEmpty, DashboardNoMatches, DashboardPartialNotice } from "./states";
 
 interface Props {
@@ -71,25 +71,45 @@ const TIMEFRAMES: ReadonlyArray<{ value: Timeframe; label: string }> = [
   { value: "this-year", label: "This year" },
 ];
 
+type ChapterVariant = "opening" | "chapter";
+
+const chapterClasses: Record<ChapterVariant, { header: string; number: string; title: string }> = {
+  opening: {
+    header: "mb-6 grid max-w-215 grid-cols-[2rem_minmax(0,1fr)] gap-3",
+    number: "pt-1 text-[0.6875rem] font-bold text-primary tabular-nums",
+    title:
+      "font-[Fraunces_Variable] text-[clamp(2rem,4vw,3rem)] font-semibold tracking-[-0.05em] leading-none text-balance",
+  },
+  chapter: {
+    header: "mb-[5.125rem] grid max-w-215 grid-cols-[3rem_minmax(0,1fr)] gap-5",
+    number: "pt-3 text-[0.6875rem] font-bold text-primary tabular-nums",
+    title:
+      "font-[Fraunces_Variable] text-[clamp(3.375rem,7vw,5.5rem)] font-semibold tracking-[-0.055em] leading-[0.94] text-balance",
+  },
+};
+
 function ChapterHeading({
   number,
   title,
   children,
+  variant = "chapter",
 }: {
   number: string;
   title: string;
   children: string;
+  variant?: ChapterVariant;
 }) {
+  const classes = chapterClasses[variant];
   return (
-    <header className="mb-10 grid max-w-215 grid-cols-[2rem_minmax(0,1fr)] gap-3 [.playloom-chapter-profile_&]:mb-6">
-      <span className="pt-1 text-[0.6875rem] font-bold text-primary tabular-nums">{number}</span>
+    <header className={classes.header}>
+      <span className={classes.number}>{number}</span>
       <div>
-        <h2 className="font-[Fraunces_Variable] text-[clamp(2.5rem,5vw,4rem)] font-semibold tracking-[-0.05em] leading-none text-balance [.playloom-chapter-profile_&]:text-[clamp(2rem,4vw,3rem)]">
-          {title}
-        </h2>
-        <p className="mt-2 max-w-[62ch] text-sm leading-relaxed text-muted-foreground [.playloom-chapter-profile_&]:hidden">
-          {children}
-        </p>
+        <h2 className={classes.title}>{title}</h2>
+        {variant === "chapter" && (
+          <p className="mt-5 max-w-[62ch] text-[0.9375rem] leading-[1.65] text-muted-foreground">
+            {children}
+          </p>
+        )}
       </div>
     </header>
   );
@@ -99,19 +119,27 @@ function Section({
   id,
   title,
   children,
+  variant = "chapter",
 }: {
   id: string;
   title: string;
   children: React.ReactNode;
+  variant?: "opening" | "chapter";
 }) {
+  const opening = variant === "opening";
   return (
     <section
       id={id}
-      className="mt-20 scroll-mt-20 first:mt-0 [.playloom-chapter-profile_&]:mt-14 [.playloom-chapter-profile_&]:first:mt-0"
+      className={opening ? "mt-14 scroll-mt-20 first:mt-0" : "mt-[5.375rem] scroll-mt-[4.875rem]"}
       aria-labelledby={`${id}-title`}
+      tabIndex={-1}
     >
       <h3
-        className="mb-6 font-[Fraunces_Variable] text-[clamp(1.75rem,3vw,2.5rem)] font-semibold tracking-[-0.035em]"
+        className={
+          opening
+            ? "mb-6 font-[Fraunces_Variable] text-[clamp(1.75rem,3vw,2.5rem)] font-semibold tracking-[-0.035em]"
+            : "mb-[1.625rem] font-[Fraunces_Variable] text-[clamp(1.875rem,4vw,2.875rem)] font-semibold tracking-[-0.035em] text-balance"
+        }
         id={`${id}-title`}
       >
         {title}
@@ -169,12 +197,40 @@ function DeferredSection({ children, height }: { children: React.ReactNode; heig
   );
 }
 
+function TimeframeOption({
+  timeframe,
+  value,
+  disabled,
+  onChange,
+}: {
+  timeframe: (typeof TIMEFRAMES)[number];
+  value: Timeframe;
+  disabled: boolean;
+  onChange: (value: Timeframe) => void;
+}) {
+  return (
+    <label className="relative grid min-h-11 cursor-pointer place-items-center border-r border-[var(--playloom-rule-strong)] px-3 text-xs font-bold last:border-r-0 has-checked:bg-primary has-checked:text-primary-foreground">
+      <input
+        className="sr-only"
+        type="radio"
+        name="last-played-timeframe"
+        checked={value === timeframe.value}
+        disabled={disabled}
+        onChange={() => onChange(timeframe.value)}
+      />
+      {timeframe.label}
+    </label>
+  );
+}
+
 function TimeframeControl({
   value,
   onChange,
+  disabled,
 }: {
   value: Timeframe;
   onChange: (value: Timeframe) => void;
+  disabled: boolean;
 }) {
   return (
     <div className="flex flex-1 flex-wrap items-end justify-between gap-4">
@@ -188,19 +244,13 @@ function TimeframeControl({
         <legend className="sr-only">Last-played timeframe; current year {currentYear()}</legend>
         <div className="grid grid-cols-4 border border-[var(--playloom-rule-strong)]">
           {TIMEFRAMES.map((timeframe) => (
-            <label
-              className="relative grid min-h-11 cursor-pointer place-items-center border-r border-[var(--playloom-rule-strong)] px-3 text-xs font-bold last:border-r-0 has-checked:bg-primary has-checked:text-primary-foreground"
+            <TimeframeOption
               key={timeframe.value}
-            >
-              <input
-                className="sr-only"
-                type="radio"
-                name="last-played-timeframe"
-                checked={value === timeframe.value}
-                onChange={() => onChange(timeframe.value)}
-              />
-              {timeframe.label}
-            </label>
+              timeframe={timeframe}
+              value={value}
+              disabled={disabled}
+              onChange={onChange}
+            />
           ))}
         </div>
       </fieldset>
@@ -306,7 +356,7 @@ function ProfileMenu({ data }: { data: DashboardData }) {
       <Button
         variant="ghost"
         className="mt-3 w-full justify-start rounded-none border border-[var(--playloom-rule-strong)] bg-transparent text-foreground hover:bg-accent"
-        render={<Link to="/" />}
+        render={<Link to="/" hash="connect" />}
       >
         <UserPlus /> Add PlayStation account
       </Button>
@@ -492,23 +542,23 @@ function DemoNotice() {
 function ProfileChapter({ data }: { data: DashboardData }) {
   return (
     <div className="playloom-chapter-profile bg-[#f3efe5] px-[clamp(1.25rem,5vw,4rem)] pt-6 pb-20">
-      <ChapterHeading number="01" title="Profile">
+      <ChapterHeading number="01" title="Profile" variant="opening">
         The shape of your gaming life, from the games you return to and the patterns they leave
         behind.
       </ChapterHeading>
-      <Section id="overview" title="Overview">
+      <Section id="overview" title="Overview" variant="opening">
         <ProfileOverview data={data} />
       </Section>
-      <Section id="top-games" title="Top games">
+      <Section id="top-games" title="Top games" variant="opening">
         <ProfileRanks data={data} mode="games" />
       </Section>
-      <Section id="genres" title="Genres">
+      <Section id="genres" title="Genres" variant="opening">
         <ProfileRanks data={data} mode="genres" />
       </Section>
-      <Section id="franchises" title="Franchises">
+      <Section id="franchises" title="Franchises" variant="opening">
         <ProfileRanks data={data} mode="franchises" />
       </Section>
-      <Section id="insights" title="Insights">
+      <Section id="insights" title="Insights" variant="opening">
         <div className="playloom-insights">
           <ValueCard data={data} />
           <RecencyCard data={data} />
@@ -537,27 +587,37 @@ function HistoryChapter({ data }: { data: DashboardData }) {
   );
 }
 
-function SpendingChapter({ data }: { data: DashboardData }) {
+function SpendingChapter({
+  data,
+  transactionsAvailable,
+}: {
+  data: DashboardData;
+  transactionsAvailable: boolean;
+}) {
+  const imported = useTransactionImport(data.profile.accountId);
+  const transactions = transactionsAvailable
+    ? (imported?.transactions ?? (data.isDemo ? prototypeTransactions : []))
+    : [];
   return (
     <div className="playloom-chapter playloom-chapter-spending">
       <ChapterHeading number="03" title="Spending">
         What the library cost, kept separate from when those games were last played.
       </ChapterHeading>
       <Section id="spending" title="Spending and purchase history">
-        <PrototypeSpending data={data} />
+        <PrototypeSpending data={data} transactions={transactions} />
       </Section>
       <Section id="purchase-data" title="Purchase import">
         <div className="space-y-6">
-          <div id="spend">
+          <div id="spend" className="scroll-mt-20" tabIndex={-1}>
             <SpendSection data={data} />
           </div>
-          <div id="purchase-history">
+          <div id="purchase-history" className="scroll-mt-20" tabIndex={-1}>
             <PurchaseHistorySection data={data} />
           </div>
-          <div id="spent-most">
+          <div id="spent-most" className="scroll-mt-20" tabIndex={-1}>
             <SpentMostSection data={data} />
           </div>
-          <div id="add-ons">
+          <div id="add-ons" className="scroll-mt-20" tabIndex={-1}>
             <AddOnsSection data={data} />
           </div>
         </div>
@@ -580,10 +640,17 @@ function LibraryChapter({ data }: { data: DashboardData }) {
   );
 }
 
-function ToolsChapter({ data, safeDemo }: { data: DashboardData; safeDemo: boolean }) {
+function ToolsChapter({
+  data,
+  transactionsAvailable,
+}: {
+  data: DashboardData;
+  transactionsAvailable: boolean;
+}) {
   const imported = useTransactionImport(data.profile.accountId);
-  const stableDemo = data.isDemo || safeDemo;
-  const transactions = imported?.transactions ?? (stableDemo ? prototypeTransactions : []);
+  const transactions = transactionsAvailable
+    ? (imported?.transactions ?? (data.isDemo ? prototypeTransactions : []))
+    : [];
   return (
     <div className="playloom-chapter playloom-chapter-tools">
       <ChapterHeading number="05" title="Tools">
@@ -593,7 +660,7 @@ function ToolsChapter({ data, safeDemo }: { data: DashboardData; safeDemo: boole
         <LlmPromptCard data={data} />
       </Section>
       <Section id="data-controls" title="Data controls">
-        <div className="playloom-tools-grid">
+        <div className="playloom-tools-grid min-h-[calc(100dvh-10rem)]">
           <ExportButtons data={data} transactions={transactions} />
           <RemoveTransactions accountId={data.profile.accountId} />
         </div>
@@ -605,19 +672,19 @@ function ToolsChapter({ data, safeDemo }: { data: DashboardData; safeDemo: boole
 function DashboardChapters({
   data,
   account,
-  safeDemo,
+  partialData,
 }: {
   data: DashboardData;
   account: DashboardData;
-  safeDemo: boolean;
+  partialData: boolean;
 }) {
   return (
     <>
       <ProfileChapter data={data} />
       <HistoryChapter data={data} />
-      <SpendingChapter data={account} />
+      <SpendingChapter data={account} transactionsAvailable={!partialData} />
       <LibraryChapter data={data} />
-      <ToolsChapter data={account} safeDemo={safeDemo} />
+      <ToolsChapter data={account} transactionsAvailable={!partialData} />
     </>
   );
 }
@@ -637,6 +704,7 @@ function FilterScope({
   return (
     <div className="flex flex-wrap items-end justify-between gap-4 border-y border-[var(--playloom-rule)] bg-[var(--playloom-paper-raised)] px-[clamp(1.25rem,5vw,4rem)] py-4">
       <TimeframeControl
+        disabled={disabled}
         value={filters.timeframe}
         onChange={(timeframe) => onChange({ ...filters, timeframe })}
       />
@@ -660,18 +728,20 @@ function DashboardResult({
   source,
   scoped,
   onClear,
-  safeDemo,
+  partialData,
 }: {
   source: DashboardData;
   scoped: DashboardData;
   onClear: () => void;
-  safeDemo: boolean;
+  partialData: boolean;
 }) {
-  if (scoped.games.length > 0) {
-    return <DashboardChapters data={scoped} account={source} safeDemo={safeDemo} />;
-  }
   if (source.games.length === 0) return <DashboardEmpty />;
-  return <DashboardNoMatches onClear={onClear} />;
+  return (
+    <>
+      {scoped.games.length === 0 && <DashboardNoMatches onClear={onClear} />}
+      <DashboardChapters data={scoped} account={source} partialData={partialData} />
+    </>
+  );
 }
 
 function ReadingSurface(props: Props) {
@@ -683,7 +753,10 @@ function ReadingSurface(props: Props) {
     document.querySelector<HTMLInputElement>('[aria-label="Search games by name"]')?.focus();
   };
   return (
-    <main className="min-w-0 bg-[var(--playloom-paper)] text-[var(--playloom-ink)]">
+    <div
+      className="min-w-0 bg-[var(--playloom-paper)] text-[var(--playloom-ink)]"
+      ref={alignHashDestination}
+    >
       <Marquee {...props} />
       {props.data.isDemo && <DemoNotice />}
       <FilterScope
@@ -697,14 +770,14 @@ function ReadingSurface(props: Props) {
         source={props.data}
         scoped={scoped}
         onClear={clearFilters}
-        safeDemo={props.safeDemo === true}
+        partialData={props.partialData === true}
       />
       <footer className="playloom-mobile-footer">
         <a href="https://rawg.io" target="_blank" rel="noreferrer">
           Game metadata and artwork provided by RAWG
         </a>
       </footer>
-    </main>
+    </div>
   );
 }
 
