@@ -382,6 +382,7 @@ describe(".buildDataSummary", () => {
       .find((l) => l.includes(`${top?.name} —`));
 
     const ratio = ((top?.hours ?? 0) / 25).toFixed(1);
+
     expect(line).toContain(
       `you: ${Math.round(top?.hours ?? 0)}h lifetime vs typical ~25h (~${ratio}x)`
     );

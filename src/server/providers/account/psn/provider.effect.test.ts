@@ -119,8 +119,11 @@ describe(".loadDashboard", () => {
     const calls: TransportCalls = { exchanges: 0, fetches: 0 };
     const transport = countingTransport(calls);
     await loadDashboard(transport);
+
     expect(calls.exchanges).toBe(1);
+
     await loadDashboard(transport);
+
     expect(calls.exchanges).toBe(2);
   });
 
@@ -172,6 +175,7 @@ describe(".loadDashboard", () => {
     expect(result.meta.appsExcluded).toStrictEqual([{ name: "Netflix", hours: 0 }]);
 
     const cod = result.games[0]!;
+
     expect(cod.hours).toBe(100.5);
     expect(cod.firstPlayed).toBe("2020-01-01");
     // RAWG is the sole enrichment source (merged client-side), so the snapshot
@@ -224,6 +228,7 @@ describe(".loadDashboard", () => {
 
   it("fails with CredentialRejectedError before any snapshot fetch runs when the npsso exchange is rejected", async () => {
     const calls: TransportCalls = { exchanges: 0, fetches: 0 };
+
     await expect(
       loadDashboardTag(countingTransport(calls, { exchangeNpsso: psnFailure("nope") }))
     ).resolves.toBe("CredentialRejectedError");

@@ -2,7 +2,14 @@
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "extends": ["./tools/oxlint/test-contract.json"],
   "plugins": ["react", "typescript", "unicorn", "oxc", "jsx-a11y", "jsdoc", "unicorn", "vitest"],
-  "jsPlugins": ["oxlint-plugin-complexity", "./tools/oxlint/test-contract.mjs"],
+  "jsPlugins": [
+    "oxlint-plugin-complexity",
+    "./tools/oxlint/test-contract.mjs",
+    {
+      "name": "vitest-format",
+      "specifier": "@vitest/eslint-plugin"
+    }
+  ],
   "env": {
     "browser": true,
     "es2024": true

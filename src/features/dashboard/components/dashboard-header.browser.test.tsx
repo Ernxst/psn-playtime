@@ -50,6 +50,7 @@ describe("DashboardHeader", () => {
     await render(element);
 
     const button = page.getByRole("button", { name: "Signing out…" });
+
     await expect.element(button).toBeVisible();
     await expect.element(button).toBeDisabled();
   });

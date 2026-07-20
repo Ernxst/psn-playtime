@@ -55,6 +55,7 @@ describe(".useTransactionImport", () => {
     await render(<ImportedCount accountId={ACCOUNT_A} />, { wrapper: TestAtomProvider });
 
     await expect.element(page.getByText("no import")).toBeVisible();
+
     testTransactionStore.save(ACCOUNT_A, validImport);
 
     await expect.element(page.getByText("1 imported")).toBeVisible();
@@ -71,6 +72,7 @@ describe(".useTransactionImport", () => {
     await render(<AccountImportSwitcher />, { wrapper: TestAtomProvider });
 
     await expect.element(page.getByText("acc-1: 1 imported")).toBeVisible();
+
     await userEvent.click(page.getByRole("button", { name: "Switch account" }));
 
     await expect.element(page.getByText("acc-2: 2 imported")).toBeVisible();
@@ -81,6 +83,7 @@ describe(".useTransactionImport", () => {
     await render(<ImportedCount accountId={ACCOUNT_A} />, { wrapper: TestAtomProvider });
     testTransactionStore.save(ACCOUNT_A, validImport);
     testTransactionStore.save(ACCOUNT_B, { ...validImport, source: "second.account" });
+
     await expect.element(page.getByText("1 imported")).toBeVisible();
 
     testTransactionStore.clear(ACCOUNT_A);

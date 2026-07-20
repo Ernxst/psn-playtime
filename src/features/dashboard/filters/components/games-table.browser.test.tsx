@@ -68,12 +68,14 @@ describe("GamesTable", () => {
 
     // Default sort is hours-descending: the biggest game leads.
     await expect.element(page.getByText("Every game you've played")).toBeInTheDocument();
+
     const topByHours = container.querySelector("tbody tr")?.textContent;
 
     // First click sorts by last-played descending — the most recent game leads.
     await page.getByRole("button", { name: "Sort by Last played" }).click();
 
     await expect.poll(() => container.querySelector("tbody tr")?.textContent).not.toBe(topByHours);
+
     const topByRecent = container.querySelector("tbody tr")?.textContent;
 
     // Second click flips to ascending — the oldest game leads instead.

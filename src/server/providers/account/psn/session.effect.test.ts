@@ -127,7 +127,9 @@ describe(".buildSnapshot", () => {
     expect(result.isDemo).toBe(false);
     expect(result.profile).toBe(profileSummary);
     expect(result.games.map((g) => g.titleId)).toStrictEqual(["hzd"]);
+
     const hzd = result.games[0]!;
+
     expect(hzd.hours).toBe(40);
     expect(hzd.firstPlayed).toBe("2022-02-18");
     expect(hzd.trophy).toStrictEqual({

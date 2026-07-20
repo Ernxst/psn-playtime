@@ -56,6 +56,7 @@ describe("server-side rendering", () => {
     const store = makeStore();
 
     expect(store.load("demo")).toBeNull();
+
     store.save(demoDashboard);
     store.setActive("demo");
     store.clearActive();

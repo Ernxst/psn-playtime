@@ -96,6 +96,7 @@ describe("importDashboardFromCsv", () => {
     // fetchedAt is not carried on either CSV; the importer stamps it fresh.
     const { fetchedAt: _f, ...restImported } = imported;
     const { fetchedAt: _o, ...restOriginal } = original;
+
     expect(restImported).toStrictEqual(restOriginal);
   });
 

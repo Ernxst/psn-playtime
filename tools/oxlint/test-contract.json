@@ -22,6 +22,12 @@
         "vitest/no-import-node-test": "error",
         "vitest/no-interpolation-in-snapshots": "error",
         "vitest/no-mocks-import": "error",
+        "vitest/no-restricted-vi-methods": [
+          "error",
+          {
+            "waitFor": "Make the test deterministic instead"
+          }
+        ],
         "vitest/no-restricted-matchers": [
           "error",
           {
@@ -34,6 +40,7 @@
         "vitest/no-test-prefixes": "error",
         "vitest/no-test-return-statement": "error",
         "vitest/no-unneeded-async-expect-function": "error",
+        "vitest-format/padding-around-all": "error",
         "vitest/prefer-called-exactly-once-with": "error",
         "vitest/prefer-called-times": "error",
         "vitest/prefer-comparison-matcher": "error",
@@ -46,10 +53,12 @@
         "vitest/prefer-importing-vitest-globals": "error",
         "vitest/prefer-mock-promise-shorthand": "error",
         "vitest/prefer-mock-return-shorthand": "error",
+        "vitest/prefer-snapshot-hint": "error",
         "vitest/prefer-spy-on": "error",
         "vitest/prefer-strict-boolean-matchers": "error",
         "vitest/prefer-strict-equal": "error",
         "vitest/prefer-to-be": "error",
+        "vitest/prefer-to-be-object": "error",
         "vitest/prefer-to-contain": "error",
         "vitest/prefer-to-have-length": "error",
         "vitest/require-awaited-expect-poll": "error",

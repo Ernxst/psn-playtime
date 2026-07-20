@@ -23,6 +23,7 @@ describe(".computeTotals", () => {
       play({ hours: 1.5, playCount: 2 }),
       play({ hours: 2.25, playCount: 3 }),
     ]);
+
     expect(totals.totalGames).toBe(2);
     expect(totals.totalHours).toBe(3.75);
     expect(totals.totalSessions).toBe(5);
@@ -30,6 +31,7 @@ describe(".computeTotals", () => {
 
   it("rounds total hours to two decimal places", () => {
     const totals = computeTotals([play({ hours: 0.001 }), play({ hours: 0.004 })]);
+
     expect(totals.totalHours).toBe(0.01);
   });
 
@@ -39,6 +41,7 @@ describe(".computeTotals", () => {
       play({ firstPlayed: "2019-01-09" }),
       play({ firstPlayed: "2021-12-31" }),
     ]);
+
     expect(totals.firstEverPlayed).toBe("2019-01-09");
     expect(totals.span.from).toBe("2019-01-09");
   });
@@ -49,6 +52,7 @@ describe(".computeTotals", () => {
       play({ lastPlayed: "2024-11-20" }),
       play({ lastPlayed: "2023-07-15" }),
     ]);
+
     expect(totals.span.to).toBe("2024-11-20");
   });
 
@@ -58,12 +62,14 @@ describe(".computeTotals", () => {
       play({ hours: 5 }),
       play({ firstPlayed: "2018-02-02", lastPlayed: "2022-09-09" }),
     ]);
+
     expect(totals.firstEverPlayed).toBe("2018-02-02");
     expect(totals.span).toStrictEqual({ from: "2018-02-02", to: "2022-09-09" });
   });
 
   it("leaves the span open when no game carries dates", () => {
     const totals = computeTotals([play({ hours: 3, playCount: 1 })]);
+
     expect(totals.firstEverPlayed).toBeUndefined();
     expect(totals.span).toStrictEqual({ from: undefined, to: undefined });
   });

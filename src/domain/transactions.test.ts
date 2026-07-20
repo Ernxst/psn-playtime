@@ -330,6 +330,7 @@ describe(".decodeHandoff", () => {
 
   it("returns null when the schema version is wrong", () => {
     const encoded = `data=${encodeURIComponent(JSON.stringify({ ...payload, v: 99 }))}`;
+
     expect(decodeHandoff(`#${encoded}`)).toBeNull();
   });
 });

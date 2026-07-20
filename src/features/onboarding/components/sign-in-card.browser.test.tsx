@@ -137,6 +137,7 @@ describe("SignInCard", () => {
     await expect.element(page.getByText(/expires after about 2 months/i)).toBeVisible();
 
     const repoLink = page.getByRole("link", { name: /open source/i });
+
     await expect
       .element(repoLink)
       .toHaveAttribute("href", "https://github.com/Ernxst/psn-playtime");

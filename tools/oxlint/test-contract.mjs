@@ -72,7 +72,9 @@ const noWaitFor = rule(
   { forbidden: "waitFor hides the event that should make this test deterministic" },
   (context) => ({
     CallExpression(node) {
-      if (callName(node) === "waitFor") context.report({ node, messageId: "forbidden" });
+      if (callName(node) === "waitFor" && !isViCall(node, "waitFor")) {
+        context.report({ node, messageId: "forbidden" });
+      }
     },
   })
 );

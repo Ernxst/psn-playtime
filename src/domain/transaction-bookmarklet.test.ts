@@ -692,17 +692,21 @@ describe(".mountImportOverlay", () => {
     expect(message?.textContent).toBe("Fetching your transactions… Keep this tab open.");
 
     overlay.progress(150, 2);
+
     expect(message?.textContent).toBe(
       "Fetching transactions… 150 collected (page 2). Keep this tab open."
     );
 
     overlay.done();
+
     expect(message?.textContent).toBe("Done — opening Playtime…");
 
     overlay.error("unexpected response (HTTP 429) — are you signed in to PlayStation?");
+
     expect(message?.textContent).toContain("rate-limiting");
 
     overlay.remove();
+
     expect(dom.created[0]?.removed).toBe(true);
   });
 

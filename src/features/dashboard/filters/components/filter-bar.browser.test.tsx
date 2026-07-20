@@ -101,7 +101,9 @@ describe("FilterBar", () => {
     await render(<FilterBar data={demoDashboard} filters={defaultFilters} onChange={onChange} />);
 
     await page.getByRole("button", { name: "Filters" }).click();
+
     await expect.element(page.getByText(/Hours:/)).toBeVisible();
+
     page.getByRole("slider").nth(0).element().focus();
     await userEvent.keyboard("{ArrowRight}");
 
@@ -114,7 +116,9 @@ describe("FilterBar", () => {
     await render(<FilterBar data={demoDashboard} filters={defaultFilters} onChange={onChange} />);
 
     await page.getByRole("button", { name: "Filters" }).click();
+
     await expect.element(page.getByText(/Min sessions:/)).toBeVisible();
+
     page.getByRole("slider").nth(2).element().focus();
     await userEvent.keyboard("{ArrowRight}");
 
@@ -167,7 +171,9 @@ describe("FilterBar", () => {
     await render(<FilterBar data={withTrophies} filters={defaultFilters} onChange={onChange} />);
 
     await page.getByRole("button", { name: "Filters" }).click();
+
     await expect.element(page.getByText(/Min progress:/)).toBeVisible();
+
     page.getByRole("slider").last().element().focus();
     await userEvent.keyboard("{ArrowRight}");
 
@@ -178,6 +184,7 @@ describe("FilterBar", () => {
     await render(<ControlledFilterBar data={withTrophies} />);
 
     await page.getByRole("button", { name: "Filters" }).click();
+
     expect(page.getByRole("button", { name: "Clear all" }).query()).toBeNull();
 
     await page.getByText("Shooter").click();

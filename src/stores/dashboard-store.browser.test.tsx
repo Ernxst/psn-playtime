@@ -73,6 +73,7 @@ describe(".useActiveDashboard", () => {
     store.save(accountA);
 
     await render(<ActiveOnlineId />, { wrapper: Provider });
+
     await expect.element(page.getByText(demoDashboard.profile.onlineId)).toBeVisible();
 
     store.setActive("acc-1");
@@ -93,6 +94,7 @@ describe(".useActiveDashboard", () => {
     store.setActive("acc-1");
 
     await render(<ActiveOnlineId />, { wrapper: Provider });
+
     await expect.element(page.getByText("Aaron")).toBeVisible();
 
     store.clearActive();
@@ -104,6 +106,7 @@ describe(".useActiveDashboard", () => {
 describe(".useCachedAccounts", () => {
   it("re-renders with a newly cached account after a store save", async () => {
     await render(<CachedAccountNames />, { wrapper: Provider });
+
     await expect.element(page.getByText("none")).toBeVisible();
 
     store.save(accountA);
@@ -125,6 +128,7 @@ describe(".useCachedAccounts", () => {
     store.save(accountA);
 
     await render(<CachedAccountNames />, { wrapper: Provider });
+
     await expect.element(page.getByText("Aaron,Zoe")).toBeVisible();
 
     store.remove("acc-1");
@@ -147,6 +151,7 @@ describe(".useCachedAccounts", () => {
     }
 
     await render(<Probe />, { wrapper: Provider });
+
     await expect.element(page.getByRole("button", { name: "Re-render" })).toBeVisible();
     expect(refs).toHaveLength(1);
 
@@ -174,6 +179,7 @@ describe(".remove", () => {
     store.setActive("acc-1");
 
     await render(<ActiveOnlineId />, { wrapper: Provider });
+
     await expect.element(page.getByText("Aaron")).toBeVisible();
 
     store.remove("acc-1");
@@ -187,6 +193,7 @@ describe(".remove", () => {
     store.setActive("acc-2");
 
     await render(<ActiveOnlineId />, { wrapper: Provider });
+
     await expect.element(page.getByText("Zoe")).toBeVisible();
 
     store.remove("acc-1");

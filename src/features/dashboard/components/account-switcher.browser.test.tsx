@@ -89,6 +89,7 @@ describe("AccountSwitcher", () => {
     await render(element);
 
     await page.getByRole("button", { name: "Switch account, current account Aaron" }).click();
+
     await expect
       .element(page.getByRole("button", { name: "Aaron, current account" }))
       .toHaveAttribute("aria-current", "true");

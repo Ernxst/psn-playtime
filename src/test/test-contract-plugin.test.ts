@@ -76,6 +76,7 @@ describe("test-contract", () => {
   it("accepts exact observable assertions and hook-scoped cleanup", () => {
     const result = lint(`
       afterEach(() => vi.restoreAllMocks());
+      vi.waitFor(callback);
       it("renders the expected items", () => {
         expect(elements).toHaveLength(2);
         expect(view).toHaveTextContent("Ready");

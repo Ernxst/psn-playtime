@@ -75,7 +75,9 @@ describe(".providerError", () => {
     // The raw thrown value must appear NOWHERE on the typed error — not in
     // `reason`, not in a `cause`, not in any other own field.
     expect(error).not.toHaveProperty("cause");
+
     const serialised = JSON.stringify(Object.entries(error));
+
     expect(serialised).not.toContain("https://");
     expect(serialised).not.toContain(secret);
     expect(serialised).not.toContain("api.rawg.io");

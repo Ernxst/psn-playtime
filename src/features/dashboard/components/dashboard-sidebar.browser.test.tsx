@@ -62,6 +62,7 @@ describe("DashboardSidebar", () => {
     await page.getByRole("button", { name: "Toggle Sidebar" }).click();
 
     const insightsLink = page.getByRole("link", { name: "Insights" });
+
     await expect.element(insightsLink).toBeVisible();
 
     await insightsLink.click();

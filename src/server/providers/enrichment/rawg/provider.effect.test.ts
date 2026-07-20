@@ -415,6 +415,7 @@ describe("transient failures are not cached", () => {
     const lookup = metaProgram("Hades");
 
     const error = await runtime.runPromise(lookup.pipe(Effect.flip));
+
     expect(error._tag).toBe("UpstreamUnavailableError");
 
     const metadata = await runtime.runPromise(lookup);

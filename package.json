@@ -75,6 +75,7 @@
     "@vitest/browser": "4.1.9",
     "@vitest/browser-playwright": "4.1.9",
     "@vitest/coverage-istanbul": "4.1.9",
+    "@vitest/eslint-plugin": "^1.6.23",
     "babel-plugin-react-compiler": "1.0.0",
     "esbuild": "0.28.1",
     "knip": "6.21.0",

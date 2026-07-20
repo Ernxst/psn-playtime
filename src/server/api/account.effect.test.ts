@@ -272,6 +272,7 @@ describe(".signInEffect", () => {
     expect(result.games[2]!.hours).toBe(0.76);
 
     const cod = result.games[0]!;
+
     expect(cod.hours).toBe(100.5);
     expect(cod.platform).toBe("PS4");
     expect(cod.imageUrl).toBe("https://img/cod");
@@ -298,6 +299,7 @@ describe(".signInEffect", () => {
 
     // Unmatched + unknown-name title has the baseline "Other" genre, no trophy.
     const unknown = result.games.find((g) => g.titleId === "unknown")!;
+
     expect(unknown.genre).toBe("Other");
     expect(unknown.trophy).toBeUndefined();
     expect(unknown.imageUrl).toBeUndefined();

@@ -157,6 +157,7 @@ describe("SpendSection", () => {
 
     // Chrome: type the name and tap the suggestion, with "don't press Enter" emphasised.
     const dontPressEnter = page.getByText("don't press Enter");
+
     await expect.element(dontPressEnter).toBeVisible();
     expect(dontPressEnter.element().tagName).toBe("STRONG");
   });
@@ -167,6 +168,7 @@ describe("SpendSection", () => {
     await renderWithAtoms(<SpendSection data={demoDashboard} />);
 
     const info = page.getByRole("button", { name: "Why an import step is needed" });
+
     await expect.element(info).toBeVisible();
     // The explanation is disclosed on activation, not shown up front.
     await expect
@@ -290,6 +292,7 @@ describe("SpendSection", () => {
     const summary = page.getByText("Re-import or update your data");
     // A chevron affordance signals the section is expandable and is wired to rotate when open.
     const chevron = summary.element().querySelector("svg.lucide-chevron-down");
+
     expect(chevron).toHaveClass("group-open:rotate-180");
 
     await summary.click();
