@@ -226,15 +226,25 @@ function TokenField({ refresh }: { refresh: ReturnType<typeof useRefresh> }) {
 function RefreshStatus({ refresh }: { refresh: ReturnType<typeof useRefresh> }) {
   if (refresh.pending) {
     return (
-      <output className="playloom-refresh-progress">
-        <Progress value={68} aria-label="Refresh in progress" />
+      <output
+        ref={(element) => {
+          element?.focus();
+        }}
+        tabIndex={-1}
+        className="grid gap-2 border-l-[3px] border-[#204eb8] bg-[#204eb8]/7 p-3 text-[0.6875rem] text-[#555960] outline-none"
+      >
+        <Progress value={68} aria-label="Refresh in progress" className="h-1.25 gap-0" />
         <span>Refreshing playtime and trophies…</span>
       </output>
     );
   }
   if (!refresh.error) return null;
   return (
-    <p id="refresh-error" className="playloom-refresh-error" role="alert">
+    <p
+      id="refresh-error"
+      className="border-l-[3px] border-[#b74236] bg-[#b74236]/8 px-3 py-2.5 text-[0.6875rem] leading-[1.45] text-[#8d2f27]"
+      role="alert"
+    >
       {refresh.error}
     </p>
   );
@@ -244,7 +254,7 @@ function RefreshForm({ refresh }: { refresh: ReturnType<typeof useRefresh> }) {
   return (
     <form id="refresh-dashboard" className="space-y-4" onSubmit={refresh.submit}>
       {refresh.safeDemo ? (
-        <div className="playloom-trust-note text-sm">
+        <div className="border-l-[3px] border-[#204eb8] bg-[#204eb8]/7 p-4 text-sm leading-[1.6]">
           No token or network request is used. The fixed credential below exists only to make
           validation, failure retention, progress and success states evaluable.
         </div>
@@ -268,25 +278,49 @@ function RefreshForm({ refresh }: { refresh: ReturnType<typeof useRefresh> }) {
   );
 }
 
+function RefreshHeader({ description }: { description: string }) {
+  return (
+    <SheetHeader className="border-b border-[#c8bdab] px-6 py-5">
+      <p className="text-[0.625rem] font-bold tracking-[0.14em] text-[#204eb8] uppercase">
+        Archive status
+      </p>
+      <SheetTitle className="font-[Fraunces_Variable] text-2xl font-semibold">
+        Refresh PlayStation data
+      </SheetTitle>
+      <SheetDescription className="text-[#555960]">{description}</SheetDescription>
+    </SheetHeader>
+  );
+}
+
 function RefreshSheet({ refresh }: { refresh: ReturnType<typeof useRefresh> }) {
   const isMobile = useMediaQuery("max-md");
   const description = refresh.safeDemo
     ? "Safe signed-in prototype workflow using local demo data only."
     : "Load your latest playtime and trophies without storing your token.";
   return (
-    <SheetPopup side={isMobile ? "bottom" : "right"} className="playloom-refresh-sheet sm:max-w-md">
-      <SheetHeader>
-        <SheetTitle>Refresh PlayStation data</SheetTitle>
-        <SheetDescription>{description}</SheetDescription>
-      </SheetHeader>
+    <SheetPopup
+      side={isMobile ? "bottom" : "right"}
+      className="border-[#c8bdab] bg-[#f8f4ea] text-[#24262b] shadow-[-12px_0_30px_rgb(36_38_43/12%)] sm:max-w-md max-sm:max-h-[calc(100dvh-3rem)]"
+    >
+      <RefreshHeader description={description} />
       <SheetPanel>
         <RefreshForm refresh={refresh} />
       </SheetPanel>
-      <SheetFooter>
-        <SheetClose render={<Button variant="outline" />} disabled={refresh.pending}>
+      <SheetFooter className="border-[#c8bdab] bg-[#eee7da] px-6 py-4 max-sm:flex-col sm:justify-between">
+        <SheetClose
+          render={
+            <Button variant="ghost" className="rounded-none text-[#24262b] hover:bg-[#204eb8]/8" />
+          }
+          disabled={refresh.pending}
+        >
           Cancel
         </SheetClose>
-        <Button type="submit" form="refresh-dashboard" loading={refresh.pending}>
+        <Button
+          type="submit"
+          form="refresh-dashboard"
+          loading={refresh.pending}
+          className="rounded-none border-[#204eb8] bg-[#204eb8] text-white hover:bg-[#173b91]"
+        >
           Refresh data
         </Button>
       </SheetFooter>
