@@ -775,7 +775,7 @@ function FilterScope({
 }) {
   const disabled = data.games.length === 0;
   return (
-    <div className="flex flex-col items-stretch gap-4 border-y border-[var(--playloom-rule)] bg-[var(--playloom-paper-raised)] px-[clamp(1.25rem,5vw,4rem)] py-4 xl:flex-row xl:items-end xl:justify-between">
+    <div className="flex flex-col flex-wrap items-stretch gap-4 border-y border-[var(--playloom-rule)] bg-[var(--playloom-paper-raised)] px-[clamp(1.25rem,5vw,4rem)] py-4 xl:flex-row xl:items-end xl:justify-between">
       <TimeframeControl
         disabled={disabled}
         value={filters.timeframe}
