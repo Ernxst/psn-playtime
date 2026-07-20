@@ -51,7 +51,7 @@ describe(".rawgGenresQueryOptions", () => {
   });
 
   it("keys the query by the data's fetch time", () => {
-    expect(rawgGenresQueryOptions(data({ fetchedAt: "2020-01-01" })).queryKey).toEqual([
+    expect(rawgGenresQueryOptions(data({ fetchedAt: "2020-01-01" })).queryKey).toStrictEqual([
       "dashboard",
       "rawg-genres",
       "2020-01-01",
@@ -91,7 +91,7 @@ describe(".rawgFranchisesQueryOptions", () => {
   });
 
   it("keys the query by the data's fetch time", () => {
-    expect(rawgFranchisesQueryOptions(data({ fetchedAt: "2020-01-01" })).queryKey).toEqual([
+    expect(rawgFranchisesQueryOptions(data({ fetchedAt: "2020-01-01" })).queryKey).toStrictEqual([
       "dashboard",
       "rawg-franchises",
       "2020-01-01",

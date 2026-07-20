@@ -92,9 +92,9 @@ describe("PsnTransportLive", () => {
 
     expect(result.code).toBe("verified-code");
     expect(result.auth.accessToken).toBe("access-token");
-    expect(result.profileResult).toEqual(profile);
-    expect(result.playedResult).toEqual(played);
-    expect(result.trophyResult).toEqual(trophies);
+    expect(result.profileResult).toStrictEqual(profile);
+    expect(result.playedResult).toStrictEqual(played);
+    expect(result.trophyResult).toStrictEqual(trophies);
   });
 
   it("wraps a rejected psn-api request in PsnTransportError", async () => {

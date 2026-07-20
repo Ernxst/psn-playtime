@@ -165,11 +165,11 @@ describe(".loadDashboard", () => {
     );
 
     expect(result.isDemo).toBe(false);
-    expect(typeof result.fetchedAt).toBe("string");
+    expect(result.fetchedAt).toBeTypeOf("string");
     expect(result.profile.onlineId).toBe("Ernxst_");
     expect(result.profile.avatarUrl).toBe("https://img/xl");
-    expect(result.games.map((g) => g.titleId)).toEqual(["cod"]);
-    expect(result.meta.appsExcluded).toEqual([{ name: "Netflix", hours: 0 }]);
+    expect(result.games.map((g) => g.titleId)).toStrictEqual(["cod"]);
+    expect(result.meta.appsExcluded).toStrictEqual([{ name: "Netflix", hours: 0 }]);
 
     const cod = result.games[0]!;
     expect(cod.hours).toBe(100.5);
@@ -179,7 +179,7 @@ describe(".loadDashboard", () => {
     // well-known title.
     expect(cod.genre).toBe("Other");
     expect(cod.franchise).toBeUndefined();
-    expect(cod.trophy).toEqual({
+    expect(cod.trophy).toStrictEqual({
       progress: 90,
       earned: { platinum: 1, gold: 5, silver: 10, bronze: 20 },
       total: 36,
@@ -213,13 +213,13 @@ describe(".loadDashboard", () => {
       })
     );
 
-    expect(result.games.map((g) => [g.titleId, g.platform])).toEqual([
+    expect(result.games.map((g) => [g.titleId, g.platform])).toStrictEqual([
       ["ps5", "PS5"],
       ["named", "PS4"],
       ["other", "OTHER"],
       ["madmax", "PS4"],
     ]);
-    expect(result.meta.appsExcluded.map((a) => a.name)).toEqual(["Netflix", "Spotify"]);
+    expect(result.meta.appsExcluded.map((a) => a.name)).toStrictEqual(["Netflix", "Spotify"]);
   });
 
   it("fails with CredentialRejectedError before any snapshot fetch runs when the npsso exchange is rejected", async () => {
@@ -265,7 +265,7 @@ describe(".loadDashboard", () => {
     expect(result.isDemo).toBe(false);
     expect(result.trophiesUnavailable).toBe(true);
     expect(result.profile.onlineId).toBe("Ernxst_");
-    expect(result.games.map((g) => g.titleId)).toEqual(["cod"]);
+    expect(result.games.map((g) => g.titleId)).toStrictEqual(["cod"]);
     expect(result.games[0]!.hours).toBe(5);
     expect(result.games.every((g) => g.trophy === undefined)).toBe(true);
   });

@@ -266,7 +266,7 @@ describe("SignInCard", () => {
     await page.getByRole("button", { name: "Cancel" }).click();
 
     await expect.element(page.getByRole("button", { name: /Continue as Ernxst_/ })).toBeVisible();
-    expect(testDashboardStore.load("acc-1")).toEqual(cachedAccount);
+    expect(testDashboardStore.load("acc-1")).toStrictEqual(cachedAccount);
   });
 
   it("confirming removal wipes the account's cached games and its imported transactions", async () => {
@@ -303,7 +303,7 @@ describe("SignInCard", () => {
     await page.getByRole("button", { name: "Remove Ernxst_" }).click();
     await page.getByRole("button", { name: "Remove", exact: true }).click();
 
-    expect(testDashboardStore.load(secondAccount.profile.accountId)).toEqual(secondAccount);
+    expect(testDashboardStore.load(secondAccount.profile.accountId)).toStrictEqual(secondAccount);
     expect(testTransactionStore.load(secondAccount.profile.accountId)).toBeNull();
     expect(localStorage.getItem(TRANSACTIONS_KEY)).toBe(legacyRaw);
   });

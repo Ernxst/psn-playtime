@@ -66,7 +66,7 @@ describe(".rawgGenresEffect", () => {
       layer
     );
 
-    expect(result).toEqual([{ titleId: "halo", genre: "Shooter", typicalPlaytime: 12 }]);
+    expect(result).toStrictEqual([{ titleId: "halo", genre: "Shooter", typicalPlaytime: 12 }]);
   });
 
   it.each([
@@ -84,7 +84,7 @@ describe(".rawgGenresEffect", () => {
 
     const result = await runGenres([{ titleId: "t1", name: "Game" }], layer);
 
-    expect(result).toEqual([{ titleId: "t1", ...metadata }]);
+    expect(result).toStrictEqual([{ titleId: "t1", ...metadata }]);
   });
 
   it("drops a title whose genre and typical playtime are both absent", async () => {
@@ -92,7 +92,7 @@ describe(".rawgGenresEffect", () => {
 
     const result = await runGenres([{ titleId: "t1", name: "Unknown" }], layer);
 
-    expect(result).toEqual([]);
+    expect(result).toStrictEqual([]);
   });
 
   it("looks a duplicated title name up once and applies it to every title that shares it", async () => {
@@ -109,7 +109,7 @@ describe(".rawgGenresEffect", () => {
     );
 
     expect(metadataFor).toHaveBeenCalledExactlyOnceWith("Gran Turismo");
-    expect(result).toEqual([
+    expect(result).toStrictEqual([
       { titleId: "gt-ps4", genre: "Racing" },
       { titleId: "gt-ps5", genre: "Racing" },
     ]);
@@ -123,7 +123,7 @@ describe(".rawgGenresEffect", () => {
 
     const result = await runGenres([{ titleId: "t1", name: "Game" }], layer);
 
-    expect(result).toEqual([]);
+    expect(result).toStrictEqual([]);
   });
 });
 
@@ -142,7 +142,7 @@ describe(".rawgFranchisesEffect", () => {
       layer
     );
 
-    expect(result).toEqual([{ titleId: "halo", franchise: "Halo" }]);
+    expect(result).toStrictEqual([{ titleId: "halo", franchise: "Halo" }]);
   });
 
   it.each([
@@ -153,7 +153,7 @@ describe(".rawgFranchisesEffect", () => {
 
     const result = await runFranchises([{ titleId: "t1", name: "Game" }], layer);
 
-    expect(result).toEqual([]);
+    expect(result).toStrictEqual([]);
   });
 
   it("looks a duplicated title name up once and applies it to every title that shares it", async () => {
@@ -170,7 +170,7 @@ describe(".rawgFranchisesEffect", () => {
     );
 
     expect(franchiseFor).toHaveBeenCalledExactlyOnceWith("Gran Turismo");
-    expect(result).toEqual([
+    expect(result).toStrictEqual([
       { titleId: "gt-ps4", franchise: "Gran Turismo" },
       { titleId: "gt-ps5", franchise: "Gran Turismo" },
     ]);
@@ -184,6 +184,6 @@ describe(".rawgFranchisesEffect", () => {
 
     const result = await runFranchises([{ titleId: "t1", name: "Game" }], layer);
 
-    expect(result).toEqual([]);
+    expect(result).toStrictEqual([]);
   });
 });

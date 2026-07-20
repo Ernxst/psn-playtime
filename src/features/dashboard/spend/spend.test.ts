@@ -84,14 +84,14 @@ describe(".summariseSpend", () => {
   });
 
   it("computes £-per-hour for matched titles", () => {
-    expect(summary.leaderboard).toEqual([
+    expect(summary.leaderboard).toStrictEqual([
       { titleId: "Satisfactory", name: "Satisfactory", hours: 366, spend: 33, perHour: 0.09 },
       { titleId: "Pricey Flop", name: "Pricey Flop", hours: 2, spend: 60, perHour: 30 },
     ]);
   });
 
   it("orders the leaderboard by best value first", () => {
-    expect(summary.leaderboard.map((l) => l.name)).toEqual(["Satisfactory", "Pricey Flop"]);
+    expect(summary.leaderboard.map((l) => l.name)).toStrictEqual(["Satisfactory", "Pricey Flop"]);
   });
 
   it("splits paid versus free library titles", () => {
@@ -104,7 +104,7 @@ describe(".summariseSpend", () => {
   });
 
   it("buckets purchase spend by transaction year", () => {
-    expect(summary.byYear).toEqual([
+    expect(summary.byYear).toStrictEqual([
       { year: 2022, spend: 33, purchases: 1 },
       { year: 2023, spend: 72, purchases: 2 },
     ]);
@@ -123,7 +123,7 @@ describe(".summariseSpend", () => {
       }),
     ]);
 
-    expect(summary.leaderboard).toEqual([
+    expect(summary.leaderboard).toStrictEqual([
       { titleId: "PPSA01234_00", name: "Hades", hours: 10, spend: 15.99, perHour: 1.6 },
     ]);
   });
@@ -143,7 +143,7 @@ describe(".summariseSpend", () => {
       tx({ productName: "Unplayed", amountMinor: 4000 }),
     ]);
 
-    expect(summary.leaderboard).toEqual([]);
+    expect(summary.leaderboard).toStrictEqual([]);
     expect(summary.paidGames).toBe(1);
   });
 
@@ -161,7 +161,7 @@ describe(".summariseSpend", () => {
       tx({ productName: "Dated", amountMinor: 2000, date: "not-a-date" }),
     ]);
 
-    expect(summary.byYear).toEqual([]);
+    expect(summary.byYear).toStrictEqual([]);
     expect(summary.totalSpend).toBe(20);
   });
 
@@ -171,7 +171,7 @@ describe(".summariseSpend", () => {
     ]);
 
     expect(summary.paidGames).toBe(1);
-    expect(summary.leaderboard).toEqual([
+    expect(summary.leaderboard).toStrictEqual([
       { titleId: "H1", name: "Hades", hours: 10, spend: 10, perHour: 1 },
     ]);
   });
@@ -204,7 +204,7 @@ describe(".summariseSpend byTitle", () => {
       tx({ productName: "Some Unowned Game", amountMinor: 6000 }),
     ]);
 
-    expect(summary.byTitle).toEqual([
+    expect(summary.byTitle).toStrictEqual([
       { titleId: "PPSA01491_00", name: "Cyberpunk 2077", spend: 44.98 },
       { titleId: "UNPLAYED", name: "Bought But Unplayed", spend: 40 },
       { titleId: "CHEAP", name: "Cheap Game", spend: 5 },
@@ -217,7 +217,7 @@ describe(".summariseSpend byTitle", () => {
       tx({ productName: "Alpha", amountMinor: 2000 }),
     ]);
 
-    expect(summary.byTitle).toEqual([
+    expect(summary.byTitle).toStrictEqual([
       { titleId: "A", name: "Alpha", spend: 20 },
       { titleId: "Z", name: "Zelda", spend: 20 },
     ]);
@@ -231,7 +231,7 @@ describe(".summariseSpend name matching", () => {
       [tx({ productName: "God of War Ragnarök Digital Deluxe", amountMinor: 7000 })]
     );
 
-    expect(summary.leaderboard).toEqual([
+    expect(summary.leaderboard).toStrictEqual([
       { titleId: "GOW2", name: "God of War Ragnarök", hours: 30, spend: 70, perHour: 2.33 },
     ]);
   });
@@ -242,7 +242,7 @@ describe(".summariseSpend name matching", () => {
       [tx({ productName: "God of War", amountMinor: 4000 })]
     );
 
-    expect(summary.leaderboard).toEqual([
+    expect(summary.leaderboard).toStrictEqual([
       { titleId: "GOW1", name: "God of War", hours: 20, spend: 40, perHour: 2 },
     ]);
   });
@@ -253,7 +253,7 @@ describe(".summariseSpend name matching", () => {
       [tx({ productName: "God of War Ragnarök Digital Deluxe", amountMinor: 7000 })]
     );
 
-    expect(summary.leaderboard).toEqual([
+    expect(summary.leaderboard).toStrictEqual([
       { titleId: "GOW2", name: "God of War Ragnarök", hours: 30, spend: 70, perHour: 2.33 },
     ]);
   });
@@ -263,7 +263,7 @@ describe(".summariseSpend name matching", () => {
       tx({ productName: "Warhammer", amountMinor: 3000 }),
     ]);
 
-    expect(summary.leaderboard).toEqual([]);
+    expect(summary.leaderboard).toStrictEqual([]);
     expect(summary.unmatchedSpend).toBe(30);
   });
 });
@@ -337,7 +337,7 @@ describe(".summariseAddOns", () => {
       tx({ productName: "Hades - Original Soundtrack", amountMinor: 999 }),
     ]);
 
-    expect(summary).toEqual([{ titleId: "PPSA01234_00", name: "Hades", addOnCount: 2 }]);
+    expect(summary).toStrictEqual([{ titleId: "PPSA01234_00", name: "Hades", addOnCount: 2 }]);
   });
 
   it("ignores unmatched add-ons", () => {
@@ -345,7 +345,7 @@ describe(".summariseAddOns", () => {
       tx({ productName: "Unknown Game Season Pass", amountMinor: 999 }),
     ]);
 
-    expect(summary).toEqual([]);
+    expect(summary).toStrictEqual([]);
   });
 });
 
@@ -355,7 +355,7 @@ describe(".summarisePriceContext", () => {
       tx({ productName: "Free Claim", amountMinor: 0 }),
     ]);
 
-    expect(summary).toEqual([
+    expect(summary).toStrictEqual([
       {
         titleId: "Free Claim",
         name: "Free Claim",
@@ -377,7 +377,7 @@ describe(".summarisePriceContext", () => {
       }),
     ]);
 
-    expect(summary).toEqual([
+    expect(summary).toStrictEqual([
       {
         titleId: "Sale Hit",
         name: "Sale Hit",
@@ -432,7 +432,7 @@ describe(".summarisePriceContext", () => {
       tx({ productName: "Hades - Season Pass", amountMinor: 999, originalPriceMinor: 999 }),
     ]);
 
-    expect(summary).toEqual([
+    expect(summary).toStrictEqual([
       {
         titleId: "PPSA01234_00",
         name: "Hades",
@@ -463,7 +463,7 @@ describe(".summarisePriceContext", () => {
       }),
     ]);
 
-    expect(summary).toEqual([
+    expect(summary).toStrictEqual([
       {
         titleId: "PPSA01491_00",
         name: "Cyberpunk 2077",
@@ -480,7 +480,7 @@ describe(".summarisePriceContext", () => {
       tx({ productName: "Unknown Game", amountMinor: 1999, originalPriceMinor: 1999 }),
     ]);
 
-    expect(summary).toEqual([]);
+    expect(summary).toStrictEqual([]);
   });
 
   it("keeps the first base-game purchase when a title was bought more than once", () => {
@@ -489,7 +489,7 @@ describe(".summarisePriceContext", () => {
       tx({ productName: "Twice", amountMinor: 500, originalPriceMinor: 2000 }),
     ]);
 
-    expect(summary).toEqual([
+    expect(summary).toStrictEqual([
       {
         titleId: "TW",
         name: "Twice",

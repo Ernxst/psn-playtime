@@ -340,7 +340,7 @@ describe(".buildTransactionHistoryUrl", () => {
   it("URL-encodes the variables including the endDate cursor", () => {
     const variables = new URL(url).searchParams.get("variables");
 
-    expect(JSON.parse(variables ?? "")).toEqual({
+    expect(JSON.parse(variables ?? "")).toStrictEqual({
       startDate: "1994-01-01T00:00:00.000Z",
       endDate: "2025-07-17T20:20:44.944Z",
       limit: 100,
@@ -350,7 +350,7 @@ describe(".buildTransactionHistoryUrl", () => {
   it("URL-encodes the persisted-query hash in the extensions", () => {
     const extensions = new URL(url).searchParams.get("extensions");
 
-    expect(JSON.parse(extensions ?? "")).toEqual({
+    expect(JSON.parse(extensions ?? "")).toStrictEqual({
       persistedQuery: { version: 1, sha256Hash: "abc123" },
     });
   });
@@ -360,11 +360,11 @@ describe(".dedupeTransactions", () => {
   it("drops repeated ids and keeps first-seen order", () => {
     const rows = [{ id: "a" }, { id: "b" }, { id: "a" }, { id: "c" }];
 
-    expect(dedupeTransactions(rows)).toEqual([{ id: "a" }, { id: "b" }, { id: "c" }]);
+    expect(dedupeTransactions(rows)).toStrictEqual([{ id: "a" }, { id: "b" }, { id: "c" }]);
   });
 
   it("returns an empty list unchanged", () => {
-    expect(dedupeTransactions([])).toEqual([]);
+    expect(dedupeTransactions([])).toStrictEqual([]);
   });
 });
 
@@ -488,7 +488,7 @@ describe(".bookmarkletHref", () => {
     // `toEqual` (cross-realm prototypes differ; the values are what matter).
     const rows = runEmbeddedFlatten(body, [purchase]);
 
-    expect(rows).toEqual([
+    expect(JSON.parse(JSON.stringify(rows))).toStrictEqual([
       {
         transactionId: "txn-1",
         key: "txn-1|SKU-1",
@@ -517,7 +517,7 @@ describe(".bookmarkletHref", () => {
 
     const rows = runEmbeddedFlatten(body, [topUp]);
 
-    expect(rows).toEqual([
+    expect(JSON.parse(JSON.stringify(rows))).toStrictEqual([
       {
         transactionId: "txn-eu",
         key: "txn-eu",

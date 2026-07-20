@@ -54,7 +54,7 @@ describe(".load", () => {
   it("returns the cached dashboard for a saved account", () => {
     store.save(accountA);
 
-    expect(store.load("acc-1")).toEqual(accountA);
+    expect(store.load("acc-1")).toStrictEqual(accountA);
   });
 
   it("returns null for an account with no cached dashboard", () => {
@@ -166,7 +166,7 @@ describe(".remove", () => {
     store.remove("acc-1");
 
     expect(store.load("acc-1")).toBeNull();
-    expect(store.load("acc-2")).toEqual(accountZ);
+    expect(store.load("acc-2")).toStrictEqual(accountZ);
   });
 
   it("clears the active pointer when the removed account was active", async () => {

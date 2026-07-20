@@ -126,7 +126,7 @@ describe("RemoveTransactions", () => {
     expect(testTransactionStore.load(accountId)).toBeNull();
     expect(success).toHaveBeenCalledExactlyOnceWith("Removed your imported transaction data.");
     // The account's cached games/snapshot are untouched by clearing the import.
-    expect(testDashboardStore.load(demoDashboard.profile.accountId)?.games).toEqual(
+    expect(testDashboardStore.load(demoDashboard.profile.accountId)?.games).toStrictEqual(
       demoDashboard.games
     );
 

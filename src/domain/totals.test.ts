@@ -9,7 +9,7 @@ const play = (over: Partial<TotalsInput> = {}): TotalsInput => ({
 
 describe(".computeTotals", () => {
   it("returns zeroed totals and no span for an empty library", () => {
-    expect(computeTotals([])).toEqual({
+    expect(computeTotals([])).toStrictEqual({
       totalGames: 0,
       totalHours: 0,
       totalSessions: 0,
@@ -59,12 +59,12 @@ describe(".computeTotals", () => {
       play({ firstPlayed: "2018-02-02", lastPlayed: "2022-09-09" }),
     ]);
     expect(totals.firstEverPlayed).toBe("2018-02-02");
-    expect(totals.span).toEqual({ from: "2018-02-02", to: "2022-09-09" });
+    expect(totals.span).toStrictEqual({ from: "2018-02-02", to: "2022-09-09" });
   });
 
   it("leaves the span open when no game carries dates", () => {
     const totals = computeTotals([play({ hours: 3, playCount: 1 })]);
     expect(totals.firstEverPlayed).toBeUndefined();
-    expect(totals.span).toEqual({ from: undefined, to: undefined });
+    expect(totals.span).toStrictEqual({ from: undefined, to: undefined });
   });
 });

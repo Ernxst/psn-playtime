@@ -57,7 +57,7 @@ describe(".paginateAll", () => {
       paginateAll(limit, pageFetcher(items, limit, totalItemCount))
     );
 
-    expect(result).toEqual(items);
+    expect(result).toStrictEqual(items);
   });
 
   it("propagates a page fetch failure", async () => {

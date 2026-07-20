@@ -72,7 +72,7 @@ describe(".parseDisplayAmount", () => {
     ["£1,234,567.89", 123456789, "£"],
     ["£1,000", 100000, "£"],
   ])("parses %s as %d minor units in %s", (formatted, minor, currency) => {
-    expect(parseDisplayAmount(formatted)).toEqual({ minor, currency });
+    expect(parseDisplayAmount(formatted)).toStrictEqual({ minor, currency });
   });
 });
 
@@ -168,7 +168,7 @@ describe(".flattenApiTransactions", () => {
       Object.keys(row).filter((key) => !allowed.has(key))
     );
 
-    expect(extras).toEqual([]);
+    expect(extras).toStrictEqual([]);
   });
 
   it("flattens hundreds of transactions into a fragment-sized payload", () => {
@@ -260,7 +260,7 @@ describe(".purchaseRows", () => {
       transactionType: "PRODUCT_PURCHASE",
     };
 
-    expect(purchaseRows(tx)).toEqual([]);
+    expect(purchaseRows(tx)).toStrictEqual([]);
   });
 });
 

@@ -90,7 +90,7 @@ function gameFor(
 
 describe(".toProfileSummary", () => {
   it("normalises a profile body into the profile summary contract", () => {
-    expect(toProfileSummary(profile())).toEqual({
+    expect(toProfileSummary(profile())).toStrictEqual({
       onlineId: "Ernxst_",
       accountId: "acc-1",
       aboutMe: "Hello there",
@@ -190,8 +190,8 @@ describe(".partitionTitles", () => {
       new Map()
     );
 
-    expect(result.games.map((g) => g.titleId)).toEqual(["long", "short"]);
-    expect(result.appsExcluded).toEqual([
+    expect(result.games.map((g) => g.titleId)).toStrictEqual(["long", "short"]);
+    expect(result.appsExcluded).toStrictEqual([
       { name: "Netflix", hours: 8 },
       { name: "YouTube", hours: 5 },
     ]);
@@ -277,7 +277,7 @@ describe(".partitionTitles", () => {
       }),
     ]);
 
-    expect(game.trophy).toEqual({
+    expect(game.trophy).toStrictEqual({
       progress: 90,
       earned: { platinum: 1, gold: 5, silver: 10, bronze: 20 },
       total: 36,
@@ -348,7 +348,7 @@ describe(".partitionTitles", () => {
       }),
     ]);
 
-    expect(game.trophy).toEqual({
+    expect(game.trophy).toStrictEqual({
       progress: 0,
       earned: { platinum: 0, gold: 0, silver: 0, bronze: 0 },
       total: 0,
@@ -364,15 +364,15 @@ describe(".partitionTitles", () => {
   ])("excludes a non-game app $scenario", ({ name, category }) => {
     const result = partitionTitles([played({ name, category })], new Map());
 
-    expect(result.games).toEqual([]);
-    expect(result.appsExcluded.map((a) => a.name)).toEqual([name]);
+    expect(result.games).toStrictEqual([]);
+    expect(result.appsExcluded.map((a) => a.name)).toStrictEqual([name]);
   });
 
   it("keeps a game whose name only contains an app word at a non-boundary", () => {
     const result = partitionTitles([played({ name: "Mad Max", category: "ps4_game" })], new Map());
 
-    expect(result.games.map((g) => g.titleId)).toEqual(["title-1"]);
-    expect(result.appsExcluded).toEqual([]);
+    expect(result.games.map((g) => g.titleId)).toStrictEqual(["title-1"]);
+    expect(result.appsExcluded).toStrictEqual([]);
   });
 });
 
@@ -398,7 +398,7 @@ describe(".computeMeta", () => {
       new Map()
     );
 
-    expect(computeMeta(games, appsExcluded)).toEqual({
+    expect(computeMeta(games, appsExcluded)).toStrictEqual({
       totalGames: 2,
       totalHours: 7.5,
       totalSessions: 7,
@@ -414,6 +414,6 @@ describe(".computeMeta", () => {
     const meta = computeMeta(games, appsExcluded);
 
     expect(meta.firstEverPlayed).toBeUndefined();
-    expect(meta.span).toEqual({ from: undefined, to: undefined });
+    expect(meta.span).toStrictEqual({ from: undefined, to: undefined });
   });
 });

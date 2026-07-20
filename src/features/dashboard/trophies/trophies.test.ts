@@ -72,13 +72,13 @@ describe(".summariseTrophies", () => {
     expect(summary.trophyLevel).toBe(220);
     expect(summary.levelProgress).toBe(64);
     expect(summary.totalTrophies).toBe(522);
-    expect(summary.earned).toEqual({ platinum: 12, gold: 30, silver: 80, bronze: 400 });
+    expect(summary.earned).toStrictEqual({ platinum: 12, gold: 30, silver: 80, bronze: 400 });
   });
 
   it("reports the earned distribution in descending tier order", () => {
     const summary = summariseTrophies(makeData([]));
 
-    expect(summary.distribution).toEqual([
+    expect(summary.distribution).toStrictEqual([
       { type: "Platinum", count: 12 },
       { type: "Gold", count: 30 },
       { type: "Silver", count: 80 },
@@ -125,8 +125,8 @@ describe(".summariseTrophies", () => {
 
     const summary = summariseTrophies(data);
 
-    expect(summary.platinums.map((game) => game.titleId)).toEqual(["matched"]);
-    expect(summary.recent.map((game) => game.titleId)).toEqual(["matched"]);
+    expect(summary.platinums.map((game) => game.titleId)).toStrictEqual(["matched"]);
+    expect(summary.recent.map((game) => game.titleId)).toStrictEqual(["matched"]);
     expect(summary.completedGames).toBe(1);
   });
 
@@ -147,7 +147,7 @@ describe(".summariseTrophies", () => {
 
     const summary = summariseTrophies(data);
 
-    expect(summary.recent[0]).toEqual({
+    expect(summary.recent[0]).toStrictEqual({
       titleId: "flat",
       name: "Flat Game",
       imageUrl: "https://img/flat.png",
@@ -215,7 +215,7 @@ describe(".summariseTrophies", () => {
 
     const summary = summariseTrophies(data);
 
-    expect(summary.platinums.map((game) => game.titleId)).toEqual(["new", "old"]);
+    expect(summary.platinums.map((game) => game.titleId)).toStrictEqual(["new", "old"]);
   });
 
   it("sorts platted games with no earned date last", () => {
@@ -232,7 +232,7 @@ describe(".summariseTrophies", () => {
 
     const summary = summariseTrophies(data);
 
-    expect(summary.platinums.map((game) => game.titleId)).toEqual(["dated", "undated"]);
+    expect(summary.platinums.map((game) => game.titleId)).toStrictEqual(["dated", "undated"]);
   });
 
   it("keeps platted games with no earned date on either side", () => {
@@ -243,7 +243,7 @@ describe(".summariseTrophies", () => {
 
     const summary = summariseTrophies(data);
 
-    expect(summary.platinums.map((game) => game.titleId)).toEqual(["a", "b"]);
+    expect(summary.platinums.map((game) => game.titleId)).toStrictEqual(["a", "b"]);
   });
 
   it("sorts games with no earned date last in recency order", () => {
@@ -254,7 +254,7 @@ describe(".summariseTrophies", () => {
 
     const summary = summariseTrophies(data);
 
-    expect(summary.recent.map((game) => game.titleId)).toEqual(["dated"]);
+    expect(summary.recent.map((game) => game.titleId)).toStrictEqual(["dated"]);
   });
 
   it("includes plat-capable games at or above the reach threshold without a platinum", () => {
@@ -267,7 +267,7 @@ describe(".summariseTrophies", () => {
 
     const summary = summariseTrophies(data);
 
-    expect(summary.withinReach.map((game) => game.titleId)).toEqual(["reach"]);
+    expect(summary.withinReach.map((game) => game.titleId)).toStrictEqual(["reach"]);
   });
 
   it("excludes already-platted games from within reach", () => {
@@ -284,7 +284,7 @@ describe(".summariseTrophies", () => {
 
     const summary = summariseTrophies(data);
 
-    expect(summary.withinReach).toEqual([]);
+    expect(summary.withinReach).toStrictEqual([]);
   });
 
   it("excludes games below the reach threshold from within reach", () => {
@@ -297,7 +297,7 @@ describe(".summariseTrophies", () => {
 
     const summary = summariseTrophies(data);
 
-    expect(summary.withinReach).toEqual([]);
+    expect(summary.withinReach).toStrictEqual([]);
   });
 
   it("excludes games with no platinum on offer from within reach", () => {
@@ -310,7 +310,7 @@ describe(".summariseTrophies", () => {
 
     const summary = summariseTrophies(data);
 
-    expect(summary.withinReach).toEqual([]);
+    expect(summary.withinReach).toStrictEqual([]);
   });
 
   it("orders within-reach games closest to the platinum first", () => {
@@ -327,7 +327,7 @@ describe(".summariseTrophies", () => {
 
     const summary = summariseTrophies(data);
 
-    expect(summary.withinReach.map((game) => game.titleId)).toEqual(["nearer", "near"]);
+    expect(summary.withinReach.map((game) => game.titleId)).toStrictEqual(["nearer", "near"]);
   });
 
   it("buckets matched games across the completion spectrum", () => {
@@ -341,7 +341,7 @@ describe(".summariseTrophies", () => {
 
     const summary = summariseTrophies(data);
 
-    expect(summary.completionBuckets).toEqual([
+    expect(summary.completionBuckets).toStrictEqual([
       { label: "Completed (100%)", count: 1 },
       { label: "Almost there (80–99%)", count: 1 },
       { label: "Halfway (40–79%)", count: 1 },
@@ -358,7 +358,7 @@ describe(".summariseTrophies", () => {
 
     const summary = summariseTrophies(data);
 
-    expect(summary.recent.map((game) => game.titleId)).toEqual(["latest", "earliest"]);
+    expect(summary.recent.map((game) => game.titleId)).toStrictEqual(["latest", "earliest"]);
   });
 
   it("returns empty collections and zero counts for an empty library", () => {
@@ -368,10 +368,10 @@ describe(".summariseTrophies", () => {
     expect(summary.matchedGames).toBe(0);
     expect(summary.avgCompletion).toBe(0);
     expect(summary.completedGames).toBe(0);
-    expect(summary.platinums).toEqual([]);
-    expect(summary.withinReach).toEqual([]);
-    expect(summary.recent).toEqual([]);
-    expect(summary.completionBuckets).toEqual([
+    expect(summary.platinums).toStrictEqual([]);
+    expect(summary.withinReach).toStrictEqual([]);
+    expect(summary.recent).toStrictEqual([]);
+    expect(summary.completionBuckets).toStrictEqual([
       { label: "Completed (100%)", count: 0 },
       { label: "Almost there (80–99%)", count: 0 },
       { label: "Halfway (40–79%)", count: 0 },

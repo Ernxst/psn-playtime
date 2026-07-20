@@ -58,6 +58,7 @@ describe("test-contract", () => {
     ],
     ["no-broad-dom-text", `it("renders", () => expect(view.textContent).toContain("Ready"));`],
     ["no-internal-module-mock", `vi.mock("@/server/provider");`],
+    ["no-internal-module-mock", `vi.mock(import("@/server/provider"));`],
     ["no-ambiguous-called-with", `it("calls", () => expect(callback).toHaveBeenCalledWith(1));`],
     ["no-callback-capture", `it("calls", () => vi.fn((value) => { captured = value; }));`],
     [

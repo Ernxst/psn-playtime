@@ -97,7 +97,7 @@ describe(".receiveHandoff", () => {
 
     const result = receiveHandoff(testTransactionStore, testDashboardStore);
 
-    expect(result).toEqual({ status: "imported", accountId, count: 2 });
+    expect(result).toStrictEqual({ status: "imported", accountId, count: 2 });
     expect(testTransactionStore.load(accountId)?.transactions).toHaveLength(2);
   });
 
@@ -120,7 +120,7 @@ describe(".receiveHandoff", () => {
     const result = receiveHandoff(testTransactionStore, testDashboardStore);
 
     // The prior row repeats and only the second row is appended.
-    expect(result).toEqual({ status: "imported", accountId, count: 2 });
+    expect(result).toStrictEqual({ status: "imported", accountId, count: 2 });
     expect(testTransactionStore.load(accountId)?.transactions).toHaveLength(2);
   });
 
@@ -130,7 +130,7 @@ describe(".receiveHandoff", () => {
 
     const result = receiveHandoff(testTransactionStore, testDashboardStore);
 
-    expect(result).toEqual({ status: "empty" });
+    expect(result).toStrictEqual({ status: "empty" });
     expect(testTransactionStore.load(accountId)).toBeNull();
   });
 
@@ -141,7 +141,7 @@ describe(".receiveHandoff", () => {
 
     const result = receiveHandoff(testTransactionStore, testDashboardStore);
 
-    expect(result).toEqual({ status: "invalid" });
+    expect(result).toStrictEqual({ status: "invalid" });
   });
 
   it("reports an empty handoff when the payload fails schema validation", () => {
@@ -150,7 +150,7 @@ describe(".receiveHandoff", () => {
 
     const result = receiveHandoff(testTransactionStore, testDashboardStore);
 
-    expect(result).toEqual({ status: "empty" });
+    expect(result).toStrictEqual({ status: "empty" });
     expect(testTransactionStore.load(accountId)).toBeNull();
   });
 
@@ -160,7 +160,7 @@ describe(".receiveHandoff", () => {
 
     const result = receiveHandoff(testTransactionStore, testDashboardStore);
 
-    expect(result).toEqual({ status: "invalid" });
+    expect(result).toStrictEqual({ status: "invalid" });
     expect(testTransactionStore.load(accountId)).toBeNull();
   });
 });

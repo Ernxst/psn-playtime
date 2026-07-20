@@ -88,8 +88,8 @@ describe("account isolation", () => {
     store.save("acc-1", validImport);
     store.save("acc-2", second);
 
-    expect(store.load("acc-1")).toEqual(validImport);
-    expect(store.load("acc-2")).toEqual(second);
+    expect(store.load("acc-1")).toStrictEqual(validImport);
+    expect(store.load("acc-2")).toStrictEqual(second);
   });
 
   it("clears one account without clearing another", () => {
@@ -102,7 +102,7 @@ describe("account isolation", () => {
     store.clear("acc-1");
 
     expect(store.load("acc-1")).toBeNull();
-    expect(store.load("acc-2")).toEqual(second);
+    expect(store.load("acc-2")).toStrictEqual(second);
   });
 
   it("preserves unresolved legacy bytes across keyed save and clear", () => {
@@ -115,7 +115,7 @@ describe("account isolation", () => {
     store.save("acc-2", explicit);
 
     expect(store.load("acc-1")).toBeNull();
-    expect(store.load("acc-2")).toEqual(explicit);
+    expect(store.load("acc-2")).toStrictEqual(explicit);
     expect(win.localStorage.getItem(LEGACY_STORAGE_KEY)).toBe(raw);
 
     store.clear("acc-2");

@@ -68,7 +68,7 @@ describe(".metadataFor", () => {
   it("returns absent metadata and skips the network when no key is set", async () => {
     const search = useSearch(() => searchResult({ genres: ["Action"] }));
 
-    await expect(runNoKey(metaProgram("Celeste"))).resolves.toEqual({});
+    await expect(runNoKey(metaProgram("Celeste"))).resolves.toStrictEqual({});
 
     expect(search).not.toHaveBeenCalled();
   });
@@ -93,7 +93,7 @@ describe(".metadataFor", () => {
   it("returns the genre and typical playtime from one shared request", async () => {
     const search = useSearch(() => searchResult({ genres: ["Action"], playtime: 25 }));
 
-    await expect(metadataFor("Celeste")).resolves.toEqual({
+    await expect(metadataFor("Celeste")).resolves.toStrictEqual({
       genre: "Action-Adventure",
       typicalPlaytime: 25,
     });
@@ -121,19 +121,25 @@ describe(".metadataFor", () => {
   it("returns absent metadata when the search yields no mappable genre", async () => {
     useSearch(() => searchResult({ genres: ["Simulation"] }));
 
-    await expect(metadataFor("Powerwash Simulator")).resolves.toEqual({});
+    await expect(metadataFor("Powerwash Simulator")).resolves.toStrictEqual({
+      genre: undefined,
+      typicalPlaytime: undefined,
+    });
   });
 
   it("treats a playtime of 0 as no data", async () => {
     useSearch(() => searchResult({ playtime: 0 }));
 
-    await expect(metadataFor("Some Game")).resolves.toEqual({});
+    await expect(metadataFor("Some Game")).resolves.toStrictEqual({
+      genre: undefined,
+      typicalPlaytime: undefined,
+    });
   });
 
   it("returns absent metadata for a genuine empty search result", async () => {
     useSearch(() => HttpResponse.json(rawgSearch()));
 
-    await expect(metadataFor("Totally Unknown Title")).resolves.toEqual({});
+    await expect(metadataFor("Totally Unknown Title")).resolves.toStrictEqual({});
   });
 
   it("surfaces a non-ok response as an UpstreamUnavailableError on the typed channel", async () => {
@@ -177,13 +183,16 @@ describe(".metadataFor", () => {
   it("returns absent for a result with no genres array", async () => {
     useSearch(() => HttpResponse.json(rawgSearch([rawgGame({ name: "Some Game" })])));
 
-    await expect(metadataFor("Some Game")).resolves.toEqual({});
+    await expect(metadataFor("Some Game")).resolves.toStrictEqual({
+      genre: undefined,
+      typicalPlaytime: undefined,
+    });
   });
 
   it("skips the network when the name normalizes to an empty query", async () => {
     const search = useSearch(() => searchResult());
 
-    await expect(metadataFor("™®©")).resolves.toEqual({});
+    await expect(metadataFor("™®©")).resolves.toStrictEqual({});
 
     expect(search).not.toHaveBeenCalled();
   });
@@ -365,7 +374,7 @@ describe("shared game-info search across genre and franchise", () => {
       })
     );
 
-    expect(metadata).toEqual({ genre: "Shooter", typicalPlaytime: 12 });
+    expect(metadata).toStrictEqual({ genre: "Shooter", typicalPlaytime: 12 });
     expect(franchise).toBe("Halo");
     expect(search).toHaveBeenCalledTimes(1);
     expect(series).toHaveBeenCalledTimes(1);
@@ -387,7 +396,7 @@ describe("concurrent cache-miss dedup", () => {
       })
     );
 
-    expect(metadata).toEqual({ genre: "Shooter", typicalPlaytime: 12 });
+    expect(metadata).toStrictEqual({ genre: "Shooter", typicalPlaytime: 12 });
     expect(franchise).toBe("Halo");
     expect(search).toHaveBeenCalledTimes(1);
   });
@@ -437,7 +446,7 @@ describe("prefetch boundary degradation", () => {
 
     const metadata = await runKeyed(prefetchGameMetadata(["Some Game"]));
 
-    expect(metadata.get("Some Game")).toEqual({});
+    expect(metadata.get("Some Game")).toStrictEqual({});
   });
 
   it("degrades to blank metadata when the provider surfaces a RateLimitedError", async () => {
@@ -445,7 +454,7 @@ describe("prefetch boundary degradation", () => {
 
     const metadata = await runKeyed(prefetchGameMetadata(["Busy Game"]));
 
-    expect(metadata.get("Busy Game")).toEqual({});
+    expect(metadata.get("Busy Game")).toStrictEqual({});
   });
 
   it("degrades to a blank franchise when the provider surfaces an UpstreamUnavailableError", async () => {

@@ -16,6 +16,14 @@ function isViCall(node, name) {
   );
 }
 
+function moduleSource(node) {
+  if (node?.type === "Literal") return node.value;
+  if (node?.type === "ImportExpression" && node.source.type === "Literal") {
+    return node.source.value;
+  }
+  return undefined;
+}
+
 function callName(node) {
   if (node?.type !== "CallExpression") return undefined;
   return node.callee.type === "Identifier" ? node.callee.name : propertyName(node.callee);
@@ -200,7 +208,7 @@ const noInternalModuleMock = rule(
     return {
       CallExpression(node) {
         if (!isViCall(node, "mock")) return;
-        const source = node.arguments[0]?.value;
+        const source = moduleSource(node.arguments[0]);
         if (typeof source !== "string" || allow.has(source)) return;
         if (source.startsWith("@/") || source.startsWith("./") || source.startsWith("../")) {
           context.report({ node, messageId: "internal", data: { source } });

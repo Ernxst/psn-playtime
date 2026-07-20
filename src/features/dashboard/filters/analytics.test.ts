@@ -95,7 +95,7 @@ describe(".headlineTotals", () => {
       meta: { ...sample.meta, totalHours: 8760, totalGames: 2, totalSessions: 10 },
     };
 
-    expect(headlineTotals(data)).toEqual({
+    expect(headlineTotals(data)).toStrictEqual({
       totalHours: 8760,
       days: 365,
       years: 1,
@@ -119,14 +119,14 @@ describe(".headlineTotals", () => {
 
 describe(".topGamesByHours", () => {
   it("returns the n biggest games, hours-sorted and rounded", () => {
-    expect(topGamesByHours(sample, 2)).toEqual([
+    expect(topGamesByHours(sample, 2)).toStrictEqual([
       { name: "A", hours: 100, platform: "PS5" },
       { name: "B", hours: 50, platform: "PS4" },
     ]);
   });
 
   it("leads the demo library with the most-played title", () => {
-    expect(topGamesByHours(demoDashboard, 1)).toEqual([
+    expect(topGamesByHours(demoDashboard, 1)).toStrictEqual([
       { name: "Call of Duty®: Modern Warfare®", hours: 1254, platform: "PS4" },
     ]);
   });
@@ -134,7 +134,7 @@ describe(".topGamesByHours", () => {
 
 describe(".genreBreakdown", () => {
   it("groups hours into genre buckets with share percentages, biggest first", () => {
-    expect(genreBreakdown(sample)).toEqual([
+    expect(genreBreakdown(sample)).toStrictEqual([
       { genre: "Shooter", hours: 150, games: 2, share: 75 },
       { genre: "RPG", hours: 50, games: 1, share: 25 },
       { genre: "Other", hours: 0, games: 1, share: 0 },
@@ -148,13 +148,13 @@ describe(".genreBreakdown", () => {
       meta: { ...sample.meta, totalHours: 0 },
     };
 
-    expect(genreBreakdown(zero)).toEqual([{ genre: "Other", hours: 0, games: 1, share: 0 }]);
+    expect(genreBreakdown(zero)).toStrictEqual([{ genre: "Other", hours: 0, games: 1, share: 0 }]);
   });
 });
 
 describe(".topFranchises", () => {
   it("totals hours per franchise and skips games without one", () => {
-    expect(topFranchises(sample)).toEqual([
+    expect(topFranchises(sample)).toStrictEqual([
       { franchise: "Call of Duty", hours: 150, games: 2 },
       { franchise: "The Witcher", hours: 50, games: 1 },
     ]);
@@ -163,7 +163,7 @@ describe(".topFranchises", () => {
 
 describe(".hoursByYear", () => {
   it("buckets hours by most-recent-play year, oldest first", () => {
-    expect(hoursByYear(sample)).toEqual([
+    expect(hoursByYear(sample)).toStrictEqual([
       { year: 2019, hours: 50, games: 1 },
       { year: 2021, hours: 100, games: 1 },
       { year: 2022, hours: 50, games: 1 },
@@ -176,14 +176,14 @@ describe(".hoursByYear", () => {
       games: [{ ...sample.games[0]!, titleId: "BAD", lastPlayed: "not-a-date" }],
     };
 
-    expect(hoursByYear(broken)).toEqual([]);
+    expect(hoursByYear(broken)).toStrictEqual([]);
     expect(recency(broken).dormantGames).toBe(1);
   });
 });
 
 describe(".bingeVsDipIn", () => {
   it("derives average session length and drops never-played titles", () => {
-    expect(bingeVsDipIn(sample)).toEqual([
+    expect(bingeVsDipIn(sample)).toStrictEqual([
       { name: "A", hours: 100, playCount: 10, hoursPerSession: 10 },
       { name: "B", hours: 50, playCount: 5, hoursPerSession: 10 },
       { name: "C", hours: 50, playCount: 25, hoursPerSession: 2 },
@@ -193,7 +193,7 @@ describe(".bingeVsDipIn", () => {
 
 describe(".lifespans", () => {
   it("measures the first-to-last play span in days for dated titles", () => {
-    expect(lifespans(sample)).toEqual([
+    expect(lifespans(sample)).toStrictEqual([
       { name: "A", firstPlayed: "2020-01-01", lastPlayed: "2021-01-01", days: 366, hours: 100 },
       { name: "B", firstPlayed: "2019-01-01", lastPlayed: "2019-06-01", days: 151, hours: 50 },
       { name: "C", firstPlayed: "2022-01-01", lastPlayed: "2022-02-01", days: 31, hours: 50 },
@@ -203,7 +203,7 @@ describe(".lifespans", () => {
 
 describe(".comebacks", () => {
   it("ranks dated multi-session games by average gap between sessions", () => {
-    expect(comebacks(sample)).toEqual([
+    expect(comebacks(sample)).toStrictEqual([
       {
         name: "A",
         firstPlayed: "2020-01-01",
@@ -243,7 +243,7 @@ describe(".comebacks", () => {
       ],
     };
 
-    expect(comebacks(data)).toEqual([]);
+    expect(comebacks(data)).toStrictEqual([]);
   });
 
   it("excludes same-day spans that average a zero gap", () => {
@@ -261,11 +261,11 @@ describe(".comebacks", () => {
       ],
     };
 
-    expect(comebacks(data)).toEqual([]);
+    expect(comebacks(data)).toStrictEqual([]);
   });
 
   it("caps the ranking to the requested count", () => {
-    expect(comebacks(sample, 1)).toEqual([
+    expect(comebacks(sample, 1)).toStrictEqual([
       {
         name: "A",
         firstPlayed: "2020-01-01",
@@ -279,7 +279,7 @@ describe(".comebacks", () => {
 
 describe(".recency", () => {
   it("splits the library into titles touched this year versus dormant ones", () => {
-    expect(recency(sample)).toEqual({
+    expect(recency(sample)).toStrictEqual({
       activeGames: 1,
       dormantGames: 3,
       activeHours: 50,
@@ -297,8 +297,8 @@ describe(".filterByTimeframe", () => {
   it("keeps only games last played within the last two years and recomputes meta totals", () => {
     const scoped = filterByTimeframe(sample, "last-2-years");
 
-    expect(scoped.games.map((g) => g.titleId)).toEqual(["A", "C"]);
-    expect(scoped.meta).toEqual({
+    expect(scoped.games.map((g) => g.titleId)).toStrictEqual(["A", "C"]);
+    expect(scoped.meta).toStrictEqual({
       ...sample.meta,
       totalGames: 2,
       totalHours: 150,
@@ -316,7 +316,7 @@ describe(".filterByTimeframe", () => {
       vi.useRealTimers();
     });
 
-    expect(filterByTimeframe(sample, "this-year").games.map((g) => g.titleId)).toEqual(["C"]);
+    expect(filterByTimeframe(sample, "this-year").games.map((g) => g.titleId)).toStrictEqual(["C"]);
   });
 
   it("anchors the this-year window to real now, not data.fetchedAt", () => {
@@ -328,7 +328,10 @@ describe(".filterByTimeframe", () => {
 
     // fetchedAt's year (2022) would start the window at 2022-01-01 and keep only C.
     // Anchoring to "now" (2021) starts it at 2021-01-01, so A is kept too.
-    expect(filterByTimeframe(sample, "this-year").games.map((g) => g.titleId)).toEqual(["A", "C"]);
+    expect(filterByTimeframe(sample, "this-year").games.map((g) => g.titleId)).toStrictEqual([
+      "A",
+      "C",
+    ]);
   });
 
   it("includes a game last played exactly on the current year's 1 January lower bound", () => {
@@ -354,7 +357,9 @@ describe(".filterByTimeframe", () => {
       ],
     };
 
-    expect(filterByTimeframe(onBoundary, "this-year").games.map((g) => g.titleId)).toEqual(["X"]);
+    expect(filterByTimeframe(onBoundary, "this-year").games.map((g) => g.titleId)).toStrictEqual([
+      "X",
+    ]);
   });
 
   it("keeps the this-year calendar window tighter than the rolling last-12-months window", () => {
@@ -392,13 +397,13 @@ describe(".filterByTimeframe", () => {
     };
 
     // Last 12 months reaches back to 2021-06-01 (from fetchedAt), so it keeps both.
-    expect(filterByTimeframe(lib, "last-12-months").games.map((g) => g.titleId)).toEqual([
+    expect(filterByTimeframe(lib, "last-12-months").games.map((g) => g.titleId)).toStrictEqual([
       "L",
       "Y",
     ]);
 
     // This year starts at 2022-01-01, so the 2021 title drops.
-    expect(filterByTimeframe(lib, "this-year").games.map((g) => g.titleId)).toEqual(["Y"]);
+    expect(filterByTimeframe(lib, "this-year").games.map((g) => g.titleId)).toStrictEqual(["Y"]);
   });
 
   it("yields an empty library with zeroed totals when no game falls in the current year", () => {
@@ -410,8 +415,8 @@ describe(".filterByTimeframe", () => {
 
     const scoped = filterByTimeframe(sample, "this-year");
 
-    expect(scoped.games).toEqual([]);
-    expect(scoped.meta).toEqual({
+    expect(scoped.games).toStrictEqual([]);
+    expect(scoped.meta).toStrictEqual({
       ...sample.meta,
       totalGames: 0,
       totalHours: 0,
@@ -422,7 +427,9 @@ describe(".filterByTimeframe", () => {
   });
 
   it("scopes to the last twelve months", () => {
-    expect(filterByTimeframe(sample, "last-12-months").games.map((g) => g.titleId)).toEqual(["C"]);
+    expect(filterByTimeframe(sample, "last-12-months").games.map((g) => g.titleId)).toStrictEqual([
+      "C",
+    ]);
   });
 });
 
@@ -483,17 +490,17 @@ describe(".applyFilters", () => {
   });
 
   it("keeps only games in the selected genres", () => {
-    expect(ids(applyFilters(sample, { ...defaultFilters, genres: ["RPG"] }))).toEqual(["C"]);
+    expect(ids(applyFilters(sample, { ...defaultFilters, genres: ["RPG"] }))).toStrictEqual(["C"]);
   });
 
   it("keeps only games in the selected franchises, dropping ones without a franchise", () => {
     const scoped = applyFilters(sample, { ...defaultFilters, franchises: ["The Witcher"] });
 
-    expect(ids(scoped)).toEqual(["C"]);
+    expect(ids(scoped)).toStrictEqual(["C"]);
   });
 
   it("keeps only games on the selected platforms", () => {
-    expect(ids(applyFilters(sample, { ...defaultFilters, platforms: ["PS4"] }))).toEqual([
+    expect(ids(applyFilters(sample, { ...defaultFilters, platforms: ["PS4"] }))).toStrictEqual([
       "B",
       "D",
     ]);
@@ -508,7 +515,7 @@ describe(".applyFilters", () => {
       ],
     };
 
-    expect(ids(applyFilters(named, { ...defaultFilters, search: "war" }))).toEqual(["G"]);
+    expect(ids(applyFilters(named, { ...defaultFilters, search: "war" }))).toStrictEqual(["G"]);
   });
 
   it("keeps only games last played within the custom date range", () => {
@@ -518,7 +525,7 @@ describe(".applyFilters", () => {
       lastPlayedTo: "2021-12-31",
     });
 
-    expect(ids(scoped)).toEqual(["A"]);
+    expect(ids(scoped)).toStrictEqual(["A"]);
   });
 
   it("layers the custom from-date over the timeframe preset, keeping the later bound", () => {
@@ -528,37 +535,42 @@ describe(".applyFilters", () => {
       lastPlayedFrom: "2022-01-01",
     });
 
-    expect(ids(scoped)).toEqual(["C"]);
+    expect(ids(scoped)).toStrictEqual(["C"]);
   });
 
   it("keeps only games within the min/max hours range", () => {
-    expect(ids(applyFilters(sample, { ...defaultFilters, minHours: 50, maxHours: 80 }))).toEqual([
-      "B",
+    expect(
+      ids(applyFilters(sample, { ...defaultFilters, minHours: 50, maxHours: 80 }))
+    ).toStrictEqual(["B", "C"]);
+  });
+
+  it("keeps only games with at least the minimum number of sessions", () => {
+    expect(ids(applyFilters(sample, { ...defaultFilters, minSessions: 10 }))).toStrictEqual([
+      "A",
       "C",
     ]);
   });
 
-  it("keeps only games with at least the minimum number of sessions", () => {
-    expect(ids(applyFilters(sample, { ...defaultFilters, minSessions: 10 }))).toEqual(["A", "C"]);
-  });
-
   it("keeps only games that have a platinum trophy", () => {
-    expect(ids(applyFilters(trophied, { ...defaultFilters, hasPlatinum: true }))).toEqual(["P"]);
-  });
-
-  it("keeps only games whose trophy progress meets the minimum", () => {
-    expect(ids(applyFilters(trophied, { ...defaultFilters, minTrophyProgress: 50 }))).toEqual([
+    expect(ids(applyFilters(trophied, { ...defaultFilters, hasPlatinum: true }))).toStrictEqual([
       "P",
-      "Q",
     ]);
   });
 
+  it("keeps only games whose trophy progress meets the minimum", () => {
+    expect(ids(applyFilters(trophied, { ...defaultFilters, minTrophyProgress: 50 }))).toStrictEqual(
+      ["P", "Q"]
+    );
+  });
+
   it("keeps only games active in the data's most-recent year", () => {
-    expect(ids(applyFilters(sample, { ...defaultFilters, activity: "active" }))).toEqual(["C"]);
+    expect(ids(applyFilters(sample, { ...defaultFilters, activity: "active" }))).toStrictEqual([
+      "C",
+    ]);
   });
 
   it("keeps only games dormant since the data's most-recent year", () => {
-    expect(ids(applyFilters(sample, { ...defaultFilters, activity: "dormant" }))).toEqual([
+    expect(ids(applyFilters(sample, { ...defaultFilters, activity: "dormant" }))).toStrictEqual([
       "A",
       "B",
       "D",
@@ -573,14 +585,14 @@ describe(".applyFilters", () => {
       minHours: 60,
     });
 
-    expect(ids(scoped)).toEqual(["A"]);
+    expect(ids(scoped)).toStrictEqual(["A"]);
   });
 
   it("yields an empty library with zeroed totals when nothing matches", () => {
     const scoped = applyFilters(sample, { ...defaultFilters, search: "no-such-game" });
 
-    expect(scoped.games).toEqual([]);
-    expect(scoped.meta).toEqual({
+    expect(scoped.games).toStrictEqual([]);
+    expect(scoped.meta).toStrictEqual({
       ...sample.meta,
       totalGames: 0,
       totalHours: 0,
@@ -593,7 +605,7 @@ describe(".applyFilters", () => {
   it("recomputes the meta totals and span for the surviving subset", () => {
     const scoped = applyFilters(sample, { ...defaultFilters, genres: ["Shooter"] });
 
-    expect(scoped.meta).toEqual({
+    expect(scoped.meta).toStrictEqual({
       ...sample.meta,
       totalGames: 2,
       totalHours: 150,
@@ -627,7 +639,7 @@ describe(".applyFilters", () => {
       lastPlayedTo: "2022-01-01",
     });
 
-    expect(scoped.games.map((g) => g.titleId)).toEqual(["OK"]);
+    expect(scoped.games.map((g) => g.titleId)).toStrictEqual(["OK"]);
   });
 
   it("returns the original data when an active filter still matches every game", () => {
@@ -637,7 +649,7 @@ describe(".applyFilters", () => {
 
 describe(".valuePerGame", () => {
   it("averages hours and sessions across the library", () => {
-    expect(valuePerGame(sample)).toEqual({
+    expect(valuePerGame(sample)).toStrictEqual({
       avgHoursPerGame: 50,
       avgSessionsPerGame: 10,
       avgSessionLength: 5,
@@ -651,7 +663,7 @@ describe(".valuePerGame", () => {
       meta: { ...sample.meta, totalGames: 0, totalHours: 0, totalSessions: 0 },
     };
 
-    expect(valuePerGame(empty)).toEqual({
+    expect(valuePerGame(empty)).toStrictEqual({
       avgHoursPerGame: 0,
       avgSessionsPerGame: 0,
       avgSessionLength: 0,
@@ -679,7 +691,7 @@ describe(".gameRows", () => {
       ],
     };
 
-    expect(gameRows(withTrophy)).toEqual([
+    expect(gameRows(withTrophy)).toStrictEqual([
       {
         titleId: "T",
         name: "Trophied",

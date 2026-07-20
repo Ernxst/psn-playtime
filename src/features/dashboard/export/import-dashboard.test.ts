@@ -177,12 +177,16 @@ describe("importDashboardFromCsv", () => {
       "Wizardry"
     );
 
-    expect(() => importDashboardFromCsv(bad, buildAccountCsv(original.profile))).toThrow();
+    expect(() => importDashboardFromCsv(bad, buildAccountCsv(original.profile))).toThrow(
+      /Wizardry/
+    );
   });
 
   it("throws a decode error on a malformed account CSV (non-numeric trophy level)", () => {
     const badAccount = buildAccountCsv(original.profile).replace(",220,", ",abc,");
 
-    expect(() => importDashboardFromCsv(buildGamesCsv([], []), badAccount)).toThrow();
+    expect(() => importDashboardFromCsv(buildGamesCsv([], []), badAccount)).toThrow(
+      /finite number, got NaN/
+    );
   });
 });

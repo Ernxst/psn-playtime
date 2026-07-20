@@ -13,7 +13,7 @@ describe("snapshot schema", () => {
   it("round-trips a valid DashboardData through decode then encode", () => {
     const decoded = decodeData(demoDashboard);
 
-    expect(encodeData(decoded)).toEqual(demoDashboard);
+    expect(encodeData(decoded)).toStrictEqual(demoDashboard);
   });
 
   it("decodes a payload with optional fields omitted", () => {
@@ -22,7 +22,7 @@ describe("snapshot schema", () => {
 
     const decoded = decodeData(lean);
 
-    expect(decoded.games).toEqual([]);
+    expect(decoded.games).toStrictEqual([]);
     expect(decoded).not.toHaveProperty("enriched");
     expect(decoded.profile).not.toHaveProperty("aboutMe");
   });
@@ -38,7 +38,7 @@ describe("snapshot schema", () => {
   it("rejects a payload missing a required field", () => {
     const { fetchedAt: _fetchedAt, ...withoutFetchedAt } = demoDashboard;
 
-    expect(() => decodeData(withoutFetchedAt)).toThrow();
+    expect(() => decodeData(withoutFetchedAt)).toThrow(/fetchedAt/);
   });
 
   it("rejects a payload whose field has the wrong type", () => {
@@ -47,7 +47,7 @@ describe("snapshot schema", () => {
       profile: { ...demoDashboard.profile, isPlus: "yes" },
     };
 
-    expect(() => decodeData(badProfile)).toThrow();
+    expect(() => decodeData(badProfile)).toThrow(/isPlus/);
   });
 });
 
@@ -62,7 +62,7 @@ describe("Platform", () => {
   );
 
   it("rejects an unknown platform string", () => {
-    expect(() => decodePlatform("PS2")).toThrow();
+    expect(() => decodePlatform("PS2")).toThrow(/PS2/);
   });
 });
 
@@ -77,7 +77,7 @@ describe("Genre", () => {
   );
 
   it("rejects an unknown genre string", () => {
-    expect(() => decodeGenre("Puzzle")).toThrow();
+    expect(() => decodeGenre("Puzzle")).toThrow(/Puzzle/);
   });
 });
 
@@ -102,14 +102,14 @@ describe("GamePlay", () => {
   });
 
   it("rejects a title with an invalid platform", () => {
-    expect(() => decodeGame({ ...aGame, platform: "PS2" })).toThrow();
+    expect(() => decodeGame({ ...aGame, platform: "PS2" })).toThrow(/PS2/);
   });
 
   it("rejects a title with a non-numeric hours value", () => {
-    expect(() => decodeGame({ ...aGame, hours: "lots" })).toThrow();
+    expect(() => decodeGame({ ...aGame, hours: "lots" })).toThrow(/lots/);
   });
 
   it("rejects a title with a non-finite hours value", () => {
-    expect(() => decodeGame({ ...aGame, hours: Number.POSITIVE_INFINITY })).toThrow();
+    expect(() => decodeGame({ ...aGame, hours: Number.POSITIVE_INFINITY })).toThrow(/Infinity/);
   });
 });

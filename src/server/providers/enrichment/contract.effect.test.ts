@@ -36,7 +36,7 @@ describe("TitleEnrichment", () => {
 
     const info = await Effect.runPromise(program.pipe(Effect.provide(enrichmentTestLayer)));
 
-    expect(info).toEqual(ENRICHED);
+    expect(info).toStrictEqual(ENRICHED);
   });
 
   it("recovers both TitleEnrichment error tags on the typed channel", async () => {

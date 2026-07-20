@@ -257,8 +257,14 @@ describe(".signInEffect", () => {
     expect(result.profile.totalTrophies).toBe(9 + 54 + 188 + 887);
 
     // Apps are excluded; games are sorted by hours desc.
-    expect(result.games.map((g) => g.titleId)).toEqual(["cod", "d2", "shorty", "unknown", "weird"]);
-    expect(result.meta.appsExcluded).toEqual([
+    expect(result.games.map((g) => g.titleId)).toStrictEqual([
+      "cod",
+      "d2",
+      "shorty",
+      "unknown",
+      "weird",
+    ]);
+    expect(result.meta.appsExcluded).toStrictEqual([
       { name: "Netflix", hours: 3 },
       { name: "Spotify", hours: 1.5 },
     ]);
@@ -270,7 +276,7 @@ describe(".signInEffect", () => {
     expect(cod.platform).toBe("PS4");
     expect(cod.imageUrl).toBe("https://img/cod");
     expect(cod.firstPlayed).toBe("2020-01-01");
-    expect(cod.trophy).toEqual({
+    expect(cod.trophy).toStrictEqual({
       progress: 90,
       earned: { platinum: 1, gold: 5, silver: 10, bronze: 20 },
       total: 36,
@@ -341,7 +347,7 @@ describe(".signInEffect", () => {
 
     const gow = result.games.find((g) => g.titleId === "gow")!;
 
-    expect(gow.trophy).toEqual({
+    expect(gow.trophy).toStrictEqual({
       progress: 73,
       earned: { platinum: 1, gold: 2, silver: 5, bronze: 20 },
       total: 28,
@@ -388,7 +394,7 @@ describe(".signInEffect", () => {
 
     const div2 = result.games.find((g) => g.titleId === "div2")!;
 
-    expect(div2.trophy).toEqual({
+    expect(div2.trophy).toStrictEqual({
       progress: 64,
       earned: { platinum: 0, gold: 3, silver: 8, bronze: 30 },
       total: 41,
@@ -498,7 +504,7 @@ describe(".signInEffect", () => {
 
     const gta5 = result.games.find((g) => g.titleId === "gta5")!;
 
-    expect(gta5.trophy).toEqual({
+    expect(gta5.trophy).toStrictEqual({
       progress: 28,
       earned: { platinum: 0, gold: 2, silver: 8, bronze: 40 },
       total: 50,
