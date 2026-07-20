@@ -48,7 +48,24 @@ describe("DashboardSidebar", () => {
       .toHaveAttribute("data-active", "false");
   });
 
-  it("closes the mobile drawer after a section is chosen", async () => {
+  it("exposes every direct Spending destination", async () => {
+    await page.viewport(1280, 800);
+    onTestFinished(() => page.viewport(1280, 800));
+    const { element } = createHarness(
+      <SidebarProvider>
+        <DashboardSidebar />
+      </SidebarProvider>
+    );
+
+    await render(element);
+
+    await expect.element(page.getByRole("link", { name: "Purchase history" })).toBeVisible();
+    await expect.element(page.getByRole("link", { name: "Most spent" })).toBeVisible();
+    await expect.element(page.getByRole("link", { name: "Add-ons" })).toBeVisible();
+    await expect.element(page.getByRole("link", { name: "Purchase import" })).toBeVisible();
+  });
+
+  it("names and closes the scrollable mobile chapter drawer", async () => {
     await page.viewport(480, 800);
     onTestFinished(() => page.viewport(1280, 800));
 
@@ -63,6 +80,8 @@ describe("DashboardSidebar", () => {
 
     await page.getByRole("button", { name: "Toggle Sidebar" }).click();
 
+    await expect.element(page.getByRole("dialog", { name: "Navigate Playloom" })).toBeVisible();
+    await expect.element(page.getByRole("button", { name: "Close" })).toBeVisible();
     const insightsLink = page.getByRole("link", { name: "Insights" });
 
     await expect.element(insightsLink).toBeVisible();

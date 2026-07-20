@@ -1,14 +1,21 @@
 import { SlidersHorizontal, X } from "lucide-react";
-import { useMemo } from "react";
+import { type RefObject, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button, type ButtonProps } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Separator } from "@/components/ui/separator";
-import { Slider } from "@/components/ui/slider";
-import { Tabs, TabsList, TabsTab } from "@/components/ui/tabs";
+import {
+  Sheet,
+  SheetClose,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetPanel,
+  SheetPopup,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import {
   type Activity,
   type DashboardFilters,
@@ -27,23 +34,16 @@ interface FacetOptions {
   hasTrophies: boolean;
 }
 
-const toGenre = (g: GamePlay): Genre => g.genre;
-const toPlatform = (g: GamePlay): Platform => g.platform;
-const toFranchise = (g: GamePlay): string[] => (g.franchise ? [g.franchise] : []);
-const toHours = (g: GamePlay): number => g.hours;
-const toSessions = (g: GamePlay): number => g.playCount;
-const hasTrophy = (g: GamePlay): boolean => g.trophy !== undefined;
-
-/** Distinct facet values present in the (unfiltered) library, for the controls. */
 function facetOptions(data: DashboardData): FacetOptions {
-  const games = data.games;
   return {
-    genres: [...new Set(games.map(toGenre))].toSorted(),
-    platforms: [...new Set(games.map(toPlatform))].toSorted(),
-    franchises: [...new Set(games.flatMap(toFranchise))].toSorted(),
-    maxHours: Math.ceil(Math.max(0, ...games.map(toHours))),
-    maxSessions: Math.max(0, ...games.map(toSessions)),
-    hasTrophies: games.some(hasTrophy),
+    genres: [...new Set(data.games.map((game) => game.genre))].toSorted(),
+    platforms: [...new Set(data.games.map((game) => game.platform))].toSorted(),
+    franchises: [
+      ...new Set(data.games.flatMap((game) => (game.franchise ? [game.franchise] : []))),
+    ].toSorted(),
+    maxHours: Math.ceil(Math.max(0, ...data.games.map((game) => game.hours))),
+    maxSessions: Math.max(0, ...data.games.map((game) => game.playCount)),
+    hasTrophies: data.games.some((game: GamePlay) => game.trophy !== undefined),
   };
 }
 
@@ -53,41 +53,30 @@ const ACTIVITIES: ReadonlyArray<{ value: Activity; label: string }> = [
   { value: "dormant", label: "Dormant" },
 ];
 
-function countActiveFilters(f: DashboardFilters): number {
-  const flags = [
-    f.timeframe !== "all",
-    f.search.trim() !== "",
-    f.genres.length > 0,
-    f.franchises.length > 0,
-    f.platforms.length > 0,
-    f.lastPlayedFrom !== undefined,
-    f.lastPlayedTo !== undefined,
-    f.minHours !== undefined,
-    f.maxHours !== undefined,
-    f.minSessions !== undefined,
-    f.hasPlatinum,
-    f.minTrophyProgress !== undefined,
-    f.activity !== "all",
-  ];
-  return flags.filter(Boolean).length;
+function countActiveFilters(filters: DashboardFilters): number {
+  return [
+    filters.timeframe !== "all",
+    filters.search.trim() !== "",
+    filters.genres.length > 0,
+    filters.franchises.length > 0,
+    filters.platforms.length > 0,
+    filters.lastPlayedFrom !== undefined,
+    filters.lastPlayedTo !== undefined,
+    filters.minHours !== undefined,
+    filters.maxHours !== undefined,
+    filters.minSessions !== undefined,
+    filters.hasPlatinum,
+    filters.minTrophyProgress !== undefined,
+    filters.activity !== "all",
+  ].filter(Boolean).length;
 }
 
 function toggle<T>(list: T[], value: T): T[] {
-  return list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
+  return list.includes(value) ? list.filter((item) => item !== value) : [...list, value];
 }
 
-function toActivity(value: unknown): Activity {
-  return value === "active" || value === "dormant" ? value : "all";
-}
-
-/** Read the lower bound from a slider change that may arrive as a scalar or pair. */
-function firstNumber(value: number | readonly number[]): number {
-  return typeof value === "number" ? value : (value[0] ?? 0);
-}
-
-function pair(value: number | readonly number[], fallbackHi: number): [number, number] {
-  if (typeof value === "number") return [value, value];
-  return [value[0] ?? 0, value[1] ?? fallbackHi];
+function numberValue(value: string): number | undefined {
+  return value === "" ? undefined : Number(value);
 }
 
 function CheckboxFacet<T extends string>({
@@ -103,13 +92,15 @@ function CheckboxFacet<T extends string>({
 }) {
   if (options.length === 0) return null;
   return (
-    <fieldset className="space-y-2">
-      <legend className="text-sm font-medium">{legend}</legend>
-      <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+    <fieldset className="space-y-3 border-t border-[var(--playloom-rule)] pt-5">
+      <legend className="pr-3 text-sm font-bold">
+        {legend} <span className="font-normal text-muted-foreground">({selected.length})</span>
+      </legend>
+      <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
         {options.map((option) => {
           const id = `filter-${legend}-${option}`;
           return (
-            <div key={option} className="flex items-center gap-2">
+            <div key={option} className="flex min-w-0 items-center gap-2">
               <Checkbox
                 id={id}
                 checked={selected.includes(option)}
@@ -126,91 +117,149 @@ function CheckboxFacet<T extends string>({
   );
 }
 
-function DateFacet({ filters, set }: { filters: DashboardFilters; set: Setter }) {
+function FranchiseOption({
+  franchise,
+  filters,
+  set,
+}: {
+  franchise: string;
+  filters: DashboardFilters;
+  set: Setter;
+}) {
+  const id = `filter-Franchise-${franchise}`;
   return (
-    <fieldset className="space-y-2">
-      <legend className="text-sm font-medium">Last played</legend>
-      <div className="flex items-center gap-2">
-        <Input
-          type="date"
-          aria-label="Last played from"
-          value={filters.lastPlayedFrom ?? ""}
-          onChange={(event) => set({ lastPlayedFrom: event.target.value || undefined })}
-        />
-        <span className="text-sm text-muted-foreground">to</span>
-        <Input
-          type="date"
-          aria-label="Last played to"
-          value={filters.lastPlayedTo ?? ""}
-          onChange={(event) => set({ lastPlayedTo: event.target.value || undefined })}
-        />
+    <div className="flex min-w-0 items-center gap-2">
+      <Checkbox
+        id={id}
+        checked={filters.franchises.includes(franchise)}
+        onCheckedChange={() => set({ franchises: toggle(filters.franchises, franchise) })}
+      />
+      <Label htmlFor={id} className="truncate text-sm font-normal" title={franchise}>
+        {franchise}
+      </Label>
+    </div>
+  );
+}
+
+function FranchiseFacet({ options, filters, set }: FilterControlProps) {
+  const [query, setQuery] = useState("");
+  const franchises = options.franchises.filter((franchise) =>
+    franchise.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())
+  );
+  if (options.franchises.length === 0) return null;
+  return (
+    <fieldset className="space-y-3 border-t border-[var(--playloom-rule)] pt-5">
+      <legend className="pr-3 text-sm font-bold">
+        Franchise{" "}
+        <span className="font-normal text-muted-foreground">({filters.franchises.length})</span>
+      </legend>
+      <Input
+        type="search"
+        aria-label="Search franchises"
+        placeholder="Find a franchise…"
+        value={query}
+        onChange={(event) => setQuery(event.target.value)}
+        className="rounded-none border-[var(--playloom-rule-strong)] bg-transparent"
+      />
+      <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
+        {franchises.map((franchise) => (
+          <FranchiseOption key={franchise} franchise={franchise} filters={filters} set={set} />
+        ))}
       </div>
     </fieldset>
   );
 }
 
-function HoursFacet({
-  max,
-  filters,
-  set,
-}: {
-  max: number;
+interface FilterControlProps {
+  options: FacetOptions;
   filters: DashboardFilters;
   set: Setter;
-}) {
-  const lo = filters.minHours ?? 0;
-  const hi = filters.maxHours ?? max;
+}
+
+function DateFacet({ filters, set }: FilterControlProps) {
   return (
-    <fieldset className="space-y-2">
-      <legend className="text-sm font-medium">
-        Hours: {lo}–{hi}
-      </legend>
-      <Slider
-        min={0}
-        max={max}
-        value={[lo, hi]}
-        thumbLabels={["Minimum hours", "Maximum hours"]}
-        onValueChange={(value) => {
-          const [a, b] = pair(value, max);
-          set({ minHours: a === 0 ? undefined : a, maxHours: b === max ? undefined : b });
-        }}
-      />
+    <fieldset className="space-y-3 border-t border-[var(--playloom-rule)] pt-5">
+      <legend className="pr-3 text-sm font-bold">Last played</legend>
+      <div className="grid grid-cols-2 gap-3">
+        <Label className="grid gap-1.5 text-xs">
+          From
+          <Input
+            type="date"
+            aria-label="Last played from"
+            value={filters.lastPlayedFrom ?? ""}
+            onChange={(event) => set({ lastPlayedFrom: event.target.value || undefined })}
+            className="rounded-none border-[var(--playloom-rule-strong)] bg-transparent"
+          />
+        </Label>
+        <Label className="grid gap-1.5 text-xs">
+          To
+          <Input
+            type="date"
+            aria-label="Last played to"
+            value={filters.lastPlayedTo ?? ""}
+            onChange={(event) => set({ lastPlayedTo: event.target.value || undefined })}
+            className="rounded-none border-[var(--playloom-rule-strong)] bg-transparent"
+          />
+        </Label>
+      </div>
     </fieldset>
   );
 }
 
-function SessionsFacet({
-  max,
-  filters,
-  set,
-}: {
-  max: number;
-  filters: DashboardFilters;
-  set: Setter;
-}) {
-  const value = filters.minSessions ?? 0;
+function HoursFacet({ options, filters, set }: FilterControlProps) {
   return (
-    <fieldset className="space-y-2">
-      <legend className="text-sm font-medium">Min sessions: {value}</legend>
-      <Slider
-        min={0}
-        max={max}
-        value={value}
-        thumbLabels={["Minimum sessions"]}
-        onValueChange={(next) => {
-          const n = firstNumber(next);
-          set({ minSessions: n === 0 ? undefined : n });
-        }}
-      />
+    <fieldset className="grid grid-cols-2 gap-3 border-t border-[var(--playloom-rule)] pt-5">
+      <legend className="pr-3 text-sm font-bold">Hours played</legend>
+      <Label className="grid gap-1.5 text-xs">
+        From
+        <Input
+          type="number"
+          aria-label="Minimum hours"
+          min={0}
+          max={options.maxHours}
+          value={filters.minHours ?? ""}
+          onChange={(event) => set({ minHours: numberValue(event.target.value) })}
+          className="rounded-none border-[var(--playloom-rule-strong)] bg-transparent tabular-nums"
+        />
+      </Label>
+      <Label className="grid gap-1.5 text-xs">
+        To
+        <Input
+          type="number"
+          aria-label="Maximum hours"
+          min={0}
+          max={options.maxHours}
+          value={filters.maxHours ?? ""}
+          onChange={(event) => set({ maxHours: numberValue(event.target.value) })}
+          className="rounded-none border-[var(--playloom-rule-strong)] bg-transparent tabular-nums"
+        />
+      </Label>
     </fieldset>
   );
 }
 
-function TrophyFacet({ filters, set }: { filters: DashboardFilters; set: Setter }) {
-  const progress = filters.minTrophyProgress ?? 0;
+function SessionsFacet({ options, filters, set }: FilterControlProps) {
   return (
-    <fieldset className="space-y-3">
-      <legend className="text-sm font-medium">Trophies</legend>
+    <Label className="grid gap-1.5 border-t border-[var(--playloom-rule)] pt-5 text-sm font-bold">
+      Minimum sessions
+      <Input
+        type="number"
+        aria-label="Minimum sessions"
+        min={0}
+        max={options.maxSessions}
+        value={filters.minSessions ?? ""}
+        onChange={(event) => set({ minSessions: numberValue(event.target.value) })}
+        className="rounded-none border-[var(--playloom-rule-strong)] bg-transparent tabular-nums"
+      />
+    </Label>
+  );
+}
+
+function TrophyFacet({ options, filters, set }: FilterControlProps) {
+  if (!options.hasTrophies) return null;
+  return (
+    <fieldset className="space-y-3 border-t border-[var(--playloom-rule)] pt-5">
+      <legend className="pr-3 text-sm font-bold">Trophies</legend>
       <div className="flex items-center gap-2">
         <Checkbox
           id="filter-platinum"
@@ -221,51 +270,52 @@ function TrophyFacet({ filters, set }: { filters: DashboardFilters; set: Setter 
           Has a platinum
         </Label>
       </div>
-      <div className="space-y-2">
-        <span className="text-sm text-muted-foreground">Min progress: {progress}%</span>
-        <Slider
+      <Label className="grid gap-1.5 text-xs">
+        Minimum trophy progress
+        <Input
+          type="number"
+          aria-label="Minimum trophy progress"
           min={0}
           max={100}
-          value={progress}
-          thumbLabels={["Minimum trophy progress"]}
-          onValueChange={(next) => {
-            const n = firstNumber(next);
-            set({ minTrophyProgress: n === 0 ? undefined : n });
-          }}
+          value={filters.minTrophyProgress ?? ""}
+          onChange={(event) => set({ minTrophyProgress: numberValue(event.target.value) })}
+          className="rounded-none border-[var(--playloom-rule-strong)] bg-transparent tabular-nums"
         />
+      </Label>
+    </fieldset>
+  );
+}
+
+function ActivityFacet({ filters, set }: FilterControlProps) {
+  return (
+    <fieldset className="space-y-3 border-t border-[var(--playloom-rule)] pt-5">
+      <legend className="pr-3 text-sm font-bold">Activity</legend>
+      <div className="grid grid-cols-3 border border-[var(--playloom-rule-strong)]">
+        {ACTIVITIES.map((activity) => (
+          <Label
+            key={activity.value}
+            className="relative grid min-h-11 cursor-pointer place-items-center border-r border-[var(--playloom-rule-strong)] text-xs font-bold last:border-r-0 has-checked:bg-primary has-checked:text-primary-foreground"
+          >
+            <input
+              className="sr-only"
+              type="radio"
+              name="game-activity"
+              value={activity.value}
+              checked={filters.activity === activity.value}
+              onChange={() => set({ activity: activity.value })}
+            />
+            {activity.label}
+          </Label>
+        ))}
       </div>
     </fieldset>
   );
 }
 
-function ActivityFacet({ filters, set }: { filters: DashboardFilters; set: Setter }) {
+function FilterControls(props: FilterControlProps) {
+  const { options, filters, set } = props;
   return (
-    <fieldset className="space-y-2">
-      <legend className="text-sm font-medium">Activity</legend>
-      <Tabs value={filters.activity} onValueChange={(next) => set({ activity: toActivity(next) })}>
-        <TabsList>
-          {ACTIVITIES.map((a) => (
-            <TabsTab key={a.value} value={a.value}>
-              {a.label}
-            </TabsTab>
-          ))}
-        </TabsList>
-      </Tabs>
-    </fieldset>
-  );
-}
-
-function SelectFacets({
-  options,
-  filters,
-  set,
-}: {
-  options: FacetOptions;
-  filters: DashboardFilters;
-  set: Setter;
-}) {
-  return (
-    <>
+    <div className="space-y-5">
       <CheckboxFacet
         legend="Genre"
         options={options.genres}
@@ -278,55 +328,26 @@ function SelectFacets({
         selected={filters.platforms}
         onToggle={(value) => set({ platforms: toggle(filters.platforms, value) })}
       />
-      <CheckboxFacet
-        legend="Franchise"
-        options={options.franchises}
-        selected={filters.franchises}
-        onToggle={(value) => set({ franchises: toggle(filters.franchises, value) })}
-      />
-    </>
-  );
-}
-
-function FilterControls({
-  options,
-  filters,
-  set,
-}: {
-  options: FacetOptions;
-  filters: DashboardFilters;
-  set: Setter;
-}) {
-  return (
-    <div className="space-y-4">
-      <SelectFacets options={options} filters={filters} set={set} />
-      <Separator />
-      <DateFacet filters={filters} set={set} />
-      <HoursFacet max={options.maxHours} filters={filters} set={set} />
-      <SessionsFacet max={options.maxSessions} filters={filters} set={set} />
-      {options.hasTrophies ? (
-        <>
-          <Separator />
-          <TrophyFacet filters={filters} set={set} />
-        </>
-      ) : null}
-      <Separator />
-      <ActivityFacet filters={filters} set={set} />
+      <FranchiseFacet {...props} />
+      <DateFacet {...props} />
+      <HoursFacet {...props} />
+      <SessionsFacet {...props} />
+      <TrophyFacet {...props} />
+      <ActivityFacet {...props} />
     </div>
   );
 }
 
-/** Spreads Base UI's injected trigger props (onClick, ref, aria-*) onto the Button. */
 function FilterTrigger({ count, ...props }: { count: number } & ButtonProps) {
   return (
-    <Button variant="outline" {...props}>
+    <Button
+      variant="outline"
+      className="min-h-11 rounded-none border-[var(--playloom-rule-strong)] bg-transparent"
+      {...props}
+    >
       <SlidersHorizontal className="size-4" />
-      Filters
-      {count > 0 ? (
-        <Badge variant="secondary" className="ml-1">
-          {count}
-        </Badge>
-      ) : null}
+      Filter games
+      {count > 0 && <Badge className="ml-1 rounded-none">{count}</Badge>}
     </Button>
   );
 }
@@ -335,35 +356,152 @@ interface Props {
   data: DashboardData;
   filters: DashboardFilters;
   onChange: (filters: DashboardFilters) => void;
+  resultCount?: number;
+  disabled?: boolean;
 }
 
-export function FilterBar({ data, filters, onChange }: Props) {
+interface FilterSheetProps extends Props {
+  options: FacetOptions;
+  activeCount: number;
+  set: Setter;
+}
+
+function FilterSheetPopup({
+  count,
+  options,
+  filters,
+  set,
+  onClear,
+}: FilterControlProps & { count: number; onClear: () => void }) {
+  return (
+    <SheetPopup
+      side="right"
+      className="h-dvh w-full max-w-none border-l border-[var(--playloom-rule-strong)] bg-[var(--playloom-paper-raised)] text-foreground sm:max-w-md"
+    >
+      <SheetHeader className="border-b border-[var(--playloom-rule-strong)] p-5 pr-14">
+        <SheetTitle className="font-[Fraunces_Variable] text-3xl">Filter games</SheetTitle>
+        <SheetDescription>
+          Applies to Profile, History and Library. Results update immediately.
+        </SheetDescription>
+        <output className="text-sm font-bold tabular-nums" aria-live="polite">
+          {count} games shown
+        </output>
+      </SheetHeader>
+      <SheetPanel className="px-5 py-4">
+        <FilterControls options={options} filters={filters} set={set} />
+      </SheetPanel>
+      <SheetFooter className="grid grid-cols-2 border-t border-[var(--playloom-rule-strong)] bg-[var(--playloom-paper-raised)] px-5 py-4 sm:grid-cols-2">
+        <Button
+          variant="ghost"
+          className="min-h-11 rounded-none border border-[var(--playloom-rule-strong)]"
+          onClick={onClear}
+        >
+          Clear
+        </Button>
+        <SheetClose render={<Button className="min-h-11 rounded-none">Done filtering</Button>} />
+      </SheetFooter>
+    </SheetPopup>
+  );
+}
+
+function FilterSheet({
+  data,
+  filters,
+  onChange,
+  resultCount,
+  disabled,
+  options,
+  activeCount,
+  set,
+}: FilterSheetProps) {
+  const scroll = useRef(0);
+  const [open, setOpen] = useState(false);
+  const restoreScroll = () => window.scrollTo(0, scroll.current);
+  const preserveScroll = (next: boolean) => {
+    setOpen(next);
+    restoreScroll();
+    window.requestAnimationFrame(restoreScroll);
+  };
+  const capture = () => (scroll.current = window.scrollY);
+  const count = resultCount ?? data.games.length;
+  return (
+    <Sheet
+      modal="trap-focus"
+      open={open}
+      onOpenChange={preserveScroll}
+      onOpenChangeComplete={restoreScroll}
+    >
+      <span onPointerDownCapture={capture} onKeyDownCapture={capture} onClickCapture={capture}>
+        <SheetTrigger render={<FilterTrigger count={activeCount} disabled={disabled} />} />
+      </span>
+      <FilterSheetPopup
+        count={count}
+        options={options}
+        filters={filters}
+        set={set}
+        onClear={() => onChange(defaultFilters)}
+      />
+    </Sheet>
+  );
+}
+
+function GameSearch({
+  searchRef,
+  filters,
+  disabled,
+  set,
+}: {
+  searchRef: RefObject<HTMLInputElement | null>;
+  filters: DashboardFilters;
+  disabled: boolean;
+  set: Setter;
+}) {
+  return (
+    <Input
+      ref={searchRef}
+      type="search"
+      aria-label="Search games by name"
+      placeholder="Search games…"
+      value={filters.search}
+      disabled={disabled}
+      onChange={(event) => set({ search: event.target.value })}
+      className="min-h-11 w-full rounded-none border-[var(--playloom-rule-strong)] bg-transparent sm:max-w-xs"
+    />
+  );
+}
+
+export function FilterBar({ data, filters, onChange, resultCount, disabled = false }: Props) {
   const options = useMemo(() => facetOptions(data), [data]);
+  const searchRef = useRef<HTMLInputElement>(null);
   const activeCount = countActiveFilters(filters);
   const set: Setter = (patch) => onChange({ ...filters, ...patch });
-
+  const clear = () => {
+    onChange(defaultFilters);
+    searchRef.current?.focus();
+  };
+  const result = resultCount ?? data.games.length;
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <Input
-        type="search"
-        aria-label="Search games by name"
-        placeholder="Search games…"
-        value={filters.search}
-        onChange={(event) => set({ search: event.target.value })}
-        className="w-full sm:max-w-xs"
+      <GameSearch searchRef={searchRef} filters={filters} disabled={disabled} set={set} />
+      <FilterSheet
+        data={data}
+        filters={filters}
+        onChange={onChange}
+        resultCount={resultCount}
+        disabled={disabled}
+        options={options}
+        activeCount={activeCount}
+        set={set}
       />
-      <Popover>
-        <PopoverTrigger render={<FilterTrigger count={activeCount} />} />
-        <PopoverContent align="start" className="w-90 max-w-[calc(100vw-2rem)]">
-          <FilterControls options={options} filters={filters} set={set} />
-        </PopoverContent>
-      </Popover>
-      {activeCount > 0 ? (
-        <Button variant="ghost" onClick={() => onChange(defaultFilters)}>
+      {activeCount > 0 && (
+        <Button variant="ghost" className="min-h-11 rounded-none" onClick={clear}>
           <X className="size-4" />
           Clear all
         </Button>
-      ) : null}
+      )}
+      <output className="sr-only" aria-live="polite">
+        {result === 0 ? "No games match" : `${result} games shown`}
+      </output>
     </div>
   );
 }

@@ -111,190 +111,13 @@ body::before {
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.6'/%3E%3C/svg%3E");
 }
 
-.playloom-shell {
-  width: auto;
-  min-width: 0;
-  overflow-x: clip;
-  background: var(--playloom-ink);
-}
-.playloom-reading-surface {
-  min-width: 0;
-  background: var(--playloom-paper);
-  color: var(--playloom-ink);
-}
-.playloom-topbar {
-  position: sticky;
-  top: 0;
-  z-index: 30;
-  display: flex;
-  min-height: 56px;
-  align-items: center;
-  gap: 8px;
-  border-bottom: 1px solid var(--playloom-rule);
-  background: rgb(243 239 229 / 92%);
-  padding: 8px 20px;
-  backdrop-filter: blur(14px);
-}
-.playloom-topbar > :nth-last-child(2) {
-  margin-left: auto;
-}
-.playloom-mobile-wordmark {
-  display: none;
-  font-family: "Fraunces Variable", serif;
-  font-size: 20px;
-  font-weight: 650;
-}
-
-.playloom-spine [data-slot="sidebar-inner"] {
-  border: 0;
-  background: var(--playloom-ink);
-  color: #f5efe2;
-}
-.playloom-spine-header {
-  gap: 16px;
-  padding: 30px 24px 22px;
-}
-.playloom-spine-header > a {
-  width: fit-content;
-  color: white;
-  font-family: "Fraunces Variable", serif;
-  font-size: 31px;
-  font-weight: 650;
-  letter-spacing: -0.04em;
-}
-.playloom-spine-header > p {
-  color: rgb(246 240 226 / 58%);
-  font-family: "Fraunces Variable", serif;
-  font-size: 13px;
-  line-height: 1.35;
-}
-.playloom-spine-profile {
-  display: grid;
-  grid-template-columns: 36px 1fr;
-  align-items: center;
-  gap: 10px;
-  margin-top: 8px;
-  padding-top: 19px;
-  border-top: 1px solid rgb(255 255 255 / 12%);
-}
-.playloom-spine-profile > span {
-  display: grid;
-  aspect-ratio: 1;
-  place-items: center;
-  border-radius: 50%;
-  background: #e9dfcd;
-  color: var(--playloom-ink);
-  font-size: 11px;
-  font-weight: 750;
-}
-.playloom-spine-profile div {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  font-size: 12px;
-}
-.playloom-spine-profile small {
-  color: rgb(246 240 226 / 50%);
-}
-.playloom-spine-nav {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  padding: 12px 24px 30px;
-}
-.playloom-spine-nav > div {
-  display: flex;
-  flex-direction: column;
-}
-.playloom-spine-nav > div > span {
-  margin-bottom: 7px;
-  color: rgb(246 240 226 / 38%);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
-.playloom-spine-nav > div > span[data-active="true"] {
-  color: rgb(246 240 226 / 76%);
-}
-.playloom-spine-nav a {
-  display: flex;
-  align-items: center;
-  min-height: 34px;
-  border-left: 1px solid rgb(255 255 255 / 13%);
-  color: rgb(246 240 226 / 60%);
-  padding: 8px 11px;
-  font-size: 12px;
-  transition-property: color, border-color, background-color;
-  transition-duration: 160ms;
-}
-.playloom-spine-nav a:hover {
-  color: white;
-}
-.playloom-spine-nav a[aria-current="location"] {
-  border-left-color: #7599f4;
-  background: linear-gradient(90deg, rgb(49 91 191 / 22%), transparent);
-  color: white;
-}
-.playloom-spine-footer {
-  gap: 12px;
-  padding: 20px 24px 26px;
-  color: rgb(246 240 226 / 42%);
-  font-size: 9px;
-  line-height: 1.45;
-}
-.playloom-spine-footer a {
-  color: rgb(246 240 226 / 66%);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-.playloom-demo-notice {
-  display: grid;
-  grid-template-columns: 18px 1fr auto;
-  align-items: center;
-  gap: 10px;
-  margin: 0 clamp(24px, 6vw, 84px);
-  border-top: 1px solid var(--playloom-rule);
-  border-bottom: 1px solid var(--playloom-rule);
-  padding: 13px 0;
-  color: #555960;
-  font-size: 11px;
-}
-.playloom-demo-notice svg {
-  width: 16px;
-}
-.playloom-demo-notice a {
-  color: var(--playloom-cobalt);
-  font-weight: 700;
-}
-
-.playloom-filter-scope {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 16px;
-  margin: 0 clamp(24px, 6vw, 84px);
-  padding: 24px 0 18px;
-  border-bottom: 1px solid var(--playloom-rule);
-}
-.playloom-timeframe {
-  display: flex;
-  flex: 1;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 20px;
-}
-.playloom-timeframe > div:first-child,
 .playloom-transaction-filters > div:first-child {
   display: flex;
   flex-direction: column;
 }
-.playloom-timeframe strong,
 .playloom-transaction-filters strong {
   font-size: 12px;
 }
-.playloom-timeframe span,
 .playloom-transaction-filters span {
   color: var(--muted-foreground);
   font-size: 10px;
@@ -305,9 +128,6 @@ body::before {
 }
 .playloom-chapter + .playloom-chapter {
   border-top: 1px solid var(--playloom-rule);
-}
-.playloom-chapter-profile {
-  background: #f3efe5;
 }
 .playloom-chapter-history {
   background: #ebe5d9;
@@ -320,47 +140,6 @@ body::before {
 }
 .playloom-chapter-tools {
   background: #f3efe5;
-}
-.playloom-chapter-heading {
-  display: grid;
-  grid-template-columns: 48px minmax(0, 1fr);
-  gap: 20px;
-  max-width: 860px;
-  margin-bottom: 82px;
-}
-.playloom-chapter-heading > span {
-  padding-top: 12px;
-  color: var(--playloom-cobalt);
-  font-size: 11px;
-  font-weight: 750;
-  font-variant-numeric: tabular-nums;
-}
-.playloom-chapter-heading h2 {
-  font-family: "Fraunces Variable", serif;
-  font-size: clamp(54px, 7vw, 88px);
-  font-weight: 560;
-  letter-spacing: -0.055em;
-  line-height: 0.94;
-  text-wrap: balance;
-}
-.playloom-chapter-heading p {
-  max-width: 62ch;
-  margin-top: 20px;
-  color: #5d6065;
-  font-size: 15px;
-  line-height: 1.65;
-}
-.playloom-section {
-  scroll-margin-top: 78px;
-  margin-top: 86px;
-}
-.playloom-section > h3 {
-  margin-bottom: 26px;
-  font-family: "Fraunces Variable", serif;
-  font-size: clamp(30px, 4vw, 46px);
-  font-weight: 570;
-  letter-spacing: -0.035em;
-  text-wrap: balance;
 }
 .playloom-subheading,
 .playloom-spend-years h4,
@@ -475,81 +254,12 @@ body::before {
   font-size: 25px;
 }
 
-.playloom-overview-art {
-  display: grid;
-  grid-template-columns: minmax(160px, 280px) minmax(0, 1fr);
-  align-items: end;
-  gap: 34px;
-  max-width: 790px;
-}
-.playloom-overview-art .playloom-poster {
-  aspect-ratio: 2 / 3;
-}
-.playloom-overview-art > div:last-child {
-  display: flex;
-  flex-direction: column;
-  padding-bottom: 18px;
-}
-.playloom-overview-art > div:last-child span {
-  color: var(--playloom-cobalt);
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-}
-.playloom-overview-art > div:last-child strong {
-  margin-top: 9px;
-  font-family: "Fraunces Variable", serif;
-  font-size: clamp(30px, 4vw, 52px);
-  font-weight: 580;
-  letter-spacing: -0.035em;
-  line-height: 1;
-}
-.playloom-overview-art > div:last-child small {
-  margin-top: 14px;
-  color: var(--muted-foreground);
-  font-variant-numeric: tabular-nums;
-}
 .playloom-metric-strip {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   margin-top: 42px;
   border-top: 1px solid var(--playloom-rule);
   border-bottom: 1px solid var(--playloom-rule);
-}
-.playloom-metric {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 5px;
-  padding: 22px 18px 22px 0;
-}
-.playloom-metric + .playloom-metric {
-  border-left: 1px solid var(--playloom-rule);
-  padding-left: 18px;
-}
-.playloom-metric > span {
-  color: #666a70;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-.playloom-metric > strong {
-  overflow: hidden;
-  font-family: "Fraunces Variable", serif;
-  font-size: clamp(22px, 3vw, 36px);
-  font-weight: 570;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.035em;
-  text-overflow: ellipsis;
-}
-.playloom-metric > small {
-  overflow: hidden;
-  color: #707379;
-  font-size: 9px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .playloom-ranked-list {
@@ -1190,55 +900,9 @@ body::before {
   font-size: 9px;
 }
 
-button,
-a,
-input,
-select,
-summary {
-  outline-offset: 3px;
-}
-:focus-visible {
-  outline: 2px solid var(--playloom-cobalt);
-}
-
 @media (max-width: 900px) {
-  .playloom-topbar button,
-  .playloom-reading-surface button,
-  .playloom-reading-surface input,
-  .playloom-reading-surface select,
-  .playloom-reading-surface summary,
-  .playloom-timeframe [role="tab"],
-  .playloom-filter-scope input,
-  .playloom-filter-scope [data-slot="popover-trigger"],
-  .playloom-spine-nav a {
-    min-height: 44px;
-  }
-  .playloom-topbar button {
-    min-width: 44px;
-  }
-  .playloom-mobile-wordmark {
-    display: block;
-  }
-  .playloom-filter-scope,
-  .playloom-timeframe {
-    align-items: stretch;
-    flex-direction: column;
-  }
-  .playloom-filter-scope > [data-slot="popover"] {
-    width: 100%;
-  }
-  .playloom-timeframe > div:last-child {
-    overflow-x: auto;
-  }
   .playloom-metric-strip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .playloom-metric:nth-child(odd) {
-    border-left: 0;
-    padding-left: 0;
-  }
-  .playloom-metric:last-child {
-    grid-column: span 2;
   }
   .playloom-distribution,
   .playloom-session-view,
@@ -1286,54 +950,8 @@ summary {
 }
 
 @media (max-width: 640px) {
-  .playloom-topbar {
-    padding: 6px 12px;
-  }
-  .playloom-topbar > a:last-child {
-    display: none;
-  }
-  .playloom-demo-notice {
-    grid-template-columns: 18px 1fr;
-    margin: 0 20px;
-  }
-  .playloom-demo-notice a {
-    grid-column: 2;
-  }
-  .playloom-filter-scope {
-    margin: 0 20px;
-  }
   .playloom-chapter {
     padding: 68px 20px 84px;
-  }
-  .playloom-chapter-heading {
-    grid-template-columns: 30px 1fr;
-    gap: 10px;
-    margin-bottom: 58px;
-  }
-  .playloom-chapter-heading h2 {
-    font-size: 50px;
-  }
-  .playloom-chapter-heading p {
-    font-size: 13px;
-  }
-  .playloom-section {
-    margin-top: 66px;
-  }
-  .playloom-section > h3 {
-    font-size: 34px;
-  }
-  .playloom-overview-art {
-    grid-template-columns: 110px 1fr;
-    gap: 18px;
-  }
-  .playloom-overview-art > div:last-child strong {
-    font-size: 26px;
-  }
-  .playloom-metric {
-    padding: 18px 12px 18px 0;
-  }
-  .playloom-metric + .playloom-metric {
-    padding-left: 12px;
   }
   .playloom-ranked-game {
     grid-template-columns: 25px 72px minmax(0, 1fr);

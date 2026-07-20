@@ -178,6 +178,8 @@ export function Sidebar({
   side = "left",
   variant = "sidebar",
   collapsible = "offcanvas",
+  mobileTitle = "Sidebar",
+  mobileDescription = "Displays the mobile sidebar.",
   className,
   children,
   ...props
@@ -185,8 +187,17 @@ export function Sidebar({
   side?: "left" | "right";
   variant?: "sidebar" | "floating" | "inset";
   collapsible?: "offcanvas" | "icon" | "none";
+  mobileTitle?: string;
+  mobileDescription?: string;
 }): React.ReactElement {
   const { isMobile, state, openMobile, setOpenMobile } = useSidebar();
+  const scroll = React.useRef(0);
+  const preserveScroll = (open: boolean) => {
+    if (open) scroll.current = window.scrollY;
+    setOpenMobile(open);
+    window.scrollTo(0, scroll.current);
+    window.requestAnimationFrame(() => window.scrollTo(0, scroll.current));
+  };
 
   if (collapsible === "none") {
     return (
@@ -205,9 +216,15 @@ export function Sidebar({
 
   if (isMobile) {
     return (
-      <Sheet onOpenChange={setOpenMobile} open={openMobile} {...props}>
+      <Sheet
+        modal="trap-focus"
+        onOpenChange={preserveScroll}
+        onOpenChangeComplete={() => window.scrollTo(0, scroll.current)}
+        open={openMobile}
+        {...props}
+      >
         <SheetPopup
-          className="w-(--sidebar-width) bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden"
+          className="w-full bg-sidebar p-0 text-sidebar-foreground sm:w-(--sidebar-width)"
           data-mobile="true"
           data-sidebar="sidebar"
           data-slot="sidebar"
@@ -219,10 +236,10 @@ export function Sidebar({
           }
         >
           <SheetHeader className="sr-only">
-            <SheetTitle>Sidebar</SheetTitle>
-            <SheetDescription>Displays the mobile sidebar.</SheetDescription>
+            <SheetTitle>{mobileTitle}</SheetTitle>
+            <SheetDescription>{mobileDescription}</SheetDescription>
           </SheetHeader>
-          <div className="flex h-full w-full flex-col">{children}</div>
+          <div className="flex h-full min-h-0 w-full flex-col">{children}</div>
         </SheetPopup>
       </Sheet>
     );
@@ -334,9 +351,9 @@ export function SidebarRail({
 export function SidebarInset({
   className,
   ...props
-}: React.ComponentProps<"main">): React.ReactElement {
+}: React.ComponentProps<"div">): React.ReactElement {
   return (
-    <main
+    <div
       className={cn(
         "relative flex w-full flex-1 flex-col bg-background",
         "md:peer-data-[variant=inset]:peer-data-[state=collapsed]:ms-2 md:peer-data-[variant=inset]:m-2 md:peer-data-[variant=inset]:ms-0 md:peer-data-[variant=inset]:rounded-xl md:peer-data-[variant=inset]:shadow-sm/5",

@@ -1,6 +1,6 @@
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { render } from "vitest-browser-react";
-import { page } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 import { demoDashboard } from "@/domain/mock";
 import type { TransactionRow } from "@/domain/transactions";
 import { prototypeDashboard } from "@/features/prototype/prototype-data";
@@ -62,6 +62,59 @@ describe("DashboardView", () => {
     await expect.element(page.getByText("Every game you've played")).toBeVisible();
   });
 
+  it("keeps the opening identity and all five Overview metrics in the first desktop viewport", async () => {
+    await page.viewport(1440, 900);
+    onTestFinished(() => page.viewport(1280, 800));
+    const { element } = createHarness(
+      <DashboardView
+        data={prototypeDashboard(demoDashboard)}
+        onRefresh={vi.fn()}
+        onSignOut={vi.fn()}
+        signingOut={false}
+      />
+    );
+
+    const { container } = await render(element);
+
+    const overview = container.querySelector<HTMLElement>("#overview");
+    const metrics = overview?.querySelectorAll<HTMLElement>("strong") ?? [];
+
+    expect(container.querySelectorAll("main").length).toBe(1);
+    expect(overview?.textContent).toContain("Lifetime play");
+    expect(overview?.textContent).toContain("Games played");
+    expect(overview?.textContent).toContain("Sessions");
+    expect(overview?.textContent).toContain("Avg per game");
+    expect(overview?.textContent).toContain("Avg session");
+    expect(metrics.length).toBeGreaterThanOrEqual(6);
+    expect(metrics[metrics.length - 1]?.getBoundingClientRect().bottom).toBeLessThanOrEqual(900);
+    await expect.element(page.getByText("Lifetime-hours caveat.")).toBeVisible();
+  });
+
+  it.each([
+    [390, 844],
+    [900, 800],
+  ])(
+    "retains Overview information without horizontal overflow at %i by %i",
+    async (width, height) => {
+      await page.viewport(width, height);
+      onTestFinished(() => page.viewport(1280, 800));
+      const { element } = createHarness(
+        <DashboardView
+          data={prototypeDashboard(demoDashboard)}
+          onRefresh={vi.fn()}
+          onSignOut={vi.fn()}
+          signingOut={false}
+        />
+      );
+
+      await render(element);
+
+      await expect.element(page.getByText("Lifetime play")).toBeInTheDocument();
+      await expect.element(page.getByText("Avg session", { exact: true })).toBeInTheDocument();
+      expect(document.documentElement.scrollWidth).toBe(document.documentElement.clientWidth);
+    }
+  );
+
   it("shows the demo banner for the demo dataset and offers no sign-out", async () => {
     const { element } = createHarness(
       <DashboardView
@@ -113,7 +166,8 @@ describe("DashboardView", () => {
     // The games-table caption echoes the scoped title count — a stable recompute signal.
     await expect.element(page.getByText(/98 titles in total/)).toBeVisible();
 
-    await page.getByRole("tab", { name: "This year" }).click();
+    await expect.element(page.getByRole("radio", { name: "This year" })).toBeInTheDocument();
+    await page.getByText("This year", { exact: true }).click();
 
     await expect.element(page.getByText(/98 titles in total/)).not.toBeInTheDocument();
     await expect.element(page.getByText(/titles in total/)).toBeVisible();
@@ -146,6 +200,39 @@ describe("DashboardView", () => {
 
     expect(fullCount).toBe(demoDashboard.games.length);
     expect(countGames()).toBe(fullCount);
+  });
+
+  it("keeps the profile overlay anchored and restores focus at nonzero scroll", async () => {
+    const { element } = createHarness(
+      <DashboardView
+        data={demoDashboard}
+        onRefresh={vi.fn()}
+        onSignOut={vi.fn()}
+        signingOut={false}
+      />
+    );
+    const { container } = await render(
+      <div data-test-scroll style={{ height: 300, overflow: "auto" }}>
+        {element}
+      </div>
+    );
+    const scroller = container.querySelector<HTMLElement>("[data-test-scroll]");
+    if (scroller) scroller.scrollTop = 240;
+    expect(scroller?.scrollTop).toBe(240);
+    const trigger = page.getByRole("button", { name: /Open profile menu/ });
+    const before = trigger.element().getBoundingClientRect();
+
+    await trigger.click();
+    await expect.element(page.getByRole("dialog", { name: "Ernxst_" })).toBeVisible();
+
+    const open = trigger.element().getBoundingClientRect();
+    expect(open.x).toBe(before.x);
+    expect(open.y).toBe(before.y);
+
+    await userEvent.keyboard("{Escape}");
+
+    await expect.element(trigger).toHaveFocus();
+    expect(scroller?.scrollTop).toBe(240);
   });
 
   it("switches connected import sources through the profile control", async () => {
@@ -267,7 +354,7 @@ describe("DashboardView", () => {
 
     await render(element);
 
-    await expect.element(page.getByText("No games yet")).toBeVisible();
+    await expect.element(page.getByText("No PlayStation games found")).toBeVisible();
   });
 
   it("shows the no-matches state and restores the library when filters are cleared", async () => {

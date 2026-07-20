@@ -1,6 +1,6 @@
 import { Link, useRouteContext } from "@tanstack/react-router";
 import { Check, ChevronDown, Home, Info, LogOut, UserPlus } from "lucide-react";
-import { useDeferredValue, useState } from "react";
+import { useDeferredValue, useRef, useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,7 +13,6 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import { Tabs, TabsList, TabsTab } from "@/components/ui/tabs";
 import { RefreshDashboard } from "@/features/dashboard/components/refresh-dashboard";
 import { RemoveTransactions } from "@/features/dashboard/components/remove-transactions";
 import { ExportButtons } from "@/features/dashboard/export/components/export-buttons";
@@ -54,7 +53,7 @@ import type { DashboardData } from "@/server/providers/account/snapshot";
 import { type CachedAccount, useCachedAccounts } from "@/stores/dashboard-store";
 import { useTransactionImport } from "@/stores/transactions-store";
 import { DashboardSidebar } from "./dashboard-sidebar";
-import { DashboardEmpty, DashboardNoMatches } from "./states";
+import { DashboardEmpty, DashboardNoMatches, DashboardPartialNotice } from "./states";
 
 interface Props {
   data: DashboardData;
@@ -62,6 +61,7 @@ interface Props {
   onSignOut: () => void;
   signingOut: boolean;
   safeDemo?: boolean;
+  partialData?: boolean;
 }
 
 const TIMEFRAMES: ReadonlyArray<{ value: Timeframe; label: string }> = [
@@ -81,11 +81,15 @@ function ChapterHeading({
   children: string;
 }) {
   return (
-    <header className="playloom-chapter-heading">
-      <span>{number}</span>
+    <header className="mb-10 grid max-w-215 grid-cols-[2rem_minmax(0,1fr)] gap-3 [.playloom-chapter-profile_&]:mb-6">
+      <span className="pt-1 text-[0.6875rem] font-bold text-primary tabular-nums">{number}</span>
       <div>
-        <h2>{title}</h2>
-        <p>{children}</p>
+        <h2 className="font-[Fraunces_Variable] text-[clamp(2.5rem,5vw,4rem)] font-semibold tracking-[-0.05em] leading-none text-balance [.playloom-chapter-profile_&]:text-[clamp(2rem,4vw,3rem)]">
+          {title}
+        </h2>
+        <p className="mt-2 max-w-[62ch] text-sm leading-relaxed text-muted-foreground [.playloom-chapter-profile_&]:hidden">
+          {children}
+        </p>
       </div>
     </header>
   );
@@ -101,8 +105,17 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section id={id} className="playloom-section" aria-labelledby={`${id}-title`}>
-      <h3 id={`${id}-title`}>{title}</h3>
+    <section
+      id={id}
+      className="mt-20 scroll-mt-20 first:mt-0 [.playloom-chapter-profile_&]:mt-14 [.playloom-chapter-profile_&]:first:mt-0"
+      aria-labelledby={`${id}-title`}
+    >
+      <h3
+        className="mb-6 font-[Fraunces_Variable] text-[clamp(1.75rem,3vw,2.5rem)] font-semibold tracking-[-0.035em]"
+        id={`${id}-title`}
+      >
+        {title}
+      </h3>
       {children}
     </section>
   );
@@ -164,26 +177,33 @@ function TimeframeControl({
   onChange: (value: Timeframe) => void;
 }) {
   return (
-    <div className="playloom-timeframe">
-      <div>
-        <strong>Game filters</strong>
-        <span>Applies to Profile, History and Library</span>
+    <div className="flex flex-1 flex-wrap items-end justify-between gap-4">
+      <div className="flex flex-col">
+        <strong className="text-xs">Game filter scope</strong>
+        <span className="text-[0.6875rem] text-muted-foreground">
+          Applies to Profile, History and Library
+        </span>
       </div>
-      <Tabs
-        value={value}
-        onValueChange={(next) => {
-          const match = TIMEFRAMES.find((timeframe) => timeframe.value === next);
-          if (match) onChange(match.value);
-        }}
-      >
-        <TabsList aria-label={`Last-played timeframe; current year ${currentYear()}`}>
+      <fieldset>
+        <legend className="sr-only">Last-played timeframe; current year {currentYear()}</legend>
+        <div className="grid grid-cols-4 border border-[var(--playloom-rule-strong)]">
           {TIMEFRAMES.map((timeframe) => (
-            <TabsTab key={timeframe.value} value={timeframe.value}>
+            <label
+              className="relative grid min-h-11 cursor-pointer place-items-center border-r border-[var(--playloom-rule-strong)] px-3 text-xs font-bold last:border-r-0 has-checked:bg-primary has-checked:text-primary-foreground"
+              key={timeframe.value}
+            >
+              <input
+                className="sr-only"
+                type="radio"
+                name="last-played-timeframe"
+                checked={value === timeframe.value}
+                onChange={() => onChange(timeframe.value)}
+              />
               {timeframe.label}
-            </TabsTab>
+            </label>
           ))}
-        </TabsList>
-      </Tabs>
+        </div>
+      </fieldset>
     </div>
   );
 }
@@ -311,10 +331,15 @@ function ProfileMenu({ data }: { data: DashboardData }) {
   );
 }
 
-function ProfileControl({ data }: { data: DashboardData }) {
-  const { profile } = data;
+function ProfileTrigger({
+  profile,
+  capture,
+}: {
+  profile: DashboardData["profile"];
+  capture: () => void;
+}) {
   return (
-    <Popover>
+    <span onPointerDownCapture={capture} onKeyDownCapture={capture} onClickCapture={capture}>
       <PopoverTrigger
         render={
           <Button
@@ -334,6 +359,22 @@ function ProfileControl({ data }: { data: DashboardData }) {
         </span>
         <ChevronDown aria-hidden="true" />
       </PopoverTrigger>
+    </span>
+  );
+}
+
+function ProfileControl({ data }: { data: DashboardData }) {
+  const [open, setOpen] = useState(false);
+  const scroll = useRef(0);
+  const restoreScroll = () => window.scrollTo(0, scroll.current);
+  const preserveScroll = (next: boolean) => {
+    setOpen(next);
+    restoreScroll();
+    window.requestAnimationFrame(restoreScroll);
+  };
+  return (
+    <Popover open={open} onOpenChange={preserveScroll} onOpenChangeComplete={restoreScroll}>
+      <ProfileTrigger profile={data.profile} capture={() => (scroll.current = window.scrollY)} />
       <ProfileMenu data={data} />
     </Popover>
   );
@@ -341,10 +382,12 @@ function ProfileControl({ data }: { data: DashboardData }) {
 
 function TopBar({ data }: { data: DashboardData }) {
   return (
-    <header className="playloom-topbar">
-      <SidebarTrigger />
-      <span className="playloom-mobile-wordmark">Playloom</span>
-      <ProfileControl data={data} />
+    <header className="sticky top-0 z-30 flex min-h-15 items-center gap-2 border-b border-[var(--playloom-rule)] bg-[rgb(243_239_229/96%)] px-5 backdrop-blur-md">
+      <SidebarTrigger className="size-11 md:hidden" aria-label="Open chapter navigation" />
+      <span className="font-[Fraunces_Variable] text-xl font-semibold md:hidden">Playloom</span>
+      <div className="ml-auto">
+        <ProfileControl data={data} />
+      </div>
       <Button
         variant="ghost"
         size="icon"
@@ -371,13 +414,13 @@ function ProfileSummary({ data, refreshed }: { data: DashboardData; refreshed: b
       <p className="text-[0.6875rem] font-bold tracking-[0.14em] text-primary uppercase">
         A life in games
       </p>
-      <h1 className="mt-2 max-w-[12ch] font-[Fraunces_Variable] text-[clamp(3.5rem,8vw,6.875rem)] font-[570] tracking-[-0.065em] leading-[0.9] text-balance">
+      <h1 className="mt-1 max-w-[16ch] font-[Fraunces_Variable] text-[clamp(2.75rem,5vw,4.5rem)] font-[570] tracking-[-0.06em] leading-[0.92] text-balance">
         {data.profile.onlineId}
       </h1>
-      <p className="mt-5 max-w-[48ch] text-[0.9375rem] leading-[1.65] text-muted-foreground text-pretty">
+      <p className="mt-2 max-w-[48ch] text-sm leading-relaxed text-muted-foreground text-pretty max-sm:hidden">
         {data.profile.aboutMe}
       </p>
-      <div className="mt-4 flex max-w-130 items-center gap-2.5 text-[0.625rem] text-muted-foreground">
+      <div className="mt-3 flex max-w-130 flex-wrap items-center gap-2.5 text-[0.625rem] text-muted-foreground">
         <span>{account}</span>
         <span>Trophy level {fmtNumber(data.profile.trophyLevel)}</span>
         <Progress
@@ -387,7 +430,7 @@ function ProfileSummary({ data, refreshed }: { data: DashboardData; refreshed: b
         />
         <span>{data.profile.levelProgress}% to next</span>
       </div>
-      <div className="mt-6 flex items-center gap-2 text-[0.6875rem] text-muted-foreground tabular-nums">
+      <div className="mt-3 flex items-center gap-2 text-[0.6875rem] text-muted-foreground tabular-nums">
         <span className="size-1.75 rounded-full bg-success-foreground shadow-[0_0_0_3px_color-mix(in_oklab,var(--success-foreground)_12%,transparent)]" />
         {refreshed ? "Refreshed just now" : `Last refreshed ${refreshedAt}`}
       </div>
@@ -420,7 +463,7 @@ function AccountActions({ props, onSafeRefresh }: { props: Props; onSafeRefresh:
 function Marquee(props: Props) {
   const [refreshed, setRefreshed] = useState(false);
   return (
-    <header className="flex min-h-[22rem] justify-between gap-8 overflow-hidden bg-[radial-gradient(circle_at_85%_10%,color-mix(in_oklab,var(--primary)_14%,transparent),transparent_34%),linear-gradient(145deg,var(--playloom-paper-raised)_0%,var(--playloom-paper-deep)_100%)] px-[clamp(1.5rem,6vw,5.25rem)] pt-14 pb-10 max-sm:min-h-0 max-sm:flex-col max-sm:px-5 max-sm:pt-12 max-sm:pb-9">
+    <header className="flex min-h-[11.5rem] justify-between gap-5 overflow-hidden bg-[radial-gradient(circle_at_85%_10%,color-mix(in_oklab,var(--primary)_14%,transparent),transparent_34%),linear-gradient(145deg,var(--playloom-paper-raised)_0%,var(--playloom-paper-deep)_100%)] px-[clamp(1.25rem,5vw,4rem)] py-6 max-sm:min-h-0 max-sm:flex-col max-sm:px-5 max-sm:py-6">
       <ProfileSummary data={props.data} refreshed={refreshed} />
       <AccountActions props={props} onSafeRefresh={() => setRefreshed(true)} />
     </header>
@@ -429,13 +472,17 @@ function Marquee(props: Props) {
 
 function DemoNotice() {
   return (
-    <div className="playloom-demo-notice">
-      <Info />
+    <div className="grid grid-cols-[1.125rem_minmax(0,1fr)_auto] items-center gap-2.5 border-b border-[var(--playloom-rule)] px-[clamp(1.25rem,5vw,4rem)] py-3 text-[0.6875rem] text-muted-foreground max-sm:grid-cols-[1.125rem_minmax(0,1fr)]">
+      <Info className="size-4" />
       <span>
         This <strong>demo dataset</strong> is a stable Playloom profile. Artwork and purchases are
         local fixtures; no network data is required.
       </span>
-      <Link to="/dashboard" search={{ prototypeState: "signed-in" }}>
+      <Link
+        className="font-bold text-primary underline-offset-4 hover:underline max-sm:col-start-2"
+        to="/dashboard"
+        search={{ prototypeState: "signed-in" }}
+      >
         Open safe signed-in demo
       </Link>
     </div>
@@ -444,7 +491,7 @@ function DemoNotice() {
 
 function ProfileChapter({ data }: { data: DashboardData }) {
   return (
-    <div className="playloom-chapter playloom-chapter-profile">
+    <div className="playloom-chapter-profile bg-[#f3efe5] px-[clamp(1.25rem,5vw,4rem)] pt-6 pb-20">
       <ChapterHeading number="01" title="Profile">
         The shape of your gaming life, from the games you return to and the patterns they leave
         behind.
@@ -499,7 +546,7 @@ function SpendingChapter({ data }: { data: DashboardData }) {
       <Section id="spending" title="Spending and purchase history">
         <PrototypeSpending data={data} />
       </Section>
-      <Section id="purchase-data" title="Connected purchase data">
+      <Section id="purchase-data" title="Purchase import">
         <div className="space-y-6">
           <div id="spend">
             <SpendSection data={data} />
@@ -578,19 +625,33 @@ function DashboardChapters({
 function FilterScope({
   data,
   filters,
+  resultCount,
   onChange,
 }: {
   data: DashboardData;
   filters: DashboardFilters;
+  resultCount: number;
   onChange: (filters: DashboardFilters) => void;
 }) {
+  const disabled = data.games.length === 0;
   return (
-    <div className="playloom-filter-scope">
+    <div className="flex flex-wrap items-end justify-between gap-4 border-y border-[var(--playloom-rule)] bg-[var(--playloom-paper-raised)] px-[clamp(1.25rem,5vw,4rem)] py-4">
       <TimeframeControl
         value={filters.timeframe}
         onChange={(timeframe) => onChange({ ...filters, timeframe })}
       />
-      <FilterBar data={data} filters={filters} onChange={onChange} />
+      <FilterBar
+        data={data}
+        filters={filters}
+        onChange={onChange}
+        resultCount={resultCount}
+        disabled={disabled}
+      />
+      {disabled && (
+        <p className="w-full text-xs text-muted-foreground">
+          Filters become available after games are imported.
+        </p>
+      )}
     </div>
   );
 }
@@ -617,15 +678,25 @@ function ReadingSurface(props: Props) {
   const [filters, setFilters] = useState<DashboardFilters>(defaultFilters);
   const deferredSearch = useDeferredValue(filters.search);
   const scoped = applyFilters(props.data, { ...filters, search: deferredSearch });
+  const clearFilters = () => {
+    setFilters(defaultFilters);
+    document.querySelector<HTMLInputElement>('[aria-label="Search games by name"]')?.focus();
+  };
   return (
-    <main className="playloom-reading-surface">
+    <main className="min-w-0 bg-[var(--playloom-paper)] text-[var(--playloom-ink)]">
       <Marquee {...props} />
       {props.data.isDemo && <DemoNotice />}
-      <FilterScope data={props.data} filters={filters} onChange={setFilters} />
+      <FilterScope
+        data={props.data}
+        filters={filters}
+        resultCount={scoped.games.length}
+        onChange={setFilters}
+      />
+      {props.partialData && <DashboardPartialNotice />}
       <DashboardResult
         source={props.data}
         scoped={scoped}
-        onClear={() => setFilters(defaultFilters)}
+        onClear={clearFilters}
         safeDemo={props.safeDemo === true}
       />
       <footer className="playloom-mobile-footer">
@@ -641,7 +712,7 @@ export function DashboardView(props: Props) {
   return (
     <SidebarProvider>
       <DashboardSidebar profile={props.data.profile} />
-      <SidebarInset className="playloom-shell">
+      <SidebarInset className="min-w-0 overflow-x-clip bg-[var(--playloom-ink)]">
         <TopBar data={props.data} />
         <ReadingSurface {...props} />
       </SidebarInset>

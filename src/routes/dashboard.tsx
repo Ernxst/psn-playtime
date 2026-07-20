@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo } from "react";
+import { type ReactNode, useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import { DashboardView } from "@/features/dashboard/components/dashboard-view";
 import { DashboardError, DashboardSkeleton } from "@/features/dashboard/components/states";
@@ -14,16 +14,22 @@ import { signInWithToken } from "@/server/api/account.effect";
 import type { DashboardData, GamePlay, Genre } from "@/server/providers/account/snapshot";
 import { useActiveDashboard } from "@/stores/dashboard-store";
 
-type PrototypeState = "loading" | "error" | "empty" | "signed-in";
+type PrototypeState = "loading" | "error" | "empty" | "partial" | "signed-in";
 interface DashboardSearch {
   prototypeState?: PrototypeState;
 }
 
+const prototypeStates: readonly PrototypeState[] = [
+  "loading",
+  "error",
+  "empty",
+  "partial",
+  "signed-in",
+];
+
 function prototypeState(value: unknown): PrototypeState | undefined {
-  if (value === "loading" || value === "error" || value === "empty" || value === "signed-in") {
-    return value;
-  }
-  return undefined;
+  if (typeof value !== "string") return undefined;
+  return prototypeStates.find((state) => state === value);
 }
 
 /** Apply a title's deferred RAWG enrichment, leaving unknown fields untouched. */
@@ -92,44 +98,70 @@ export const Route = createFileRoute("/dashboard")({
   pendingComponent: DashboardSkeleton,
 });
 
+function emptyDashboard(data: DashboardData): DashboardData {
+  return {
+    ...prototypeDashboard(data),
+    games: [],
+    meta: { ...data.meta, totalGames: 0, totalHours: 0, totalSessions: 0, appsExcluded: [] },
+  };
+}
+
+function partialDashboard(data: DashboardData): DashboardData {
+  const partial = prototypeDashboard(data);
+  const games = partial.games.map((game) => {
+    const result = { ...game, playCount: 0 };
+    delete result.franchise;
+    delete result.imageUrl;
+    delete result.trophy;
+    delete result.typicalPlaytime;
+    return result;
+  });
+  return {
+    ...partial,
+    games,
+    enriched: false,
+    trophiesUnavailable: true,
+    meta: { ...partial.meta, totalSessions: 0 },
+  };
+}
+
+const prototypeViews: Record<PrototypeState, (data: DashboardData) => ReactNode> = {
+  loading: () => <DashboardSkeleton />,
+  error: () => (
+    <DashboardError
+      message="PlayStation could not return this archive. Your existing browser data is unchanged."
+      onRetry={() => window.location.assign("/dashboard")}
+    />
+  ),
+  empty: (data) => <DashboardCachedView data={emptyDashboard(data)} />,
+  partial: (data) => <DashboardCachedView data={partialDashboard(data)} partialData />,
+  "signed-in": (data) => <DashboardCachedView data={safeSignedInDashboard(data)} safeDemo />,
+};
+
+function PrototypeDashboard({ state, data }: { state: PrototypeState; data: DashboardData }) {
+  return prototypeViews[state](data);
+}
+
 function Dashboard() {
   // With `ssr: false` this only ever runs on the client, where the sync kvs atom
   // reads localStorage immediately and resolves to the active account's cached
   // dashboard (falling back to the demo dataset when there is none).
   const data = useActiveDashboard();
   const { prototypeState: state } = Route.useSearch();
-  if (state === "loading") return <DashboardSkeleton />;
-  if (state === "error") {
-    return (
-      <DashboardError
-        message="PlayStation could not return this archive. Your existing browser data is unchanged."
-        onRetry={() => window.location.assign("/dashboard")}
-      />
-    );
-  }
-  if (state === "empty") {
-    return (
-      <DashboardCachedView
-        data={{
-          ...prototypeDashboard(data),
-          games: [],
-          meta: { ...data.meta, totalGames: 0, totalHours: 0, totalSessions: 0, appsExcluded: [] },
-        }}
-      />
-    );
-  }
-  if (state === "signed-in")
-    return <DashboardCachedView data={safeSignedInDashboard(data)} safeDemo />;
-  return <DashboardCachedView data={prototypeDashboard(data)} />;
+  return state ? (
+    <PrototypeDashboard state={state} data={data} />
+  ) : (
+    <DashboardCachedView data={prototypeDashboard(data)} />
+  );
 }
 
-function DashboardCachedView({
-  data,
-  safeDemo = false,
-}: {
+interface CachedViewProps {
   data: DashboardData;
   safeDemo?: boolean;
-}) {
+  partialData?: boolean;
+}
+
+function DashboardCachedView({ data, safeDemo = false, partialData = false }: CachedViewProps) {
   const { dashboardStore } = Route.useRouteContext();
   const { data: rawgGenres = [], status: genresStatus } = useQuery(rawgGenresQueryOptions(data));
   const { data: rawgFranchises = [], status: franchisesStatus } = useQuery(
@@ -166,6 +198,7 @@ function DashboardCachedView({
     <DashboardView
       data={enrichedData}
       safeDemo={safeDemo}
+      partialData={partialData}
       onRefresh={async (npsso) => {
         const refreshed = await signInWithToken({ data: { npsso } });
         if (refreshed.profile.accountId !== data.profile.accountId) {

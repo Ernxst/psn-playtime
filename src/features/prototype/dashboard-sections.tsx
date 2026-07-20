@@ -18,10 +18,14 @@ import { prototypeTransactions } from "./prototype-data";
 
 function Metric({ label, value, detail }: { label: string; value: string; detail: string }) {
   return (
-    <div className="playloom-metric">
-      <span>{label}</span>
-      <strong>{value}</strong>
-      <small>{detail}</small>
+    <div className="flex min-w-0 flex-col gap-1 border-l border-[var(--playloom-rule)] py-2 pl-4 first:border-l-0 first:pl-0 max-sm:border-l-0 max-sm:border-t max-sm:py-3 max-sm:pl-0 max-sm:first:border-t-0">
+      <span className="text-[0.625rem] font-bold tracking-[0.08em] text-muted-foreground uppercase">
+        {label}
+      </span>
+      <strong className="overflow-hidden font-[Fraunces_Variable] text-[clamp(1.5rem,2.5vw,2.25rem)] font-semibold tracking-[-0.035em] tabular-nums">
+        {value}
+      </strong>
+      <small className="text-[0.6875rem] text-muted-foreground">{detail}</small>
     </div>
   );
 }
@@ -29,12 +33,18 @@ function Metric({ label, value, detail }: { label: string; value: string; detail
 function OverviewArt({ game }: { game: GamePlay | undefined }) {
   if (!game) return null;
   return (
-    <div className="playloom-overview-art">
-      <GamePoster game={game} featured />
-      <div>
-        <span>Most played</span>
-        <strong>{game.name}</strong>
-        <small>
+    <div className="grid grid-cols-[minmax(6.5rem,9rem)_minmax(0,1fr)] items-end gap-5">
+      <div className="[&_.playloom-poster]:aspect-[2/3]">
+        <GamePoster game={game} featured />
+      </div>
+      <div className="flex min-w-0 flex-col pb-2">
+        <span className="text-[0.625rem] font-bold tracking-[0.12em] text-primary uppercase">
+          Most played
+        </span>
+        <strong className="mt-2 font-[Fraunces_Variable] text-[clamp(1.5rem,3vw,2.5rem)] font-semibold tracking-[-0.035em] leading-none text-balance">
+          {game.name}
+        </strong>
+        <small className="mt-3 text-muted-foreground tabular-nums">
           {fmtHours(game.hours)} across {fmtNumber(game.playCount)} launches
         </small>
       </div>
@@ -47,7 +57,7 @@ function OverviewMetrics({ data }: { data: DashboardData }) {
   const hoursPerGame = totals.gamesPlayed === 0 ? 0 : totals.totalHours / totals.gamesPlayed;
   const hoursPerSession = totals.sessions === 0 ? 0 : totals.totalHours / totals.sessions;
   return (
-    <div className="playloom-metric-strip">
+    <div className="grid grid-cols-5 border-y border-[var(--playloom-rule)] py-2 max-sm:grid-cols-1">
       <Metric
         label="Lifetime play"
         value={fmtHours(totals.totalHours)}
@@ -63,13 +73,16 @@ function OverviewMetrics({ data }: { data: DashboardData }) {
 
 export function ProfileOverview({ data }: { data: DashboardData }) {
   return (
-    <div className="playloom-overview">
+    <div className="grid gap-5 lg:grid-cols-[minmax(15rem,0.7fr)_minmax(30rem,1.3fr)] lg:items-end">
       <OverviewArt game={data.games[0]} />
-      <OverviewMetrics data={data} />
-      <p className="playloom-caveat">
-        PSN reports lifetime hours per game. Time filters select games by last-played date; they do
-        not turn lifetime hours into hours played during the period.
-      </p>
+      <div className="grid gap-3">
+        <OverviewMetrics data={data} />
+        <p className="max-w-[75ch] text-xs leading-relaxed text-muted-foreground">
+          <strong className="text-foreground">Lifetime-hours caveat.</strong> PSN reports lifetime
+          hours per game. Time filters select games by last-played date; they do not turn lifetime
+          hours into hours played during the period.
+        </p>
+      </div>
     </div>
   );
 }
