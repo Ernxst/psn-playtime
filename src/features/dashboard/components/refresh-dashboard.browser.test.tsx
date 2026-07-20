@@ -5,10 +5,17 @@ import { Toaster } from "@/components/ui/sonner";
 import { createHarness } from "@/test/harness";
 import { RefreshDashboard } from "./refresh-dashboard";
 
-function view(onRefresh: (npsso: string) => Promise<void>) {
+function view(
+  onRefresh: (npsso: string) => Promise<void>,
+  options?: { safeDemo?: boolean; onComplete?: () => void }
+) {
   return createHarness(
     <>
-      <RefreshDashboard onRefresh={onRefresh} />
+      <RefreshDashboard
+        onRefresh={onRefresh}
+        safeDemo={options?.safeDemo}
+        onComplete={options?.onComplete}
+      />
       <Toaster />
     </>
   ).element;
@@ -87,5 +94,24 @@ describe("RefreshDashboard", () => {
 
     expect(onRefresh).not.toHaveBeenCalled();
     await expect.element(page.getByText("Paste your npsso token first.")).toBeVisible();
+  });
+
+  it("exercises failure retention and success without accepting a real token in safe demo mode", async () => {
+    const onRefresh = vi.fn().mockResolvedValue(undefined);
+    const onComplete = vi.fn();
+    await render(view(onRefresh, { safeDemo: true, onComplete }));
+
+    await page.getByRole("button", { name: "Refresh" }).click();
+    const credential = page.getByLabelText("Demo credential");
+    await expect.element(credential).toHaveValue("PLAYLOOM-DEMO");
+    await expect.element(credential).toHaveAttribute("readonly", "");
+
+    await page.getByRole("button", { name: "Preview rejected credential" }).click();
+    await expect.element(page.getByText(/demo credential was rejected/)).toBeVisible();
+    await expect.element(credential).toHaveValue("PLAYLOOM-DEMO");
+
+    await page.getByRole("button", { name: "Refresh data" }).click();
+    expect(onRefresh).toHaveBeenCalledExactlyOnceWith("playloom-demo-credential");
+    expect(onComplete).toHaveBeenCalledTimes(1);
   });
 });

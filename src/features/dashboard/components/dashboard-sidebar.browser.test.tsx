@@ -6,9 +6,12 @@ import { createHarness } from "@/test/harness";
 import { DashboardSidebar } from "./dashboard-sidebar";
 
 describe("DashboardSidebar", () => {
-  it("renders the section navigation and intercepts in-page nav clicks", async () => {
+  it("updates the URL hash when a section anchor is chosen", async () => {
     await page.viewport(1280, 800);
-    onTestFinished(() => page.viewport(1280, 800));
+    onTestFinished(() => {
+      window.history.replaceState(null, "", window.location.pathname);
+      return page.viewport(1280, 800);
+    });
 
     const { element } = createHarness(
       <SidebarProvider>
@@ -22,8 +25,7 @@ describe("DashboardSidebar", () => {
 
     await page.getByRole("link", { name: "Top games" }).click();
 
-    // handleNavigate calls preventDefault, so the hash never lands in the URL.
-    expect(window.location.hash).toBe("");
+    expect(window.location.hash).toBe("#top-games");
   });
 
   it("marks the overview section active on first render", async () => {

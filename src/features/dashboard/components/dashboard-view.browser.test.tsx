@@ -3,7 +3,8 @@ import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
 import { demoDashboard } from "@/domain/mock";
 import type { TransactionRow } from "@/domain/transactions";
-import { testTransactionStore } from "@/test/atom-registry";
+import { prototypeDashboard } from "@/features/prototype/prototype-data";
+import { testDashboardStore, testTransactionStore } from "@/test/atom-registry";
 import { createHarness } from "@/test/harness";
 import { DashboardView } from "./dashboard-view";
 
@@ -32,19 +33,25 @@ function baseFor(titleId: string, amountMinor: number): TransactionRow {
 
 describe("DashboardView", () => {
   it("composes the header, KPIs, chart sections and games table from the data", async () => {
+    const data = prototypeDashboard(demoDashboard);
     const { element } = createHarness(
-      <DashboardView
-        data={demoDashboard}
-        onRefresh={vi.fn()}
-        onSignOut={vi.fn()}
-        signingOut={false}
-      />
+      <DashboardView data={data} onRefresh={vi.fn()} onSignOut={vi.fn()} signingOut={false} />
     );
 
-    await render(element);
+    const { container } = await render(element);
 
     await expect.element(page.getByRole("heading", { name: "Ernxst_" })).toBeVisible();
-    await expect.element(page.getByText("Games played")).toBeVisible();
+    const overview = document.querySelector("#overview")?.textContent ?? "";
+    expect(overview).toContain("Lifetime play");
+    expect(overview).toContain("Games played");
+    expect(overview).toContain("Sessions");
+    expect(overview).toContain("Avg per game");
+    expect(overview).toContain("Avg session");
+    expect(overview).not.toContain("Trophy level");
+    expect(container.querySelectorAll('[data-source="psn"]').length).toBeGreaterThan(0);
+    expect(container.querySelectorAll('[data-source="rawg-fixture"]').length).toBeGreaterThan(0);
+    expect(container.querySelectorAll('[data-source="deterministic"]').length).toBeGreaterThan(0);
+    expect(container.querySelector('[data-source="psn"] .playloom-poster-psn')).not.toBeNull();
 
     // Reveal the deferred chart section so its IntersectionObserver fires and loads the chart.
     // The section itself is deliberately not rendered through an accessible locator yet.
@@ -112,7 +119,7 @@ describe("DashboardView", () => {
     await expect.element(page.getByText(/titles in total/)).toBeVisible();
   });
 
-  it("narrowing the library narrows the AI prompt", async () => {
+  it("keeps Ask AI account-wide when game filters narrow the library", async () => {
     const { element } = createHarness(
       <DashboardView
         data={demoDashboard}
@@ -138,7 +145,72 @@ describe("DashboardView", () => {
     await expect.element(page.getByText(/98 titles in total/)).not.toBeInTheDocument();
 
     expect(fullCount).toBe(demoDashboard.games.length);
-    expect(countGames()).toBeLessThan(fullCount);
+    expect(countGames()).toBe(fullCount);
+  });
+
+  it("switches connected import sources through the profile control", async () => {
+    const second = {
+      ...demoDashboard,
+      fetchedAt: "2025-06-01T00:00:00.000Z",
+      profile: { ...demoDashboard.profile, accountId: "acc-2", onlineId: "SecondAccount" },
+      isDemo: false,
+    };
+    testDashboardStore.save(second);
+    const setActive = vi.spyOn(testDashboardStore, "setActive");
+    onTestFinished(() => {
+      setActive.mockRestore();
+      testDashboardStore.remove(second.profile.accountId);
+    });
+    const { element } = createHarness(
+      <DashboardView
+        data={{ ...demoDashboard, isDemo: false }}
+        onRefresh={vi.fn()}
+        onSignOut={vi.fn()}
+        signingOut={false}
+      />
+    );
+
+    await render(element);
+    await page.getByRole("button", { name: /Open profile menu/ }).click();
+    await page.getByRole("button", { name: "Switch to SecondAccount" }).click();
+
+    expect(setActive).toHaveBeenCalledWith("acc-2");
+  });
+
+  it("filters the purchase ledger by date and sorts every retained column", async () => {
+    const { element } = createHarness(
+      <DashboardView
+        data={demoDashboard}
+        onRefresh={vi.fn()}
+        onSignOut={vi.fn()}
+        signingOut={false}
+      />
+    );
+    const { container } = await render(element);
+
+    const ledgerText = () => container.querySelector(".playloom-ledger")?.textContent ?? "";
+    expect(ledgerText()).toContain("Grand Theft Auto V");
+
+    await page.getByLabelText("Purchase date from").fill("2025-01-01");
+    expect(ledgerText()).not.toContain("Grand Theft Auto V");
+
+    const sortButtons = Array.from(
+      container.querySelectorAll<HTMLButtonElement>(".playloom-ledger th button")
+    );
+    expect(sortButtons.map((button) => button.textContent?.trim())).toEqual([
+      "Date ↓",
+      "Product ↕",
+      "Type ↕",
+      "Match ↕",
+      "Original ↕",
+      "Discount ↕",
+      "Paid ↕",
+    ]);
+    sortButtons[1]?.click();
+    await vi.waitFor(() => {
+      const firstProduct = container.querySelector(".playloom-ledger tbody tr td:nth-child(2)");
+      expect(firstProduct?.textContent).toContain("Cyberpunk");
+    });
   });
 
   it("keeps account-wide spend totals when a filter narrows the library", async () => {

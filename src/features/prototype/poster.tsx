@@ -43,6 +43,11 @@ function posterSource(game: GamePlay, slot: PosterSlot | undefined): string {
   return "deterministic";
 }
 
+function posterTone(title: string): number {
+  const value = Array.from(title).reduce((sum, character) => sum + character.charCodeAt(0), 0);
+  return value % 5;
+}
+
 export function GamePoster({ game, featured = false }: { game: GamePlay; featured?: boolean }) {
   const slot = posterSlot(game);
   const className = featured ? "playloom-poster playloom-poster-featured" : "playloom-poster";
@@ -52,15 +57,18 @@ export function GamePoster({ game, featured = false }: { game: GamePlay; feature
       className={className}
       data-fallback={slot ? undefined : "true"}
       data-source={posterSource(game, slot)}
+      data-tone={posterTone(game.name)}
       aria-label={`${game.name} artwork${fallbackLabel}`}
     >
-      <PosterArtwork slot={slot} title={game.name} />
-      {game.imageUrl && (
-        <div
-          className="playloom-poster-psn"
-          style={{ backgroundImage: `url(${JSON.stringify(game.imageUrl)})` }}
-          aria-hidden="true"
-        />
+      {game.imageUrl ? (
+        <>
+          {/* A real source element proves square PSN artwork is composed, not blindly cropped. */}
+          {/* oxlint-disable-next-line react-doctor/nextjs-no-img-element -- local square fixture must prove source-above composition */}
+          <img className="playloom-poster-psn" src={game.imageUrl} alt="" aria-hidden="true" />
+          <div className="playloom-poster-extension" aria-hidden="true" />
+        </>
+      ) : (
+        <PosterArtwork slot={slot} title={game.name} />
       )}
       <figcaption className="playloom-poster-caption">
         <span>{game.name}</span>

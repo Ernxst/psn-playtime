@@ -1,21 +1,17 @@
-import { Link } from "@tanstack/react-router";
-import { Check, ChevronDown, Home, Info, LogOut, RefreshCw, UserPlus } from "lucide-react";
+import { Link, useRouteContext } from "@tanstack/react-router";
+import { Check, ChevronDown, Home, Info, LogOut, UserPlus } from "lucide-react";
 import { useDeferredValue, useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverClose,
+  PopoverContent,
+  PopoverTitle,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
-import {
-  Sheet,
-  SheetClose,
-  SheetContent,
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { Tabs, TabsList, TabsTab } from "@/components/ui/tabs";
 import { RefreshDashboard } from "@/features/dashboard/components/refresh-dashboard";
@@ -54,8 +50,8 @@ import {
   PrototypeSpending,
 } from "@/features/prototype/dashboard-sections";
 import { prototypeTransactions } from "@/features/prototype/prototype-data";
-import { useMediaQuery } from "@/hooks/use-media-query";
 import type { DashboardData } from "@/server/providers/account/snapshot";
+import { type CachedAccount, useCachedAccounts } from "@/stores/dashboard-store";
 import { useTransactionImport } from "@/stores/transactions-store";
 import { DashboardSidebar } from "./dashboard-sidebar";
 import { DashboardEmpty, DashboardNoMatches } from "./states";
@@ -65,6 +61,7 @@ interface Props {
   onRefresh: (npsso: string) => Promise<void>;
   onSignOut: () => void;
   signingOut: boolean;
+  safeDemo?: boolean;
 }
 
 const TIMEFRAMES: ReadonlyArray<{ value: Timeframe; label: string }> = [
@@ -191,83 +188,97 @@ function TimeframeControl({
   );
 }
 
-function SafeRefreshContent({ pending, onSimulate }: { pending: boolean; onSimulate: () => void }) {
+function ImportSource({
+  account,
+  current,
+  onSelect,
+}: {
+  account: CachedAccount;
+  current: boolean;
+  onSelect: (accountId: string) => void;
+}) {
+  const refreshedAt = new Date(account.fetchedAt).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
   return (
-    <>
-      <SheetHeader>
-        <SheetTitle>Refresh PlayStation data</SheetTitle>
-        <SheetDescription>
-          Safe signed-in demo. This evaluates the account workflow without accepting or sending a
-          real token.
-        </SheetDescription>
-      </SheetHeader>
-      <div className="space-y-4 px-4 text-sm">
-        <div className="playloom-trust-note">
-          In the real flow, an NPSSO token is password-equivalent, sent once through the server to
-          PlayStation, never stored, and the resulting dashboard stays in this browser.
-        </div>
-        <p className="text-muted-foreground">
-          Your chapter, scroll position and active filters stay intact.
-        </p>
-      </div>
-      <SheetFooter>
-        <SheetClose render={<Button variant="outline" />} disabled={pending}>
-          Cancel
-        </SheetClose>
-        <Button loading={pending} onClick={onSimulate}>
-          Simulate refresh
-        </Button>
-      </SheetFooter>
-    </>
+    <PopoverClose
+      render={
+        <button
+          type="button"
+          className="playloom-account-row"
+          aria-label={
+            current ? `${account.onlineId}, active account` : `Switch to ${account.onlineId}`
+          }
+          aria-current={current ? "true" : undefined}
+          onClick={() => onSelect(account.accountId)}
+        />
+      }
+    >
+      <span className="playloom-platform-dot">PS</span>
+      <span>
+        <strong>PlayStation · {account.onlineId}</strong>
+        <small>
+          {current ? "Active" : "Connected"} · refreshed {refreshedAt}
+        </small>
+      </span>
+      {current && <Check aria-label="Active account" />}
+    </PopoverClose>
   );
 }
 
-function SafeRefresh({ onComplete }: { onComplete: () => void }) {
-  const [open, setOpen] = useState(false);
-  const [pending, setPending] = useState(false);
-  const isMobile = useMediaQuery("max-md");
-  const simulate = () => {
-    setPending(true);
-    window.setTimeout(() => {
-      setPending(false);
-      setOpen(false);
-      onComplete();
-    }, 700);
-  };
+function profileAccounts(data: DashboardData, accounts: CachedAccount[]): CachedAccount[] {
+  const { profile } = data;
+  if (accounts.some((account) => account.accountId === profile.accountId)) return accounts;
+  return [
+    {
+      accountId: profile.accountId,
+      onlineId: profile.onlineId,
+      avatarUrl: profile.avatarUrl,
+      fetchedAt: data.fetchedAt,
+    },
+    ...accounts,
+  ];
+}
+
+function ProfileSources({ data }: { data: DashboardData }) {
+  const accounts = profileAccounts(data, useCachedAccounts());
+  const { dashboardStore } = useRouteContext({ from: "__root__" });
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger render={<Button variant="outline" size="sm" />}>
-        <RefreshCw /> Refresh
-      </SheetTrigger>
-      <SheetContent
-        side={isMobile ? "bottom" : "right"}
-        className="playloom-refresh-sheet sm:max-w-md"
-      >
-        <SafeRefreshContent pending={pending} onSimulate={simulate} />
-      </SheetContent>
-    </Sheet>
+    <div className="mt-4 border-t pt-3">
+      <small className="playloom-import-label">Connected import sources</small>
+      {accounts.map((account) => (
+        <ImportSource
+          key={account.accountId}
+          account={account}
+          current={account.accountId === data.profile.accountId}
+          onSelect={(accountId) => dashboardStore.setActive(accountId)}
+        />
+      ))}
+    </div>
   );
 }
 
-function ProfileMenu({ profile }: { profile: DashboardData["profile"] }) {
+function ProfileMenu({ data }: { data: DashboardData }) {
+  const { profile } = data;
   return (
     <PopoverContent align="end" className="w-80 max-w-[calc(100vw-2rem)]">
-      <PopoverTitle>Profile and connected accounts</PopoverTitle>
-      <p className="mt-1 text-xs text-muted-foreground">
-        One person, with platform accounts as import sources.
-      </p>
-      <div className="playloom-account-row mt-4">
-        <span className="playloom-platform-dot">PS</span>
-        <div>
-          <strong>PlayStation · {profile.onlineId}</strong>
-          <small>Active · refreshed just now</small>
-        </div>
-        <Check aria-label="Active account" />
-      </div>
+      <PopoverTitle>{profile.onlineId}</PopoverTitle>
+      <p className="mt-1 text-xs text-muted-foreground">Personal Playloom profile</p>
+      <ProfileSources data={data} />
       <Button variant="ghost" className="mt-2 w-full justify-start" render={<Link to="/" />}>
         <UserPlus /> Add PlayStation account
       </Button>
       <Separator className="my-3" />
+      <div className="playloom-demo-source">
+        <span className="playloom-platform-dot">PL</span>
+        <div>
+          <strong>Playloom demo profile</strong>
+          <small>Stable local evaluation data</small>
+        </div>
+      </div>
       <Button variant="ghost" className="w-full justify-start" render={<Link to="/dashboard" />}>
         Explore demo profile
       </Button>
@@ -298,7 +309,7 @@ function ProfileControl({ data }: { data: DashboardData }) {
         </span>
         <ChevronDown aria-hidden="true" />
       </PopoverTrigger>
-      <ProfileMenu profile={profile} />
+      <ProfileMenu data={data} />
     </Popover>
   );
 }
@@ -351,11 +362,15 @@ function ProfileSummary({ data, refreshed }: { data: DashboardData; refreshed: b
 
 function AccountActions({ props, onSafeRefresh }: { props: Props; onSafeRefresh: () => void }) {
   if (props.data.isDemo) return null;
-  const safeDemo = props.data.profile.accountId === "playloom-safe-demo";
+  const safeDemo = props.safeDemo === true;
   const refresh = safeDemo ? (
-    <SafeRefresh onComplete={onSafeRefresh} />
+    <RefreshDashboard
+      safeDemo
+      onRefresh={() => new Promise((resolve) => window.setTimeout(resolve, 700))}
+      onComplete={onSafeRefresh}
+    />
   ) : (
-    <RefreshDashboard onRefresh={props.onRefresh} />
+    <RefreshDashboard onRefresh={props.onRefresh} onComplete={onSafeRefresh} />
   );
   return (
     <div className="playloom-account-actions">
@@ -483,9 +498,9 @@ function LibraryChapter({ data }: { data: DashboardData }) {
   );
 }
 
-function ToolsChapter({ data }: { data: DashboardData }) {
+function ToolsChapter({ data, safeDemo }: { data: DashboardData; safeDemo: boolean }) {
   const imported = useTransactionImport(data.profile.accountId);
-  const stableDemo = data.isDemo || data.profile.accountId === "playloom-safe-demo";
+  const stableDemo = data.isDemo || safeDemo;
   const transactions = imported?.transactions ?? (stableDemo ? prototypeTransactions : []);
   return (
     <div className="playloom-chapter playloom-chapter-tools">
@@ -505,14 +520,22 @@ function ToolsChapter({ data }: { data: DashboardData }) {
   );
 }
 
-function DashboardChapters({ data, account }: { data: DashboardData; account: DashboardData }) {
+function DashboardChapters({
+  data,
+  account,
+  safeDemo,
+}: {
+  data: DashboardData;
+  account: DashboardData;
+  safeDemo: boolean;
+}) {
   return (
     <>
       <ProfileChapter data={data} />
       <HistoryChapter data={data} />
       <SpendingChapter data={account} />
       <LibraryChapter data={data} />
-      <ToolsChapter data={data} />
+      <ToolsChapter data={account} safeDemo={safeDemo} />
     </>
   );
 }
@@ -541,12 +564,16 @@ function DashboardResult({
   source,
   scoped,
   onClear,
+  safeDemo,
 }: {
   source: DashboardData;
   scoped: DashboardData;
   onClear: () => void;
+  safeDemo: boolean;
 }) {
-  if (scoped.games.length > 0) return <DashboardChapters data={scoped} account={source} />;
+  if (scoped.games.length > 0) {
+    return <DashboardChapters data={scoped} account={source} safeDemo={safeDemo} />;
+  }
   if (source.games.length === 0) return <DashboardEmpty />;
   return <DashboardNoMatches onClear={onClear} />;
 }
@@ -564,6 +591,7 @@ function ReadingSurface(props: Props) {
         source={props.data}
         scoped={scoped}
         onClear={() => setFilters(defaultFilters)}
+        safeDemo={props.safeDemo === true}
       />
       <footer className="playloom-mobile-footer">
         <a href="https://rawg.io" target="_blank" rel="noreferrer">

@@ -169,11 +169,42 @@ body::before {
   border-radius: 8px;
   background: var(--muted);
   padding: 10px;
+  text-align: left;
+  width: 100%;
 }
-.playloom-account-row div {
+.playloom-account-row > span:nth-child(2) {
   display: flex;
   min-width: 0;
   flex-direction: column;
+}
+.playloom-account-row + .playloom-account-row {
+  margin-top: 6px;
+}
+.playloom-account-row:hover {
+  background: color-mix(in srgb, var(--muted) 75%, var(--playloom-cobalt));
+}
+.playloom-import-label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--muted-foreground);
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.playloom-demo-source {
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 10px 9px;
+}
+.playloom-demo-source div {
+  display: flex;
+  flex-direction: column;
+}
+.playloom-demo-source small {
+  color: var(--muted-foreground);
 }
 .playloom-account-row small {
   color: var(--muted-foreground);
@@ -258,7 +289,12 @@ body::before {
   letter-spacing: 0.16em;
   text-transform: uppercase;
 }
-.playloom-spine-nav button {
+.playloom-spine-nav > div > span[data-active="true"] {
+  color: rgb(246 240 226 / 76%);
+}
+.playloom-spine-nav a {
+  display: flex;
+  align-items: center;
   min-height: 34px;
   border-left: 1px solid rgb(255 255 255 / 13%);
   color: rgb(246 240 226 / 60%);
@@ -267,10 +303,10 @@ body::before {
   transition-property: color, border-color, background-color;
   transition-duration: 160ms;
 }
-.playloom-spine-nav button:hover {
+.playloom-spine-nav a:hover {
   color: white;
 }
-.playloom-spine-nav button[aria-current="location"] {
+.playloom-spine-nav a[aria-current="location"] {
   border-left-color: #7599f4;
   background: linear-gradient(90deg, rgb(49 91 191 / 22%), transparent);
   color: white;
@@ -361,6 +397,23 @@ body::before {
 }
 .playloom-refresh-sheet {
   background: #f8f4ea;
+}
+.playloom-refresh-progress {
+  display: grid;
+  gap: 7px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+.playloom-refresh-progress [data-slot="progress"] {
+  height: 5px;
+}
+.playloom-refresh-error {
+  border-left: 3px solid #b74236;
+  background: rgb(183 66 54 / 8%);
+  padding: 10px 12px;
+  color: #8d2f27;
+  font-size: 11px;
+  line-height: 1.45;
 }
 .playloom-trust-note {
   border-left: 3px solid var(--playloom-cobalt);
@@ -512,6 +565,21 @@ body::before {
   transition-property: transform, box-shadow;
   transition-duration: 180ms;
 }
+.playloom-poster[data-tone="0"] {
+  --playloom-poster-tone: #18365d;
+}
+.playloom-poster[data-tone="1"] {
+  --playloom-poster-tone: #70402d;
+}
+.playloom-poster[data-tone="2"] {
+  --playloom-poster-tone: #244d42;
+}
+.playloom-poster[data-tone="3"] {
+  --playloom-poster-tone: #552f48;
+}
+.playloom-poster[data-tone="4"] {
+  --playloom-poster-tone: #3e405f;
+}
 .playloom-poster:hover {
   transform: translateY(-2px);
   box-shadow:
@@ -528,10 +596,16 @@ body::before {
 .playloom-poster-psn {
   position: absolute;
   z-index: 1;
-  inset: 0;
+  inset: 0 0 auto;
   width: 100%;
-  height: 100%;
+  height: 75%;
   object-fit: cover;
+}
+.playloom-poster-extension {
+  position: absolute;
+  z-index: 1;
+  inset: 75% 0 0;
+  background: var(--playloom-poster-tone);
 }
 .playloom-poster-caption {
   position: absolute;
@@ -542,7 +616,10 @@ body::before {
   flex-direction: column;
   justify-content: flex-end;
   gap: 2px;
-  background: linear-gradient(transparent, rgb(12 14 18 / 92%) 44%);
+  background: linear-gradient(
+    transparent,
+    color-mix(in srgb, var(--playloom-poster-tone) 92%, black) 44%
+  );
   color: white;
   padding: 22px 8px 7px;
 }
@@ -884,6 +961,12 @@ body::before {
   padding: 0 10px;
   color: var(--playloom-ink);
   font-size: 11px;
+}
+.playloom-spend-topups {
+  margin-top: -26px;
+  color: var(--muted-foreground);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
 }
 .playloom-ledger {
   max-height: 440px;
@@ -1301,7 +1384,7 @@ summary {
   .playloom-timeframe [role="tab"],
   .playloom-filter-scope input,
   .playloom-filter-scope [data-slot="popover-trigger"],
-  .playloom-spine-nav button {
+  .playloom-spine-nav a {
     min-height: 44px;
   }
   .playloom-topbar button {
