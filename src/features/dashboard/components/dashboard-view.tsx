@@ -81,10 +81,11 @@ const chapterClasses: Record<ChapterVariant, { header: string; number: string; t
       "font-[Fraunces_Variable] text-[clamp(2rem,4vw,3rem)] font-semibold tracking-[-0.05em] leading-none text-balance",
   },
   chapter: {
-    header: "mb-[5.125rem] grid max-w-215 grid-cols-[3rem_minmax(0,1fr)] gap-5",
+    header:
+      "mb-[5.125rem] grid max-w-215 grid-cols-[3rem_minmax(0,1fr)] gap-5 max-sm:mb-[3.625rem] max-sm:grid-cols-[1.875rem_minmax(0,1fr)] max-sm:gap-2.5",
     number: "pt-3 text-[0.6875rem] font-bold text-primary tabular-nums",
     title:
-      "font-[Fraunces_Variable] text-[clamp(3.375rem,7vw,5.5rem)] font-semibold tracking-[-0.055em] leading-[0.94] text-balance",
+      "font-[Fraunces_Variable] text-[clamp(3.375rem,7vw,5.5rem)] font-semibold tracking-[-0.055em] leading-[0.94] text-balance max-sm:text-[3.125rem]",
   },
 };
 
@@ -106,7 +107,7 @@ function ChapterHeading({
       <div>
         <h2 className={classes.title}>{title}</h2>
         {variant === "chapter" && (
-          <p className="mt-5 max-w-[62ch] text-[0.9375rem] leading-[1.65] text-muted-foreground">
+          <p className="mt-5 max-w-[62ch] text-[0.9375rem] leading-[1.65] text-muted-foreground max-sm:text-[0.8125rem]">
             {children}
           </p>
         )}
@@ -130,7 +131,11 @@ function Section({
   return (
     <section
       id={id}
-      className={opening ? "mt-14 scroll-mt-20 first:mt-0" : "mt-[5.375rem] scroll-mt-[4.875rem]"}
+      className={
+        opening
+          ? "mt-14 scroll-mt-20 first:mt-0"
+          : "mt-[5.375rem] scroll-mt-[4.875rem] max-sm:mt-[4.125rem]"
+      }
       aria-labelledby={`${id}-title`}
       tabIndex={-1}
     >
@@ -138,7 +143,7 @@ function Section({
         className={
           opening
             ? "mb-6 font-[Fraunces_Variable] text-[clamp(1.75rem,3vw,2.5rem)] font-semibold tracking-[-0.035em]"
-            : "mb-[1.625rem] font-[Fraunces_Variable] text-[clamp(1.875rem,4vw,2.875rem)] font-semibold tracking-[-0.035em] text-balance"
+            : "mb-[1.625rem] font-[Fraunces_Variable] text-[clamp(1.875rem,4vw,2.875rem)] font-semibold tracking-[-0.035em] text-balance max-sm:text-[2.125rem]"
         }
         id={`${id}-title`}
       >
@@ -549,16 +554,16 @@ function ProfileChapter({ data }: { data: DashboardData }) {
       <Section id="overview" title="Overview" variant="opening">
         <ProfileOverview data={data} />
       </Section>
-      <Section id="top-games" title="Top games" variant="opening">
+      <Section id="top-games" title="Top games">
         <ProfileRanks data={data} mode="games" />
       </Section>
-      <Section id="genres" title="Genres" variant="opening">
+      <Section id="genres" title="Genres">
         <ProfileRanks data={data} mode="genres" />
       </Section>
-      <Section id="franchises" title="Franchises" variant="opening">
+      <Section id="franchises" title="Franchises">
         <ProfileRanks data={data} mode="franchises" />
       </Section>
-      <Section id="insights" title="Insights" variant="opening">
+      <Section id="insights" title="Insights">
         <div className="playloom-insights">
           <ValueCard data={data} />
           <RecencyCard data={data} />
@@ -587,17 +592,55 @@ function HistoryChapter({ data }: { data: DashboardData }) {
   );
 }
 
-function SpendingChapter({
-  data,
-  transactionsAvailable,
-}: {
-  data: DashboardData;
-  transactionsAvailable: boolean;
-}) {
+function TransactionUnavailable({ children }: { children: string }) {
+  return (
+    <div className="border border-[var(--playloom-rule-strong)] bg-[var(--playloom-paper-raised)] p-5">
+      <strong className="text-sm">Transactions unavailable</strong>
+      <p className="mt-1 text-xs text-muted-foreground">{children}</p>
+    </div>
+  );
+}
+
+function SpendingChapterUnavailable({ data }: { data: DashboardData }) {
+  return (
+    <div className="playloom-chapter playloom-chapter-spending">
+      <ChapterHeading number="03" title="Spending">
+        What the library cost, kept separate from when those games were last played.
+      </ChapterHeading>
+      <Section id="spending" title="Spending and purchase history">
+        <PrototypeSpending data={data} transactions={[]} />
+      </Section>
+      <Section id="purchase-data" title="Purchase import">
+        <div className="space-y-6">
+          <div id="spend" className="scroll-mt-20" tabIndex={-1}>
+            <TransactionUnavailable>
+              Purchase totals and import controls are unavailable while this archive is partial.
+            </TransactionUnavailable>
+          </div>
+          <div id="purchase-history" className="scroll-mt-20" tabIndex={-1}>
+            <TransactionUnavailable>
+              Purchase history rows are unavailable while this archive is partial.
+            </TransactionUnavailable>
+          </div>
+          <div id="spent-most" className="scroll-mt-20" tabIndex={-1}>
+            <TransactionUnavailable>
+              Most-spent rankings are unavailable while this archive is partial.
+            </TransactionUnavailable>
+          </div>
+          <div id="add-ons" className="scroll-mt-20" tabIndex={-1}>
+            <TransactionUnavailable>
+              Add-on purchase insights are unavailable while this archive is partial.
+            </TransactionUnavailable>
+          </div>
+        </div>
+      </Section>
+    </div>
+  );
+}
+
+function SpendingChapter({ data }: { data: DashboardData }) {
   const imported = useTransactionImport(data.profile.accountId);
-  const transactions = transactionsAvailable
-    ? (imported?.transactions ?? (data.isDemo ? prototypeTransactions : []))
-    : [];
+  const transactions = imported?.transactions ?? (data.isDemo ? prototypeTransactions : []);
   return (
     <div className="playloom-chapter playloom-chapter-spending">
       <ChapterHeading number="03" title="Spending">
@@ -640,17 +683,9 @@ function LibraryChapter({ data }: { data: DashboardData }) {
   );
 }
 
-function ToolsChapter({
-  data,
-  transactionsAvailable,
-}: {
-  data: DashboardData;
-  transactionsAvailable: boolean;
-}) {
+function ToolsChapterAvailable({ data }: { data: DashboardData }) {
   const imported = useTransactionImport(data.profile.accountId);
-  const transactions = transactionsAvailable
-    ? (imported?.transactions ?? (data.isDemo ? prototypeTransactions : []))
-    : [];
+  const transactions = imported?.transactions ?? (data.isDemo ? prototypeTransactions : []);
   return (
     <div className="playloom-chapter playloom-chapter-tools">
       <ChapterHeading number="05" title="Tools">
@@ -663,6 +698,32 @@ function ToolsChapter({
         <div className="playloom-tools-grid min-h-[calc(100dvh-10rem)]">
           <ExportButtons data={data} transactions={transactions} />
           <RemoveTransactions accountId={data.profile.accountId} />
+        </div>
+      </Section>
+    </div>
+  );
+}
+
+function ToolsChapterUnavailable({ data }: { data: DashboardData }) {
+  return (
+    <div className="playloom-chapter playloom-chapter-tools">
+      <ChapterHeading number="05" title="Tools">
+        Ask questions of the archive, move your data, or remove local records.
+      </ChapterHeading>
+      <Section id="ask-ai" title="Ask AI">
+        <TransactionUnavailable>
+          Transaction context is excluded from Ask AI while this archive is partial.
+        </TransactionUnavailable>
+        <div className="mt-4">
+          <LlmPromptCard data={data} transactions={[]} />
+        </div>
+      </Section>
+      <Section id="data-controls" title="Data controls">
+        <div className="playloom-tools-grid min-h-[calc(100dvh-10rem)]">
+          <TransactionUnavailable>
+            Transaction export and removal are unavailable while this archive is partial.
+          </TransactionUnavailable>
+          <ExportButtons data={data} transactions={[]} />
         </div>
       </Section>
     </div>
@@ -682,9 +743,17 @@ function DashboardChapters({
     <>
       <ProfileChapter data={data} />
       <HistoryChapter data={data} />
-      <SpendingChapter data={account} transactionsAvailable={!partialData} />
+      {partialData ? (
+        <SpendingChapterUnavailable data={account} />
+      ) : (
+        <SpendingChapter data={account} />
+      )}
       <LibraryChapter data={data} />
-      <ToolsChapter data={account} transactionsAvailable={!partialData} />
+      {partialData ? (
+        <ToolsChapterUnavailable data={account} />
+      ) : (
+        <ToolsChapterAvailable data={account} />
+      )}
     </>
   );
 }

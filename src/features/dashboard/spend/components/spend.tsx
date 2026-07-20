@@ -448,6 +448,17 @@ export function SpendSection({ data }: { data: DashboardData }) {
   );
 }
 
+function EmptySpendCard({ title, children }: { title: string; children: string }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">{title}</CardTitle>
+        <CardDescription>{children}</CardDescription>
+      </CardHeader>
+    </Card>
+  );
+}
+
 function TitleSpendRow({ currency, title }: { currency: string; title: TitleSpend }) {
   return (
     <div className="flex items-center justify-between gap-3">
@@ -461,15 +472,27 @@ function TitleSpendRow({ currency, title }: { currency: string; title: TitleSpen
  * Games ranked by total spend (base game + add-ons), highest first — surfacing
  * the titles the most money went on, distinct from {@link AddOnsSection} (which
  * ranks by add-on count). Every matched title with spend shows, including ones
- * with no playtime. Hidden for the demo library and until a transaction import
- * lands, mirroring {@link SpendSection}.
+ * with no playtime. Demo accounts and accounts without matching purchases
+ * receive an explicit destination state.
  */
 export function SpentMostSection({ data }: { data: DashboardData }) {
   const imported = useTransactionImport(data.profile.accountId);
-  if (data.isDemo || !imported || imported.transactions.length === 0) return null;
+  if (data.isDemo || !imported || imported.transactions.length === 0) {
+    return (
+      <EmptySpendCard title="No most-spent ranking yet">
+        Import purchase transactions to see which games received the most spending.
+      </EmptySpendCard>
+    );
+  }
 
   const summary = summariseSpend(data, imported.transactions);
-  if (summary.byTitle.length === 0) return null;
+  if (summary.byTitle.length === 0) {
+    return (
+      <EmptySpendCard title="No matched game spending">
+        Imported purchases could not be matched to games in this archive.
+      </EmptySpendCard>
+    );
+  }
 
   return (
     <Card>
@@ -502,17 +525,29 @@ function AddOnRow({ summary }: { summary: AddOnSummary }) {
 /**
  * Games the user bought add-ons, DLC or in-game items for — a willingness-to-
  * invest signal distinct from base-game spend. Ranked by number of add-on
- * purchases. Hidden for the demo library and until a transaction import lands,
- * mirroring {@link SpendSection}.
+ * purchases. Demo accounts and accounts without matching purchases receive an
+ * explicit destination state.
  */
 export function AddOnsSection({ data }: { data: DashboardData }) {
   const imported = useTransactionImport(data.profile.accountId);
-  if (data.isDemo || !imported || imported.transactions.length === 0) return null;
+  if (data.isDemo || !imported || imported.transactions.length === 0) {
+    return (
+      <EmptySpendCard title="No add-on purchases yet">
+        Import purchase transactions to see add-ons matched to games in this archive.
+      </EmptySpendCard>
+    );
+  }
 
   const ranked = summariseAddOns(data, imported.transactions)
     .slice()
     .sort((a, b) => b.addOnCount - a.addOnCount || a.name.localeCompare(b.name));
-  if (ranked.length === 0) return null;
+  if (ranked.length === 0) {
+    return (
+      <EmptySpendCard title="No matched add-ons">
+        The imported purchase history has no add-ons matched to games in this archive.
+      </EmptySpendCard>
+    );
+  }
 
   return (
     <Card>

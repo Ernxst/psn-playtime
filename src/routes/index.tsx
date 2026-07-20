@@ -4,8 +4,8 @@ import { Button } from "@/components/ui/button";
 import { demoDashboard } from "@/domain/mock";
 import { headlineTotals } from "@/features/dashboard/filters/analytics";
 import { fmtHours, fmtNumber } from "@/features/dashboard/format";
+import { Connect } from "@/features/onboarding/components/connect";
 import { RestoreDashboardCard } from "@/features/onboarding/components/restore-dashboard-card";
-import { SignInCard } from "@/features/onboarding/components/sign-in-card";
 import { GamePoster } from "@/features/prototype/poster";
 import { SITE_URL } from "@/lib/seo";
 
@@ -122,24 +122,6 @@ function OnboardingHero() {
       <Button size="lg" render={<Link to="/dashboard" />}>
         Explore the demo <ArrowRight />
       </Button>
-    </section>
-  );
-}
-
-function Connect() {
-  return (
-    <section id="connect" className="playloom-connect" aria-labelledby="connect-title">
-      <div>
-        <span>Connect</span>
-        <h2 id="connect-title" tabIndex={-1}>
-          Bring in your PlayStation history.
-        </h2>
-        <p>
-          One guided flow using the existing token steps and acknowledgement. No other platform
-          connection is implied.
-        </p>
-      </div>
-      <SignInCard showDemoLink={false} />
     </section>
   );
 }

@@ -56,7 +56,7 @@ export type SidebarContextProps = {
   setOpen: (open: boolean) => void;
   openMobile: boolean;
   setOpenMobile: (open: boolean) => void;
-  selectMobileDestination: (id: string) => void;
+  closeMobile: (onComplete: () => void) => void;
   completeMobileChange: () => void;
   isMobile: boolean;
   toggleSidebar: () => void;
@@ -90,25 +90,23 @@ export function SidebarProvider({
   const isMobile = useMediaQuery("max-md");
   const [openMobile, setMobileOpen] = React.useState(false);
   const mobileScroll = React.useRef(0);
-  const mobileDestination = React.useRef<string | null>(null);
+  const mobileCloseComplete = React.useRef<(() => void) | null>(null);
   const setOpenMobile = React.useCallback((next: boolean) => {
     if (next) {
       mobileScroll.current = window.scrollY;
-      mobileDestination.current = null;
+      mobileCloseComplete.current = null;
     }
     setMobileOpen(next);
   }, []);
-  const selectMobileDestination = React.useCallback((id: string) => {
-    mobileDestination.current = id;
+  const closeMobile = React.useCallback((onComplete: () => void) => {
+    mobileCloseComplete.current = onComplete;
     setMobileOpen(false);
   }, []);
   const completeMobileChange = React.useCallback(() => {
-    const destination = mobileDestination.current;
-    if (destination) {
-      const target = document.getElementById(destination);
-      target?.scrollIntoView();
-      target?.focus({ preventScroll: true });
-      mobileDestination.current = null;
+    const onComplete = mobileCloseComplete.current;
+    mobileCloseComplete.current = null;
+    if (onComplete) {
+      onComplete();
       return;
     }
     window.scrollTo(0, mobileScroll.current);
@@ -166,24 +164,24 @@ export function SidebarProvider({
 
   const contextValue = React.useMemo<SidebarContextProps>(
     () => ({
+      closeMobile,
       completeMobileChange,
       isMobile,
       open,
       openMobile,
-      selectMobileDestination,
       setOpen,
       setOpenMobile,
       state,
       toggleSidebar,
     }),
     [
+      closeMobile,
       completeMobileChange,
       state,
       open,
       setOpen,
       isMobile,
       openMobile,
-      selectMobileDestination,
       setOpenMobile,
       toggleSidebar,
     ]

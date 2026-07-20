@@ -3,7 +3,9 @@ import { render } from "vitest-browser-react";
 import { page, userEvent } from "vitest/browser";
 import { demoDashboard } from "@/domain/mock";
 import type { TransactionRow } from "@/domain/transactions";
+import { Connect } from "@/features/onboarding/components/connect";
 import { prototypeDashboard } from "@/features/prototype/prototype-data";
+import { useActiveDashboard } from "@/stores/dashboard-store";
 import { testDashboardStore, testTransactionStore } from "@/test/atom-registry";
 import { createHarness } from "@/test/harness";
 import { DashboardView } from "./dashboard-view";
@@ -11,6 +13,21 @@ import { DashboardView } from "./dashboard-view";
 function textareaValue(element: Element): string {
   if (!(element instanceof HTMLTextAreaElement)) throw new Error("Expected a textarea");
   return element.value;
+}
+
+vi.mock("@/server/api/account.effect", () => ({
+  signInWithToken: vi.fn(),
+}));
+
+function ActiveDashboardView() {
+  return (
+    <DashboardView
+      data={useActiveDashboard()}
+      onRefresh={vi.fn()}
+      onSignOut={vi.fn()}
+      signingOut={false}
+    />
+  );
 }
 
 /** A base-game purchase matched to a demo library titleId by skuId. */
@@ -266,8 +283,8 @@ describe("DashboardView", () => {
     expect(window.scrollY).toBe(240);
   });
 
-  it("targets the existing PlayStation connection task when adding an account", async () => {
-    const { element } = createHarness(
+  it("focuses the connection heading after Add PlayStation account navigation", async () => {
+    const dashboard = (
       <DashboardView
         data={demoDashboard}
         onRefresh={vi.fn()}
@@ -275,42 +292,60 @@ describe("DashboardView", () => {
         signingOut={false}
       />
     );
+    const { element } = createHarness(null, {
+      path: "/dashboard",
+      dashboard,
+      index: <Connect />,
+    });
 
     await render(element);
     await page.getByRole("button", { name: /Open profile menu/ }).click();
+    await page.getByRole("link", { name: "Add PlayStation account" }).click();
 
+    const heading = page.getByRole("heading", { name: "Bring in your PlayStation history." });
+    await expect.element(heading).toHaveFocus();
     await expect
-      .element(page.getByRole("link", { name: "Add PlayStation account" }))
-      .toHaveAttribute("href", "/#connect");
+      .element(page.getByRole("region", { name: "Bring in your PlayStation history." }))
+      .toBeInViewport();
   });
 
-  it("switches connected import sources through the profile control", async () => {
+  it("retains the game filter and chapter when switching connected import sources", async () => {
+    const first = {
+      ...demoDashboard,
+      profile: { ...demoDashboard.profile, accountId: "acc-1", onlineId: "FirstAccount" },
+      isDemo: false,
+    };
     const second = {
       ...demoDashboard,
       fetchedAt: "2025-06-01T00:00:00.000Z",
       profile: { ...demoDashboard.profile, accountId: "acc-2", onlineId: "SecondAccount" },
       isDemo: false,
     };
+    testDashboardStore.save(first);
     testDashboardStore.save(second);
-    const setActive = vi.spyOn(testDashboardStore, "setActive");
+    testDashboardStore.setActive(first.profile.accountId);
+    window.history.replaceState(null, "", "#library");
     onTestFinished(() => {
-      setActive.mockRestore();
+      testDashboardStore.remove(first.profile.accountId);
       testDashboardStore.remove(second.profile.accountId);
+      testDashboardStore.clearActive();
+      window.history.replaceState(null, "", window.location.pathname);
     });
-    const { element } = createHarness(
-      <DashboardView
-        data={{ ...demoDashboard, isDemo: false }}
-        onRefresh={vi.fn()}
-        onSignOut={vi.fn()}
-        signingOut={false}
-      />
-    );
+    const { element } = createHarness(<ActiveDashboardView />);
 
     await render(element);
-    await page.getByRole("button", { name: /Open profile menu/ }).click();
+    const search = page.getByRole("searchbox", { name: "Search games by name" });
+    await search.fill("Forza");
+    await expect.element(page.getByText(/98 titles in total/)).not.toBeInTheDocument();
+    await page.getByRole("button", { name: /Open profile menu for FirstAccount/ }).click();
     await page.getByRole("button", { name: "Switch to SecondAccount" }).click();
 
-    expect(setActive).toHaveBeenCalledWith("acc-2");
+    await expect.element(page.getByRole("heading", { name: "SecondAccount" })).toBeVisible();
+    await expect.element(search).toHaveValue("Forza");
+    expect(window.location.hash).toBe("#library");
+    await expect
+      .element(page.getByRole("button", { name: /Open profile menu for SecondAccount/ }))
+      .toHaveFocus();
   });
 
   it("filters the purchase ledger by date and sorts every retained column", async () => {
@@ -448,8 +483,19 @@ describe("DashboardView", () => {
     await expect.element(page.getByRole("radio", { name: "This year" })).toBeDisabled();
   });
 
-  it("keeps partial and signed-in archives free of demo purchase transactions", async () => {
+  it("excludes a seeded transaction import from every partial archive consumer", async () => {
     const signedIn = { ...demoDashboard, isDemo: false };
+    const seeded = {
+      ...baseFor("DEMO-8", 987_654),
+      productName: "Seeded private purchase",
+      displayAmount: "£9,876.54",
+    };
+    testTransactionStore.save(signedIn.profile.accountId, {
+      transactions: [seeded],
+      importedAt: "2025-06-01T00:00:00.000Z",
+      source: "store.playstation.com",
+    });
+    onTestFinished(() => testTransactionStore.clear(signedIn.profile.accountId));
     const { element } = createHarness(
       <DashboardView
         data={signedIn}
@@ -461,15 +507,74 @@ describe("DashboardView", () => {
     );
 
     const { container } = await render(element);
-    const spending = container.querySelector("#spending")?.textContent ?? "";
+    const prompt = container.querySelector<HTMLTextAreaElement>('[aria-label="Prompt preview"]');
 
-    expect(spending).toContain("Purchase transactions unavailable");
-    expect(spending).not.toContain("£155.95");
-    expect(spending).not.toContain("Wallet top-ups: £50.00");
-    expect(document.getElementById("purchase-history")).not.toBeNull();
-    expect(document.getElementById("spent-most")).not.toBeNull();
-    expect(document.getElementById("add-ons")).not.toBeNull();
-    expect(document.getElementById("data-controls")).not.toBeNull();
+    expect(container.textContent).not.toContain("Seeded private purchase");
+    expect(container.textContent).not.toContain("£9,876.54");
+    expect(prompt?.value).not.toContain("Seeded private purchase");
+    expect(page.getByText("Remove imported transaction data").query()).toBeNull();
+    await expect
+      .element(page.getByRole("button", { name: "Export transactions (CSV)" }))
+      .toBeDisabled();
+    expect(document.getElementById("purchase-history")?.textContent).toContain(
+      "Purchase history rows are unavailable"
+    );
+    expect(document.getElementById("spent-most")?.textContent).toContain(
+      "Most-spent rankings are unavailable"
+    );
+    expect(document.getElementById("add-ons")?.textContent).toContain(
+      "Add-on purchase insights are unavailable"
+    );
+    expect(document.getElementById("purchase-data")?.textContent).toContain(
+      "Purchase totals and import controls are unavailable"
+    );
+    await expect
+      .element(
+        page.getByText("Purchase history rows are unavailable while this archive is partial.")
+      )
+      .toBeVisible();
+    await expect
+      .element(page.getByText("Most-spent rankings are unavailable while this archive is partial."))
+      .toBeVisible();
+    await expect
+      .element(
+        page.getByText("Add-on purchase insights are unavailable while this archive is partial.")
+      )
+      .toBeVisible();
+    await expect
+      .element(
+        page.getByText(
+          "Purchase totals and import controls are unavailable while this archive is partial."
+        )
+      )
+      .toBeVisible();
+  });
+
+  it("explains every direct purchase destination when no transactions were imported", async () => {
+    const signedIn = {
+      ...demoDashboard,
+      profile: { ...demoDashboard.profile, accountId: "no-purchases" },
+      isDemo: false,
+    };
+    testTransactionStore.clear(signedIn.profile.accountId);
+    const { element } = createHarness(
+      <DashboardView data={signedIn} onRefresh={vi.fn()} onSignOut={vi.fn()} signingOut={false} />
+    );
+
+    await render(element);
+
+    expect(document.getElementById("purchase-history")?.textContent).toContain(
+      "No purchase history yet"
+    );
+    expect(document.getElementById("spent-most")?.textContent).toContain(
+      "No most-spent ranking yet"
+    );
+    expect(document.getElementById("add-ons")?.textContent).toContain("No add-on purchases yet");
+    expect(document.getElementById("purchase-data")?.textContent).toContain("Add your spend");
+    await expect.element(page.getByText("No purchase history yet")).toBeVisible();
+    await expect.element(page.getByText("No most-spent ranking yet")).toBeVisible();
+    await expect.element(page.getByText("No add-on purchases yet")).toBeVisible();
+    await expect.element(page.getByText("Add your spend")).toBeVisible();
   });
 
   it("keeps the search input responsive while the deferred filter settles", async () => {

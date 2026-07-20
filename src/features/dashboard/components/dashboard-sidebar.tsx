@@ -115,7 +115,7 @@ function ChapterLink({
   active: boolean;
   onActivate: () => void;
 }) {
-  const { isMobile, selectMobileDestination } = useSidebar();
+  const { closeMobile, isMobile } = useSidebar();
   return (
     <a
       className="flex min-h-10 items-center border-l border-white/15 px-3 text-[0.8125rem] text-white/60 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#7599f4] hover:text-white aria-[current=location]:border-[#7599f4] aria-[current=location]:bg-[linear-gradient(90deg,rgb(49_91_191/22%),transparent)] aria-[current=location]:text-white [@media(pointer:coarse)]:min-h-11"
@@ -124,7 +124,13 @@ function ChapterLink({
       data-active={active}
       onClick={() => {
         onActivate();
-        if (isMobile) selectMobileDestination(id);
+        if (isMobile) {
+          closeMobile(() => {
+            const target = document.getElementById(id);
+            target?.scrollIntoView();
+            target?.focus({ preventScroll: true });
+          });
+        }
       }}
     >
       {label}

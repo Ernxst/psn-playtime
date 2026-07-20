@@ -13,6 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
+import type { TransactionRow } from "@/domain/transactions";
 import { CopyButton, useCopied } from "@/features/dashboard/components/copy-button";
 import { availableVariants, buildPrompt } from "@/features/dashboard/prompt/llm-prompt";
 import {
@@ -390,16 +391,20 @@ function PromptPreview({ prompt, onlineId }: { prompt: string; onlineId: string 
  * (or asks the AI to present a menu), and lists the rest as paste-able follow-ups.
  * A search box keeps the large question set usable.
  */
-export function LlmPromptCard({ data }: { data: DashboardData }) {
+interface PromptCardProps {
+  data: DashboardData;
+  transactions: readonly TransactionRow[] | undefined;
+}
+
+function PromptCard({ data, transactions }: PromptCardProps) {
   const [selectedId, setSelectedId] = useState<string>(PROMPT_VARIANTS[0].id);
   const [menuMode, setMenuMode] = useState(false);
-  const imported = useTransactionImport(data.profile.accountId);
 
-  const variants = availableVariants(hasTransactionHistory(imported?.transactions));
+  const variants = availableVariants(hasTransactionHistory(transactions));
   const variant = variants.find((v) => v.id === selectedId) ?? PROMPT_VARIANTS[0];
   const prompt = useMemo(
-    () => buildPrompt(data, menuMode ? MENU_MODE : variant, imported?.transactions),
-    [data, imported, menuMode, variant]
+    () => buildPrompt(data, menuMode ? MENU_MODE : variant, transactions),
+    [data, menuMode, transactions, variant]
   );
 
   const selectQuestion = (id: string) => {
@@ -434,4 +439,20 @@ export function LlmPromptCard({ data }: { data: DashboardData }) {
       </CardContent>
     </Card>
   );
+}
+
+function StoredPromptCard({ data }: { data: DashboardData }) {
+  const imported = useTransactionImport(data.profile.accountId);
+  return <PromptCard data={data} transactions={imported?.transactions} />;
+}
+
+export function LlmPromptCard({
+  data,
+  transactions,
+}: {
+  data: DashboardData;
+  transactions?: readonly TransactionRow[];
+}) {
+  if (transactions) return <PromptCard data={data} transactions={transactions} />;
+  return <StoredPromptCard data={data} />;
 }
