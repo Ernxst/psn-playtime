@@ -107,6 +107,40 @@ describe("DashboardView", () => {
     await expect.element(page.getByText("Lifetime-hours caveat.")).toBeVisible();
   });
 
+  it("stacks legible timeframe and search controls beside the sidebar at 768 by 900", async () => {
+    await page.viewport(768, 900);
+    onTestFinished(() => page.viewport(1280, 800));
+    const { element } = createHarness(
+      <DashboardView
+        data={prototypeDashboard(demoDashboard)}
+        onRefresh={vi.fn()}
+        onSignOut={vi.fn()}
+        signingOut={false}
+      />
+    );
+
+    await render(element);
+
+    const allTime = page.getByRole("radio", { name: "All time" }).element().parentElement;
+    const twelveMonths = page.getByRole("radio", { name: "12 months" }).element().parentElement;
+    const twoYears = page.getByRole("radio", { name: "2 years" }).element().parentElement;
+    const thisYear = page.getByRole("radio", { name: "This year" }).element().parentElement;
+    const search = page.getByRole("searchbox", { name: "Search games by name" }).element();
+    const allTimeRect = allTime?.getBoundingClientRect();
+    const twelveMonthsRect = twelveMonths?.getBoundingClientRect();
+    const twoYearsRect = twoYears?.getBoundingClientRect();
+    const thisYearRect = thisYear?.getBoundingClientRect();
+
+    expect(allTimeRect?.width).toBeGreaterThanOrEqual(60);
+    expect(twelveMonthsRect?.width).toBeGreaterThanOrEqual(60);
+    expect(twoYearsRect?.width).toBeGreaterThanOrEqual(60);
+    expect(thisYearRect?.width).toBeGreaterThanOrEqual(60);
+    expect(allTimeRect?.right).toBeLessThanOrEqual(twelveMonthsRect?.left ?? 0);
+    expect(twelveMonthsRect?.right).toBeLessThanOrEqual(twoYearsRect?.left ?? 0);
+    expect(twoYearsRect?.right).toBeLessThanOrEqual(thisYearRect?.left ?? 0);
+    expect(search.getBoundingClientRect().top).toBeGreaterThan(thisYearRect?.bottom ?? 900);
+  });
+
   it.each([
     [390, 844],
     [900, 800],
