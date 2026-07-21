@@ -9,8 +9,12 @@ describe("GenreChart", () => {
   it("genre donut tooltip shows the genre name on hover", async () => {
     const { container } = await render(<GenreChart data={demoDashboard} />);
 
+    // Recharts exposes no semantic locator for its generated sector path.
+    // oxlint-disable-next-line test-contract/no-dom-selector
     await expect.poll(() => container.querySelector(".recharts-sector")).not.toBeNull();
 
+    // Recharts exposes no semantic locator for its generated sector path.
+    // oxlint-disable-next-line test-contract/no-dom-selector
     const sector = container.querySelector(".recharts-sector");
 
     expect(sector).toBeInstanceOf(SVGElement);
@@ -39,11 +43,15 @@ describe("GenreChart", () => {
 
   it("exposes a visually-hidden data table covering every genre slice", async () => {
     const slices = genreBreakdown(demoDashboard);
-    const { container } = await render(<GenreChart data={demoDashboard} />);
+    await render(<GenreChart data={demoDashboard} />);
 
-    const table = container.querySelector("table.sr-only");
-
-    expect(table?.querySelectorAll("tbody tr")).toHaveLength(slices.length);
+    await expect.element(page.getByRole("row").nth(slices.length)).toBeInTheDocument();
+    expect(
+      page
+        .getByRole("row")
+        .nth(slices.length + 1)
+        .query()
+    ).toBeNull();
 
     await expect.element(page.getByRole("rowheader", { name: "Shooter" })).toBeInTheDocument();
   });

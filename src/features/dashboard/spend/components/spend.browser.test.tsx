@@ -291,6 +291,8 @@ describe("SpendSection", () => {
 
     const summary = page.getByText("Re-import or update your data");
     // A chevron affordance signals the section is expandable and is wired to rotate when open.
+    // The contract is the icon's rotation class, not a user-addressable element.
+    // oxlint-disable-next-line test-contract/no-dom-selector
     const chevron = summary.element().querySelector("svg.lucide-chevron-down");
 
     expect(chevron).toHaveClass("group-open:rotate-180");

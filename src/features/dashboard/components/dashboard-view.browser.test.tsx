@@ -7,6 +7,11 @@ import { testTransactionStore } from "@/test/atom-registry";
 import { createHarness } from "@/test/harness";
 import { DashboardView } from "./dashboard-view";
 
+function textareaValue(element: Element): string {
+  if (!(element instanceof HTMLTextAreaElement)) throw new Error("Expected a textarea");
+  return element.value;
+}
+
 /** A base-game purchase matched to a demo library titleId by skuId. */
 function baseFor(titleId: string, amountMinor: number): TransactionRow {
   return {
@@ -120,7 +125,7 @@ describe("DashboardView", () => {
     await expect.element(page.getByRole("textbox", { name: "Prompt preview" })).toBeVisible();
 
     const countGames = () =>
-      (document.querySelector<HTMLTextAreaElement>('[aria-label="Prompt preview"]')?.value ?? "")
+      textareaValue(page.getByRole("textbox", { name: "Prompt preview" }).element())
         .split("\n")
         .filter((line) => /^ {2}\d+\. /.test(line)).length;
 
@@ -152,10 +157,11 @@ describe("DashboardView", () => {
       />
     );
 
-    const { container } = await render(element);
+    await render(element);
 
     // The "Spent the most on" section is account-wide; scope spend reads to it.
-    const spentMost = () => container.querySelector("#spent-most")?.textContent ?? "";
+    const spentMost = () =>
+      page.getByText("Spent the most on").element().closest("section")?.textContent ?? "";
 
     await expect.element(page.getByText(/98 titles in total/)).toBeVisible();
 

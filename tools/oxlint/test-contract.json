@@ -79,6 +79,7 @@
         "test-contract/no-mock-calls": "error",
         "test-contract/no-inexact-cardinality": "error",
         "test-contract/no-broad-dom-text": "error",
+        "test-contract/no-dom-selector": "error",
         "test-contract/no-internal-module-mock": [
           "error",
           {

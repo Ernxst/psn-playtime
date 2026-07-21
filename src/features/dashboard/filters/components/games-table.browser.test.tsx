@@ -43,12 +43,12 @@ describe("GamesTable", () => {
   });
 
   it("keeps games without trophy data at the bottom when sorting trophies both ways", async () => {
-    const { container } = await render(<GamesTable data={demoDashboard} />);
+    await render(<GamesTable data={demoDashboard} />);
 
     const lastTrophyCell = () =>
-      container.querySelector("tbody tr:last-child td:last-child")?.textContent;
+      page.getByRole("row").last().getByRole("cell").last().element().textContent;
     const firstTrophyCell = () =>
-      container.querySelector("tbody tr:first-child td:last-child")?.textContent;
+      page.getByRole("row").nth(1).getByRole("cell").last().element().textContent;
 
     // First click sorts trophies descending: the fully-completed game leads, "—" rows sink.
     await page.getByRole("button", { name: "Sort by Trophies" }).click();
@@ -64,23 +64,24 @@ describe("GamesTable", () => {
   });
 
   it("clicking a column header re-sorts the rows in both directions", async () => {
-    const { container } = await render(<GamesTable data={demoDashboard} />);
+    await render(<GamesTable data={demoDashboard} />);
 
     // Default sort is hours-descending: the biggest game leads.
     await expect.element(page.getByText("Every game you've played")).toBeInTheDocument();
 
-    const topByHours = container.querySelector("tbody tr")?.textContent;
+    const firstGame = () => page.getByRole("row").nth(1).element().textContent;
+    const topByHours = firstGame();
 
     // First click sorts by last-played descending — the most recent game leads.
     await page.getByRole("button", { name: "Sort by Last played" }).click();
 
-    await expect.poll(() => container.querySelector("tbody tr")?.textContent).not.toBe(topByHours);
+    await expect.poll(firstGame).not.toBe(topByHours);
 
-    const topByRecent = container.querySelector("tbody tr")?.textContent;
+    const topByRecent = firstGame();
 
     // Second click flips to ascending — the oldest game leads instead.
     await page.getByRole("button", { name: "Sort by Last played" }).click();
 
-    await expect.poll(() => container.querySelector("tbody tr")?.textContent).not.toBe(topByRecent);
+    await expect.poll(firstGame).not.toBe(topByRecent);
   });
 });

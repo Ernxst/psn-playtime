@@ -7,6 +7,8 @@ describe("DashboardSkeleton", () => {
   it("skeleton renders placeholder blocks while the dashboard loads", async () => {
     const { container } = await render(<DashboardSkeleton />);
 
+    // Skeleton count is an intentional loading-layout structure contract.
+    // oxlint-disable-next-line test-contract/no-dom-selector
     expect(container.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(12);
   });
 });

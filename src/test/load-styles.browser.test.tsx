@@ -11,6 +11,8 @@ describe("Tailwind CSS in the browser project", () => {
   it("resolves a flex utility to a real computed display", async () => {
     const { container } = await render(<div className="flex" data-testid="flex" />);
 
+    // This test verifies emitted CSS against a deliberately non-semantic fixture.
+    // oxlint-disable-next-line test-contract/no-dom-selector
     const element = container.querySelector('[data-testid="flex"]');
     if (!element) throw new Error("expected the flex element to render");
 
@@ -24,6 +26,8 @@ describe("Tailwind CSS in the browser project", () => {
       </div>
     );
 
+    // This test verifies emitted CSS against a deliberately non-semantic fixture.
+    // oxlint-disable-next-line test-contract/no-dom-selector
     const element = container.querySelector('[data-testid="capped"]');
     if (!element) throw new Error("expected the capped element to render");
 

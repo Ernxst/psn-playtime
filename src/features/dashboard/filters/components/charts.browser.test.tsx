@@ -16,6 +16,8 @@ describe("TopGamesChart", () => {
     const { container } = await render(<TopGamesChart data={demoDashboard} />);
 
     await expect.element(page.getByText("1,254h")).toBeInTheDocument();
+    // Recharts exposes no semantic locator for its generated bar primitives.
+    // oxlint-disable-next-line test-contract/no-dom-selector
     await expect.poll(() => container.querySelectorAll(".recharts-bar-rectangle").length).toBe(10);
   });
 });
@@ -33,6 +35,8 @@ describe("YearChart", () => {
     const { container } = await render(<YearChart data={demoDashboard} />);
 
     await expect.element(page.getByText("2026")).toBeInTheDocument();
+    // Recharts exposes no semantic locator for its generated area path.
+    // oxlint-disable-next-line test-contract/no-dom-selector
     await expect.poll(() => container.querySelector(".recharts-area-area")).not.toBeNull();
   });
 });
@@ -41,6 +45,8 @@ describe("SessionChart", () => {
   it("session chart plots a bar per title with a sessions axis", async () => {
     const { container } = await render(<SessionChart data={demoDashboard} />);
 
+    // Recharts exposes no semantic locator for its generated bar primitives.
+    // oxlint-disable-next-line test-contract/no-dom-selector
     await expect.poll(() => container.querySelectorAll(".recharts-bar-rectangle").length).toBe(12);
   });
 });
@@ -49,10 +55,9 @@ describe("chart accessible names", () => {
   it.each(named)(
     "exposes $prefix chart as an image queryable by its accessible name",
     async ({ Chart, prefix }) => {
-      const { container } = await render(<Chart data={demoDashboard} />);
+      await render(<Chart data={demoDashboard} />);
 
-      const chart = container.querySelector('[role="img"]');
-      if (!chart) throw new Error("expected the chart to expose role=img");
+      const chart = page.getByRole("img").element();
 
       expect(chart).toHaveAttribute(
         "aria-label",

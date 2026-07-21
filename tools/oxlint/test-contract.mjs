@@ -203,6 +203,21 @@ const noBroadDomText = rule(
   })
 );
 
+const noDomSelector = rule(
+  {
+    semantic:
+      "Use a semantic test query; disable this rule only when DOM structure or geometry is the behaviour under test",
+  },
+  (context) => ({
+    CallExpression(node) {
+      const name = propertyName(node.callee);
+      if (name === "querySelector" || name === "querySelectorAll") {
+        context.report({ node, messageId: "semantic" });
+      }
+    },
+  })
+);
+
 const noInternalModuleMock = rule(
   { internal: "Mock the external SDK or network boundary, not repository module '{{source}}'" },
   (context) => {
@@ -324,6 +339,7 @@ export default {
     "no-mock-calls": noMockCalls,
     "no-inexact-cardinality": noInexactCardinality,
     "no-broad-dom-text": noBroadDomText,
+    "no-dom-selector": noDomSelector,
     "no-internal-module-mock": noInternalModuleMock,
     "no-ambiguous-called-with": noAmbiguousCalledWith,
     "no-callback-capture": noCallbackCapture,
