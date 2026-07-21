@@ -180,7 +180,7 @@ function mockPsn(
           }) ?? Psn.trophyPage([], 0);
         return HttpResponse.json(page);
       });
-  server.use(
+  const handlers = [
     http.get(
       `${PSN_AUTH_URL}/authorize`,
       () =>
@@ -198,13 +198,13 @@ function mockPsn(
       )
     ),
     http.get(PSN_PLAYED_GAMES_URL, getPlayedGames),
-    http.get(PSN_TROPHY_TITLES_URL, getUserTitles)
-  );
-  return { getPlayedGames, getUserTitles };
+    http.get(PSN_TROPHY_TITLES_URL, getUserTitles),
+  ];
+  return { handlers, getPlayedGames, getUserTitles };
 }
 
-/** A successful live build with the shared fixtures, spread across two pages each. */
-function liveBuild(profileResult: ProfileFromUserNameResponse = Psn.profile()) {
+/** Handlers for a successful live build with the shared fixtures, spread across two pages each. */
+function liveHandlers(profileResult: ProfileFromUserNameResponse = Psn.profile()) {
   return mockPsn({
     profile: profileResult,
     // Two pages: the first doesn't complete the set (loop continues), the second
@@ -216,14 +216,14 @@ function liveBuild(profileResult: ProfileFromUserNameResponse = Psn.profile()) {
       Psn.trophyPage(trophyTitles.slice(0, 2), 100),
       withoutTotal(Psn.trophyPage(trophyTitles.slice(2), 0)),
     ],
-  });
+  }).handlers;
 }
 
 beforeEach(() => delete process.env.RAWG_API_KEY);
 
 describe(".signInEffect", () => {
   it("normalizes a live PSN account for a valid token", async () => {
-    liveBuild();
+    server.use(...liveHandlers());
 
     const result = await runSignIn("npsso-token");
 
@@ -289,39 +289,41 @@ describe(".signInEffect", () => {
   });
 
   it("matches a played title to its trophy list by canonical concept name", async () => {
-    mockPsn({
-      played: [
-        Psn.playedPage(
-          [
-            Psn.playedTitle({
-              titleId: "gow",
-              // Store name carries an edition suffix the trophy set lacks, so it
-              // only resolves via the canonical concept name.
-              name: "God of War Ragnarök: Digital Deluxe Edition",
-              category: "ps5_native_game",
-              concept: { ...basePlayed.concept, name: "God of War Ragnarök" },
-              playDuration: "PT220H",
-              playCount: 7,
-            }),
-          ],
-          1
-        ),
-      ],
-      titles: [
-        Psn.trophyPage(
-          [
-            Psn.trophyTitle({
-              trophyTitleName: "God of War Ragnarök",
-              progress: 73,
-              definedTrophies: { bronze: 30, silver: 8, gold: 3, platinum: 1 },
-              earnedTrophies: { bronze: 20, silver: 5, gold: 2, platinum: 1 },
-              lastUpdatedDateTime: "2023-02-01T00:00:00Z",
-            }),
-          ],
-          1
-        ),
-      ],
-    });
+    server.use(
+      ...mockPsn({
+        played: [
+          Psn.playedPage(
+            [
+              Psn.playedTitle({
+                titleId: "gow",
+                // Store name carries an edition suffix the trophy set lacks, so it
+                // only resolves via the canonical concept name.
+                name: "God of War Ragnarök: Digital Deluxe Edition",
+                category: "ps5_native_game",
+                concept: { ...basePlayed.concept, name: "God of War Ragnarök" },
+                playDuration: "PT220H",
+                playCount: 7,
+              }),
+            ],
+            1
+          ),
+        ],
+        titles: [
+          Psn.trophyPage(
+            [
+              Psn.trophyTitle({
+                trophyTitleName: "God of War Ragnarök",
+                progress: 73,
+                definedTrophies: { bronze: 30, silver: 8, gold: 3, platinum: 1 },
+                earnedTrophies: { bronze: 20, silver: 5, gold: 2, platinum: 1 },
+                lastUpdatedDateTime: "2023-02-01T00:00:00Z",
+              }),
+            ],
+            1
+          ),
+        ],
+      }).handlers
+    );
 
     const result = await runSignIn("npsso-token");
 
@@ -337,38 +339,40 @@ describe(".signInEffect", () => {
   });
 
   it("matches a glyph-glued trophy name carrying a brand prefix to its played title", async () => {
-    mockPsn({
-      played: [
-        Psn.playedPage(
-          [
-            Psn.playedTitle({
-              titleId: "div2",
-              name: "The Division 2",
-              category: "ps4_game",
-              concept: { ...basePlayed.concept, name: "The Division 2" },
-              playDuration: "PT460H",
-              playCount: 12,
-            }),
-          ],
-          1
-        ),
-      ],
-      titles: [
-        Psn.trophyPage(
-          [
-            Psn.trophyTitle({
-              // Glyph glues "Division" to "2" and a "Tom Clancy's" brand prefix
-              // sits only on the trophy side, so only a subset match resolves it.
-              trophyTitleName: "Tom Clancy's The Division®2",
-              progress: 64,
-              earnedTrophies: { bronze: 30, silver: 8, gold: 3, platinum: 0 },
-              lastUpdatedDateTime: "2024-01-01T00:00:00Z",
-            }),
-          ],
-          1
-        ),
-      ],
-    });
+    server.use(
+      ...mockPsn({
+        played: [
+          Psn.playedPage(
+            [
+              Psn.playedTitle({
+                titleId: "div2",
+                name: "The Division 2",
+                category: "ps4_game",
+                concept: { ...basePlayed.concept, name: "The Division 2" },
+                playDuration: "PT460H",
+                playCount: 12,
+              }),
+            ],
+            1
+          ),
+        ],
+        titles: [
+          Psn.trophyPage(
+            [
+              Psn.trophyTitle({
+                // Glyph glues "Division" to "2" and a "Tom Clancy's" brand prefix
+                // sits only on the trophy side, so only a subset match resolves it.
+                trophyTitleName: "Tom Clancy's The Division®2",
+                progress: 64,
+                earnedTrophies: { bronze: 30, silver: 8, gold: 3, platinum: 0 },
+                lastUpdatedDateTime: "2024-01-01T00:00:00Z",
+              }),
+            ],
+            1
+          ),
+        ],
+      }).handlers
+    );
 
     const result = await runSignIn("npsso-token");
 
@@ -384,26 +388,31 @@ describe(".signInEffect", () => {
   });
 
   it("does not subset-match an unrelated trophy list to a played title", async () => {
-    mockPsn({
-      played: [
-        Psn.playedPage(
-          [
-            Psn.playedTitle({
-              titleId: "div2",
-              name: "The Division 2",
-              category: "ps4_game",
-              concept: { ...basePlayed.concept, name: "The Division 2" },
-              playDuration: "PT460H",
-              playCount: 12,
-            }),
-          ],
-          1
-        ),
-      ],
-      titles: [
-        Psn.trophyPage([Psn.trophyTitle({ trophyTitleName: "Forza Horizon 5", progress: 50 })], 1),
-      ],
-    });
+    server.use(
+      ...mockPsn({
+        played: [
+          Psn.playedPage(
+            [
+              Psn.playedTitle({
+                titleId: "div2",
+                name: "The Division 2",
+                category: "ps4_game",
+                concept: { ...basePlayed.concept, name: "The Division 2" },
+                playDuration: "PT460H",
+                playCount: 12,
+              }),
+            ],
+            1
+          ),
+        ],
+        titles: [
+          Psn.trophyPage(
+            [Psn.trophyTitle({ trophyTitleName: "Forza Horizon 5", progress: 50 })],
+            1
+          ),
+        ],
+      }).handlers
+    );
 
     const result = await runSignIn("npsso-token");
 
@@ -421,24 +430,26 @@ describe(".signInEffect", () => {
   ])(
     'does not attach the more-specific "$trophyTitleName" to the broader played "$playedName"',
     async ({ playedName, trophyTitleName }) => {
-      mockPsn({
-        played: [
-          Psn.playedPage(
-            [
-              Psn.playedTitle({
-                titleId: "seq",
-                name: playedName,
-                category: "ps5_native_game",
-                concept: { ...basePlayed.concept, name: playedName },
-                playDuration: "PT40H",
-                playCount: 5,
-              }),
-            ],
-            1
-          ),
-        ],
-        titles: [Psn.trophyPage([Psn.trophyTitle({ trophyTitleName, progress: 60 })], 1)],
-      });
+      server.use(
+        ...mockPsn({
+          played: [
+            Psn.playedPage(
+              [
+                Psn.playedTitle({
+                  titleId: "seq",
+                  name: playedName,
+                  category: "ps5_native_game",
+                  concept: { ...basePlayed.concept, name: playedName },
+                  playDuration: "PT40H",
+                  playCount: 5,
+                }),
+              ],
+              1
+            ),
+          ],
+          titles: [Psn.trophyPage([Psn.trophyTitle({ trophyTitleName, progress: 60 })], 1)],
+        }).handlers
+      );
 
       const result = await runSignIn("npsso-token");
 
@@ -449,38 +460,40 @@ describe(".signInEffect", () => {
   );
 
   it("matches a played title that carries a trailing platform suffix the trophy list omits", async () => {
-    mockPsn({
-      played: [
-        Psn.playedPage(
-          [
-            Psn.playedTitle({
-              titleId: "gta5",
-              name: "Grand Theft Auto V (PlayStation®5)",
-              category: "ps5_native_game",
-              concept: { ...basePlayed.concept, name: "Grand Theft Auto V (PlayStation®5)" },
-              playDuration: "PT300H",
-              playCount: 20,
-            }),
-          ],
-          1
-        ),
-      ],
-      // Two stacks under one name: the more-progressed PS5 set is the representative.
-      titles: [
-        Psn.trophyPage(
-          [
-            Psn.trophyTitle({ trophyTitleName: "Grand Theft Auto V", progress: 27 }),
-            Psn.trophyTitle({
-              trophyTitleName: "Grand Theft Auto V",
-              progress: 28,
-              earnedTrophies: { bronze: 40, silver: 8, gold: 2, platinum: 0 },
-              lastUpdatedDateTime: "2024-03-01T00:00:00Z",
-            }),
-          ],
-          2
-        ),
-      ],
-    });
+    server.use(
+      ...mockPsn({
+        played: [
+          Psn.playedPage(
+            [
+              Psn.playedTitle({
+                titleId: "gta5",
+                name: "Grand Theft Auto V (PlayStation®5)",
+                category: "ps5_native_game",
+                concept: { ...basePlayed.concept, name: "Grand Theft Auto V (PlayStation®5)" },
+                playDuration: "PT300H",
+                playCount: 20,
+              }),
+            ],
+            1
+          ),
+        ],
+        // Two stacks under one name: the more-progressed PS5 set is the representative.
+        titles: [
+          Psn.trophyPage(
+            [
+              Psn.trophyTitle({ trophyTitleName: "Grand Theft Auto V", progress: 27 }),
+              Psn.trophyTitle({
+                trophyTitleName: "Grand Theft Auto V",
+                progress: 28,
+                earnedTrophies: { bronze: 40, silver: 8, gold: 2, platinum: 0 },
+                lastUpdatedDateTime: "2024-03-01T00:00:00Z",
+              }),
+            ],
+            2
+          ),
+        ],
+      }).handlers
+    );
 
     const result = await runSignIn("npsso-token");
 
@@ -496,29 +509,31 @@ describe(".signInEffect", () => {
   });
 
   it("matches the glyph-glued The Division 2 when the brand prefix is on both sides", async () => {
-    mockPsn({
-      played: [
-        Psn.playedPage(
-          [
-            Psn.playedTitle({
-              titleId: "div2",
-              name: "Tom Clancy's The Division 2",
-              category: "ps4_game",
-              concept: { ...basePlayed.concept, name: "Tom Clancy's The Division 2" },
-              playDuration: "PT70H",
-              playCount: 8,
-            }),
-          ],
-          1
-        ),
-      ],
-      titles: [
-        Psn.trophyPage(
-          [Psn.trophyTitle({ trophyTitleName: "Tom Clancy's The Division® 2", progress: 70 })],
-          1
-        ),
-      ],
-    });
+    server.use(
+      ...mockPsn({
+        played: [
+          Psn.playedPage(
+            [
+              Psn.playedTitle({
+                titleId: "div2",
+                name: "Tom Clancy's The Division 2",
+                category: "ps4_game",
+                concept: { ...basePlayed.concept, name: "Tom Clancy's The Division 2" },
+                playDuration: "PT70H",
+                playCount: 8,
+              }),
+            ],
+            1
+          ),
+        ],
+        titles: [
+          Psn.trophyPage(
+            [Psn.trophyTitle({ trophyTitleName: "Tom Clancy's The Division® 2", progress: 70 })],
+            1
+          ),
+        ],
+      }).handlers
+    );
 
     const result = await runSignIn("npsso-token");
 
@@ -528,34 +543,36 @@ describe(".signInEffect", () => {
   });
 
   it("keeps the most-progressed trophy list when a game has several under one name", async () => {
-    mockPsn({
-      played: [
-        Psn.playedPage(
-          [
-            Psn.playedTitle({
-              titleId: "minecraft",
-              name: "Minecraft",
-              category: "ps5_native_game",
-              concept: { ...basePlayed.concept, name: "Minecraft" },
-              playDuration: "PT120H",
-              playCount: 15,
-            }),
-          ],
-          1
-        ),
-      ],
-      titles: [
-        Psn.trophyPage(
-          [
-            Psn.trophyTitle({ trophyTitleName: "Minecraft", progress: 22 }),
-            Psn.trophyTitle({ trophyTitleName: "Minecraft", progress: 34 }),
-            // An additional set normalizes to a distinct key and must not clobber.
-            Psn.trophyTitle({ trophyTitleName: "Minecraft • Set 2", progress: 2 }),
-          ],
-          3
-        ),
-      ],
-    });
+    server.use(
+      ...mockPsn({
+        played: [
+          Psn.playedPage(
+            [
+              Psn.playedTitle({
+                titleId: "minecraft",
+                name: "Minecraft",
+                category: "ps5_native_game",
+                concept: { ...basePlayed.concept, name: "Minecraft" },
+                playDuration: "PT120H",
+                playCount: 15,
+              }),
+            ],
+            1
+          ),
+        ],
+        titles: [
+          Psn.trophyPage(
+            [
+              Psn.trophyTitle({ trophyTitleName: "Minecraft", progress: 22 }),
+              Psn.trophyTitle({ trophyTitleName: "Minecraft", progress: 34 }),
+              // An additional set normalizes to a distinct key and must not clobber.
+              Psn.trophyTitle({ trophyTitleName: "Minecraft • Set 2", progress: 2 }),
+            ],
+            3
+          ),
+        ],
+      }).handlers
+    );
 
     const result = await runSignIn("npsso-token");
 
@@ -565,29 +582,31 @@ describe(".signInEffect", () => {
   });
 
   it("leaves trophy undefined when no candidate name matches a trophy list", async () => {
-    mockPsn({
-      played: [
-        Psn.playedPage(
-          [
-            Psn.playedTitle({
-              titleId: "obscure",
-              name: "Some Game With No Trophies",
-              category: "ps5_native_game",
-              concept: { ...basePlayed.concept, name: "Some Game With No Trophies" },
-              playDuration: "PT5H",
-              playCount: 1,
-            }),
-          ],
-          1
-        ),
-      ],
-      titles: [
-        Psn.trophyPage(
-          [Psn.trophyTitle({ trophyTitleName: "An Unrelated Game", progress: 50 })],
-          1
-        ),
-      ],
-    });
+    server.use(
+      ...mockPsn({
+        played: [
+          Psn.playedPage(
+            [
+              Psn.playedTitle({
+                titleId: "obscure",
+                name: "Some Game With No Trophies",
+                category: "ps5_native_game",
+                concept: { ...basePlayed.concept, name: "Some Game With No Trophies" },
+                playDuration: "PT5H",
+                playCount: 1,
+              }),
+            ],
+            1
+          ),
+        ],
+        titles: [
+          Psn.trophyPage(
+            [Psn.trophyTitle({ trophyTitleName: "An Unrelated Game", progress: 50 })],
+            1
+          ),
+        ],
+      }).handlers
+    );
 
     const result = await runSignIn("npsso-token");
 
@@ -597,12 +616,14 @@ describe(".signInEffect", () => {
   });
 
   it("falls back to an empty trophy map when the trophy fetch fails", async () => {
-    mockPsn({
-      profile: Psn.profile({ avatarUrls: [], aboutMe: "" }),
-      // Single page with no total: exercises the played-games page-fullness fallback.
-      played: [withoutTotal(Psn.playedPage(playedTitles, 0))],
-      trophiesUnavailable: true,
-    });
+    server.use(
+      ...mockPsn({
+        profile: Psn.profile({ avatarUrls: [], aboutMe: "" }),
+        // Single page with no total: exercises the played-games page-fullness fallback.
+        played: [withoutTotal(Psn.playedPage(playedTitles, 0))],
+        trophiesUnavailable: true,
+      }).handlers
+    );
 
     const result = await runSignIn("npsso-token");
 
@@ -613,7 +634,11 @@ describe(".signInEffect", () => {
   });
 
   it("falls back to the first listed avatar when no xl/l/m size is present", async () => {
-    liveBuild(Psn.profile({ avatarUrls: [{ size: "s", avatarUrl: "https://img/s" }], plus: 0 }));
+    server.use(
+      ...liveHandlers(
+        Psn.profile({ avatarUrls: [{ size: "s", avatarUrl: "https://img/s" }], plus: 0 })
+      )
+    );
 
     const result = await runSignIn("fresh-token");
 
@@ -623,7 +648,7 @@ describe(".signInEffect", () => {
   });
 
   it("rejects with a credential-rejected error when the npsso exchange fails", async () => {
-    mockPsn({ authorize: "reject" });
+    server.use(...mockPsn({ authorize: "reject" }).handlers);
 
     const promise = runSignIn("bad-token");
 
@@ -637,7 +662,7 @@ describe(".signInEffect", () => {
   });
 
   it("rejects with a rate-limited error when PlayStation throttles the fetch", async () => {
-    mockPsn({ profileError: "429 Too Many Requests" });
+    server.use(...mockPsn({ profileError: "429 Too Many Requests" }).handlers);
 
     const promise = runSignIn("npsso-token");
 
@@ -650,7 +675,7 @@ describe(".signInEffect", () => {
   });
 
   it("rejects with an unavailable error when PlayStation is down", async () => {
-    mockPsn({ profileError: "upstream exploded" });
+    server.use(...mockPsn({ profileError: "upstream exploded" }).handlers);
 
     const promise = runSignIn("npsso-token");
 
@@ -665,14 +690,16 @@ describe(".signInEffect", () => {
   it("rejects with an internal error when the snapshot fails the DashboardData contract", async () => {
     // A non-finite trophy level normalizes through but fails the `DashboardData`
     // decode (`SchemaError`) — our contract breaking, not the user's token.
-    liveBuild(
-      Psn.profile({
-        trophySummary: {
-          level: Number.NaN,
-          progress: 70,
-          earnedTrophies: { bronze: 1, silver: 1, gold: 1, platinum: 1 },
-        },
-      })
+    server.use(
+      ...liveHandlers(
+        Psn.profile({
+          trophySummary: {
+            level: Number.NaN,
+            progress: 70,
+            earnedTrophies: { bronze: 1, silver: 1, gold: 1, platinum: 1 },
+          },
+        })
+      )
     );
 
     const promise = runSignIn("npsso-token");
@@ -687,7 +714,7 @@ describe(".signInEffect", () => {
   });
 
   it("sanitises an unexpected normalization defect at the live HTTP boundary", async () => {
-    liveBuild();
+    server.use(...liveHandlers());
     server.use(
       http.get(PSN_PROFILE_URL, () =>
         HttpResponse.json({
@@ -722,7 +749,7 @@ describe(".signInEffect", () => {
         playCount: 1,
       })
     );
-    const { getPlayedGames } = mockPsn({
+    const { handlers, getPlayedGames } = mockPsn({
       played: [
         withoutTotal(Psn.playedPage(firstPage, 0)),
         withoutTotal(
@@ -742,6 +769,7 @@ describe(".signInEffect", () => {
       ],
       titles: [Psn.trophyPage([], 0)],
     });
+    server.use(...handlers);
 
     const result = await runSignIn("npsso-token");
 
@@ -757,7 +785,7 @@ describe(".signInEffect", () => {
     const firstTrophyPage = Array.from({ length: 800 }, (_, i) =>
       Psn.trophyTitle({ trophyTitleName: `Filler Trophy ${i}`, progress: 1 })
     );
-    const { getUserTitles } = mockPsn({
+    const { handlers, getUserTitles } = mockPsn({
       played: [
         Psn.playedPage(
           [
@@ -783,6 +811,7 @@ describe(".signInEffect", () => {
         ),
       ],
     });
+    server.use(...handlers);
 
     const result = await runSignIn("npsso-token");
 
