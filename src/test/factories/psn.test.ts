@@ -47,7 +47,7 @@ describe(".profile", () => {
     );
     expect(second.profile.avatarUrls[0]!.avatarUrl).toBe("https://img/override");
     expect(second.profile.trophySummary.earnedTrophies.bronze).toBe(887);
-    expect(overrides).toEqual(input);
+    expect(overrides).toStrictEqual(input);
   });
 });
 
@@ -68,8 +68,8 @@ describe(".playedTitle", () => {
     expect(first.concept.titleIds).not.toBe(second.concept.titleIds);
     expect(first.concept.media).not.toBe(second.concept.media);
     expect(first.concept.media.images).not.toBe(second.concept.media.images);
-    expect(second.concept.titleIds).toEqual(["caller-owned"]);
-    expect(concept.titleIds).toEqual(["caller-owned"]);
+    expect(second.concept.titleIds).toStrictEqual(["caller-owned"]);
+    expect(concept.titleIds).toStrictEqual(["caller-owned"]);
   });
 });
 
@@ -105,8 +105,8 @@ describe(".playedPage", () => {
     expect(first.titles[0]).not.toBe(title);
     expect(first.titles[0]).not.toBe(second.titles[0]);
     expect(first.titles[0]!.concept).not.toBe(second.titles[0]!.concept);
-    expect(second.titles[0]!.concept.titleIds).toEqual([]);
-    expect(titles).toEqual(input);
+    expect(second.titles[0]!.concept.titleIds).toStrictEqual([]);
+    expect(titles).toStrictEqual(input);
   });
 });
 
@@ -127,6 +127,6 @@ describe(".trophyPage", () => {
     expect(first.trophyTitles[0]).not.toBe(second.trophyTitles[0]);
     expect(first.trophyTitles[0]!.earnedTrophies).not.toBe(second.trophyTitles[0]!.earnedTrophies);
     expect(second.trophyTitles[0]!.earnedTrophies.bronze).toBe(0);
-    expect(trophyTitles).toEqual(input);
+    expect(trophyTitles).toStrictEqual(input);
   });
 });

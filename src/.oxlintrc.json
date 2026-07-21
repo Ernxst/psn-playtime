@@ -1,6 +1,6 @@
 {
   "extends": ["../.oxlintrc.json"],
-  "ignorePatterns": ["test", "__test__", "__tests__", "components/ui"],
+  "ignorePatterns": ["test/harness.tsx", "components/ui"],
   "jsPlugins": [{ "name": "react-doctor", "specifier": "oxlint-plugin-react-doctor" }],
   "rules": {
     "react-doctor/advanced-event-handler-refs": "error",

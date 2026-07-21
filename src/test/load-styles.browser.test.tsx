@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { render } from "vitest-browser-react";
 
+function expectElement(element: HTMLElement | null): asserts element is HTMLElement {
+  expect(element).toBeInstanceOf(HTMLElement);
+}
+
 /**
  * Proof that the browser project loads the app's compiled Tailwind CSS (via the
  * `load-styles` setup file). Without that stylesheet these utility classes are
@@ -13,8 +17,9 @@ describe("Tailwind CSS in the browser project", () => {
 
     // This test verifies emitted CSS against a deliberately non-semantic fixture.
     // oxlint-disable-next-line test-contract/no-dom-selector
-    const element = container.querySelector('[data-testid="flex"]');
-    if (!element) throw new Error("expected the flex element to render");
+    const element = container.querySelector<HTMLElement>('[data-testid="flex"]');
+
+    expectElement(element);
 
     expect(getComputedStyle(element).display).toBe("flex");
   });
@@ -28,8 +33,9 @@ describe("Tailwind CSS in the browser project", () => {
 
     // This test verifies emitted CSS against a deliberately non-semantic fixture.
     // oxlint-disable-next-line test-contract/no-dom-selector
-    const element = container.querySelector('[data-testid="capped"]');
-    if (!element) throw new Error("expected the capped element to render");
+    const element = container.querySelector<HTMLElement>('[data-testid="capped"]');
+
+    expectElement(element);
 
     // `max-w-40` is 10rem (160px). Without the stylesheet the class is inert and
     // the block child would stretch to the full 320px container instead.
