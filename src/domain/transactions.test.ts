@@ -1,13 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  allTransactions,
-  freeClaim,
-  multiProductPurchase,
-  nullNamePurchase,
-  preOrderPurchase,
-  subscriptionPurchase,
-  walletFunding,
-} from "@/test/transaction-fixtures";
+import * as Transactions from "@/test/factories/transactions";
 import {
   type ApiProductPurchase,
   type ApiTransaction,
@@ -78,7 +70,7 @@ describe(".parseDisplayAmount", () => {
 
 describe(".flattenApiTransactions", () => {
   it("emits one row per product line for a multi-product purchase", () => {
-    const rows = flattenApiTransactions([multiProductPurchase]);
+    const rows = flattenApiTransactions([Transactions.multiProductPurchase()]);
 
     expect(rows).toHaveLength(2);
     expect(rows[0]).toMatchObject({
@@ -96,14 +88,14 @@ describe(".flattenApiTransactions", () => {
   });
 
   it("carries the pre-order sku type through", () => {
-    expect(flattenApiTransactions([preOrderPurchase])[0]).toMatchObject({
+    expect(flattenApiTransactions([Transactions.preOrderPurchase()])[0]).toMatchObject({
       skuType: "PRE_ORDER",
       amountMinor: 3999,
     });
   });
 
   it("classifies a subscription cycle as a purchase line", () => {
-    expect(flattenApiTransactions([subscriptionPurchase])[0]).toMatchObject({
+    expect(flattenApiTransactions([Transactions.subscriptionPurchase()])[0]).toMatchObject({
       transactionType: "CYCLE_SUBSCRIPTION",
       skuType: "SUBSCRIPTION",
       kind: "purchase",
@@ -112,7 +104,7 @@ describe(".flattenApiTransactions", () => {
   });
 
   it("retains a free claim with its original price and discount", () => {
-    expect(flattenApiTransactions([freeClaim])[0]).toMatchObject({
+    expect(flattenApiTransactions([Transactions.freeClaim()])[0]).toMatchObject({
       amountMinor: 0,
       originalPriceMinor: 4499,
       discountMinor: 4499,
@@ -121,7 +113,7 @@ describe(".flattenApiTransactions", () => {
   });
 
   it("classifies a non-purchase transaction as a top-up", () => {
-    expect(flattenApiTransactions([walletFunding])[0]).toMatchObject({
+    expect(flattenApiTransactions([Transactions.walletFunding()])[0]).toMatchObject({
       transactionId: "700000000000005",
       key: "700000000000005",
       transactionType: "WALLET_FUNDING",
@@ -132,7 +124,7 @@ describe(".flattenApiTransactions", () => {
   });
 
   it("keeps a delisted (null-name) product line under a placeholder", () => {
-    expect(flattenApiTransactions([nullNamePurchase])[0]).toMatchObject({
+    expect(flattenApiTransactions([Transactions.nullNamePurchase()])[0]).toMatchObject({
       productName: "Unknown item",
       skuId: "EP1234-PPSA09999_00-DELISTED00000000-E001",
       amountMinor: 799,
@@ -141,7 +133,7 @@ describe(".flattenApiTransactions", () => {
   });
 
   it("produces a stable per-line key for every row", () => {
-    const keys = flattenApiTransactions(allTransactions).map((r) => r.key);
+    const keys = flattenApiTransactions(Transactions.aggregate()).map((r) => r.key);
 
     expect(new Set(keys).size).toBe(keys.length);
   });
@@ -164,7 +156,7 @@ describe(".flattenApiTransactions", () => {
       "discountMinor",
     ]);
 
-    const extras = flattenApiTransactions(allTransactions).flatMap((row) =>
+    const extras = flattenApiTransactions(Transactions.aggregate()).flatMap((row) =>
       Object.keys(row).filter((key) => !allowed.has(key))
     );
 
@@ -173,7 +165,7 @@ describe(".flattenApiTransactions", () => {
 
   it("flattens hundreds of transactions into a fragment-sized payload", () => {
     const many = Array.from({ length: 300 }, (_, i) => ({
-      ...multiProductPurchase,
+      ...Transactions.multiProductPurchase(),
       id: `tx-${i}`,
     }));
 
@@ -283,26 +275,28 @@ describe(".nonPurchaseRow", () => {
   });
 });
 
-const payload: HandoffPayload = {
-  v: HANDOFF_VERSION,
-  accountId: "acc-1",
-  source: "www.playstation.com",
-  fetchedAt: "2024-01-01T00:00:00.000Z",
-  transactions: flattenApiTransactions([preOrderPurchase]),
-};
+function handoffPayload(): HandoffPayload {
+  return {
+    v: HANDOFF_VERSION,
+    accountId: "acc-1",
+    source: "www.playstation.com",
+    fetchedAt: "2024-01-01T00:00:00.000Z",
+    transactions: flattenApiTransactions([Transactions.preOrderPurchase()]),
+  };
+}
 
 describe(".safeParseHandoff", () => {
   it("returns a structurally valid payload", () => {
-    expect(safeParseHandoff(payload)).toMatchObject({
+    expect(safeParseHandoff(handoffPayload())).toMatchObject({
       v: HANDOFF_VERSION,
       source: "www.playstation.com",
     });
   });
 
   it.each([
-    [{ ...payload, v: 99 }, "wrong version"],
-    [{ ...payload, transactions: "nope" }, "non-array transactions"],
-    [{ ...payload, transactions: [{ id: "x" }] }, "malformed transaction"],
+    [{ ...handoffPayload(), v: 99 }, "wrong version"],
+    [{ ...handoffPayload(), transactions: "nope" }, "non-array transactions"],
+    [{ ...handoffPayload(), transactions: [{ id: "x" }] }, "malformed transaction"],
     [null, "null"],
     ["string", "non-object"],
   ])("returns null for %o (%s)", (value, _label) => {
@@ -312,11 +306,11 @@ describe(".safeParseHandoff", () => {
 
 describe(".decodeHandoff", () => {
   it("round-trips a payload encoded into the fragment", () => {
-    expect(decodeHandoff(`#${encodeHandoff(payload)}`)?.transactions).toHaveLength(1);
+    expect(decodeHandoff(`#${encodeHandoff(handoffPayload())}`)?.transactions).toHaveLength(1);
   });
 
   it("tolerates a fragment without the leading hash", () => {
-    expect(decodeHandoff(encodeHandoff(payload))?.source).toBe("www.playstation.com");
+    expect(decodeHandoff(encodeHandoff(handoffPayload()))?.source).toBe("www.playstation.com");
   });
 
   it.each([
@@ -329,7 +323,7 @@ describe(".decodeHandoff", () => {
   });
 
   it("returns null when the schema version is wrong", () => {
-    const encoded = `data=${encodeURIComponent(JSON.stringify({ ...payload, v: 99 }))}`;
+    const encoded = `data=${encodeURIComponent(JSON.stringify({ ...handoffPayload(), v: 99 }))}`;
 
     expect(decodeHandoff(`#${encoded}`)).toBeNull();
   });

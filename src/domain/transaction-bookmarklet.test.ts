@@ -4,13 +4,8 @@ import * as Schema from "effect/Schema";
 import { build } from "esbuild";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
+import * as Transactions from "@/test/factories/transactions";
 import { server } from "@/test/msw";
-import {
-  multiProductPurchase,
-  nullNamePurchase,
-  transactionHistoryResponse,
-  walletFunding,
-} from "@/test/transaction-fixtures";
 import {
   AUTHENTICATED_ACCOUNT_ENDPOINT,
   bookmarkletHref,
@@ -130,8 +125,13 @@ function fakeDocument(): { document: unknown; created: FakeElement[] } {
   return { document, created };
 }
 
-async function runBookmarklet(identity: { ok: boolean; status: number; body: unknown }) {
-  const body = bookmarkletBody("https://psn.example.dev");
+async function runBookmarklet(
+  identity: { ok: boolean; status: number; body: unknown },
+  options: { minified?: boolean } = {}
+) {
+  const body = options.minified
+    ? await minifiedBookmarkletBody("https://psn.example.dev")
+    : bookmarkletBody("https://psn.example.dev");
   const { document, created } = fakeDocument();
   const fetch = vi.fn(async (url: string) => {
     if (url.includes("/user/details")) {
@@ -156,19 +156,27 @@ async function runBookmarklet(identity: { ok: boolean; status: number; body: unk
     };
   });
   const open = vi.fn(() => ({}));
+  const postMessage = vi.fn();
+  const log = vi.fn();
+  const warn = vi.fn();
+  const crypto = { randomUUID: () => "request-id" };
 
   await vm.runInNewContext(body, {
     document,
     fetch,
-    window: { open },
+    window: { crypto, open, postMessage },
+    crypto,
     location: { host: "www.playstation.com" },
-    console: { log: () => {}, warn: () => {} },
+    console: { log, warn },
     setTimeout,
   });
 
   return {
     fetch,
+    log,
     open,
+    postMessage,
+    warn,
     message: created.find((element) => element.attrs["aria-live"] === "polite"),
   };
 }
@@ -198,6 +206,7 @@ interface DirectElement {
   attrs: Record<string, string>;
   id?: string;
   textContent?: string;
+  textUpdates: string[];
   children: DirectElement[];
   removed: boolean;
   setAttribute: (name: string, value: string) => void;
@@ -206,9 +215,11 @@ interface DirectElement {
 }
 
 function directElement(): DirectElement {
+  let textContent: string | undefined;
   const element: DirectElement = {
     style: {},
     attrs: {},
+    textUpdates: [],
     children: [],
     removed: false,
     setAttribute(name, value) {
@@ -223,6 +234,14 @@ function directElement(): DirectElement {
       element.removed = true;
     },
   };
+  Object.defineProperty(element, "textContent", {
+    get: () => textContent,
+    set: (value: string | undefined) => {
+      textContent = value;
+      if (value !== undefined) element.textUpdates.push(value);
+    },
+    enumerable: true,
+  });
 
   return element;
 }
@@ -370,39 +389,6 @@ describe(".dedupeTransactions", () => {
 });
 
 describe(".bookmarkletHref", () => {
-  it("produces a javascript: URI that fetches the transaction-history API", () => {
-    const body = bookmarkletBody("https://psn.example.dev");
-
-    expect(body).toContain("fetch(");
-    expect(body).toContain("transactionHistoryRetrieve");
-    expect(body).toContain("buildTransactionHistoryUrl");
-    expect(body).toContain("nextEndDate");
-  });
-
-  it("embeds the app's flatten helpers so rows are compacted before handoff", () => {
-    const body = bookmarkletBody("https://psn.example.dev");
-
-    expect(body).toContain("flattenApiTransactions");
-    expect(body).toContain("toPurchaseRow");
-    expect(body).toContain("nonPurchaseRow");
-  });
-
-  it("hands off the compact rows via the opened tab's own URL fragment", () => {
-    const body = bookmarkletBody("https://psn.example.dev");
-
-    expect(body).toContain("window.open");
-    expect(body).toContain("#data=");
-    expect(body).toContain("location.href");
-  });
-
-  it("binds the handoff to the account that generated the bookmarklet", () => {
-    const body = bookmarkletBody("https://psn.example.dev");
-
-    expect(body).toContain('const ACCOUNT_ID = "acc-1"');
-    expect(body).toContain('const ONLINE_ID = "Ernxst_"');
-    expect(body).toContain("accountId: ACCOUNT_ID");
-  });
-
   it("rejects a mismatched PlayStation session before fetching or handing off transactions", async () => {
     const { fetch, open, message } = await runBookmarklet({
       ok: true,
@@ -445,16 +431,32 @@ describe(".bookmarkletHref", () => {
     );
   });
 
-  it("does not stream via postMessage (COOP severs the opener)", () => {
-    const body = bookmarkletBody("https://psn.example.dev");
+  it("hands off without postMessage when the generated bookmarklet is minified", async () => {
+    const { open, postMessage } = await runBookmarklet(
+      { ok: true, status: 200, body: { handle: "Ernxst_" } },
+      { minified: true }
+    );
 
-    expect(body).not.toContain("postMessage");
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(postMessage).not.toHaveBeenCalled();
   });
 
-  it("embeds the prefixed console logging", () => {
-    const body = bookmarkletBody("https://psn.example.dev");
+  it("prefixes generated bookmarklet console output after minification", async () => {
+    const { log, warn } = await runBookmarklet(
+      { ok: true, status: 200, body: { handle: "Ernxst_" } },
+      { minified: true }
+    );
 
-    expect(body).toContain("[psn-import]");
+    expect(log).toHaveBeenCalledTimes(4);
+    expect(log).toHaveBeenNthCalledWith(
+      1,
+      "[psn-import]",
+      "page 1: 0 transactions (running total 0)"
+    );
+    expect(warn).toHaveBeenCalledExactlyOnceWith(
+      "[psn-import]",
+      "no transactions returned — nothing to import"
+    );
   });
 
   it("produces a syntactically valid script body once helpers are embedded", () => {
@@ -553,8 +555,11 @@ describe("bookmarklet transaction-history workflow", () => {
         return HttpResponse.json(
           valid
             ? variables.endDate === cursor
-              ? transactionHistoryResponse([multiProductPurchase, walletFunding])
-              : transactionHistoryResponse([multiProductPurchase], {
+              ? Transactions.historyResponse([
+                  Transactions.multiProductPurchase(),
+                  Transactions.walletFunding(),
+                ])
+              : Transactions.historyResponse([Transactions.multiProductPurchase()], {
                   hasMore: true,
                   nextEndDate: cursor,
                 })
@@ -565,14 +570,20 @@ describe("bookmarklet transaction-history workflow", () => {
 
     const result = await runNetworkBookmarklet();
 
+    expect(result.message.textUpdates).toStrictEqual([
+      "Fetching your transactions… Keep this tab open.",
+      "Fetching transactions… 1 collected (page 1). Keep this tab open.",
+      "Fetching transactions… 3 collected (page 2). Keep this tab open.",
+      "Done — opening Playtime…",
+    ]);
     expect(result.open).toHaveBeenCalledTimes(1);
     expect(importedPayload(result.href)).toMatchObject({
       v: 4,
       source: "store.playstation.com",
       transactions: [
-        { transactionId: multiProductPurchase.id, key: "111111111111" },
-        { transactionId: multiProductPurchase.id, key: "111111111112" },
-        { transactionId: walletFunding.id, kind: "top-up" },
+        { transactionId: Transactions.multiProductPurchase().id, key: "111111111111" },
+        { transactionId: Transactions.multiProductPurchase().id, key: "111111111112" },
+        { transactionId: Transactions.walletFunding().id, kind: "top-up" },
       ],
     });
   });
@@ -581,7 +592,7 @@ describe("bookmarklet transaction-history workflow", () => {
     server.use(
       http.get(TRANSACTION_HISTORY_ENDPOINT, () =>
         HttpResponse.json(
-          transactionHistoryResponse([nullNamePurchase], {
+          Transactions.historyResponse([Transactions.nullNamePurchase()], {
             errors: [{ message: "productName was null" }],
           })
         )
@@ -592,7 +603,7 @@ describe("bookmarklet transaction-history workflow", () => {
 
     expect(result.open).toHaveBeenCalledTimes(1);
     expect(importedPayload(result.href)).toMatchObject({
-      transactions: [{ transactionId: nullNamePurchase.id }],
+      transactions: [{ transactionId: Transactions.nullNamePurchase().id }],
     });
   });
 
@@ -618,7 +629,10 @@ describe("bookmarklet transaction-history workflow", () => {
         return HttpResponse.json(
           variables.endDate === cursor
             ? { errors: [{ message: "later page unavailable" }] }
-            : transactionHistoryResponse([walletFunding], { hasMore: true, nextEndDate: cursor })
+            : Transactions.historyResponse([Transactions.walletFunding()], {
+                hasMore: true,
+                nextEndDate: cursor,
+              })
         );
       })
     );
@@ -627,23 +641,12 @@ describe("bookmarklet transaction-history workflow", () => {
 
     expect(result.open).toHaveBeenCalledTimes(1);
     expect(importedPayload(result.href)).toMatchObject({
-      transactions: [{ transactionId: walletFunding.id, kind: "top-up" }],
+      transactions: [{ transactionId: Transactions.walletFunding().id, kind: "top-up" }],
     });
   });
 });
 
 describe(".mountImportOverlay", () => {
-  it("embeds the overlay helpers, mounts them, and wires progress/done/error", () => {
-    const body = bookmarkletBody("https://psn.example.dev");
-
-    expect(body).toContain("mountImportOverlay");
-    expect(body).toContain("importErrorMessage");
-    expect(body).toContain("aria-live");
-    expect(body).toContain("overlay.progress(");
-    expect(body).toContain("overlay.done()");
-    expect(body).toContain("overlay.error(");
-  });
-
   it("mounts the overlay from the minified bookmarklet body without a ReferenceError", async () => {
     const body = await minifiedBookmarkletBody("https://psn.example.dev");
 
