@@ -125,8 +125,13 @@ function fakeDocument(): { document: unknown; created: FakeElement[] } {
   return { document, created };
 }
 
-async function runBookmarklet(identity: { ok: boolean; status: number; body: unknown }) {
-  const body = bookmarkletBody("https://psn.example.dev");
+async function runBookmarklet(
+  identity: { ok: boolean; status: number; body: unknown },
+  options: { minified?: boolean } = {}
+) {
+  const body = options.minified
+    ? await minifiedBookmarkletBody("https://psn.example.dev")
+    : bookmarkletBody("https://psn.example.dev");
   const { document, created } = fakeDocument();
   const fetch = vi.fn(async (url: string) => {
     if (url.includes("/user/details")) {
@@ -151,19 +156,27 @@ async function runBookmarklet(identity: { ok: boolean; status: number; body: unk
     };
   });
   const open = vi.fn(() => ({}));
+  const postMessage = vi.fn();
+  const log = vi.fn();
+  const warn = vi.fn();
+  const crypto = { randomUUID: () => "request-id" };
 
   await vm.runInNewContext(body, {
     document,
     fetch,
-    window: { open },
+    window: { crypto, open, postMessage },
+    crypto,
     location: { host: "www.playstation.com" },
-    console: { log: () => {}, warn: () => {} },
+    console: { log, warn },
     setTimeout,
   });
 
   return {
     fetch,
+    log,
     open,
+    postMessage,
+    warn,
     message: created.find((element) => element.attrs["aria-live"] === "polite"),
   };
 }
@@ -193,6 +206,7 @@ interface DirectElement {
   attrs: Record<string, string>;
   id?: string;
   textContent?: string;
+  textUpdates: string[];
   children: DirectElement[];
   removed: boolean;
   setAttribute: (name: string, value: string) => void;
@@ -201,9 +215,11 @@ interface DirectElement {
 }
 
 function directElement(): DirectElement {
+  let textContent: string | undefined;
   const element: DirectElement = {
     style: {},
     attrs: {},
+    textUpdates: [],
     children: [],
     removed: false,
     setAttribute(name, value) {
@@ -218,6 +234,14 @@ function directElement(): DirectElement {
       element.removed = true;
     },
   };
+  Object.defineProperty(element, "textContent", {
+    get: () => textContent,
+    set: (value: string | undefined) => {
+      textContent = value;
+      if (value !== undefined) element.textUpdates.push(value);
+    },
+    enumerable: true,
+  });
 
   return element;
 }
@@ -407,16 +431,32 @@ describe(".bookmarkletHref", () => {
     );
   });
 
-  it("does not stream via postMessage (COOP severs the opener)", () => {
-    const body = bookmarkletBody("https://psn.example.dev");
+  it("hands off without postMessage when the generated bookmarklet is minified", async () => {
+    const { open, postMessage } = await runBookmarklet(
+      { ok: true, status: 200, body: { handle: "Ernxst_" } },
+      { minified: true }
+    );
 
-    expect(body).not.toContain("postMessage");
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(postMessage).not.toHaveBeenCalled();
   });
 
-  it("embeds the prefixed console logging", () => {
-    const body = bookmarkletBody("https://psn.example.dev");
+  it("prefixes generated bookmarklet console output after minification", async () => {
+    const { log, warn } = await runBookmarklet(
+      { ok: true, status: 200, body: { handle: "Ernxst_" } },
+      { minified: true }
+    );
 
-    expect(body).toContain("[psn-import]");
+    expect(log).toHaveBeenCalledTimes(4);
+    expect(log).toHaveBeenNthCalledWith(
+      1,
+      "[psn-import]",
+      "page 1: 0 transactions (running total 0)"
+    );
+    expect(warn).toHaveBeenCalledExactlyOnceWith(
+      "[psn-import]",
+      "no transactions returned — nothing to import"
+    );
   });
 
   it("produces a syntactically valid script body once helpers are embedded", () => {
@@ -530,6 +570,12 @@ describe("bookmarklet transaction-history workflow", () => {
 
     const result = await runNetworkBookmarklet();
 
+    expect(result.message.textUpdates).toStrictEqual([
+      "Fetching your transactions… Keep this tab open.",
+      "Fetching transactions… 1 collected (page 1). Keep this tab open.",
+      "Fetching transactions… 3 collected (page 2). Keep this tab open.",
+      "Done — opening Playtime…",
+    ]);
     expect(result.open).toHaveBeenCalledTimes(1);
     expect(importedPayload(result.href)).toMatchObject({
       v: 4,
