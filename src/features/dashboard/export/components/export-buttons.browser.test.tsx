@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
-import type { TransactionRow } from "@/domain/transactions";
-import type { DashboardData, GamePlay } from "@/server/providers/account/snapshot";
+import type { GamePlay } from "@/server/providers/account/snapshot";
+import * as Dashboard from "@/test/factories/dashboard";
+import * as Transactions from "@/test/factories/transactions";
 import { ExportButtons } from "./export-buttons";
 
 function game(overrides: Partial<GamePlay>): GamePlay {
@@ -18,44 +19,42 @@ function game(overrides: Partial<GamePlay>): GamePlay {
   };
 }
 
-function data(games: GamePlay[], onlineId = "tester"): DashboardData {
-  return {
-    profile: {
-      onlineId,
-      accountId: "acc",
-      isPlus: false,
-      trophyLevel: 1,
-      levelProgress: 0,
-      earned: { platinum: 0, gold: 0, silver: 0, bronze: 0 },
-      totalTrophies: 0,
-    },
-    games,
-    fetchedAt: "2024-06-01T00:00:00.000Z",
-    meta: { totalGames: games.length, totalHours: 0, totalSessions: 0, appsExcluded: [], span: {} },
-    isDemo: false,
-    trophiesUnavailable: false,
-  };
-}
-
-function tx(overrides: Partial<TransactionRow>): TransactionRow {
-  return {
-    transactionId: "700000000000001",
-    key: "line-1",
-    date: "2025-08-29T13:31:23.987Z",
-    transactionType: "PRODUCT_PURCHASE",
-    kind: "purchase",
-    productName: "Hades",
-    quantity: 1,
-    amountMinor: 1599,
-    currency: "£",
-    displayAmount: "£15.99",
-    ...overrides,
-  };
-}
+const dashboardDefaults = {
+  profile: {
+    onlineId: "tester",
+    accountId: "acc",
+    isPlus: false,
+    trophyLevel: 1,
+    levelProgress: 0,
+    earned: { platinum: 0, gold: 0, silver: 0, bronze: 0 },
+    totalTrophies: 0,
+  },
+  fetchedAt: "2024-06-01T00:00:00.000Z",
+  meta: { totalHours: 0, totalSessions: 0, appsExcluded: [], span: {} },
+  isDemo: false,
+  trophiesUnavailable: false,
+} as const;
 
 describe("ExportButtons", () => {
   it("renders a button for each export", async () => {
-    await render(<ExportButtons data={data([game({})])} transactions={[tx({})]} />);
+    await render(
+      <ExportButtons
+        data={Dashboard.data({
+          ...dashboardDefaults,
+          games: [game({})],
+          meta: { ...dashboardDefaults.meta, totalGames: 1 },
+        })}
+        transactions={[
+          Transactions.row({
+            key: "line-1",
+            skuId: undefined,
+            skuType: undefined,
+            originalPriceMinor: undefined,
+            discountMinor: undefined,
+          }),
+        ]}
+      />
+    );
 
     await expect.element(page.getByRole("button", { name: "Export games (CSV)" })).toBeVisible();
     await expect.element(page.getByRole("button", { name: "Export account (CSV)" })).toBeVisible();
@@ -65,21 +64,48 @@ describe("ExportButtons", () => {
   });
 
   it("enables the games and account exports when the library has titles", async () => {
-    await render(<ExportButtons data={data([game({})])} transactions={[]} />);
+    await render(
+      <ExportButtons
+        data={Dashboard.data({
+          ...dashboardDefaults,
+          games: [game({})],
+          meta: { ...dashboardDefaults.meta, totalGames: 1 },
+        })}
+        transactions={[]}
+      />
+    );
 
     await expect.element(page.getByRole("button", { name: "Export games (CSV)" })).toBeEnabled();
     await expect.element(page.getByRole("button", { name: "Export account (CSV)" })).toBeEnabled();
   });
 
   it("disables the games and account exports for an empty library", async () => {
-    await render(<ExportButtons data={data([])} transactions={[]} />);
+    await render(
+      <ExportButtons
+        data={Dashboard.data({
+          ...dashboardDefaults,
+          games: [],
+          meta: { ...dashboardDefaults.meta, totalGames: 0 },
+        })}
+        transactions={[]}
+      />
+    );
 
     await expect.element(page.getByRole("button", { name: "Export games (CSV)" })).toBeDisabled();
     await expect.element(page.getByRole("button", { name: "Export account (CSV)" })).toBeDisabled();
   });
 
   it("disables the transactions export when nothing was imported", async () => {
-    await render(<ExportButtons data={data([game({})])} transactions={[]} />);
+    await render(
+      <ExportButtons
+        data={Dashboard.data({
+          ...dashboardDefaults,
+          games: [game({})],
+          meta: { ...dashboardDefaults.meta, totalGames: 1 },
+        })}
+        transactions={[]}
+      />
+    );
 
     await expect
       .element(page.getByRole("button", { name: "Export transactions (CSV)" }))
@@ -91,7 +117,24 @@ describe("ExportButtons", () => {
     const revokeObjectURL = vi.spyOn(URL, "revokeObjectURL").mockReturnValue();
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
 
-    await render(<ExportButtons data={data([game({})])} transactions={[tx({})]} />);
+    await render(
+      <ExportButtons
+        data={Dashboard.data({
+          ...dashboardDefaults,
+          games: [game({})],
+          meta: { ...dashboardDefaults.meta, totalGames: 1 },
+        })}
+        transactions={[
+          Transactions.row({
+            key: "line-1",
+            skuId: undefined,
+            skuType: undefined,
+            originalPriceMinor: undefined,
+            discountMinor: undefined,
+          }),
+        ]}
+      />
+    );
 
     await page.getByRole("button", { name: "Export games (CSV)" }).click();
 
@@ -108,7 +151,25 @@ describe("ExportButtons", () => {
       .spyOn(HTMLAnchorElement.prototype, "download", "set")
       .mockImplementation(() => {});
 
-    await render(<ExportButtons data={data([game({})], "")} transactions={[tx({})]} />);
+    await render(
+      <ExportButtons
+        data={Dashboard.data({
+          ...dashboardDefaults,
+          games: [game({})],
+          profile: { ...dashboardDefaults.profile, onlineId: "" },
+          meta: { ...dashboardDefaults.meta, totalGames: 1 },
+        })}
+        transactions={[
+          Transactions.row({
+            key: "line-1",
+            skuId: undefined,
+            skuType: undefined,
+            originalPriceMinor: undefined,
+            discountMinor: undefined,
+          }),
+        ]}
+      />
+    );
 
     await page.getByRole("button", { name: "Export account (CSV)" }).click();
     await page.getByRole("button", { name: "Export transactions (CSV)" }).click();

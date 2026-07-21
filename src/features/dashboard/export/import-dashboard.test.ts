@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { DashboardData, GamePlay } from "@/server/providers/account/snapshot";
+import type { GamePlay } from "@/server/providers/account/snapshot";
+import * as Dashboard from "@/test/factories/dashboard";
 import { buildAccountCsv, buildGamesCsv } from "./csv";
 import { importDashboardFromCsv } from "./import-dashboard";
 
@@ -60,7 +61,7 @@ const appsExcluded = [
 ];
 
 // earned = sum of the two games' earned counts; totalTrophies = their sum.
-const original: DashboardData = {
+const original = Dashboard.data({
   profile: {
     onlineId: "Ernxst_",
     accountId: "acc-1",
@@ -84,7 +85,7 @@ const original: DashboardData = {
   },
   isDemo: false,
   trophiesUnavailable: false,
-};
+});
 
 describe("importDashboardFromCsv", () => {
   it("round-trips a dashboard through the games + account CSVs (fetchedAt aside)", () => {

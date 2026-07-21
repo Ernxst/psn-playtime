@@ -3,6 +3,7 @@ import * as Exit from "effect/Exit";
 import { describe, expect, it } from "vitest";
 import type { TransactionImport, TransactionRow } from "@/domain/transactions";
 import type { TransactionStore } from "@/stores/transactions-store";
+import * as Transactions from "@/test/factories/transactions";
 import { buildTransactionsCsv } from "./csv";
 import { importTransactionsCsv } from "./import-transactions";
 
@@ -25,36 +26,15 @@ function memoryStore(initial: Record<string, TransactionImport> = {}): Transacti
   };
 }
 
-/** A fully-keyed transaction row so round-trip comparisons stay `toStrictEqual`. */
-function row(overrides: Partial<TransactionRow>): TransactionRow {
-  return {
-    transactionId: "700000000000001",
-    key: "line-1",
-    date: "2025-08-29T13:31:23.987Z",
-    transactionType: "PRODUCT_PURCHASE",
-    kind: "purchase",
-    productName: "Hades",
-    skuId: undefined,
-    skuType: undefined,
-    quantity: 1,
-    amountMinor: 1599,
-    currency: "£",
-    displayAmount: "£15.99",
-    originalPriceMinor: undefined,
-    discountMinor: undefined,
-    ...overrides,
-  };
-}
-
 const transactions: TransactionRow[] = [
-  row({
+  Transactions.row({
     key: "line-1",
     skuId: "EP4040-PPSA01234_00-HADES00000000000-E001",
     skuType: "STANDARD",
     originalPriceMinor: 1999,
     discountMinor: 400,
   }),
-  row({
+  Transactions.row({
     transactionId: "700000000000002",
     key: "line-2",
     kind: "top-up",
@@ -62,6 +42,10 @@ const transactions: TransactionRow[] = [
     productName: "WALLET_FUNDING",
     amountMinor: 5000,
     displayAmount: "£50.00",
+    skuId: undefined,
+    skuType: undefined,
+    originalPriceMinor: undefined,
+    discountMinor: undefined,
   }),
 ];
 
