@@ -18,6 +18,7 @@ const rules = [
   "no-inexact-cardinality",
   "no-broad-dom-text",
   "no-dom-selector",
+  "no-promise-constructor",
   "no-query-null-assertion",
   "no-optional-test-action",
   "no-internal-module-mock",
@@ -63,6 +64,8 @@ describe("test-contract", () => {
     ["no-dom-selector", `it("renders", () => view.querySelector("button"));`],
     ["no-dom-selector", `it("renders", () => view.querySelectorAll("button"));`],
     ["no-dom-selector", `it("renders", () => button.closest("form"));`],
+    ["no-dom-selector", `it("renders", () => button.parentElement);`],
+    ["no-promise-constructor", `it("waits", () => new Promise(resolve => resolve()));`],
     [
       "no-query-null-assertion",
       `it("hides", () => expect(page.getByRole("dialog").query()).toBeNull());`,

@@ -226,6 +226,7 @@ function directElement(): DirectElement {
       element.attrs[name] = value;
     },
     appendChild(child) {
+      // oxlint-disable-next-line test-contract/no-dom-selector -- mutates the fake DOM model; it does not traverse rendered DOM
       element.children.push(child);
 
       return child;
@@ -730,6 +731,7 @@ describe(".mountImportOverlay", () => {
 
     mountImportOverlay();
 
+    // oxlint-disable-next-line test-contract/no-dom-selector -- asserts the fake document fallback selected by appendChild
     expect(dom.documentElement.children).toContain(dom.created[0]);
   });
 });

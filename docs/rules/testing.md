@@ -26,4 +26,5 @@ This app uses co-located Vitest node and browser tests. Mechanical constraints f
 - Prefer inline, test-specific arrangement. Use `beforeEach` only for expensive setup shared unchanged by every test in the block.
 - Prefer `Promise.withResolvers()` for deferred promises.
 - Assert exact observable values through semantic or accessible queries.
+- Do not use CSS selectors or traverse DOM relationships. Query the target by its accessible role, label, or text.
 - Use `onTestFinished` for resources owned by one test. Use `afterEach` for shared mock restoration.

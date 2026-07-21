@@ -80,6 +80,7 @@
         "test-contract/no-inexact-cardinality": "error",
         "test-contract/no-broad-dom-text": "error",
         "test-contract/no-dom-selector": "error",
+        "test-contract/no-promise-constructor": "error",
         "test-contract/no-query-null-assertion": "error",
         "test-contract/no-optional-test-action": "error",
         "test-contract/no-internal-module-mock": [

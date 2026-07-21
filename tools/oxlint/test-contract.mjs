@@ -203,6 +203,21 @@ const noBroadDomText = rule(
   })
 );
 
+const domTraversalProperties = new Set([
+  "childNodes",
+  "children",
+  "firstChild",
+  "firstElementChild",
+  "lastChild",
+  "lastElementChild",
+  "nextElementSibling",
+  "nextSibling",
+  "parentElement",
+  "parentNode",
+  "previousElementSibling",
+  "previousSibling",
+]);
+
 const noDomSelector = rule(
   {
     semantic:
@@ -220,6 +235,23 @@ const noDomSelector = rule(
         name?.startsWith("getElementsBy")
       ) {
         context.report({ node, messageId: "semantic" });
+      }
+    },
+    MemberExpression(node) {
+      const name = propertyName(node);
+      if (domTraversalProperties.has(name)) {
+        context.report({ node, messageId: "semantic" });
+      }
+    },
+  })
+);
+
+const noPromiseConstructor = rule(
+  { deferred: "Use Promise.withResolvers() instead of new Promise() in tests" },
+  (context) => ({
+    NewExpression(node) {
+      if (node.callee.type === "Identifier" && node.callee.name === "Promise") {
+        context.report({ node, messageId: "deferred" });
       }
     },
   })
@@ -393,6 +425,7 @@ export default {
     "no-inexact-cardinality": noInexactCardinality,
     "no-broad-dom-text": noBroadDomText,
     "no-dom-selector": noDomSelector,
+    "no-promise-constructor": noPromiseConstructor,
     "no-query-null-assertion": noQueryNullAssertion,
     "no-optional-test-action": noOptionalTestAction,
     "no-internal-module-mock": noInternalModuleMock,
