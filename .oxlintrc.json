@@ -1,11 +1,8 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "extends": ["./tools/oxlint/test-contract.json"],
+  "extends": ["./tools/oxlint/style.json", "./tools/oxlint/test-contract.json"],
   "plugins": ["react", "typescript", "unicorn", "oxc", "jsx-a11y", "jsdoc", "vitest", "import"],
   "jsPlugins": [
-    "oxlint-plugin-complexity",
-    "./tools/oxlint/test-contract.mjs",
-    "./tools/oxlint/style.mjs",
     {
       "name": "vitest-format",
       "specifier": "@vitest/eslint-plugin"
@@ -38,45 +35,13 @@
     "import/no-cycle": "error",
     "import/no-self-import": "error",
     "oxc/no-accumulating-spread": "error",
-    "react/react-compiler": "error",
-    "style/prefer-concise-arrow": "error",
-    "no-extra-boolean-cast": "error",
-    "max-depth": ["error", 3],
-    "max-nested-callbacks": ["error", 3],
-    "max-params": ["error", 4],
-    "eslint/max-lines-per-function": [
-      "error",
-      {
-        "max": 40,
-        "skipBlankLines": true,
-        "skipComments": true
-      }
-    ],
-    "complexity/complexity": [
-      "error",
-      {
-        "cyclomatic": 5,
-        "cognitive": 6
-      }
-    ],
-    "no-unused-vars": [
-      "error",
-      {
-        "varsIgnorePattern": "^_",
-        "argsIgnorePattern": "^_",
-        "fix": {
-          "imports": "fix",
-          "variables": "off"
-        }
-      }
-    ]
+    "react/react-compiler": "error"
   },
   "overrides": [
     {
       "files": ["tools/oxlint/*.mjs"],
       "rules": {
-        "typescript/no-unsafe-assignment": "off",
-        "complexity/complexity": "off"
+        "typescript/no-unsafe-assignment": "off"
       }
     }
   ]

@@ -1,0 +1,44 @@
+{
+  "jsPlugins": ["oxlint-plugin-complexity", "./style.mjs"],
+  "rules": {
+    "style/prefer-concise-arrow": "error",
+    "no-extra-boolean-cast": "error",
+    "max-depth": ["error", 3],
+    "max-nested-callbacks": ["error", 3],
+    "max-params": ["error", 4],
+    "eslint/max-lines-per-function": [
+      "error",
+      {
+        "max": 40,
+        "skipBlankLines": true,
+        "skipComments": true
+      }
+    ],
+    "complexity/complexity": [
+      "error",
+      {
+        "cyclomatic": 5,
+        "cognitive": 6
+      }
+    ],
+    "no-unused-vars": [
+      "error",
+      {
+        "varsIgnorePattern": "^_",
+        "argsIgnorePattern": "^_",
+        "fix": {
+          "imports": "fix",
+          "variables": "off"
+        }
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": ["tools/oxlint/*.mjs"],
+      "rules": {
+        "complexity/complexity": "off"
+      }
+    }
+  ]
+}
