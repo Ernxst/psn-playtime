@@ -138,12 +138,12 @@ describe("PurchaseHistorySection", () => {
     await expect.poll(lastRowText).toContain("Plain Game");
   });
 
-  it("renders nothing for the demo dashboard even when an import exists", async () => {
+  it("renders purchase history selected for the demo profile", async () => {
     seed([row({ key: "t1" })]);
 
     await renderWithAtoms(<PurchaseHistorySection data={demoDashboard} />);
 
-    await expect.element(page.getByText("Your purchase history")).not.toBeInTheDocument();
+    await expect.element(page.getByText("Your purchase history")).toBeVisible();
   });
 
   it("clicking the Amount paid header re-sorts the rows in both directions", async () => {

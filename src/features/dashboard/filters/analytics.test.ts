@@ -13,6 +13,7 @@ import {
   hoursByYear,
   lifespans,
   recency,
+  retainValidFilters,
   topFranchises,
   topGamesByHours,
   valuePerGame,
@@ -112,7 +113,7 @@ describe(".headlineTotals", () => {
     expect(totals.totalHours).toBe(7687.75);
     expect(totals.gamesPlayed).toBe(98);
     expect(totals.sessions).toBe(5966);
-    expect(totals.trophyLevel).toBe(220);
+    expect(totals.trophyLevel).toBe(demoDashboard.profile.trophyLevel);
     expect(totals.biggestGame).toBe(demoDashboard.games[0]);
   });
 });
@@ -430,6 +431,35 @@ describe(".filterByTimeframe", () => {
     expect(filterByTimeframe(sample, "last-12-months").games.map((g) => g.titleId)).toStrictEqual([
       "C",
     ]);
+  });
+});
+
+describe(".retainValidFilters", () => {
+  it("removes destination facets that would be hidden or impossible after an account switch", () => {
+    const filters = retainValidFilters(sample, {
+      ...defaultFilters,
+      search: "A",
+      genres: ["Shooter", "Sports"],
+      franchises: ["Call of Duty", "Missing"],
+      platforms: ["PS5"],
+      minHours: 101,
+      maxHours: 20,
+      minSessions: 26,
+      hasPlatinum: true,
+      minTrophyProgress: 50,
+    });
+
+    expect(filters).toStrictEqual({
+      ...defaultFilters,
+      search: "A",
+      genres: ["Shooter"],
+      franchises: ["Call of Duty"],
+      platforms: ["PS5"],
+      maxHours: 20,
+      minHours: undefined,
+      minSessions: undefined,
+      minTrophyProgress: undefined,
+    });
   });
 });
 

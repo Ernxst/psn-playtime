@@ -346,7 +346,7 @@ describe("SpendSection", () => {
     await expect.element(page.getByText("£5.00")).toBeVisible();
   });
 
-  it("shows the import prompt on the demo dashboard even when an import exists", async () => {
+  it("renders an imported transaction dataset selected for the demo profile", async () => {
     seed([
       {
         transactionId: "t1",
@@ -364,8 +364,8 @@ describe("SpendSection", () => {
 
     await renderWithAtoms(<SpendSection data={demoDashboard} />);
 
-    await expect.element(page.getByText("Add your spend")).toBeVisible();
-    await expect.element(page.getByText("Best value per hour")).not.toBeInTheDocument();
+    await expect.element(page.getByText("Best value per hour")).toBeVisible();
+    await expect.element(page.getByText("Add your spend")).not.toBeInTheDocument();
   });
 });
 
@@ -380,12 +380,12 @@ describe("AddOnsSection", () => {
     await expect.element(page.getByText("2 add-ons")).toBeVisible();
   });
 
-  it("hides the add-ons section for the demo dashboard", async () => {
+  it("renders add-ons selected for the demo profile", async () => {
     seed([addOn("a1")]);
 
     await renderWithAtoms(<AddOnsSection data={demoDashboard} />);
 
-    await expect.element(page.getByText("Spent extra on")).not.toBeInTheDocument();
+    await expect.element(page.getByText("Spent extra on")).toBeVisible();
   });
 
   it("hides the add-ons section when no transactions are imported", async () => {
@@ -427,12 +427,12 @@ describe("SpentMostSection", () => {
     await expect.element(page.getByText("£29.98")).toBeVisible();
   });
 
-  it("hides the spent-most section for the demo dashboard", async () => {
+  it("renders most-spent data selected for the demo profile", async () => {
     seed([baseFor("DEMO-8", 1999)]);
 
     await renderWithAtoms(<SpentMostSection data={demoDashboard} />);
 
-    await expect.element(page.getByText("Spent the most on")).not.toBeInTheDocument();
+    await expect.element(page.getByText("Spent the most on")).toBeVisible();
   });
 
   it("hides the spent-most section when no transactions are imported", async () => {

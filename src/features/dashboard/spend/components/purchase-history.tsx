@@ -200,14 +200,30 @@ function PurchaseHistoryTable({ transactions }: { transactions: TransactionRow[]
 
 /**
  * Dashboard purchase-history section: the raw imported transactions as a
- * sortable table. Hidden for the demo dataset and until an import lands — the
- * spend section already prompts for the import.
+ * sortable table. Accounts without transactions receive an explicit empty
+ * state so the direct destination remains useful.
  */
-export function PurchaseHistorySection({ data }: { data: DashboardData }) {
-  // Never show a real user's import alongside the demo library — call the hook
-  // unconditionally, then hide for demo data or no import.
+export function PurchaseHistorySection({
+  data,
+  transactions,
+}: {
+  data: DashboardData;
+  transactions?: TransactionRow[];
+}) {
   const imported = useTransactionImport(data.profile.accountId);
-  if (data.isDemo || !imported || imported.transactions.length === 0) return null;
+  const rows = transactions ?? imported?.transactions ?? [];
+  if (rows.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">No purchase history yet</CardTitle>
+          <CardDescription>
+            Import purchase transactions to show dated purchase rows here.
+          </CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
 
-  return <PurchaseHistoryTable transactions={imported.transactions} />;
+  return <PurchaseHistoryTable transactions={rows} />;
 }

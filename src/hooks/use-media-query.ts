@@ -4,7 +4,7 @@ import { useCallback, useSyncExternalStore } from "react";
 
 const MEDIA_QUERIES = {
   "coarse-pointer": "(pointer: coarse)",
-  "max-md": "(max-width: 799px)",
+  "max-md": "(max-width: 767px)",
 } as const;
 
 function getServerSnapshot(): boolean {

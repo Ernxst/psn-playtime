@@ -27,8 +27,12 @@ describe("TrophySection", () => {
     await render(<TrophySection data={demoDashboard} />);
 
     await expect.element(page.getByText("Trophy level")).toBeVisible();
-    await expect.element(page.getByText("220", { exact: true })).toBeVisible();
-    await expect.element(page.getByText("1,138", { exact: true })).toBeVisible();
+    await expect
+      .element(page.getByText(String(demoDashboard.profile.trophyLevel), { exact: true }))
+      .toBeVisible();
+    await expect
+      .element(page.getByText(String(demoDashboard.profile.totalTrophies), { exact: true }))
+      .toBeVisible();
   });
 
   it("lists the games where a platinum was earned", async () => {
@@ -53,7 +57,7 @@ describe("TrophySection", () => {
       .element(page.getByRole("img"))
       .toHaveAttribute(
         "aria-label",
-        "Earned trophies by type: 9 platinum, 54 gold, 188 silver, 887 bronze."
+        "Earned trophies by type: 2 platinum, 18 gold, 64 silver, 211 bronze."
       );
   });
 

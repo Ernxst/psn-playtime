@@ -15,6 +15,9 @@ interface HarnessOptions {
   path?: string;
   /** Supply a pre-seeded client (e.g. to prime a suspense query cache). */
   queryClient?: QueryClient;
+  /** Optional rendered route bodies for navigation tests. */
+  index?: ReactNode;
+  dashboard?: ReactNode;
 }
 
 interface Harness {
@@ -47,12 +50,12 @@ export function createHarness(ui: ReactNode, options: HarnessOptions = {}): Harn
   const indexRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/",
-    component: () => null,
+    component: () => options.index ?? null,
   });
   const dashboardRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/dashboard",
-    component: () => null,
+    component: () => options.dashboard ?? null,
   });
   const routeTree = rootRoute.addChildren([indexRoute, dashboardRoute]);
 

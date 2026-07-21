@@ -10,7 +10,9 @@ describe("KpiCards", () => {
   it("surfaces the headline trophy level and biggest game from the data", async () => {
     await render(<KpiCards data={demoDashboard} />);
 
-    await expect.element(page.getByText("220")).toBeInTheDocument();
+    await expect
+      .element(page.getByText(String(demoDashboard.profile.trophyLevel)))
+      .toBeInTheDocument();
     await expect.element(page.getByText("Call of Duty®: Modern Warfare®")).toBeInTheDocument();
   });
 

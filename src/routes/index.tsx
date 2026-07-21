@@ -1,28 +1,16 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { ArrowRight, ChevronDown, LockKeyhole } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { demoDashboard } from "@/domain/mock";
+import { headlineTotals } from "@/features/dashboard/filters/analytics";
+import { fmtHours, fmtNumber } from "@/features/dashboard/format";
+import { Connect } from "@/features/onboarding/components/connect";
 import { RestoreDashboardCard } from "@/features/onboarding/components/restore-dashboard-card";
-import { SignInCard } from "@/features/onboarding/components/sign-in-card";
-import { SITE_NAME, SITE_URL } from "@/lib/seo";
+import { GamePoster } from "@/features/prototype/poster";
+import { SITE_URL } from "@/lib/seo";
 
-const TITLE = "PSN Playtime — PlayStation Playtime Tracker & PSN Hours Visualizer";
-const DESCRIPTION =
-  "Free PlayStation playtime tracker. Visualise your PSN hours and see your top games, genres and franchises from your real play history — no spreadsheets required.";
-const OG_IMAGE = `${SITE_URL}/og-image.png`;
-
-const jsonLd = {
-  "@context": "https://schema.org",
-  "@type": "WebApplication",
-  name: SITE_NAME,
-  url: SITE_URL,
-  description: DESCRIPTION,
-  applicationCategory: "GameApplication",
-  operatingSystem: "Web",
-  image: OG_IMAGE,
-  offers: {
-    "@type": "Offer",
-    price: "0",
-    priceCurrency: "USD",
-  },
-};
+const TITLE = "Playloom — Your gaming life, woven together";
+const DESCRIPTION = "A personal gaming archive that makes your PlayStation history visible.";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -32,28 +20,141 @@ export const Route = createFileRoute("/")({
       { property: "og:title", content: TITLE },
       { property: "og:description", content: DESCRIPTION },
       { property: "og:url", content: SITE_URL },
-      { property: "og:image", content: OG_IMAGE },
-      { name: "twitter:title", content: TITLE },
-      { name: "twitter:description", content: DESCRIPTION },
-      { name: "twitter:image", content: OG_IMAGE },
-      { "script:ld+json": jsonLd },
     ],
     links: [{ rel: "canonical", href: SITE_URL }],
   }),
   component: Home,
 });
 
-function Home() {
+function DemoProof() {
+  const games = demoDashboard.games.slice(0, 5);
+  const totals = headlineTotals(demoDashboard);
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col justify-center gap-8 p-6">
-      <div className="space-y-3 text-center">
-        <h1 className="text-4xl font-bold tracking-tight">PSN Playtime</h1>
-        <p className="text-lg text-muted-foreground">
-          Turn your PlayStation history into a clear picture of how you actually play.
+    <section className="playloom-onboarding-proof" aria-labelledby="proof-title">
+      <div className="playloom-proof-copy">
+        <span>Meet the archive</span>
+        <h2 id="proof-title">See a gaming life before connecting yours.</h2>
+        <p>
+          Ernxst_ has crossed 7,600 hours, but the stronger story is the rhythm: long competitive
+          eras, survival-world returns, and nine platinum finishes spread across the years.
+        </p>
+        <div className="playloom-proof-metrics">
+          <strong>
+            {fmtHours(totals.totalHours)}
+            <small>Lifetime play</small>
+          </strong>
+          <strong>
+            {fmtNumber(totals.gamesPlayed)}
+            <small>Games</small>
+          </strong>
+          <strong>
+            {fmtNumber(demoDashboard.profile.earned.platinum)}
+            <small>Platinums</small>
+          </strong>
+        </div>
+        <Button size="lg" render={<Link to="/dashboard" />}>
+          Explore the demo <ArrowRight />
+        </Button>
+      </div>
+      <div className="playloom-proof-posters" aria-label="Demo profile game artwork">
+        {games.map((game, index) => (
+          <div key={game.titleId}>
+            <GamePoster game={game} featured={index === 0} />
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function Trust() {
+  return (
+    <section className="playloom-onboarding-trust" aria-labelledby="trust-title">
+      <LockKeyhole />
+      <div>
+        <h2 id="trust-title">Your token is a key. We treat it like one.</h2>
+        <p>
+          An NPSSO token is password-equivalent. It is sent once through the server to PlayStation,
+          never stored, and the dashboard data returned stays in your browser.
         </p>
       </div>
-      <SignInCard />
-      <RestoreDashboardCard />
+      <details>
+        <summary>
+          Read the connection details <ChevronDown />
+        </summary>
+        <p>
+          PlayStation is the only supported import source today. Playloom reads your profile, played
+          titles and trophies; platform accounts remain connected sources beneath one personal
+          profile.
+        </p>
+      </details>
+    </section>
+  );
+}
+
+function Home() {
+  return (
+    <main className="playloom-onboarding">
+      <OnboardingHeader />
+      <OnboardingHero />
+      <DemoProof />
+      <Trust />
+      <Connect />
+      <Restore />
+      <OnboardingFooter />
     </main>
+  );
+}
+
+function OnboardingHero() {
+  return (
+    <section className="playloom-onboarding-hero">
+      <p>A personal gaming archive</p>
+      <h1>
+        Your gaming life,
+        <br />
+        <em>woven together.</em>
+      </h1>
+      <span>
+        Bring PlayStation histories into one visual record of what you played, when it mattered and
+        how your tastes changed.
+      </span>
+      <Button size="lg" render={<Link to="/dashboard" />}>
+        Explore the demo <ArrowRight />
+      </Button>
+    </section>
+  );
+}
+
+function Restore() {
+  return (
+    <section className="playloom-restore" aria-labelledby="restore-title">
+      <div>
+        <span>Already exported?</span>
+        <h2 id="restore-title">Restore your archive once.</h2>
+      </div>
+      <RestoreDashboardCard />
+    </section>
+  );
+}
+
+function OnboardingHeader() {
+  return (
+    <header className="playloom-onboarding-nav">
+      <Link to="/" aria-label="Playloom home">
+        Playloom
+      </Link>
+      <span>Prototype · Issue #327</span>
+    </header>
+  );
+}
+
+function OnboardingFooter() {
+  return (
+    <footer className="playloom-onboarding-footer">
+      <strong>Playloom</strong>
+      <span>Your gaming life, woven together.</span>
+      <small>Temporary text wordmark · final square brandmark deferred</small>
+    </footer>
   );
 }

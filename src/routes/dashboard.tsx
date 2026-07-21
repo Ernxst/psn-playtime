@@ -1,17 +1,37 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo } from "react";
+import { type ReactNode, useEffect, useMemo } from "react";
 import { toast } from "sonner";
+import { signedInPreviewDashboard } from "@/domain/mock";
 import { DashboardView } from "@/features/dashboard/components/dashboard-view";
-import { DashboardSkeleton } from "@/features/dashboard/components/states";
+import { DashboardError, DashboardSkeleton } from "@/features/dashboard/components/states";
 import {
   rawgFranchisesQueryOptions,
   rawgGenresQueryOptions,
   shouldPersistEnrichment,
 } from "@/features/dashboard/enrichment/query";
+import { activateSignedInPreview, prototypeDashboard } from "@/features/prototype/prototype-data";
 import { signInWithToken } from "@/server/api/account.effect";
 import type { DashboardData, GamePlay, Genre } from "@/server/providers/account/snapshot";
-import { useActiveDashboard } from "@/stores/dashboard-store";
+import { type DashboardStore, useActiveDashboard } from "@/stores/dashboard-store";
+
+type PrototypeState = "loading" | "error" | "empty" | "partial" | "signed-in";
+interface DashboardSearch {
+  prototypeState?: PrototypeState;
+}
+
+const prototypeStates: readonly PrototypeState[] = [
+  "loading",
+  "error",
+  "empty",
+  "partial",
+  "signed-in",
+];
+
+function prototypeState(value: unknown): PrototypeState | undefined {
+  if (typeof value !== "string") return undefined;
+  return prototypeStates.find((state) => state === value);
+}
 
 /** Apply a title's deferred RAWG enrichment, leaving unknown fields untouched. */
 function enrichGame(
@@ -52,6 +72,11 @@ function mergeRawgEnrichment(
 }
 
 export const Route = createFileRoute("/dashboard")({
+  validateSearch: (search): DashboardSearch => {
+    const state = prototypeState(search.prototypeState);
+    return state ? { prototypeState: state } : {};
+  },
+  loaderDeps: ({ search }) => ({ prototypeState: search.prototypeState }),
   // Client-render only. The dashboard is built entirely from the user's
   // browser-local data (the persisted snapshot via `Atom.kvs` and the imported
   // transactions store). The server has none of it, so any SSR'd DOM reflects
@@ -61,8 +86,12 @@ export const Route = createFileRoute("/dashboard")({
   // eliminates the whole mismatch class. Mirrors `/import`, which is `ssr:false`
   // for the same client-only-data reason.
   ssr: false,
+  loader: ({ context, deps }) => {
+    if (deps.prototypeState === "signed-in") activateSignedInPreview(context.dashboardStore);
+  },
   head: () => ({
     meta: [
+      { title: "Playloom — Your gaming life, woven together" },
       {
         name: "robots",
         content: "noindex, nofollow",
@@ -74,23 +103,104 @@ export const Route = createFileRoute("/dashboard")({
   pendingComponent: DashboardSkeleton,
 });
 
+function emptyDashboard(data: DashboardData): DashboardData {
+  return {
+    ...prototypeDashboard(data),
+    games: [],
+    meta: { ...data.meta, totalGames: 0, totalHours: 0, totalSessions: 0, appsExcluded: [] },
+  };
+}
+
+function partialDashboard(data: DashboardData): DashboardData {
+  const partial = prototypeDashboard(data);
+  const games = partial.games.map((game) => {
+    const result = { ...game, playCount: 0 };
+    delete result.franchise;
+    delete result.imageUrl;
+    delete result.trophy;
+    delete result.typicalPlaytime;
+    return result;
+  });
+  return {
+    ...partial,
+    games,
+    enriched: false,
+    trophiesUnavailable: true,
+    meta: { ...partial.meta, totalSessions: 0 },
+  };
+}
+
+const prototypeViews: Record<PrototypeState, (data: DashboardData) => ReactNode> = {
+  loading: (data) => <DashboardSkeleton profile={data.profile} />,
+  error: (data) => (
+    <DashboardError
+      message="PlayStation could not return this archive. Your existing browser data is unchanged."
+      onRetry={() => window.location.assign("/dashboard")}
+      profile={data.profile}
+    />
+  ),
+  empty: (data) => <DashboardCachedView data={emptyDashboard(data)} />,
+  partial: (data) => <DashboardCachedView data={partialDashboard(data)} partialData />,
+  "signed-in": (data) => (
+    <DashboardCachedView
+      data={prototypeDashboard(data)}
+      safeDemo={data.profile.accountId === signedInPreviewDashboard.profile.accountId}
+    />
+  ),
+};
+
+function PrototypeDashboard({ state, data }: { state: PrototypeState; data: DashboardData }) {
+  return prototypeViews[state](data);
+}
+
 function Dashboard() {
   // With `ssr: false` this only ever runs on the client, where the sync kvs atom
   // reads localStorage immediately and resolves to the active account's cached
   // dashboard (falling back to the demo dataset when there is none).
   const data = useActiveDashboard();
-  return <DashboardCachedView data={data} />;
+  const { prototypeState: state } = Route.useSearch();
+  return state ? (
+    <PrototypeDashboard state={state} data={data} />
+  ) : (
+    <DashboardCachedView data={prototypeDashboard(data)} />
+  );
 }
 
-function DashboardCachedView({ data }: { data: DashboardData }) {
+interface CachedViewProps {
+  data: DashboardData;
+  safeDemo?: boolean;
+  partialData?: boolean;
+}
+
+function accountActions(data: DashboardData, safeDemo: boolean, store: DashboardStore) {
+  if (data.isDemo) return {};
+  const onRefresh = safeDemo
+    ? () => new Promise<void>((resolve) => window.setTimeout(resolve, 700))
+    : async (npsso: string) => {
+        const refreshed = await signInWithToken({ data: { npsso } });
+        if (refreshed.profile.accountId !== data.profile.accountId) {
+          throw new Error("That token belongs to a different PlayStation account.");
+        }
+        store.save(refreshed);
+      };
+  return {
+    onRefresh,
+    onSignOut: () => {
+      store.clearActive();
+      toast.success("Signed out — showing demo data.");
+    },
+  };
+}
+
+function DashboardCachedView({ data, safeDemo = false, partialData = false }: CachedViewProps) {
   const { dashboardStore } = Route.useRouteContext();
   const { data: rawgGenres = [], status: genresStatus } = useQuery(rawgGenresQueryOptions(data));
   const { data: rawgFranchises = [], status: franchisesStatus } = useQuery(
     rawgFranchisesQueryOptions(data)
   );
   const enrichedData = useMemo(
-    () => mergeRawgEnrichment(data, rawgGenres, rawgFranchises),
-    [data, rawgGenres, rawgFranchises]
+    () => (partialData ? data : mergeRawgEnrichment(data, rawgGenres, rawgFranchises)),
+    [data, partialData, rawgGenres, rawgFranchises]
   );
 
   // Fire-and-forget: write the enriched snapshot to localStorage (via the
@@ -110,25 +220,18 @@ function DashboardCachedView({ data }: { data: DashboardData }) {
   // layer in tests without mocking our own wrapper, which docs/rules/testing.md
   // forbids.
   useEffect(() => {
+    if (safeDemo || partialData) return;
     if (!shouldPersistEnrichment(data, genresStatus, franchisesStatus)) return;
     dashboardStore.save({ ...enrichedData, enriched: true });
-  }, [dashboardStore, data, enrichedData, genresStatus, franchisesStatus]);
+  }, [dashboardStore, data, enrichedData, franchisesStatus, genresStatus, partialData, safeDemo]);
 
   return (
     <DashboardView
       data={enrichedData}
-      onRefresh={async (npsso) => {
-        const refreshed = await signInWithToken({ data: { npsso } });
-        if (refreshed.profile.accountId !== data.profile.accountId) {
-          throw new Error("That token belongs to a different PlayStation account.");
-        }
-        dashboardStore.save(refreshed);
-      }}
-      onSignOut={() => {
-        dashboardStore.clearActive();
-        toast.success("Signed out — showing demo data.");
-      }}
+      safeDemo={safeDemo}
+      partialData={partialData}
       signingOut={false}
+      {...accountActions(data, safeDemo, dashboardStore)}
     />
   );
 }

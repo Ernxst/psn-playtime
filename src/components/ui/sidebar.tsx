@@ -56,6 +56,8 @@ export type SidebarContextProps = {
   setOpen: (open: boolean) => void;
   openMobile: boolean;
   setOpenMobile: (open: boolean) => void;
+  closeMobile: (onComplete: () => void) => void;
+  completeMobileChange: () => void;
   isMobile: boolean;
   toggleSidebar: () => void;
 };
@@ -86,7 +88,29 @@ export function SidebarProvider({
   onOpenChange?: (open: boolean) => void;
 }): React.ReactElement {
   const isMobile = useMediaQuery("max-md");
-  const [openMobile, setOpenMobile] = React.useState(false);
+  const [openMobile, setMobileOpen] = React.useState(false);
+  const mobileScroll = React.useRef(0);
+  const mobileCloseComplete = React.useRef<(() => void) | null>(null);
+  const setOpenMobile = React.useCallback((next: boolean) => {
+    if (next) {
+      mobileScroll.current = window.scrollY;
+      mobileCloseComplete.current = null;
+    }
+    setMobileOpen(next);
+  }, []);
+  const closeMobile = React.useCallback((onComplete: () => void) => {
+    mobileCloseComplete.current = onComplete;
+    setMobileOpen(false);
+  }, []);
+  const completeMobileChange = React.useCallback(() => {
+    const onComplete = mobileCloseComplete.current;
+    mobileCloseComplete.current = null;
+    if (onComplete) {
+      onComplete();
+      return;
+    }
+    window.scrollTo(0, mobileScroll.current);
+  }, []);
 
   // This is the internal state of the sidebar.
   // We use openProp and setOpenProp for control from outside the component.
@@ -114,8 +138,8 @@ export function SidebarProvider({
 
   // Helper to toggle the sidebar.
   const toggleSidebar = React.useCallback(() => {
-    return isMobile ? setOpenMobile((open) => !open) : setOpen((open) => !open);
-  }, [isMobile, setOpen]);
+    return isMobile ? setOpenMobile(!openMobile) : setOpen((open) => !open);
+  }, [isMobile, openMobile, setOpen, setOpenMobile]);
 
   // Fire-and-forget global subscription: register a window keydown listener
   // (a browser event system) for the Cmd/Ctrl+B shortcut for this provider's
@@ -140,6 +164,8 @@ export function SidebarProvider({
 
   const contextValue = React.useMemo<SidebarContextProps>(
     () => ({
+      closeMobile,
+      completeMobileChange,
       isMobile,
       open,
       openMobile,
@@ -148,7 +174,17 @@ export function SidebarProvider({
       state,
       toggleSidebar,
     }),
-    [state, open, setOpen, isMobile, openMobile, toggleSidebar]
+    [
+      closeMobile,
+      completeMobileChange,
+      state,
+      open,
+      setOpen,
+      isMobile,
+      openMobile,
+      setOpenMobile,
+      toggleSidebar,
+    ]
   );
 
   return (
@@ -178,6 +214,8 @@ export function Sidebar({
   side = "left",
   variant = "sidebar",
   collapsible = "offcanvas",
+  mobileTitle = "Sidebar",
+  mobileDescription = "Displays the mobile sidebar.",
   className,
   children,
   ...props
@@ -185,8 +223,10 @@ export function Sidebar({
   side?: "left" | "right";
   variant?: "sidebar" | "floating" | "inset";
   collapsible?: "offcanvas" | "icon" | "none";
+  mobileTitle?: string;
+  mobileDescription?: string;
 }): React.ReactElement {
-  const { isMobile, state, openMobile, setOpenMobile } = useSidebar();
+  const { completeMobileChange, isMobile, state, openMobile, setOpenMobile } = useSidebar();
 
   if (collapsible === "none") {
     return (
@@ -205,9 +245,15 @@ export function Sidebar({
 
   if (isMobile) {
     return (
-      <Sheet onOpenChange={setOpenMobile} open={openMobile} {...props}>
+      <Sheet
+        modal="trap-focus"
+        onOpenChange={setOpenMobile}
+        onOpenChangeComplete={completeMobileChange}
+        open={openMobile}
+        {...props}
+      >
         <SheetPopup
-          className="w-(--sidebar-width) bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden"
+          className="w-full bg-sidebar p-0 text-sidebar-foreground sm:w-(--sidebar-width)"
           data-mobile="true"
           data-sidebar="sidebar"
           data-slot="sidebar"
@@ -219,10 +265,10 @@ export function Sidebar({
           }
         >
           <SheetHeader className="sr-only">
-            <SheetTitle>Sidebar</SheetTitle>
-            <SheetDescription>Displays the mobile sidebar.</SheetDescription>
+            <SheetTitle>{mobileTitle}</SheetTitle>
+            <SheetDescription>{mobileDescription}</SheetDescription>
           </SheetHeader>
-          <div className="flex h-full w-full flex-col">{children}</div>
+          <div className="flex h-full min-h-0 w-full flex-col">{children}</div>
         </SheetPopup>
       </Sheet>
     );
@@ -240,7 +286,7 @@ export function Sidebar({
       {/* This is what handles the sidebar gap on desktop */}
       <div
         className={cn(
-          "relative w-(--sidebar-width) bg-transparent transition-[width] duration-200 ease-linear",
+          "relative w-(--sidebar-width) bg-transparent",
           "group-data-[collapsible=offcanvas]:w-0",
           "group-data-[side=right]:rotate-180",
           variant === "floating" || variant === "inset"
@@ -251,7 +297,7 @@ export function Sidebar({
       />
       <div
         className={cn(
-          "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear md:flex",
+          "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) md:flex",
           side === "left"
             ? "left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]"
             : "right-0 group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]",

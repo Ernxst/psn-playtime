@@ -1,176 +1,231 @@
-import { Link } from "@tanstack/react-router";
-import {
-  Banknote,
-  CalendarRange,
-  Coins,
-  Gamepad2,
-  Gift,
-  LayoutDashboard,
-  Lightbulb,
-  type LucideIcon,
-  PieChart,
-  Receipt,
-  Sparkles,
-  Trophy,
-} from "lucide-react";
 import { useState, useSyncExternalStore } from "react";
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarHeader,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarRail,
-  useSidebar,
-} from "@/components/ui/sidebar";
+import { Sidebar, SidebarContent, useSidebar } from "@/components/ui/sidebar";
 
-interface Section {
-  id: string;
-  label: string;
-  icon: LucideIcon;
+const READING_LINE = 96;
+
+const chapters = [
+  {
+    label: "Profile",
+    sections: [
+      ["overview", "Overview"],
+      ["top-games", "Top games"],
+      ["genres", "Genres"],
+      ["franchises", "Franchises"],
+      ["insights", "Insights"],
+    ],
+  },
+  {
+    label: "History",
+    sections: [
+      ["timeline", "Timeline"],
+      ["sessions", "Sessions"],
+      ["trophies", "Trophies"],
+    ],
+  },
+  {
+    label: "Spending",
+    sections: [
+      ["spending", "Summary"],
+      ["purchase-history", "Purchase history"],
+      ["spent-most", "Most spent"],
+      ["add-ons", "Add-ons"],
+      ["purchase-data", "Purchase import"],
+    ],
+  },
+  { label: "Library", sections: [["library", "All games"]] },
+  {
+    label: "Tools",
+    sections: [
+      ["ask-ai", "Ask AI"],
+      ["data-controls", "Data controls"],
+    ],
+  },
+] as const;
+
+export const dashboardSectionIds = chapters.flatMap((chapter) =>
+  chapter.sections.map(([id]) => id)
+);
+
+function hashSection(): string | undefined {
+  if (typeof window === "undefined") return undefined;
+  const id = window.location.hash.slice(1);
+  return dashboardSectionIds.some((sectionId) => sectionId === id) ? id : undefined;
 }
 
-const DASHBOARD_SECTIONS: readonly Section[] = [
-  { icon: LayoutDashboard, id: "overview", label: "Overview" },
-  { icon: Trophy, id: "top-games", label: "Top games" },
-  { icon: PieChart, id: "genres-franchises", label: "Genres & franchises" },
-  { icon: CalendarRange, id: "timeline", label: "Timeline" },
-  { icon: Trophy, id: "trophies", label: "Trophies" },
-  { icon: Lightbulb, id: "insights", label: "Insights" },
-  { icon: Sparkles, id: "ask-ai", label: "Ask an AI" },
-  { icon: Coins, id: "spend", label: "Spend" },
-  { icon: Receipt, id: "purchase-history", label: "Purchase history" },
-  { icon: Banknote, id: "spent-most", label: "Spent the most on" },
-  { icon: Gift, id: "add-ons", label: "Spent extra on" },
-  { icon: Gamepad2, id: "all-games", label: "All games" },
-];
+export function alignHashDestination(): void {
+  const id = hashSection();
+  if (!id) return;
+  const align = () => document.getElementById(id)?.scrollIntoView();
+  align();
+  window.requestAnimationFrame(() => window.requestAnimationFrame(align));
+}
 
-const SECTION_IDS: readonly string[] = DASHBOARD_SECTIONS.map((section) => section.id);
-
-const OBSERVER_OPTIONS: IntersectionObserverInit = {
-  rootMargin: "-15% 0px -75% 0px",
-  threshold: 0,
+type ActiveSectionState = {
+  active: string;
+  requested?: string;
+  notify?: () => void;
 };
 
-/** The topmost section currently intersecting the viewport, if any. */
-function topVisibleSection(entries: readonly IntersectionObserverEntry[]): string | undefined {
-  const visible = entries
-    .filter((entry) => entry.isIntersecting)
-    .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
-  return visible[0]?.target.id;
+function keepSectionLinkVisible(id: string): void {
+  const link = document.querySelector<HTMLElement>(`[data-dashboard-section="${id}"]`);
+  const navigation = link?.closest<HTMLElement>('[data-slot="sidebar-content"]');
+  if (!link || !navigation) return;
+  const linkRect = link.getBoundingClientRect();
+  const navigationRect = navigation.getBoundingClientRect();
+  if (linkRect.top < navigationRect.top) navigation.scrollTop -= navigationRect.top - linkRect.top;
+  if (linkRect.bottom > navigationRect.bottom) {
+    navigation.scrollTop += linkRect.bottom - navigationRect.bottom;
+  }
 }
 
-/** SSR-safe scroll-spy store: an IntersectionObserver feeds the section in view. */
-function createActiveSectionStore(): {
-  subscribe: (onStoreChange: () => void) => () => void;
-  getSnapshot: () => string;
-  getServerSnapshot: () => string;
-} {
-  let active = "overview";
-  let notify: (() => void) | undefined;
+function activateSection(state: ActiveSectionState, id: string, requested: boolean): void {
+  const changed = state.active !== id;
+  state.active = id;
+  state.requested = requested ? id : undefined;
+  if (changed) state.notify?.();
+  keepSectionLinkVisible(id);
+}
 
-  function setActive(id: string): void {
-    if (id === active) return;
-    active = id;
-    notify?.();
+function holdRequestedSection(
+  state: ActiveSectionState,
+  entries: IntersectionObserverEntry[]
+): boolean {
+  const requested = state.requested;
+  if (!requested) return false;
+  const arrived = entries.some((entry) => entry.isIntersecting && entry.target.id === requested);
+  if (arrived) state.requested = undefined;
+  return true;
+}
+
+function firstVisibleSection(entries: IntersectionObserverEntry[]): string | undefined {
+  return entries
+    .filter((entry) => entry.isIntersecting)
+    .toSorted(
+      (a, b) =>
+        Math.abs(a.boundingClientRect.top - READING_LINE) -
+        Math.abs(b.boundingClientRect.top - READING_LINE)
+    )[0]?.target.id;
+}
+
+function observeSections(state: ActiveSectionState, entries: IntersectionObserverEntry[]): void {
+  if (holdRequestedSection(state, entries)) return;
+  const id = firstVisibleSection(entries);
+  if (id) activateSection(state, id, false);
+}
+
+function subscribeToSections(state: ActiveSectionState, onStoreChange: () => void): () => void {
+  state.notify = onStoreChange;
+  const followHash = () => {
+    const id = hashSection();
+    if (!id) return;
+    activateSection(state, id, true);
+    alignHashDestination();
+  };
+  const observer = new IntersectionObserver((entries) => observeSections(state, entries), {
+    threshold: 0,
+  });
+  for (const id of dashboardSectionIds) {
+    const section = document.getElementById(id);
+    if (section) observer.observe(section);
   }
+  window.addEventListener("hashchange", followHash);
+  keepSectionLinkVisible(state.active);
+  return () => {
+    state.notify = undefined;
+    observer.disconnect();
+    window.removeEventListener("hashchange", followHash);
+  };
+}
 
+function activeSectionStore() {
+  const hashed = hashSection();
+  const state: ActiveSectionState = { active: hashed ?? "overview", requested: hashed };
   return {
-    subscribe(onStoreChange) {
-      notify = onStoreChange;
-      let observer: IntersectionObserver | undefined;
-      const timer = window.setTimeout(() => {
-        observer = new IntersectionObserver((entries) => {
-          const id = topVisibleSection(entries);
-          if (id) setActive(id);
-        }, OBSERVER_OPTIONS);
-        for (const id of SECTION_IDS) {
-          const el = document.getElementById(id);
-          if (el) observer.observe(el);
-        }
-      }, 0);
-
-      return () => {
-        notify = undefined;
-        window.clearTimeout(timer);
-        observer?.disconnect();
-      };
-    },
-    getSnapshot: () => active,
+    subscribe: (onStoreChange: () => void) => subscribeToSections(state, onStoreChange),
+    activate: (id: string) => activateSection(state, id, true),
+    getSnapshot: () => state.active,
     getServerSnapshot: () => "overview",
   };
 }
 
-/** SSR-safe scroll-spy: tracks which section is in view. */
-function useActiveSection(): string {
-  const [store] = useState(createActiveSectionStore);
-  return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getServerSnapshot);
-}
-
-function NavMenu({
+function ChapterLink({
+  id,
+  label,
   active,
-  onNavigate,
+  onActivate,
 }: {
-  active: string;
-  onNavigate: (id: string) => (event: React.MouseEvent<HTMLAnchorElement>) => void;
-}): React.ReactElement {
+  id: string;
+  label: string;
+  active: boolean;
+  onActivate: () => void;
+}) {
+  const { closeMobile, isMobile } = useSidebar();
   return (
-    <SidebarMenu>
-      {DASHBOARD_SECTIONS.map((section) => (
-        <SidebarMenuItem key={section.id}>
-          <SidebarMenuButton
-            isActive={active === section.id}
-            tooltip={section.label}
-            render={
-              <a href={`#${section.id}`} onClick={onNavigate(section.id)}>
-                <section.icon />
-                <span>{section.label}</span>
-              </a>
-            }
-          />
-        </SidebarMenuItem>
-      ))}
-    </SidebarMenu>
+    <a
+      className="flex min-h-10 items-center border-l border-white/15 px-3 text-[0.8125rem] text-white/60 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#7599f4] hover:text-white aria-[current=location]:border-[#7599f4] aria-[current=location]:bg-[linear-gradient(90deg,rgb(49_91_191/22%),transparent)] aria-[current=location]:text-white [@media(pointer:coarse)]:min-h-11"
+      href={`#${id}`}
+      aria-current={active ? "location" : undefined}
+      data-active={active}
+      data-dashboard-section={id}
+      onClick={() => {
+        onActivate();
+        if (isMobile) {
+          closeMobile(() => {
+            const target = document.getElementById(id);
+            target?.scrollIntoView();
+            target?.focus({ preventScroll: true });
+          });
+        }
+      }}
+    >
+      {label}
+    </a>
   );
 }
 
-export function DashboardSidebar(): React.ReactElement {
-  const active = useActiveSection();
-  const { setOpenMobile, isMobile } = useSidebar();
-
-  const handleNavigate =
-    (id: string) =>
-    (event: React.MouseEvent<HTMLAnchorElement>): void => {
-      event.preventDefault();
-      document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
-      if (isMobile) setOpenMobile(false);
-    };
-
+function ChapterNav() {
+  const [store] = useState(activeSectionStore);
+  const active = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getServerSnapshot);
+  const { isMobile } = useSidebar();
   return (
-    <Sidebar collapsible="offcanvas">
-      <SidebarHeader>
-        <Link
-          to="/"
-          aria-label="PSN Playtime — go to home page"
-          className="hit-area-1 flex items-center gap-2 rounded-md px-2 py-1 outline-none transition-colors hover:text-primary focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <Gamepad2 className="size-5 text-primary" />
-          <span className="font-semibold group-data-[collapsible=icon]:hidden">PSN Playtime</span>
-        </Link>
-      </SidebarHeader>
-      <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Sections</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <NavMenu active={active} onNavigate={handleNavigate} />
-          </SidebarGroupContent>
-        </SidebarGroup>
+    <nav
+      aria-label={isMobile ? "Navigate Playloom" : "Dashboard chapters"}
+      className="flex flex-col gap-5 px-6 py-3"
+    >
+      {chapters.map((chapter) => (
+        <div className="flex flex-col" key={chapter.label}>
+          <span
+            className="mb-1.5 text-[0.6875rem] font-bold tracking-[0.14em] text-white/45 uppercase data-[active=true]:text-white/80"
+            data-active={chapter.sections.some(([id]) => id === active)}
+          >
+            {chapter.label}
+          </span>
+          {chapter.sections.map(([id, label]) => (
+            <ChapterLink
+              key={id}
+              id={id}
+              label={label}
+              active={active === id}
+              onActivate={() => store.activate(id)}
+            />
+          ))}
+        </div>
+      ))}
+    </nav>
+  );
+}
+
+export function DashboardSidebar() {
+  return (
+    <Sidebar
+      collapsible="offcanvas"
+      className="border-0 bg-[var(--playloom-ink)] text-[#f5efe2]"
+      mobileTitle="Navigate Playloom"
+      mobileDescription="Choose a dashboard chapter. Every destination is available in this scrollable drawer."
+    >
+      <SidebarContent className="min-h-0 overflow-y-auto overscroll-contain py-7">
+        <ChapterNav />
       </SidebarContent>
-      <SidebarRail />
     </Sidebar>
   );
 }
