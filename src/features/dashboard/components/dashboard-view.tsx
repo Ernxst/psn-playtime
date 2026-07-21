@@ -145,54 +145,6 @@ function Section({
   );
 }
 
-function ChartPlaceholder({ height = 340 }: { height?: number }) {
-  return <Skeleton className="w-full" style={{ height }} />;
-}
-
-function DeferredSection({ children, height }: { children: React.ReactNode; height?: number }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const visibleRef = useRef(false);
-
-  /* oxlint-disable react/react-compiler -- useSyncExternalStore requires stable subscription identity; its mutable refs are intentionally not reactive dependencies */
-  const subscribe = useCallback((onStoreChange: () => void) => {
-    const element = ref.current;
-    if (!element) return () => {};
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry?.isIntersecting) {
-          visibleRef.current = true;
-          observer.disconnect();
-          onStoreChange();
-        }
-      },
-      { rootMargin: "400px 0px" }
-    );
-
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, []);
-  /* oxlint-enable react/react-compiler */
-
-  // One-shot reveal flag read during render: useSyncExternalStore subscribes the observer,
-  // the snapshot is the flag, and the server snapshot defaults to not-visible.
-  const visible = useSyncExternalStore(
-    subscribe,
-    () => visibleRef.current,
-    () => false
-  );
-
-  return (
-    <div ref={ref}>
-      {visible ? (
-        <Suspense fallback={<ChartPlaceholder height={height} />}>{children}</Suspense>
-      ) : (
-        <ChartPlaceholder height={height} />
-      )}
-    </div>
-  );
-}
-
 function TimeframeOption({
   timeframe,
   value,

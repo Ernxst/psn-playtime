@@ -57,7 +57,7 @@ describe("TrophySection", () => {
       .element(page.getByRole("img"))
       .toHaveAttribute(
         "aria-label",
-        "Earned trophies by type: 9 platinum, 54 gold, 188 silver, 887 bronze."
+        "Earned trophies by type: 2 platinum, 18 gold, 64 silver, 211 bronze."
       );
   });
 

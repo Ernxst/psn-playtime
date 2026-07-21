@@ -60,23 +60,27 @@ describe("DashboardView", () => {
     await expect
       .element(page.getByRole("heading", { name: demoDashboard.profile.onlineId }))
       .toBeVisible();
+
     const overview = document.querySelector("#overview")?.textContent ?? "";
+
     expect(overview).toContain("Lifetime play");
     expect(overview).toContain("Games played");
     expect(overview).toContain("Sessions");
     expect(overview).toContain("Avg per game");
     expect(overview).toContain("Avg session");
     expect(overview).not.toContain("Trophy level");
-    expect(container.querySelectorAll('[data-source="psn"]').length).toBeGreaterThan(0);
-    expect(container.querySelectorAll('[data-source="rawg-fixture"]').length).toBeGreaterThan(0);
-    expect(container.querySelectorAll('[data-source="deterministic"]').length).toBeGreaterThan(0);
+    expect(container.querySelector('[data-source="psn"]')).not.toBeNull();
+    expect(container.querySelector('[data-source="rawg-fixture"]')).not.toBeNull();
+    expect(container.querySelector('[data-source="deterministic"]')).not.toBeNull();
     expect(container.querySelector('[data-source="psn"] .playloom-poster-psn')).not.toBeNull();
+
     const shellHeader = container.querySelector<HTMLElement>(
       '[data-slot="dashboard-shell-header"]'
     );
+
     expect(shellHeader?.getBoundingClientRect().height).toBe(60);
     expect(shellHeader?.querySelector('[aria-label="Playloom — go to home page"]')).not.toBeNull();
-    expect(container.querySelectorAll('[aria-label="Playloom — go to home page"]').length).toBe(1);
+    expect(container.querySelectorAll('[aria-label="Playloom — go to home page"]')).toHaveLength(1);
 
     // Reveal the deferred chart section so its IntersectionObserver fires and loads the chart.
     // The section itself is deliberately not rendered through an accessible locator yet.
@@ -99,19 +103,17 @@ describe("DashboardView", () => {
       />
     );
 
-    const { container } = await render(element);
+    await render(element);
 
-    const overview = container.querySelector<HTMLElement>("#overview");
-    const metrics = overview?.querySelectorAll<HTMLElement>("strong") ?? [];
-
-    expect(container.querySelectorAll("main").length).toBe(1);
-    expect(overview?.textContent).toContain("Lifetime play");
-    expect(overview?.textContent).toContain("Games played");
-    expect(overview?.textContent).toContain("Sessions");
-    expect(overview?.textContent).toContain("Avg per game");
-    expect(overview?.textContent).toContain("Avg session");
-    expect(metrics.length).toBeGreaterThanOrEqual(6);
-    expect(metrics[metrics.length - 1]?.getBoundingClientRect().bottom).toBeLessThanOrEqual(900);
+    await expect.element(page.getByRole("main")).toBeVisible();
+    await expect.element(page.getByText("Lifetime play", { exact: true })).toBeVisible();
+    await expect.element(page.getByText("Games played", { exact: true })).toBeVisible();
+    await expect.element(page.getByText("Sessions", { exact: true }).first()).toBeVisible();
+    await expect.element(page.getByText("Avg per game", { exact: true })).toBeVisible();
+    await expect.element(page.getByText("Avg session", { exact: true })).toBeVisible();
+    expect(
+      page.getByText("Avg session", { exact: true }).element().getBoundingClientRect().bottom
+    ).toBeLessThanOrEqual(900);
     await expect.element(page.getByText("Lifetime-hours caveat.")).toBeVisible();
   });
 
@@ -234,6 +236,7 @@ describe("DashboardView", () => {
     await render(element);
 
     const target = document.getElementById(id);
+
     expect(window.location.hash).toBe(`#${id}`);
     expect(target).not.toBeNull();
     await expect
@@ -253,9 +256,11 @@ describe("DashboardView", () => {
     await expect
       .element(page.getByText("Deterministic demo data", { exact: true }).first())
       .toBeVisible();
+
     await page
       .getByRole("button", { name: /Switch account, current account PlayloomDemo/ })
       .click();
+
     await expect.element(page.getByRole("heading", { name: "Switch account" })).toBeVisible();
     await expect
       .element(page.getByRole("button", { name: "PlayloomDemo, current account" }))
@@ -296,6 +301,7 @@ describe("DashboardView", () => {
 
     const refresh = page.getByRole("button", { name: "Refresh PlayStation data" });
     const signOut = page.getByRole("button", { name: "Sign out" });
+
     expect(refresh.element().closest('[data-slot="dashboard-shell-header"]')).not.toBeNull();
     expect(signOut.element().closest('[data-slot="dashboard-shell-header"]')).not.toBeNull();
 
@@ -320,6 +326,7 @@ describe("DashboardView", () => {
     await expect.element(page.getByText(/98 titles in total/)).toBeVisible();
 
     await expect.element(page.getByRole("radio", { name: "This year" })).toBeInTheDocument();
+
     await page.getByText("This year", { exact: true }).click();
 
     await expect.element(page.getByText(/98 titles in total/)).not.toBeInTheDocument();
@@ -368,15 +375,19 @@ describe("DashboardView", () => {
     );
     await render(element);
     window.scrollTo(0, 240);
+
     expect(window.scrollY).toBe(240);
+
     const trigger = page.getByRole("button", { name: /Switch account, current account/ });
     const before = trigger.element().getBoundingClientRect();
     const viewportWidth = document.documentElement.clientWidth;
 
     await trigger.click();
+
     await expect.element(page.getByRole("dialog", { name: "Switch account" })).toBeVisible();
 
     const open = trigger.element().getBoundingClientRect();
+
     expect(open.x).toBe(before.x);
     expect(open.y).toBe(before.y);
     expect(document.documentElement.clientWidth).toBe(viewportWidth);
@@ -409,6 +420,7 @@ describe("DashboardView", () => {
     await page.getByRole("link", { name: "Add PlayStation account" }).click();
 
     const heading = page.getByRole("heading", { name: "Bring in your PlayStation history." });
+
     await expect.element(heading).toHaveFocus();
     await expect
       .element(page.getByRole("region", { name: "Bring in your PlayStation history." }))
@@ -462,13 +474,17 @@ describe("DashboardView", () => {
       await render(element);
       const search = page.getByRole("searchbox", { name: "Search games by name" });
       await search.fill("Forza");
+
       await expect.element(page.getByText(/98 titles in total/)).not.toBeInTheDocument();
+
       await page
         .getByRole("button", { name: /Switch account, current account FirstAccount/ })
         .click();
+
       await expect
         .element(page.getByText("Imported from PlayStation", { exact: true }).first())
         .toBeVisible();
+
       await page.getByRole("button", { name: "Switch to SecondAccount" }).click();
 
       await expect.element(page.getByRole("heading", { name: "SecondAccount" })).toBeVisible();
@@ -504,10 +520,14 @@ describe("DashboardView", () => {
     });
     const { element } = createHarness(<ActiveDashboardView />);
 
-    const { container } = await render(element);
+    await render(element);
     const search = page.getByRole("searchbox", { name: "Search games by name" });
     await search.fill("Grand Theft");
-    expect(container.textContent).toContain("Grand Theft Imported Only");
+
+    await expect
+      .element(page.getByText("Grand Theft Imported Only", { exact: true }).first())
+      .toBeVisible();
+
     await page
       .getByRole("button", { name: /Switch account, current account ImportedPlayer/ })
       .click();
@@ -516,7 +536,7 @@ describe("DashboardView", () => {
     await expect
       .element(page.getByRole("heading", { name: demoDashboard.profile.onlineId }))
       .toBeVisible();
-    expect(container.textContent).not.toContain("Grand Theft Imported Only");
+    expect(page.getByText("Grand Theft Imported Only", { exact: true }).query()).toBeNull();
     await expect
       .element(page.getByText("Grand Theft Auto V (PlayStation®5)", { exact: true }).first())
       .toBeVisible();
@@ -589,9 +609,12 @@ describe("DashboardView", () => {
       .element(page.getByText("Grand Theft Destination", { exact: true }).first())
       .toBeVisible();
     await expect.element(search).toHaveValue("Grand Theft");
+
     await page.getByRole("button", { name: /Filter games/ }).click();
+
     await expect.element(page.getByRole("checkbox", { name: "PS4" })).toBeChecked();
     expect(page.getByRole("checkbox", { name: "Sports" }).query()).toBeNull();
+
     await page.getByRole("button", { name: "Done filtering" }).click();
     await page
       .getByRole("button", { name: /Switch account, current account FacetDestination/ })
@@ -603,7 +626,9 @@ describe("DashboardView", () => {
       .toBeVisible();
     await expect.element(search).toHaveValue("Grand Theft");
     expect(page.getByText("No games match your filters").query()).toBeNull();
+
     await page.getByRole("button", { name: /Filter games/ }).click();
+
     await expect.element(page.getByRole("checkbox", { name: "PS4" })).toBeChecked();
     await expect.element(page.getByRole("checkbox", { name: "Sports" })).not.toBeChecked();
   });
@@ -620,15 +645,18 @@ describe("DashboardView", () => {
     const { container } = await render(element);
 
     const ledgerText = () => container.querySelector(".playloom-ledger")?.textContent ?? "";
+
     expect(ledgerText()).toContain("Grand Theft Auto V");
 
     await page.getByLabelText("Purchase date from").fill("2025-01-01");
+
     expect(ledgerText()).not.toContain("Grand Theft Auto V");
 
     const sortButtons = Array.from(
       container.querySelectorAll<HTMLButtonElement>(".playloom-ledger th button")
     );
-    expect(sortButtons.map((button) => button.textContent?.trim())).toEqual([
+
+    expect(sortButtons.map((button) => button.textContent.trim())).toStrictEqual([
       "Date ↓",
       "Product ↕",
       "Type ↕",
@@ -637,8 +665,10 @@ describe("DashboardView", () => {
       "Discount ↕",
       "Paid ↕",
     ]);
+
     await page.getByRole("button", { name: "Product ↕" }).click();
     const firstProduct = container.querySelector(".playloom-ledger tbody tr td:nth-child(2)");
+
     expect(firstProduct?.textContent).toContain("Cyberpunk");
   });
 

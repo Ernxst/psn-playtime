@@ -110,7 +110,9 @@ describe("DashboardSidebar", () => {
       await expect
         .element(page.getByRole("region", { name: `${id} destination` }))
         .toBeInViewport();
+
       await page.getByRole("button", { name: "Toggle Sidebar" }).click();
+
       expect(document.querySelector(`a[href="#${id}"]`)).toHaveAttribute(
         "aria-current",
         "location"
@@ -184,11 +186,14 @@ describe("DashboardSidebar", () => {
     window.scrollTo(0, 300);
 
     await page.getByRole("button", { name: "Toggle Sidebar" }).click();
+
     await expect.element(page.getByRole("dialog", { name: "Navigate Playloom" })).toBeVisible();
     await expect.element(page.getByRole("button", { name: "Close" })).toBeVisible();
+
     await userEvent.keyboard("{Escape}");
 
     expect(window.scrollY).toBe(300);
+
     await page.getByRole("button", { name: "Toggle Sidebar" }).click();
     await page.getByRole("link", { name: "Insights" }).click();
 
@@ -197,6 +202,7 @@ describe("DashboardSidebar", () => {
     await expect.element(page.getByRole("region", { name: "Insights destination" })).toHaveFocus();
 
     await page.getByRole("button", { name: "Toggle Sidebar" }).click();
+
     await expect
       .element(page.getByRole("link", { name: "Insights" }))
       .toHaveAttribute("aria-current", "location");

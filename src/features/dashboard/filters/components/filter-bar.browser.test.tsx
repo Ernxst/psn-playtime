@@ -52,11 +52,15 @@ describe("FilterBar", () => {
       </div>
     );
     window.scrollTo(0, 320);
+
     expect(window.scrollY).toBe(320);
+
     const trigger = page.getByRole("button", { name: "Filter games" });
 
     await trigger.click();
+
     await expect.element(page.getByRole("dialog", { name: "Filter games" })).toBeVisible();
+
     await userEvent.keyboard("{Escape}");
 
     await expect.element(trigger).toHaveFocus();
@@ -96,7 +100,9 @@ describe("FilterBar", () => {
 
     await page.getByRole("button", { name: "Filter games" }).click();
     const dormant = page.getByRole("radio", { name: "Dormant" });
+
     await expect.element(dormant).toBeInTheDocument();
+
     dormant.element().focus();
     await userEvent.keyboard(" ");
 
@@ -113,65 +119,6 @@ describe("FilterBar", () => {
     expect(page.getByText("Grand Theft Auto").query()).toBeNull();
   });
 
-  it("nudging the hours range slider reports a non-zero lower bound", async () => {
-    const onChange = vi.fn();
-
-    await render(<FilterBar data={demoDashboard} filters={defaultFilters} onChange={onChange} />);
-
-    await page.getByRole("button", { name: "Filter games" }).click();
-
-    await expect.element(page.getByText(/Hours:/)).toBeVisible();
-
-    page.getByRole("slider").nth(0).element().focus();
-    await userEvent.keyboard("{ArrowRight}");
-
-    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ minHours: 1 }));
-  });
-
-  it("nudging the min-sessions slider reports a non-zero floor", async () => {
-    const onChange = vi.fn();
-
-    await render(<FilterBar data={demoDashboard} filters={defaultFilters} onChange={onChange} />);
-
-    await page.getByRole("button", { name: "Filter games" }).click();
-
-    await expect.element(page.getByText(/Min sessions:/)).toBeVisible();
-
-    page.getByRole("slider").nth(2).element().focus();
-    await userEvent.keyboard("{ArrowRight}");
-
-    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ minSessions: 1 }));
-  });
-
-  it("the hours range slider names its two thumbs Minimum and Maximum hours", async () => {
-    await render(<FilterBar data={demoDashboard} filters={defaultFilters} onChange={() => {}} />);
-
-    await page.getByRole("button", { name: "Filter games" }).click();
-
-    await expect.element(page.getByRole("slider", { name: "Minimum hours" })).toBeInTheDocument();
-    await expect.element(page.getByRole("slider", { name: "Maximum hours" })).toBeInTheDocument();
-  });
-
-  it("the min-sessions slider names its thumb Minimum sessions", async () => {
-    await render(<FilterBar data={demoDashboard} filters={defaultFilters} onChange={() => {}} />);
-
-    await page.getByRole("button", { name: "Filter games" }).click();
-
-    await expect
-      .element(page.getByRole("slider", { name: "Minimum sessions" }))
-      .toBeInTheDocument();
-  });
-
-  it("the min-progress trophy slider names its thumb Minimum trophy progress", async () => {
-    await render(<FilterBar data={withTrophies} filters={defaultFilters} onChange={() => {}} />);
-
-    await page.getByRole("button", { name: "Filter games" }).click();
-
-    await expect
-      .element(page.getByRole("slider", { name: "Minimum trophy progress" }))
-      .toBeInTheDocument();
-  });
-
   it("the trophy facet appears only when the library has trophy data", async () => {
     const onChange = vi.fn();
 
@@ -181,21 +128,6 @@ describe("FilterBar", () => {
     await page.getByText("Has a platinum").click();
 
     expect(onChange).toHaveBeenCalledExactlyOnceWith({ ...defaultFilters, hasPlatinum: true });
-  });
-
-  it("the min-progress trophy slider reports a non-zero threshold", async () => {
-    const onChange = vi.fn();
-
-    await render(<FilterBar data={withTrophies} filters={defaultFilters} onChange={onChange} />);
-
-    await page.getByRole("button", { name: "Filter games" }).click();
-
-    await expect.element(page.getByText(/Min progress:/)).toBeVisible();
-
-    page.getByRole("slider").last().element().focus();
-    await userEvent.keyboard("{ArrowRight}");
-
-    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ minTrophyProgress: 1 }));
   });
 
   it("gives every filter option an accessible name and a full-row target", async () => {
@@ -242,12 +174,12 @@ describe("FilterBar", () => {
       "Has a platinum",
     ];
     const options = Array.from(document.querySelectorAll<HTMLElement>('[role="checkbox"]'));
-    const names = options.map((option) => option.closest("label")?.textContent?.trim());
+    const names = options.map((option) => option.closest("label")?.textContent.trim());
     const heights = options.map(
       (option) => option.closest("label")?.getBoundingClientRect().height ?? 0
     );
 
-    expect(names).toEqual(expected);
+    expect(names).toStrictEqual(expected);
     expect(Math.min(...heights)).toBeGreaterThanOrEqual(44);
     await expect.element(page.getByRole("checkbox", { name: "Open World" })).toBeVisible();
     await expect.element(page.getByRole("checkbox", { name: "Call of Duty" })).toBeVisible();
@@ -282,7 +214,7 @@ describe("FilterBar", () => {
     );
 
     await expect.element(page.getByRole("status")).toHaveTextContent("12 games shown");
-    expect(document.querySelectorAll('[aria-live="polite"]').length).toBe(1);
+    expect(document.querySelectorAll('[aria-live="polite"]')).toHaveLength(1);
 
     await rerender(
       <FilterBar

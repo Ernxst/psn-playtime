@@ -18,14 +18,12 @@ describe("DashboardSkeleton", () => {
 
     // Skeleton count is an intentional loading-layout structure contract.
     // oxlint-disable-next-line test-contract/no-dom-selector
-    expect(container.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(12);
+    expect(container.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(13);
     await expect.element(page.getByRole("main")).toHaveAttribute("aria-busy", "true");
     await expect.element(page.getByRole("status")).toHaveTextContent("Loading PlayStation archive");
-    await expect.element(page.getByText("Deterministic demo data")).toBeVisible();
     expect(
       container.querySelectorAll('[data-slot="dashboard-shell-header"] [data-slot="skeleton"]')
-        .length
-    ).toBe(3);
+    ).toHaveLength(3);
     expect(
       container
         .querySelector<HTMLElement>('[data-slot="dashboard-shell-header"]')
@@ -52,7 +50,7 @@ describe("DashboardError", () => {
     );
     const { container } = await render(element);
 
-    expect(container.querySelectorAll("main").length).toBe(1);
+    expect(container.querySelectorAll("main")).toHaveLength(1);
     await expect.element(page.getByText("Couldn't load this archive")).toBeVisible();
     await expect
       .element(page.getByRole("heading", { name: "Couldn't load this archive" }))

@@ -92,7 +92,9 @@ describe("AccountSwitcher", () => {
     await expect
       .element(page.getByText(demoDashboard.profile.onlineId, { exact: true }))
       .toBeVisible();
+
     await page.getByRole("button", { name: /switch account/i }).click();
+
     await expect
       .element(page.getByRole("button", { name: "PlayloomDemo, current account" }))
       .toHaveAttribute("aria-current", "true");
@@ -147,8 +149,10 @@ describe("AccountSwitcher", () => {
           .getByText("Imported from PlayStation", { exact: true })
       )
       .toBeVisible();
+
     const currentRow = page.getByRole("button", { name: "Aaron, current account" }).element();
     const availableRow = page.getByRole("button", { name: "Switch to Zoe" }).element();
+
     expect(currentRow.getBoundingClientRect().height).toBe(52);
     expect(availableRow.getBoundingClientRect().height).toBe(52);
     expect(currentRow.getBoundingClientRect().x).toBe(availableRow.getBoundingClientRect().x);
@@ -177,6 +181,7 @@ describe("AccountSwitcher", () => {
     await render(element);
 
     await page.getByRole("button", { name: "Switch account, current account Aaron" }).click();
+
     await expect.element(page.getByRole("heading", { name: "Switch account" })).toBeVisible();
 
     await page.getByRole("button", { name: "Outside switcher" }).click();
@@ -204,11 +209,13 @@ describe("AccountSwitcher", () => {
     const trigger = page.getByRole("button", {
       name: "Switch account, current account Aaron",
     });
+
     expect(trigger.element().getBoundingClientRect().width).toBe(44);
 
     await trigger.click();
 
     const menu = page.getByRole("dialog", { name: "Switch account" }).element();
+
     expect(menu.getBoundingClientRect().left).toBeGreaterThanOrEqual(0);
     expect(menu.getBoundingClientRect().right).toBeLessThanOrEqual(390);
   });
@@ -266,7 +273,9 @@ describe("AccountSwitcher", () => {
     await expect
       .element(page.getByRole("button", { name: /current account PlayloomDemo/ }))
       .toBeVisible();
+
     await page.getByRole("button", { name: /current account PlayloomDemo/ }).click();
+
     await expect.element(page.getByRole("button", { name: "Switch to MiraOnPSN" })).toBeVisible();
   });
 

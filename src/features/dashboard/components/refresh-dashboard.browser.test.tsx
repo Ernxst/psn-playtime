@@ -103,14 +103,17 @@ describe("RefreshDashboard", () => {
 
     await page.getByRole("button", { name: "Refresh" }).click();
     const credential = page.getByLabelText("Demo credential");
+
     await expect.element(credential).toHaveValue("PLAYLOOM-DEMO");
     await expect.element(credential).toHaveAttribute("readonly", "");
 
     await page.getByRole("button", { name: "Preview rejected credential" }).click();
+
     await expect.element(page.getByText(/demo credential was rejected/)).toBeVisible();
     await expect.element(credential).toHaveValue("PLAYLOOM-DEMO");
 
     await page.getByRole("button", { name: "Refresh data" }).click();
+
     expect(onRefresh).toHaveBeenCalledExactlyOnceWith("playloom-demo-credential");
     expect(onComplete).toHaveBeenCalledTimes(1);
   });
