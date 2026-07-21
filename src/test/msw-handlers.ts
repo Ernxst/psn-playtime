@@ -4,22 +4,17 @@ import * as Psn from "@/test/factories/psn";
 import * as Transactions from "@/test/factories/transactions";
 import { rawgSearch, rawgSeries } from "./rawg-fixtures";
 
-export const PSN_AUTH_URL = "https://ca.account.sony.com/api/authz/v3/oauth";
-const RAWG_API_URL = "https://api.rawg.io/api/";
+const PSN_AUTH_BASE_URL = "https://ca.account.sony.com/api/authz/v3/oauth/";
+const RAWG_BASE_URL = "https://api.rawg.io/api/";
 
-export const psnAuthUrl = (path: string): string => new URL(path, `${PSN_AUTH_URL}/`).href;
-export const rawgUrl = (path: string): string => new URL(path, RAWG_API_URL).href;
+export const psnAuthUrl = (path: string): string => new URL(path, PSN_AUTH_BASE_URL).href;
+export const rawgUrl = (path: string): string => new URL(path, RAWG_BASE_URL).href;
 
-export const PSN_AUTHORIZE_URL = psnAuthUrl("authorize");
-export const PSN_TOKEN_URL = psnAuthUrl("token");
 export const PSN_PROFILE_URL =
   "https://us-prof.np.community.playstation.net/userProfile/v1/users/me/profile2";
 export const PSN_PLAYED_GAMES_URL = "https://m.np.playstation.com/api/gamelist/v2/users/me/titles";
 export const PSN_TROPHY_TITLES_URL =
   "https://m.np.playstation.com/api/trophy/v1/users/me/trophyTitles";
-export const RAWG_GAMES_URL = rawgUrl("games");
-export const RAWG_SERIES_URL = rawgUrl("games/:id/game-series");
-
 const unauthorized = () => new HttpResponse<null>(null, { status: 401 });
 const forbidden = () => new HttpResponse<null>(null, { status: 403 });
 
@@ -64,7 +59,7 @@ export const withTransactionCredentials = withPolicy((request) => {
 
 export const handlers = [
   http.get(
-    PSN_AUTHORIZE_URL,
+    psnAuthUrl("authorize"),
     withNpsso(
       () =>
         new HttpResponse(null, {
@@ -76,7 +71,7 @@ export const handlers = [
     )
   ),
   http.post(
-    PSN_TOKEN_URL,
+    psnAuthUrl("token"),
     withAuthorization(() => HttpResponse.json(Psn.tokenResponse()))
   ),
   http.get(
@@ -92,11 +87,11 @@ export const handlers = [
     withAuthorization(() => HttpResponse.json(Psn.trophyPage()))
   ),
   http.get(
-    RAWG_GAMES_URL,
+    rawgUrl("games"),
     withRawgKey(() => HttpResponse.json(rawgSearch()))
   ),
   http.get(
-    RAWG_SERIES_URL,
+    rawgUrl("games/:id/game-series"),
     withRawgKey(() => HttpResponse.json(rawgSeries()))
   ),
   http.get(

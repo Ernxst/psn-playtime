@@ -10,10 +10,10 @@ import {
 import * as Psn from "@/test/factories/psn";
 import { server } from "@/test/msw";
 import {
-  PSN_AUTH_URL,
   PSN_PLAYED_GAMES_URL,
   PSN_PROFILE_URL,
   PSN_TROPHY_TITLES_URL,
+  psnAuthUrl,
 } from "@/test/msw-handlers";
 
 const runTransport = <A>(
@@ -31,7 +31,7 @@ describe("PsnTransportLive", () => {
     const played = Psn.playedPage([Psn.playedTitle({ titleId: "game-1", name: "Game One" })], 1);
     const trophies = Psn.trophyPage([Psn.trophyTitle({ trophyTitleName: "Game One" })], 1);
     server.use(
-      http.get(`${PSN_AUTH_URL}/authorize`, ({ request }) => {
+      http.get(psnAuthUrl("authorize"), ({ request }) => {
         const url = new URL(request.url);
         const valid =
           url.searchParams.get("response_type") === "code" &&
@@ -41,7 +41,7 @@ describe("PsnTransportLive", () => {
           headers: valid ? { Location: "https://example.test/redirect/?code=verified-code" } : {},
         });
       }),
-      http.post(`${PSN_AUTH_URL}/token`, async ({ request }) => {
+      http.post(psnAuthUrl("token"), async ({ request }) => {
         const body = await request.text();
         return HttpResponse.json(body.includes("code=verified-code") ? Psn.tokenResponse() : {});
       }),
