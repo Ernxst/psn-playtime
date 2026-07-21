@@ -282,9 +282,6 @@ async function runNetworkBookmarklet(): Promise<{
   message: DirectElement;
   open: ReturnType<typeof vi.fn>;
 }> {
-  server.use(
-    http.get(AUTHENTICATED_ACCOUNT_ENDPOINT, () => HttpResponse.json({ handle: "Ernxst_" }))
-  );
   vi.useFakeTimers({ toFake: ["setTimeout"] });
   onTestFinished(() => void vi.useRealTimers());
   const body = bookmarkletBody("https://psn.example.dev");
@@ -538,9 +535,14 @@ describe(".bookmarkletHref", () => {
 });
 
 describe("bookmarklet transaction-history workflow", () => {
+  const authenticatedAccount = http.get(AUTHENTICATED_ACCOUNT_ENDPOINT, () =>
+    HttpResponse.json({ handle: "Ernxst_" })
+  );
+
   it("executes the authenticated GraphQL request through successful pagination", async () => {
     const cursor = "2024-01-01T00:00:00.000Z";
     server.use(
+      authenticatedAccount,
       http.get(
         TRANSACTION_HISTORY_ENDPOINT,
         withTransactionCredentials(({ request }) => {
@@ -589,6 +591,7 @@ describe("bookmarklet transaction-history workflow", () => {
 
   it("continues with usable transaction data when GraphQL also returns errors", async () => {
     server.use(
+      authenticatedAccount,
       http.get(
         TRANSACTION_HISTORY_ENDPOINT,
         withTransactionCredentials(() =>
@@ -611,6 +614,7 @@ describe("bookmarklet transaction-history workflow", () => {
 
   it("leaves the first-page failure visible and does not hand off an import", async () => {
     server.use(
+      authenticatedAccount,
       http.get(
         TRANSACTION_HISTORY_ENDPOINT,
         withTransactionCredentials(() =>
@@ -629,6 +633,7 @@ describe("bookmarklet transaction-history workflow", () => {
   it("hands off the collected rows when a later page fails", async () => {
     const cursor = "2024-01-01T00:00:00.000Z";
     server.use(
+      authenticatedAccount,
       http.get(
         TRANSACTION_HISTORY_ENDPOINT,
         withTransactionCredentials(({ request }) => {
