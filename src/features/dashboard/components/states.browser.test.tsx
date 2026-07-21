@@ -8,9 +8,9 @@ describe("DashboardSkeleton", () => {
     const { container } = await render(<DashboardSkeleton />);
 
     expect(container.getBoundingClientRect().height).toBeGreaterThan(0);
-    expect(container.getAnimations({ subtree: true }).some(({ playState }) => playState === "running")).toBe(
-      true
-    );
+    expect(
+      container.getAnimations({ subtree: true }).some(({ playState }) => playState === "running")
+    ).toBe(true);
   });
 });
 
