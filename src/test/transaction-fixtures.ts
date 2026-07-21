@@ -4,7 +4,7 @@ export {
   aggregate as transactionAggregate,
   freeClaim as freeClaimTransaction,
   historyResponse as transactionHistoryResponse,
-  importTransaction as transactionImport,
+  importRecord as transactionImport,
   multiProductPurchase as multiProductPurchaseTransaction,
   nullNamePurchase as nullNamePurchaseTransaction,
   preOrderPurchase as preOrderPurchaseTransaction,

@@ -216,7 +216,7 @@ export function row(overrides: Partial<TransactionRow> = {}): TransactionRow {
   };
 }
 
-export function importTransaction(
+export function importRecord(
   overrides: Omit<Partial<TransactionImport>, "transactions"> & {
     readonly transactions?: ReadonlyArray<TransactionRow>;
   } = {}
@@ -261,5 +261,3 @@ export function historyResponse(
     ...(options.errors ? { errors: options.errors.map((error) => ({ ...error })) } : {}),
   };
 }
-
-export { importTransaction as import };
