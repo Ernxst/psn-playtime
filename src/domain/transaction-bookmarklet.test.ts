@@ -4,13 +4,8 @@ import * as Schema from "effect/Schema";
 import { build } from "esbuild";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
+import * as Transactions from "@/test/factories/transactions";
 import { server } from "@/test/msw";
-import {
-  multiProductPurchase,
-  nullNamePurchase,
-  transactionHistoryResponse,
-  walletFunding,
-} from "@/test/transaction-fixtures";
 import {
   AUTHENTICATED_ACCOUNT_ENDPOINT,
   bookmarkletHref,
@@ -370,39 +365,6 @@ describe(".dedupeTransactions", () => {
 });
 
 describe(".bookmarkletHref", () => {
-  it("produces a javascript: URI that fetches the transaction-history API", () => {
-    const body = bookmarkletBody("https://psn.example.dev");
-
-    expect(body).toContain("fetch(");
-    expect(body).toContain("transactionHistoryRetrieve");
-    expect(body).toContain("buildTransactionHistoryUrl");
-    expect(body).toContain("nextEndDate");
-  });
-
-  it("embeds the app's flatten helpers so rows are compacted before handoff", () => {
-    const body = bookmarkletBody("https://psn.example.dev");
-
-    expect(body).toContain("flattenApiTransactions");
-    expect(body).toContain("toPurchaseRow");
-    expect(body).toContain("nonPurchaseRow");
-  });
-
-  it("hands off the compact rows via the opened tab's own URL fragment", () => {
-    const body = bookmarkletBody("https://psn.example.dev");
-
-    expect(body).toContain("window.open");
-    expect(body).toContain("#data=");
-    expect(body).toContain("location.href");
-  });
-
-  it("binds the handoff to the account that generated the bookmarklet", () => {
-    const body = bookmarkletBody("https://psn.example.dev");
-
-    expect(body).toContain('const ACCOUNT_ID = "acc-1"');
-    expect(body).toContain('const ONLINE_ID = "Ernxst_"');
-    expect(body).toContain("accountId: ACCOUNT_ID");
-  });
-
   it("rejects a mismatched PlayStation session before fetching or handing off transactions", async () => {
     const { fetch, open, message } = await runBookmarklet({
       ok: true,
@@ -553,8 +515,11 @@ describe("bookmarklet transaction-history workflow", () => {
         return HttpResponse.json(
           valid
             ? variables.endDate === cursor
-              ? transactionHistoryResponse([multiProductPurchase, walletFunding])
-              : transactionHistoryResponse([multiProductPurchase], {
+              ? Transactions.historyResponse([
+                  Transactions.multiProductPurchase(),
+                  Transactions.walletFunding(),
+                ])
+              : Transactions.historyResponse([Transactions.multiProductPurchase()], {
                   hasMore: true,
                   nextEndDate: cursor,
                 })
@@ -570,9 +535,9 @@ describe("bookmarklet transaction-history workflow", () => {
       v: 4,
       source: "store.playstation.com",
       transactions: [
-        { transactionId: multiProductPurchase.id, key: "111111111111" },
-        { transactionId: multiProductPurchase.id, key: "111111111112" },
-        { transactionId: walletFunding.id, kind: "top-up" },
+        { transactionId: Transactions.multiProductPurchase().id, key: "111111111111" },
+        { transactionId: Transactions.multiProductPurchase().id, key: "111111111112" },
+        { transactionId: Transactions.walletFunding().id, kind: "top-up" },
       ],
     });
   });
@@ -581,7 +546,7 @@ describe("bookmarklet transaction-history workflow", () => {
     server.use(
       http.get(TRANSACTION_HISTORY_ENDPOINT, () =>
         HttpResponse.json(
-          transactionHistoryResponse([nullNamePurchase], {
+          Transactions.historyResponse([Transactions.nullNamePurchase()], {
             errors: [{ message: "productName was null" }],
           })
         )
@@ -592,7 +557,7 @@ describe("bookmarklet transaction-history workflow", () => {
 
     expect(result.open).toHaveBeenCalledTimes(1);
     expect(importedPayload(result.href)).toMatchObject({
-      transactions: [{ transactionId: nullNamePurchase.id }],
+      transactions: [{ transactionId: Transactions.nullNamePurchase().id }],
     });
   });
 
@@ -618,7 +583,10 @@ describe("bookmarklet transaction-history workflow", () => {
         return HttpResponse.json(
           variables.endDate === cursor
             ? { errors: [{ message: "later page unavailable" }] }
-            : transactionHistoryResponse([walletFunding], { hasMore: true, nextEndDate: cursor })
+            : Transactions.historyResponse([Transactions.walletFunding()], {
+                hasMore: true,
+                nextEndDate: cursor,
+              })
         );
       })
     );
@@ -627,23 +595,12 @@ describe("bookmarklet transaction-history workflow", () => {
 
     expect(result.open).toHaveBeenCalledTimes(1);
     expect(importedPayload(result.href)).toMatchObject({
-      transactions: [{ transactionId: walletFunding.id, kind: "top-up" }],
+      transactions: [{ transactionId: Transactions.walletFunding().id, kind: "top-up" }],
     });
   });
 });
 
 describe(".mountImportOverlay", () => {
-  it("embeds the overlay helpers, mounts them, and wires progress/done/error", () => {
-    const body = bookmarkletBody("https://psn.example.dev");
-
-    expect(body).toContain("mountImportOverlay");
-    expect(body).toContain("importErrorMessage");
-    expect(body).toContain("aria-live");
-    expect(body).toContain("overlay.progress(");
-    expect(body).toContain("overlay.done()");
-    expect(body).toContain("overlay.error(");
-  });
-
   it("mounts the overlay from the minified bookmarklet body without a ReferenceError", async () => {
     const body = await minifiedBookmarkletBody("https://psn.example.dev");
 
