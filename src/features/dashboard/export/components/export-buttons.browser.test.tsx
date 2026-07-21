@@ -23,6 +23,7 @@ const dashboardDefaults = {
   profile: {
     onlineId: "tester",
     accountId: "acc",
+    aboutMe: undefined,
     isPlus: false,
     trophyLevel: 1,
     levelProgress: 0,
@@ -30,7 +31,13 @@ const dashboardDefaults = {
     totalTrophies: 0,
   },
   fetchedAt: "2024-06-01T00:00:00.000Z",
-  meta: { totalHours: 0, totalSessions: 0, appsExcluded: [], span: {} },
+  meta: {
+    totalHours: 0,
+    totalSessions: 0,
+    firstEverPlayed: undefined,
+    appsExcluded: [],
+    span: {},
+  },
   isDemo: false,
   trophiesUnavailable: false,
 } as const;
