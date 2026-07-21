@@ -7,6 +7,7 @@ import {
   PsnTransportLive,
   type PsnTransportShape,
 } from "@/server/providers/account/psn/transport.effect";
+import * as Psn from "@/test/factories/psn";
 import { server } from "@/test/msw";
 import {
   PSN_AUTH_URL,
@@ -14,14 +15,6 @@ import {
   PSN_PROFILE_URL,
   PSN_TROPHY_TITLES_URL,
 } from "@/test/msw-handlers";
-import {
-  psnPlayedPage,
-  psnPlayedTitle,
-  psnProfile,
-  psnTokenResponse,
-  psnTrophyPage,
-  psnTrophyTitle,
-} from "@/test/psn-fixtures";
 
 const runTransport = <A>(
   operation: (transport: PsnTransportShape) => Effect.Effect<A, PsnTransportError>
@@ -34,9 +27,9 @@ const runTransport = <A>(
 
 describe("PsnTransportLive", () => {
   it("binds every psn-api operation to the expected endpoint and arguments", async () => {
-    const profile = psnProfile({ onlineId: "NetworkUser" });
-    const played = psnPlayedPage([psnPlayedTitle({ titleId: "game-1", name: "Game One" })], 1);
-    const trophies = psnTrophyPage([psnTrophyTitle({ trophyTitleName: "Game One" })], 1);
+    const profile = Psn.profile({ onlineId: "NetworkUser" });
+    const played = Psn.playedPage([Psn.playedTitle({ titleId: "game-1", name: "Game One" })], 1);
+    const trophies = Psn.trophyPage([Psn.trophyTitle({ trophyTitleName: "Game One" })], 1);
     server.use(
       http.get(`${PSN_AUTH_URL}/authorize`, ({ request }) => {
         const url = new URL(request.url);
@@ -50,7 +43,7 @@ describe("PsnTransportLive", () => {
       }),
       http.post(`${PSN_AUTH_URL}/token`, async ({ request }) => {
         const body = await request.text();
-        return HttpResponse.json(body.includes("code=verified-code") ? psnTokenResponse : {});
+        return HttpResponse.json(body.includes("code=verified-code") ? Psn.tokenResponse() : {});
       }),
       http.get(PSN_PROFILE_URL, ({ request }) =>
         HttpResponse.json(
@@ -64,7 +57,7 @@ describe("PsnTransportLive", () => {
             url.searchParams.get("limit") === "200" &&
             url.searchParams.get("offset") === "400"
             ? played
-            : psnPlayedPage()
+            : Psn.playedPage()
         );
       }),
       http.get(PSN_TROPHY_TITLES_URL, ({ request }) => {
@@ -74,7 +67,7 @@ describe("PsnTransportLive", () => {
             url.searchParams.get("limit") === "800" &&
             url.searchParams.get("offset") === "1600"
             ? trophies
-            : psnTrophyPage()
+            : Psn.trophyPage()
         );
       })
     );
