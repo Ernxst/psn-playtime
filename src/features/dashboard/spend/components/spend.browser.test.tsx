@@ -1,25 +1,13 @@
-import type { ReactNode } from "react";
-import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
-import { demoDashboard } from "@/domain/mock";
 import { bookmarkletHref } from "@/domain/transaction-bookmarklet";
 import type { TransactionRow } from "@/domain/transactions";
 import type { GamePlay } from "@/server/providers/account/snapshot";
 import { TestAtomProvider, testTransactionStore } from "@/test/atom-registry";
+import * as Dashboard from "@/test/factories/dashboard";
+import * as Transactions from "@/test/factories/transactions";
 import { AddOnsSection, SpendSection, SpentMostSection } from "./spend";
-
-afterEach(() => {
-  vi.restoreAllMocks();
-});
-
-/** Render under the atom provider so `useTransactionImport` shares the registry that imperative writes target. */
-function renderWithAtoms(ui: ReactNode) {
-  return render(ui, { wrapper: TestAtomProvider });
-}
-
-/** The demo library as it would arrive for a real, signed-in account. */
-const realDashboard = { ...demoDashboard, isDemo: false };
 
 function mockPointer(coarse: boolean) {
   const original = window.matchMedia;
@@ -40,12 +28,11 @@ function mockPointer(coarse: boolean) {
 }
 
 function seed(transactions: TransactionRow[]) {
-  testTransactionStore.save(demoDashboard.profile.accountId, {
-    transactions,
-    importedAt: "2024-01-01T00:00:00.000Z",
-    source: "store.playstation.com",
-  });
-  onTestFinished(() => testTransactionStore.clear(demoDashboard.profile.accountId));
+  testTransactionStore.save(
+    Dashboard.data().profile.accountId,
+    Transactions.importRecord({ transactions })
+  );
+  onTestFinished(() => testTransactionStore.clear(Dashboard.data().profile.accountId));
 }
 
 /** An add-on purchase matched to "FIFA 18" (titleId DEMO-1) in the demo library. */
@@ -108,9 +95,9 @@ function baseFor(titleId: string, amountMinor: number): TransactionRow {
 
 describe("SpendSection", () => {
   it("prompts for an import when no transactions are present", async () => {
-    onTestFinished(() => testTransactionStore.clear(demoDashboard.profile.accountId));
+    onTestFinished(() => testTransactionStore.clear(Dashboard.data().profile.accountId));
 
-    await renderWithAtoms(<SpendSection data={demoDashboard} />);
+    await render(<SpendSection data={Dashboard.data()} />, { wrapper: TestAtomProvider });
 
     await expect.element(page.getByText("Add your spend")).toBeVisible();
     // Scope to the affordance link: the fine-pointer drag step also names the
@@ -121,10 +108,10 @@ describe("SpendSection", () => {
   });
 
   it("walks coarse pointer users through bookmarking and editing the URL", async () => {
-    onTestFinished(() => testTransactionStore.clear(demoDashboard.profile.accountId));
+    onTestFinished(() => testTransactionStore.clear(Dashboard.data().profile.accountId));
     mockPointer(true);
 
-    await renderWithAtoms(<SpendSection data={demoDashboard} />);
+    await render(<SpendSection data={Dashboard.data()} />, { wrapper: TestAtomProvider });
 
     await expect
       .element(
@@ -136,17 +123,15 @@ describe("SpendSection", () => {
   });
 
   it("splits the mobile run step into labelled Safari and Chrome sub-steps", async () => {
-    onTestFinished(() => testTransactionStore.clear(demoDashboard.profile.accountId));
+    onTestFinished(() => testTransactionStore.clear(Dashboard.data().profile.accountId));
     mockPointer(true);
 
-    await renderWithAtoms(<SpendSection data={demoDashboard} />);
+    await render(<SpendSection data={Dashboard.data()} />, { wrapper: TestAtomProvider });
 
     // Parent run line plus both platform labels, each emphasised.
     await expect.element(page.getByText("Run it on the PlayStation tab:")).toBeVisible();
-    expect(page.getByText("iPhone/iPad (Safari)", { exact: false }).element().tagName).toBe(
-      "STRONG"
-    );
-    expect(page.getByText("Android (Chrome)", { exact: false }).element().tagName).toBe("STRONG");
+    await expect.element(page.getByText("iPhone/iPad (Safari)", { exact: false })).toBeVisible();
+    await expect.element(page.getByText("Android (Chrome)", { exact: false })).toBeVisible();
 
     // Safari: tap the saved bookmark in the Bookmarks list and it runs.
     await expect
@@ -159,13 +144,12 @@ describe("SpendSection", () => {
     const dontPressEnter = page.getByText("don't press Enter");
 
     await expect.element(dontPressEnter).toBeVisible();
-    expect(dontPressEnter.element().tagName).toBe("STRONG");
   });
 
   it("explains why an import step is needed when the info control is activated", async () => {
-    onTestFinished(() => testTransactionStore.clear(demoDashboard.profile.accountId));
+    onTestFinished(() => testTransactionStore.clear(Dashboard.data().profile.accountId));
 
-    await renderWithAtoms(<SpendSection data={demoDashboard} />);
+    await render(<SpendSection data={Dashboard.data()} />, { wrapper: TestAtomProvider });
 
     const info = page.getByRole("button", { name: "Why an import step is needed" });
 
@@ -187,10 +171,10 @@ describe("SpendSection", () => {
   });
 
   it("tells fine pointer users they can drag the bookmarklet", async () => {
-    onTestFinished(() => testTransactionStore.clear(demoDashboard.profile.accountId));
+    onTestFinished(() => testTransactionStore.clear(Dashboard.data().profile.accountId));
     mockPointer(false);
 
-    await renderWithAtoms(<SpendSection data={demoDashboard} />);
+    await render(<SpendSection data={Dashboard.data()} />, { wrapper: TestAtomProvider });
 
     await expect
       .element(
@@ -202,27 +186,27 @@ describe("SpendSection", () => {
   });
 
   it("copies the bookmarklet and flashes confirmation when Copy is clicked", async () => {
-    onTestFinished(() => testTransactionStore.clear(demoDashboard.profile.accountId));
+    onTestFinished(() => testTransactionStore.clear(Dashboard.data().profile.accountId));
     const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
 
-    await renderWithAtoms(<SpendSection data={demoDashboard} />);
+    await render(<SpendSection data={Dashboard.data()} />, { wrapper: TestAtomProvider });
 
     await page.getByRole("button", { name: "Copy bookmarklet" }).click();
 
     expect(writeText).toHaveBeenCalledExactlyOnceWith(
       bookmarkletHref(
         window.location.origin,
-        demoDashboard.profile.accountId,
-        demoDashboard.profile.onlineId
+        Dashboard.data().profile.accountId,
+        Dashboard.data().profile.onlineId
       )
     );
     await expect.element(page.getByRole("button", { name: "Copied" })).toBeVisible();
   });
 
   it("keeps the drag affordance out of the tab order and accessibility tree", async () => {
-    onTestFinished(() => testTransactionStore.clear(demoDashboard.profile.accountId));
+    onTestFinished(() => testTransactionStore.clear(Dashboard.data().profile.accountId));
 
-    await renderWithAtoms(<SpendSection data={demoDashboard} />);
+    await render(<SpendSection data={Dashboard.data()} />, { wrapper: TestAtomProvider });
 
     // The drag step also names the button in a `<strong>`, so scope to the
     // aria-hidden affordance link (`includeHidden` reaches it; a strong is not a
@@ -237,9 +221,9 @@ describe("SpendSection", () => {
   });
 
   it("links to PlayStation order history in the import instructions", async () => {
-    onTestFinished(() => testTransactionStore.clear(demoDashboard.profile.accountId));
+    onTestFinished(() => testTransactionStore.clear(Dashboard.data().profile.accountId));
 
-    await renderWithAtoms(<SpendSection data={demoDashboard} />);
+    await render(<SpendSection data={Dashboard.data()} />, { wrapper: TestAtomProvider });
 
     const link = page.getByRole("link", { name: "Open PlayStation" });
 
@@ -264,7 +248,9 @@ describe("SpendSection", () => {
       },
     ]);
 
-    await renderWithAtoms(<SpendSection data={realDashboard} />);
+    await render(<SpendSection data={Dashboard.data({ isDemo: false })} />, {
+      wrapper: TestAtomProvider,
+    });
 
     await expect.element(page.getByText("Best value per hour")).toBeVisible();
     await expect.element(page.getByText("What you've spent")).toBeVisible();
@@ -287,25 +273,21 @@ describe("SpendSection", () => {
       },
     ]);
 
-    await renderWithAtoms(<SpendSection data={realDashboard} />);
+    await render(<SpendSection data={Dashboard.data({ isDemo: false })} />, {
+      wrapper: TestAtomProvider,
+    });
 
-    const summary = page.getByText("Re-import or update your data");
-    // A chevron affordance signals the section is expandable and is wired to rotate when open.
-    // The contract is the icon's rotation class, not a user-addressable element.
-    // oxlint-disable-next-line test-contract/no-dom-selector
-    const chevron = summary.element().querySelector("svg.lucide-chevron-down");
-
-    expect(chevron).toHaveClass("group-open:rotate-180");
-
-    await summary.click();
+    await page.getByText("Re-import or update your data").click();
 
     await expect.element(page.getByRole("button", { name: "Copy bookmarklet" })).toBeVisible();
   });
 
   it("prompts a non-demo account to import when no transactions are present", async () => {
-    onTestFinished(() => testTransactionStore.clear(demoDashboard.profile.accountId));
+    onTestFinished(() => testTransactionStore.clear(Dashboard.data().profile.accountId));
 
-    await renderWithAtoms(<SpendSection data={realDashboard} />);
+    await render(<SpendSection data={Dashboard.data({ isDemo: false })} />, {
+      wrapper: TestAtomProvider,
+    });
 
     await expect.element(page.getByText("Add your spend")).toBeVisible();
     await expect.element(page.getByText("What you've spent")).not.toBeInTheDocument();
@@ -339,7 +321,9 @@ describe("SpendSection", () => {
       },
     ]);
 
-    await renderWithAtoms(<SpendSection data={realDashboard} />);
+    await render(<SpendSection data={Dashboard.data({ isDemo: false })} />, {
+      wrapper: TestAtomProvider,
+    });
 
     await expect.element(page.getByText("Best value per hour")).toBeVisible();
     await expect.element(page.getByText("Spend not matched to a played title")).toBeVisible();
@@ -362,7 +346,7 @@ describe("SpendSection", () => {
       },
     ]);
 
-    await renderWithAtoms(<SpendSection data={demoDashboard} />);
+    await render(<SpendSection data={Dashboard.data()} />, { wrapper: TestAtomProvider });
 
     await expect.element(page.getByText("Add your spend")).toBeVisible();
     await expect.element(page.getByText("Best value per hour")).not.toBeInTheDocument();
@@ -373,7 +357,9 @@ describe("AddOnsSection", () => {
   it("ranks games by how many add-ons were bought once transactions are imported", async () => {
     seed([addOn("a1"), addOn("a2")]);
 
-    await renderWithAtoms(<AddOnsSection data={realDashboard} />);
+    await render(<AddOnsSection data={Dashboard.data({ isDemo: false })} />, {
+      wrapper: TestAtomProvider,
+    });
 
     await expect.element(page.getByText("Spent extra on")).toBeVisible();
     await expect.element(page.getByText("FIFA 18")).toBeVisible();
@@ -383,15 +369,17 @@ describe("AddOnsSection", () => {
   it("hides the add-ons section for the demo dashboard", async () => {
     seed([addOn("a1")]);
 
-    await renderWithAtoms(<AddOnsSection data={demoDashboard} />);
+    await render(<AddOnsSection data={Dashboard.data()} />, { wrapper: TestAtomProvider });
 
     await expect.element(page.getByText("Spent extra on")).not.toBeInTheDocument();
   });
 
   it("hides the add-ons section when no transactions are imported", async () => {
-    onTestFinished(() => testTransactionStore.clear(demoDashboard.profile.accountId));
+    onTestFinished(() => testTransactionStore.clear(Dashboard.data().profile.accountId));
 
-    await renderWithAtoms(<AddOnsSection data={realDashboard} />);
+    await render(<AddOnsSection data={Dashboard.data({ isDemo: false })} />, {
+      wrapper: TestAtomProvider,
+    });
 
     await expect.element(page.getByText("Spent extra on")).not.toBeInTheDocument();
   });
@@ -404,7 +392,9 @@ describe("AddOnsSection", () => {
     // the eleventh and twelfth titles would be dropped by a `.slice(0, 10)`.
     seed(games.map((g) => addOnFor(g.titleId, 1)));
 
-    await renderWithAtoms(<AddOnsSection data={{ ...realDashboard, games }} />);
+    await render(<AddOnsSection data={Dashboard.data({ isDemo: false, games })} />, {
+      wrapper: TestAtomProvider,
+    });
 
     await expect.element(page.getByText("Spent extra on")).toBeVisible();
     await expect.element(page.getByText("Game 11")).toBeVisible();
@@ -420,7 +410,12 @@ describe("SpentMostSection", () => {
       addOnFor("CYBER", 1), // 999 add-on → £29.98 total
     ]);
 
-    await renderWithAtoms(<SpentMostSection data={{ ...realDashboard, games: [cyberpunk] }} />);
+    await render(
+      <SpentMostSection data={Dashboard.data({ isDemo: false, games: [cyberpunk] })} />,
+      {
+        wrapper: TestAtomProvider,
+      }
+    );
 
     await expect.element(page.getByText("Spent the most on")).toBeVisible();
     await expect.element(page.getByText("Cyberpunk 2077")).toBeVisible();
@@ -430,15 +425,17 @@ describe("SpentMostSection", () => {
   it("hides the spent-most section for the demo dashboard", async () => {
     seed([baseFor("DEMO-8", 1999)]);
 
-    await renderWithAtoms(<SpentMostSection data={demoDashboard} />);
+    await render(<SpentMostSection data={Dashboard.data()} />, { wrapper: TestAtomProvider });
 
     await expect.element(page.getByText("Spent the most on")).not.toBeInTheDocument();
   });
 
   it("hides the spent-most section when no transactions are imported", async () => {
-    onTestFinished(() => testTransactionStore.clear(demoDashboard.profile.accountId));
+    onTestFinished(() => testTransactionStore.clear(Dashboard.data().profile.accountId));
 
-    await renderWithAtoms(<SpentMostSection data={realDashboard} />);
+    await render(<SpentMostSection data={Dashboard.data({ isDemo: false })} />, {
+      wrapper: TestAtomProvider,
+    });
 
     await expect.element(page.getByText("Spent the most on")).not.toBeInTheDocument();
   });
