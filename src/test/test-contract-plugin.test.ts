@@ -10,6 +10,7 @@ const plugin = fileURLToPath(new URL("../../tools/oxlint/test-contract.mjs", imp
 const rules = [
   "no-wait-for",
   "no-test-timers",
+  "no-test-yield",
   "no-boolean-expect",
   "no-finally",
   "no-control-flow",
@@ -51,6 +52,9 @@ describe("test-contract", () => {
   it.each([
     ["no-wait-for", `it("waits", () => waitFor(() => expect(value).toBe(1)));`],
     ["no-test-timers", `it("waits", () => setTimeout(run, 10));`],
+    ["no-test-yield", `it("waits", () => requestAnimationFrame(run));`],
+    ["no-test-yield", `it("waits", () => window.requestAnimationFrame(run));`],
+    ["no-test-yield", `it("waits", () => queueMicrotask(run));`],
     ["no-boolean-expect", `it("compares", () => expect(actual === expected).toBe(true));`],
     ["no-finally", `it("cleans up", () => task().finally(cleanup));`],
     ["no-control-flow", `it("branches", () => { if (ready) expect(value).toBe(1); });`],

@@ -72,6 +72,7 @@
         "vitest/warn-todo": "error",
         "test-contract/no-wait-for": "error",
         "test-contract/no-test-timers": "error",
+        "test-contract/no-test-yield": "error",
         "test-contract/no-boolean-expect": "error",
         "test-contract/no-finally": "error",
         "test-contract/no-control-flow": "error",

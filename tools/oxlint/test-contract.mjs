@@ -104,6 +104,23 @@ const noTestTimers = rule(
   })
 );
 
+const noTestYield = rule(
+  { yield: "Wait for an observable condition instead of yielding with {{name}}" },
+  (context) => ({
+    CallExpression(node) {
+      const name = callName(node);
+      if (
+        name === "requestAnimationFrame" ||
+        name === "requestIdleCallback" ||
+        name === "queueMicrotask" ||
+        name === "setImmediate"
+      ) {
+        context.report({ node, messageId: "yield", data: { name } });
+      }
+    },
+  })
+);
+
 const noBooleanExpect = rule(
   { direct: "Assert the values that produced this boolean expression" },
   (context) => ({
@@ -417,6 +434,7 @@ export default {
   rules: {
     "no-wait-for": noWaitFor,
     "no-test-timers": noTestTimers,
+    "no-test-yield": noTestYield,
     "no-boolean-expect": noBooleanExpect,
     "no-finally": noFinally,
     "no-control-flow": noControlFlow,
