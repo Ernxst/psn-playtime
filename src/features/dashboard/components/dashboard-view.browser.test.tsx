@@ -503,8 +503,8 @@ describe("DashboardView", () => {
     await expect.element(page.getByRole("button", { name: /demo data/ })).toHaveFocus();
   });
 
-  it("drops hidden destination facets when switching accounts", async () => {
-    const shooter = {
+  it("keeps pruned facets removed across an account round trip", async () => {
+    const source = {
       ...demoDashboard,
       profile: {
         ...demoDashboard.profile,
@@ -512,10 +512,17 @@ describe("DashboardView", () => {
         onlineId: "FacetSource",
         sourceLabel: "Imported from PlayStation",
       },
-      games: [{ ...demoDashboard.games[0]!, name: "Source Shooter", genre: "Shooter" as const }],
+      games: [
+        {
+          ...demoDashboard.games[0]!,
+          name: "Grand Theft Source",
+          genre: "Sports" as const,
+          platform: "PS4" as const,
+        },
+      ],
       isDemo: false,
     };
-    const rolePlaying = {
+    const destination = {
       ...demoDashboard,
       profile: {
         ...demoDashboard.profile,
@@ -523,30 +530,56 @@ describe("DashboardView", () => {
         onlineId: "FacetDestination",
         sourceLabel: "Imported from PlayStation",
       },
-      games: [{ ...demoDashboard.games[0]!, name: "Destination RPG", genre: "RPG" as const }],
+      games: [
+        {
+          ...demoDashboard.games[0]!,
+          name: "Grand Theft Destination",
+          genre: "RPG" as const,
+          platform: "PS4" as const,
+        },
+      ],
       isDemo: false,
     };
-    testDashboardStore.save(shooter);
-    testDashboardStore.save(rolePlaying);
-    testDashboardStore.setActive(shooter.profile.accountId);
+    testDashboardStore.save(source);
+    testDashboardStore.save(destination);
+    testDashboardStore.setActive(source.profile.accountId);
     onTestFinished(() => {
-      testDashboardStore.remove(shooter.profile.accountId);
-      testDashboardStore.remove(rolePlaying.profile.accountId);
+      testDashboardStore.remove(source.profile.accountId);
+      testDashboardStore.remove(destination.profile.accountId);
       testDashboardStore.clearActive();
     });
     const { element } = createHarness(<ActiveDashboardView />);
 
     await render(element);
 
+    const search = page.getByRole("searchbox", { name: "Search games by name" });
+    await search.fill("Grand Theft");
     await page.getByRole("button", { name: "Filter games" }).click();
-    await page.getByRole("checkbox", { name: "Shooter" }).click();
+    await page.getByRole("checkbox", { name: "Sports" }).click();
+    await page.getByRole("checkbox", { name: "PS4" }).click();
     await page.getByRole("button", { name: "Done filtering" }).click();
     await page.getByRole("button", { name: /Open profile menu for FacetSource/ }).click();
     await page.getByRole("button", { name: "Switch to FacetDestination" }).click();
 
-    await expect.element(page.getByText("Destination RPG", { exact: true }).first()).toBeVisible();
+    await expect
+      .element(page.getByText("Grand Theft Destination", { exact: true }).first())
+      .toBeVisible();
+    await expect.element(search).toHaveValue("Grand Theft");
+    await page.getByRole("button", { name: /Filter games/ }).click();
+    await expect.element(page.getByRole("checkbox", { name: "PS4" })).toBeChecked();
+    expect(page.getByRole("checkbox", { name: "Sports" }).query()).toBeNull();
+    await page.getByRole("button", { name: "Done filtering" }).click();
+    await page.getByRole("button", { name: /Open profile menu for FacetDestination/ }).click();
+    await page.getByRole("button", { name: "Switch to FacetSource" }).click();
+
+    await expect
+      .element(page.getByText("Grand Theft Source", { exact: true }).first())
+      .toBeVisible();
+    await expect.element(search).toHaveValue("Grand Theft");
     expect(page.getByText("No games match your filters").query()).toBeNull();
-    expect(page.getByRole("button", { name: "Clear all filters" }).query()).toBeNull();
+    await page.getByRole("button", { name: /Filter games/ }).click();
+    await expect.element(page.getByRole("checkbox", { name: "PS4" })).toBeChecked();
+    await expect.element(page.getByRole("checkbox", { name: "Sports" })).not.toBeChecked();
   });
 
   it("filters the purchase ledger by date and sorts every retained column", async () => {

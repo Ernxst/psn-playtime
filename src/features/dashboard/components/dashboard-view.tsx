@@ -793,6 +793,7 @@ function useAccountFilters(data: DashboardData) {
   const [state, setState] = useState<AccountFilters>({ accountId, value: defaultFilters });
   const filters =
     state.accountId === accountId ? state.value : retainValidFilters(data, state.value);
+  if (state.accountId !== accountId) setState({ accountId, value: filters });
   return {
     filters,
     setFilters: (value: DashboardFilters) => setState({ accountId, value }),
