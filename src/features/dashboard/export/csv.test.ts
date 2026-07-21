@@ -1,7 +1,7 @@
 import * as Schema from "effect/Schema";
 import { describe, expect, it } from "vitest";
-import type { TransactionRow } from "@/domain/transactions";
 import type { GamePlay, ProfileSummary } from "@/server/providers/account/snapshot";
+import * as Transactions from "@/test/factories/transactions";
 import { buildAccountCsv, buildGamesCsv, buildTransactionsCsv } from "./csv";
 import {
   ACCOUNT_CSV_COLUMNS,
@@ -11,22 +11,6 @@ import {
   TRANSACTION_CSV_COLUMNS,
   TransactionCsvRow,
 } from "./csv-schema.effect";
-
-function tx(overrides: Partial<TransactionRow>): TransactionRow {
-  return {
-    transactionId: "700000000000001",
-    key: "line-1",
-    date: "2025-08-29T13:31:23.987Z",
-    transactionType: "PRODUCT_PURCHASE",
-    kind: "purchase",
-    productName: "Hades",
-    quantity: 1,
-    amountMinor: 1599,
-    currency: "£",
-    displayAmount: "£15.99",
-    ...overrides,
-  };
-}
 
 function game(overrides: Partial<GamePlay>): GamePlay {
   return {
@@ -54,30 +38,66 @@ function profile(overrides: Partial<ProfileSummary>): ProfileSummary {
   };
 }
 
-/** Split a CSV document into its lines (records are CRLF-separated). */
 function lines(csv: string): string[] {
   return csv.split("\r\n");
 }
 
-/** The nth data record (past the header row), or "" when absent. */
-function dataRow(csv: string, index = 0): string {
-  return lines(csv).slice(1)[index] ?? "";
+function required<T>(value: T | undefined, message: string): T {
+  if (value === undefined) throw new Error(message);
+  return value;
 }
 
-/** Zip a split CSV record's cells back onto their header keys. */
+function dataRow(csv: string, index = 0): string {
+  return required(lines(csv).slice(1)[index], `Missing CSV data row ${index}`);
+}
+
 function recordFrom(columns: readonly string[], row: string): Record<string, string> {
   const cells = row.split(",");
-  return Object.fromEntries(columns.map((column, i) => [column, cells[i] ?? ""]));
-}
-
-function cell(csv: string, column: string, index = 0): string {
-  const cells = dataRow(csv, index).split(",");
-  return (
-    cells[GAMES_CSV_COLUMNS.indexOf(column)] ?? cells[ACCOUNT_CSV_COLUMNS.indexOf(column)] ?? ""
+  return Object.fromEntries(
+    columns.map((column, index) => [
+      column,
+      required(cells[index], `Missing CSV cell for column "${column}" at index ${index}`),
+    ])
   );
 }
 
+function cell(csv: string, column: string, index = 0): string {
+  const headers = lines(csv)[0]?.split(",") ?? [];
+  const columnIndex = headers.indexOf(column);
+  if (columnIndex === -1) throw new Error(`Missing CSV column "${column}"`);
+  return required(
+    dataRow(csv, index).split(",")[columnIndex],
+    `Missing CSV cell for column "${column}" in data row ${index}`
+  );
+}
+
+const transactionDefaults = {
+  key: "line-1",
+  skuId: undefined,
+  skuType: undefined,
+  originalPriceMinor: undefined,
+  discountMinor: undefined,
+};
+
 const matchingSku = "EP4040-PPSA01234_00-HADES00000000000-E001";
+
+describe("CSV access helpers", () => {
+  it("fails immediately when a data row is missing", () => {
+    expect(() => dataRow("a,b", 0)).toThrow("Missing CSV data row 0");
+  });
+
+  it("fails immediately when a column is missing", () => {
+    expect(() => cell("a,b\r\n1,2", "c")).toThrow('Missing CSV column "c"');
+  });
+
+  it("fails immediately when a required cell is missing", () => {
+    expect(() => recordFrom(["a", "b"], "1")).toThrow('Missing CSV cell for column "b" at index 1');
+  });
+
+  it("preserves a required empty cell", () => {
+    expect(recordFrom(["a", "b"], "1,")).toStrictEqual({ a: "1", b: "" });
+  });
+});
 
 describe(".buildTransactionsCsv", () => {
   it("emits the header row derived from the schema field keys", () => {
@@ -85,7 +105,9 @@ describe(".buildTransactionsCsv", () => {
   });
 
   it("writes one row per transaction with minor units and the ISO date verbatim", () => {
-    const csv = buildTransactionsCsv([tx({ skuId: matchingSku, skuType: "STANDARD" })]);
+    const csv = buildTransactionsCsv([
+      Transactions.row({ ...transactionDefaults, skuId: matchingSku, skuType: "STANDARD" }),
+    ]);
 
     expect(dataRow(csv)).toBe(
       "700000000000001,line-1,2025-08-29T13:31:23.987Z,PRODUCT_PURCHASE,purchase,Hades,EP4040-PPSA01234_00-HADES00000000000-E001,STANDARD,1,1599,£,£15.99,,"
@@ -95,7 +117,12 @@ describe(".buildTransactionsCsv", () => {
   it("writes original_price_minor and discount_minor as integers when present", () => {
     const cells = dataRow(
       buildTransactionsCsv([
-        tx({ amountMinor: 1000, originalPriceMinor: 4499, discountMinor: 3499 }),
+        Transactions.row({
+          ...transactionDefaults,
+          amountMinor: 1000,
+          originalPriceMinor: 4499,
+          discountMinor: 3499,
+        }),
       ])
     ).split(",");
 
@@ -105,7 +132,11 @@ describe(".buildTransactionsCsv", () => {
 
   it("quotes a product name containing a comma per RFC-4180", () => {
     expect(
-      dataRow(buildTransactionsCsv([tx({ productName: "Ratchet & Clank, Rift Apart" })]))
+      dataRow(
+        buildTransactionsCsv([
+          Transactions.row({ ...transactionDefaults, productName: "Ratchet & Clank, Rift Apart" }),
+        ])
+      )
     ).toContain('"Ratchet & Clank, Rift Apart"');
   });
 });
@@ -258,7 +289,15 @@ describe("CSV round-trip through the shared schemas", () => {
   it("reconstructs a transaction record with its minor units and ids", () => {
     const record = recordFrom(
       TRANSACTION_CSV_COLUMNS,
-      dataRow(buildTransactionsCsv([tx({ skuId: matchingSku, originalPriceMinor: 1999 })]))
+      dataRow(
+        buildTransactionsCsv([
+          Transactions.row({
+            ...transactionDefaults,
+            skuId: matchingSku,
+            originalPriceMinor: 1999,
+          }),
+        ])
+      )
     );
 
     const decoded = decodeTransaction(record);
