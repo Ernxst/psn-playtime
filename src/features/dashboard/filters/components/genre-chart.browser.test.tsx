@@ -7,17 +7,26 @@ import { GenreChart } from "./charts";
 
 describe("GenreChart", () => {
   it("shows a genre's formatted lifetime hours and share when the donut is hovered", async () => {
-    const slices = genreBreakdown(Dashboard.data());
-    await render(<GenreChart data={Dashboard.data()} />);
+    const dashboard = Dashboard.data({
+      games: [
+        { ...Dashboard.data().games[0]!, genre: "Shooter", hours: 1_234 },
+        { ...Dashboard.data().games[1]!, genre: "RPG", hours: 766 },
+      ],
+      meta: { totalHours: 2_000 },
+    });
+    const [hovered] = genreBreakdown(dashboard);
+    await render(<GenreChart data={dashboard} />);
 
     const donut = page.getByRole("img");
     await donut.hover({ position: { x: 250, y: 150 } });
 
+    await expect.element(donut.getByText(hovered!.genre, { exact: true })).toBeInTheDocument();
     await expect
-      .element(donut.getByText(new RegExp(slices.map((slice) => slice.genre).join("|"))))
-      .toBeInTheDocument();
-    await expect
-      .element(donut.getByText(/^\d[\d,]* lifetime hours · \d+(?:\.\d+)?%$/))
+      .element(
+        donut.getByText(`${hovered!.hours.toLocaleString()} lifetime hours · ${hovered!.share}%`, {
+          exact: true,
+        })
+      )
       .toBeInTheDocument();
   });
 
