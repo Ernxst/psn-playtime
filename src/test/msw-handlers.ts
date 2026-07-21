@@ -1,8 +1,8 @@
 import { HttpResponse, http } from "msw";
 import { TRANSACTION_HISTORY_ENDPOINT } from "@/domain/transaction-bookmarklet";
 import * as Psn from "@/test/factories/psn";
+import * as Transactions from "@/test/factories/transactions";
 import { rawgSearch, rawgSeries } from "./rawg-fixtures";
-import { transactionHistoryResponse } from "./transaction-fixtures";
 
 export const PSN_AUTH_URL = "https://ca.account.sony.com/api/authz/v3/oauth";
 export const PSN_PROFILE_URL =
@@ -30,5 +30,5 @@ export const handlers = [
   http.get(PSN_TROPHY_TITLES_URL, () => HttpResponse.json(Psn.trophyPage())),
   http.get(RAWG_GAMES_URL, () => HttpResponse.json(rawgSearch())),
   http.get(RAWG_SERIES_URL, () => HttpResponse.json(rawgSeries())),
-  http.get(TRANSACTION_HISTORY_ENDPOINT, () => HttpResponse.json(transactionHistoryResponse([]))),
+  http.get(TRANSACTION_HISTORY_ENDPOINT, () => HttpResponse.json(Transactions.historyResponse([]))),
 ];
