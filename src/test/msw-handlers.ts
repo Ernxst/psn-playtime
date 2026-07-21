@@ -1,6 +1,6 @@
 import { HttpResponse, http } from "msw";
 import { TRANSACTION_HISTORY_ENDPOINT } from "@/domain/transaction-bookmarklet";
-import { psnPlayedPage, psnProfile, psnTokenResponse, psnTrophyPage } from "./psn-fixtures";
+import { createPsnTokenResponse, psnPlayedPage, psnProfile, psnTrophyPage } from "./psn-fixtures";
 import { rawgSearch, rawgSeries } from "./rawg-fixtures";
 import { transactionHistoryResponse } from "./transaction-fixtures";
 
@@ -24,7 +24,7 @@ export const handlers = [
         },
       })
   ),
-  http.post(`${PSN_AUTH_URL}/token`, () => HttpResponse.json(psnTokenResponse)),
+  http.post(`${PSN_AUTH_URL}/token`, () => HttpResponse.json(createPsnTokenResponse())),
   http.get(PSN_PROFILE_URL, () => HttpResponse.json(psnProfile())),
   http.get(PSN_PLAYED_GAMES_URL, () => HttpResponse.json(psnPlayedPage())),
   http.get(PSN_TROPHY_TITLES_URL, () => HttpResponse.json(psnTrophyPage())),
