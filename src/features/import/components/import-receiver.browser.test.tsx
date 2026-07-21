@@ -10,7 +10,6 @@ import { toast } from "sonner";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
-import { demoDashboard } from "@/domain/mock";
 import {
   encodeHandoff,
   flattenApiTransactions,
@@ -22,12 +21,14 @@ import { loadHandoff } from "@/routes/import";
 import type { DashboardStore } from "@/stores/dashboard-store";
 import type { TransactionStore } from "@/stores/transactions-store";
 import { testDashboardStore, testTransactionStore } from "@/test/atom-registry";
-import { multiProductPurchase } from "@/test/transaction-fixtures";
+import * as Dashboard from "@/test/factories/dashboard";
+import * as Transactions from "@/test/factories/transactions";
 import { ImportPending, ImportReceiver, receiveHandoff } from "./import-receiver";
 
 /** Two compact rows (base game + add-on) the bookmarklet would hand off. */
-const rows = flattenApiTransactions([multiProductPurchase]);
-const accountId = demoDashboard.profile.accountId;
+const account = Dashboard.data();
+const rows = flattenApiTransactions([Transactions.multiProductPurchase()]);
+const accountId = account.profile.accountId;
 
 function payloadOf(transactions: TransactionRow[]): HandoffPayload {
   return {
@@ -54,7 +55,7 @@ function cleanUp() {
 }
 
 function seedAccount() {
-  testDashboardStore.save(demoDashboard);
+  testDashboardStore.save(account);
 }
 
 /** Render the real `/import` route (client loader + components) at `/import`. */

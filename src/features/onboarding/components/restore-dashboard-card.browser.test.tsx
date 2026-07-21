@@ -3,46 +3,26 @@ import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
 import { Toaster } from "@/components/ui/sonner";
 import { buildAccountCsv, buildGamesCsv } from "@/features/dashboard/export/csv";
-import type { GamePlay, ProfileSummary } from "@/server/providers/account/snapshot";
 import { testDashboardStore, testTransactionStore } from "@/test/atom-registry";
+import * as Dashboard from "@/test/factories/dashboard";
 import { createHarness } from "@/test/harness";
 import { RestoreDashboardCard } from "./restore-dashboard-card";
 
-const profile: ProfileSummary = {
-  onlineId: "Ernxst_",
-  accountId: "acc-42",
-  isPlus: true,
-  trophyLevel: 120,
-  levelProgress: 12,
-  earned: { platinum: 1, gold: 2, silver: 3, bronze: 4 },
-  totalTrophies: 10,
-};
-
-const games: GamePlay[] = [
-  {
-    titleId: "PPSA01234",
-    name: "Hades",
-    platform: "PS5",
-    hours: 42.5,
-    playCount: 30,
-    genre: "Action-Adventure",
-    isApp: false,
-    trophy: {
-      progress: 100,
-      earned: { platinum: 1, gold: 2, silver: 3, bronze: 4 },
-      total: 10,
-      hasPlatinum: true,
-    },
-  },
-];
+function dashboard() {
+  const game = Dashboard.data().games[0]!;
+  return Dashboard.data({
+    profile: { accountId: "acc-42", onlineId: "Ernxst_" },
+    games: [{ ...game, name: "Hades", hours: 42.5 }],
+  });
+}
 
 function csvFile(name: string, content: string): File {
   return new File([content], name, { type: "text/csv" });
 }
 
 const gamesFile = () =>
-  csvFile("psn-games.csv", buildGamesCsv(games, [{ name: "Netflix", hours: 5 }]));
-const accountFile = () => csvFile("psn-account.csv", buildAccountCsv(profile));
+  csvFile("psn-games.csv", buildGamesCsv(dashboard().games, [{ name: "Netflix", hours: 5 }]));
+const accountFile = () => csvFile("psn-account.csv", buildAccountCsv(dashboard().profile));
 const transactionsKey = "psn-playtime:transactions";
 const legacyRaw = JSON.stringify({
   transactions: [],
@@ -92,7 +72,8 @@ describe("RestoreDashboardCard", () => {
 
   it("does not assign ownerless legacy transactions to the restored dashboard", async () => {
     onTestFinished(() => localStorage.clear());
-    testTransactionStore.clear(profile.accountId);
+    const accountId = dashboard().profile.accountId;
+    testTransactionStore.clear(accountId);
     await render(createHarness(<RestoreDashboardCard />).element);
     localStorage.setItem(transactionsKey, legacyRaw);
 
@@ -100,8 +81,8 @@ describe("RestoreDashboardCard", () => {
     await page.getByLabelText("Account CSV").upload(accountFile());
     await page.getByRole("button", { name: /restore dashboard/i }).click();
 
-    await expect.poll(() => testDashboardStore.load(profile.accountId)).not.toBeNull();
-    expect(testTransactionStore.load(profile.accountId)).toBeNull();
+    await expect.poll(() => testDashboardStore.load(accountId)).not.toBeNull();
+    expect(testTransactionStore.load(accountId)).toBeNull();
     expect(localStorage.getItem(transactionsKey)).toBe(legacyRaw);
   });
 

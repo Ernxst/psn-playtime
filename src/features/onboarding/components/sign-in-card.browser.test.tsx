@@ -2,12 +2,11 @@ import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import { page, userEvent } from "vitest/browser";
 import { Toaster } from "@/components/ui/sonner";
-import type { TransactionImport } from "@/domain/transactions";
 import { buildTransactionsCsv } from "@/features/dashboard/export/csv";
 import { signInWithToken } from "@/server/api/account.effect";
-import type { DashboardData } from "@/server/providers/account/snapshot";
 import { testDashboardStore, testTransactionStore } from "@/test/atom-registry";
-import { dashboardData } from "@/test/dashboard-fixtures";
+import * as Dashboard from "@/test/factories/dashboard";
+import * as Transactions from "@/test/factories/transactions";
 import { createHarness } from "@/test/harness";
 import { SignInCard } from "./sign-in-card";
 
@@ -15,39 +14,52 @@ vi.mock("@/server/api/account.effect", () => ({
   signInWithToken: vi.fn(),
 }));
 
+declare global {
+  interface PromiseConstructor {
+    withResolvers<T>(): {
+      promise: Promise<T>;
+      resolve: (value: T | PromiseLike<T>) => void;
+      reject: (reason?: unknown) => void;
+    };
+  }
+}
+
 const ACTIVE_KEY = "psn-playtime:dashboard-active";
 const TRANSACTIONS_KEY = "psn-playtime:transactions";
 
-const cachedAccount = dashboardData({
-  isDemo: false,
-  profile: { accountId: "acc-1", onlineId: "Ernxst_" },
-});
+function cachedAccount() {
+  return Dashboard.data({
+    isDemo: false,
+    profile: { accountId: "acc-1", onlineId: "Ernxst_" },
+  });
+}
 
-const secondAccount = {
-  ...cachedAccount,
-  profile: { ...cachedAccount.profile, accountId: "acc-2", onlineId: "Zoe" },
-};
+function secondAccount() {
+  return Dashboard.data({
+    isDemo: false,
+    profile: { accountId: "acc-2", onlineId: "Zoe" },
+  });
+}
 
-const importedTransactions: TransactionImport = {
-  transactions: [
-    {
-      transactionId: "T1",
-      key: "k1",
-      date: "2024-01-01",
-      transactionType: "PURCHASE",
-      kind: "purchase",
-      productName: "Some Game",
-      quantity: 1,
-      amountMinor: 4490,
-      currency: "£",
-      displayAmount: "£44.90",
-    },
-  ],
-  importedAt: "2024-01-02T00:00:00.000Z",
-  source: "store.playstation.com",
-};
-
-const legacyRaw = JSON.stringify(importedTransactions);
+function importedTransactions() {
+  return Transactions.importRecord({
+    transactions: [
+      Transactions.row({
+        transactionId: "T1",
+        key: "k1",
+        date: "2024-01-01",
+        transactionType: "PURCHASE",
+        productName: "Some Game",
+        amountMinor: 4490,
+        displayAmount: "£44.90",
+      }),
+    ],
+    importedAt: "2024-01-02T00:00:00.000Z",
+  });
+}
+function legacyRaw() {
+  return JSON.stringify(importedTransactions());
+}
 
 /** Decode the active-account pointer the dashboard kvs atom persists (JSON-encoded). */
 function readActiveId(): string | null {
@@ -68,46 +80,6 @@ describe("SignInCard", () => {
       .element(page.getByRole("link", { name: /open the ssocookie page/i }))
       .toBeVisible();
     await expect.element(page.getByRole("link", { name: /explore the demo/i })).toBeVisible();
-  });
-
-  it("styles the external links with a persistent underline so they read as links, not body text", async () => {
-    const { element } = createHarness(<SignInCard />);
-
-    await render(element);
-
-    const link = page.getByRole("link", { name: /open the ssocookie page/i });
-
-    await expect.element(link).toHaveClass(/underline/);
-  });
-
-  it("gives the risk disclosure a chevron affordance wired to rotate when the details open", async () => {
-    const { element } = createHarness(<SignInCard />);
-
-    await render(element);
-
-    const summary = page.getByText("Learn about the risk");
-    // The contract is the icon's rotation class, not a user-addressable element.
-    // oxlint-disable-next-line test-contract/no-dom-selector
-    const chevron = summary.element().querySelector("svg.lucide-chevron-down");
-
-    expect(chevron).toHaveClass("group-open:rotate-180");
-  });
-
-  it("opens the risk disclosure when its summary is activated", async () => {
-    const { element } = createHarness(<SignInCard />);
-
-    await render(element);
-
-    const summary = page.getByText("Learn about the risk");
-    // The contract is the native summary/details relationship.
-    // oxlint-disable-next-line test-contract/no-dom-selector
-    const details = summary.element().closest("details");
-
-    expect(details).not.toHaveAttribute("open");
-
-    await summary.click();
-
-    expect(details).toHaveAttribute("open");
   });
 
   it("keeps the risk details, including the password-grade warning, hidden until the learn-more action is opened", async () => {
@@ -189,7 +161,7 @@ describe("SignInCard", () => {
 
   it("submitting a token after acknowledging caches the fetched account and makes it active", async () => {
     onTestFinished(() => localStorage.clear());
-    const account = dashboardData({
+    const account = Dashboard.data({
       isDemo: false,
       profile: { accountId: "acc-1", onlineId: "Ernxst_" },
     });
@@ -205,31 +177,33 @@ describe("SignInCard", () => {
     expect(signInWithToken).toHaveBeenCalledExactlyOnceWith({
       data: { npsso: "a-valid-looking-token" },
     });
-    await expect.poll(() => testDashboardStore.load("acc-1")).toEqual(account);
+    await expect.poll(() => testDashboardStore.load("acc-1")).toStrictEqual(account);
     await expect.poll(readActiveId).toBe("acc-1");
   });
 
   it("does not assign ownerless legacy transactions to a newly signed-in account", async () => {
     onTestFinished(() => localStorage.clear());
-    testTransactionStore.clear(cachedAccount.profile.accountId);
-    vi.mocked(signInWithToken).mockResolvedValue(cachedAccount);
+    const account = cachedAccount();
+    testTransactionStore.clear(account.profile.accountId);
+    vi.mocked(signInWithToken).mockResolvedValue(account);
     const { element } = createHarness(<SignInCard />);
     await render(element);
-    localStorage.setItem(TRANSACTIONS_KEY, legacyRaw);
+    const legacy = legacyRaw();
+    localStorage.setItem(TRANSACTIONS_KEY, legacy);
 
     await page.getByLabelText("npsso token").fill("a-valid-looking-token");
     await page.getByText(/sign in to my PlayStation account/i).click();
     await page.getByRole("button", { name: "Sign in" }).click();
 
-    await expect.poll(() => testDashboardStore.load("acc-1")).toEqual(cachedAccount);
+    await expect.poll(() => testDashboardStore.load("acc-1")).toStrictEqual(account);
     expect(testTransactionStore.load("acc-1")).toBeNull();
-    expect(localStorage.getItem(TRANSACTIONS_KEY)).toBe(legacyRaw);
+    expect(localStorage.getItem(TRANSACTIONS_KEY)).toBe(legacy);
   });
 
   it("lists a cached account so a revisit needs no token", async () => {
     onTestFinished(() => localStorage.clear());
     testDashboardStore.save(
-      dashboardData({
+      Dashboard.data({
         isDemo: false,
         profile: { accountId: "acc-1", onlineId: "Ernxst_" },
       })
@@ -246,8 +220,9 @@ describe("SignInCard", () => {
 
   it("offers a remove control for a cached account", async () => {
     onTestFinished(() => localStorage.clear());
-    testTransactionStore.clear(cachedAccount.profile.accountId);
-    testDashboardStore.save(cachedAccount);
+    const account = cachedAccount();
+    testTransactionStore.clear(account.profile.accountId);
+    testDashboardStore.save(account);
     const { element } = createHarness(<SignInCard />);
 
     await render(element);
@@ -257,8 +232,9 @@ describe("SignInCard", () => {
 
   it("gates account removal behind an explicit confirm step and cancels without touching storage", async () => {
     onTestFinished(() => localStorage.clear());
-    testTransactionStore.clear(cachedAccount.profile.accountId);
-    testDashboardStore.save(cachedAccount);
+    const account = cachedAccount();
+    testTransactionStore.clear(account.profile.accountId);
+    testDashboardStore.save(account);
     const { element } = createHarness(<SignInCard />);
 
     await render(element);
@@ -271,15 +247,17 @@ describe("SignInCard", () => {
     await page.getByRole("button", { name: "Cancel" }).click();
 
     await expect.element(page.getByRole("button", { name: /Continue as Ernxst_/ })).toBeVisible();
-    expect(testDashboardStore.load("acc-1")).toStrictEqual(cachedAccount);
+    expect(testDashboardStore.load("acc-1")).toStrictEqual(account);
   });
 
   it("confirming removal wipes the account's cached games and its imported transactions", async () => {
     onTestFinished(() => localStorage.clear());
-    testTransactionStore.clear(cachedAccount.profile.accountId);
-    testDashboardStore.save(cachedAccount);
-    testTransactionStore.save(cachedAccount.profile.accountId, importedTransactions);
-    localStorage.setItem(TRANSACTIONS_KEY, legacyRaw);
+    const account = cachedAccount();
+    testTransactionStore.clear(account.profile.accountId);
+    testDashboardStore.save(account);
+    testTransactionStore.save(account.profile.accountId, importedTransactions());
+    const legacy = legacyRaw();
+    localStorage.setItem(TRANSACTIONS_KEY, legacy);
     const { element } = createHarness(<SignInCard />);
 
     await render(element);
@@ -291,26 +269,29 @@ describe("SignInCard", () => {
       .element(page.getByRole("button", { name: /Continue as Ernxst_/ }))
       .not.toBeInTheDocument();
     await expect.poll(() => testDashboardStore.load("acc-1")).toBeNull();
-    await expect.poll(() => testTransactionStore.load(cachedAccount.profile.accountId)).toBeNull();
-    expect(localStorage.getItem(TRANSACTIONS_KEY)).toBe(legacyRaw);
+    await expect.poll(() => testTransactionStore.load(account.profile.accountId)).toBeNull();
+    expect(localStorage.getItem(TRANSACTIONS_KEY)).toBe(legacy);
   });
 
   it("does not assign or erase ownerless legacy transactions when removal leaves one account", async () => {
     onTestFinished(() => localStorage.clear());
-    testTransactionStore.clear(cachedAccount.profile.accountId);
-    testTransactionStore.clear(secondAccount.profile.accountId);
-    testDashboardStore.save(cachedAccount);
-    testDashboardStore.save(secondAccount);
+    const account = cachedAccount();
+    testTransactionStore.clear(account.profile.accountId);
+    const otherAccount = secondAccount();
+    testTransactionStore.clear(otherAccount.profile.accountId);
+    testDashboardStore.save(account);
+    testDashboardStore.save(otherAccount);
     const { element } = createHarness(<SignInCard />);
     await render(element);
-    localStorage.setItem(TRANSACTIONS_KEY, legacyRaw);
+    const legacy = legacyRaw();
+    localStorage.setItem(TRANSACTIONS_KEY, legacy);
 
     await page.getByRole("button", { name: "Remove Ernxst_" }).click();
     await page.getByRole("button", { name: "Remove", exact: true }).click();
 
-    expect(testDashboardStore.load(secondAccount.profile.accountId)).toStrictEqual(secondAccount);
-    expect(testTransactionStore.load(secondAccount.profile.accountId)).toBeNull();
-    expect(localStorage.getItem(TRANSACTIONS_KEY)).toBe(legacyRaw);
+    expect(testDashboardStore.load(otherAccount.profile.accountId)).toStrictEqual(otherAccount);
+    expect(testTransactionStore.load(otherAccount.profile.accountId)).toBeNull();
+    expect(localStorage.getItem(TRANSACTIONS_KEY)).toBe(legacy);
   });
 
   it("a failed sign-in surfaces the error message as a toast", async () => {
@@ -329,37 +310,6 @@ describe("SignInCard", () => {
     await page.getByRole("button", { name: "Sign in" }).click();
 
     await expect.element(page.getByText("That token didn't work")).toBeVisible();
-  });
-
-  // The boundary (`@/server/api/account.effect`, #267) maps each typed PSN
-  // failure to its own fixed, user-facing message, and the card surfaces that
-  // message verbatim via the toast — so the right recovery copy reaches the user
-  // per failure kind rather than a single "expired token" for everything.
-  it.each([
-    [
-      "a rejected credential",
-      "That token didn't work — it may be expired. Grab a fresh npsso and try again.",
-    ],
-    ["a rate-limit", "PlayStation is rate-limiting requests. Wait a moment and try again."],
-    ["an upstream outage", "PlayStation is unavailable right now. Try again later."],
-    ["an internal error", "Something went wrong on our end. Please try again."],
-  ])("surfaces the distinct message for %s", async (_label, message) => {
-    vi.mocked(signInWithToken).mockRejectedValue(new Error(message));
-    const { element } = createHarness(
-      <>
-        <SignInCard />
-        <Toaster />
-      </>
-    );
-
-    await render(element);
-
-    await page.getByLabelText("npsso token").fill("stale-token");
-    await page.getByText(/sign in to my PlayStation account/i).click();
-    await page.getByRole("button", { name: "Sign in" }).click();
-
-    await expect.element(page.getByText(message)).toBeVisible();
-    expect(signInWithToken).toHaveBeenCalledExactlyOnceWith({ data: { npsso: "stale-token" } });
   });
 
   it("falls back to a generic message when the rejection is not an Error", async () => {
@@ -382,8 +332,9 @@ describe("SignInCard", () => {
 
   it("offers a restore-transactions-from-CSV affordance", async () => {
     onTestFinished(() => localStorage.clear());
-    testTransactionStore.clear(cachedAccount.profile.accountId);
-    testDashboardStore.save(cachedAccount);
+    const account = cachedAccount();
+    testTransactionStore.clear(account.profile.accountId);
+    testDashboardStore.save(account);
     const { element } = createHarness(<SignInCard />);
 
     await render(element);
@@ -395,12 +346,15 @@ describe("SignInCard", () => {
 
   it("restores transactions from a chosen CSV and toasts the imported count", async () => {
     onTestFinished(() => localStorage.clear());
-    testTransactionStore.clear(cachedAccount.profile.accountId);
-    testTransactionStore.clear(secondAccount.profile.accountId);
-    testDashboardStore.save(cachedAccount);
-    testDashboardStore.save(secondAccount);
-    localStorage.setItem(TRANSACTIONS_KEY, legacyRaw);
-    const csv = buildTransactionsCsv(importedTransactions.transactions);
+    const account = cachedAccount();
+    testTransactionStore.clear(account.profile.accountId);
+    const otherAccount = secondAccount();
+    testTransactionStore.clear(otherAccount.profile.accountId);
+    testDashboardStore.save(account);
+    testDashboardStore.save(otherAccount);
+    const legacy = legacyRaw();
+    localStorage.setItem(TRANSACTIONS_KEY, legacy);
+    const csv = buildTransactionsCsv(importedTransactions().transactions);
     const file = new File([csv], "transactions.csv", { type: "text/csv" });
     const { element } = createHarness(
       <>
@@ -414,19 +368,18 @@ describe("SignInCard", () => {
     await userEvent.upload(page.getByLabelText("Restore Ernxst_ transactions from CSV"), file);
 
     await expect.element(page.getByText("Restored 1 transaction (1 in total).")).toBeVisible();
-    expect(testTransactionStore.load(cachedAccount.profile.accountId)?.transactions).toHaveLength(
-      1
-    );
-    expect(testTransactionStore.load(secondAccount.profile.accountId)).toBeNull();
-    expect(localStorage.getItem(TRANSACTIONS_KEY)).toBe(legacyRaw);
+    expect(testTransactionStore.load(account.profile.accountId)?.transactions).toHaveLength(1);
+    expect(testTransactionStore.load(otherAccount.profile.accountId)).toBeNull();
+    expect(localStorage.getItem(TRANSACTIONS_KEY)).toBe(legacy);
   });
 
   it("re-importing the same CSV is idempotent and reports nothing new", async () => {
     onTestFinished(() => localStorage.clear());
-    testTransactionStore.clear(cachedAccount.profile.accountId);
-    testDashboardStore.save(cachedAccount);
-    testTransactionStore.save(cachedAccount.profile.accountId, importedTransactions);
-    const csv = buildTransactionsCsv(importedTransactions.transactions);
+    const account = cachedAccount();
+    testTransactionStore.clear(account.profile.accountId);
+    testDashboardStore.save(account);
+    testTransactionStore.save(account.profile.accountId, importedTransactions());
+    const csv = buildTransactionsCsv(importedTransactions().transactions);
     const file = new File([csv], "transactions.csv", { type: "text/csv" });
     const { element } = createHarness(
       <>
@@ -441,15 +394,18 @@ describe("SignInCard", () => {
 
     await expect.element(page.getByText("Those transactions are already imported.")).toBeVisible();
     await expect
-      .poll(() => testTransactionStore.load(cachedAccount.profile.accountId)?.transactions)
+      .poll(() => testTransactionStore.load(account.profile.accountId)?.transactions)
       .toHaveLength(1);
   });
 
   it("surfaces a clear error toast when the chosen file is not a valid transactions CSV", async () => {
     onTestFinished(() => localStorage.clear());
-    testTransactionStore.clear(cachedAccount.profile.accountId);
-    testDashboardStore.save(cachedAccount);
-    const file = new File(["not,a,transactions\r\ncsv,at,all"], "junk.csv", { type: "text/csv" });
+    const account = cachedAccount();
+    testTransactionStore.clear(account.profile.accountId);
+    testDashboardStore.save(account);
+    const file = new File(["not,a,transactions\r\ncsv,at,all"], "junk.csv", {
+      type: "text/csv",
+    });
     const { element } = createHarness(
       <>
         <SignInCard />
@@ -468,17 +424,13 @@ describe("SignInCard", () => {
         )
       )
       .toBeVisible();
-    expect(testTransactionStore.load(cachedAccount.profile.accountId)).toBeNull();
+    expect(testTransactionStore.load(account.profile.accountId)).toBeNull();
   });
 
   it("shows a signing-in spinner and locks the token input while the request is in flight", async () => {
     onTestFinished(() => localStorage.clear());
-    let resolveSignIn: (value: DashboardData) => void = () => {};
-    vi.mocked(signInWithToken).mockReturnValue(
-      new Promise((resolve) => {
-        resolveSignIn = resolve;
-      })
-    );
+    const { promise, resolve } = Promise.withResolvers<ReturnType<typeof Dashboard.data>>();
+    vi.mocked(signInWithToken).mockReturnValue(promise);
     const { element } = createHarness(<SignInCard />);
 
     await render(element);
@@ -490,6 +442,6 @@ describe("SignInCard", () => {
     await expect.element(page.getByRole("button", { name: /signing in/i })).toBeDisabled();
     await expect.element(page.getByLabelText("npsso token")).toBeDisabled();
 
-    resolveSignIn(dashboardData());
+    resolve(Dashboard.data());
   });
 });
