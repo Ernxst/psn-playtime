@@ -5,6 +5,7 @@
   "jsPlugins": [
     "oxlint-plugin-complexity",
     "./tools/oxlint/test-contract.mjs",
+    "./tools/oxlint/style.mjs",
     {
       "name": "vitest-format",
       "specifier": "@vitest/eslint-plugin"
@@ -38,6 +39,7 @@
     "import/no-self-import": "error",
     "oxc/no-accumulating-spread": "error",
     "react/react-compiler": "error",
+    "style/prefer-concise-arrow": "error",
     "no-extra-boolean-cast": "error",
     "max-depth": ["error", 3],
     "max-nested-callbacks": ["error", 3],

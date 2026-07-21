@@ -285,9 +285,7 @@ async function runNetworkBookmarklet(): Promise<{
     http.get(AUTHENTICATED_ACCOUNT_ENDPOINT, () => HttpResponse.json({ handle: "Ernxst_" }))
   );
   vi.useFakeTimers({ toFake: ["setTimeout"] });
-  onTestFinished(() => {
-    vi.useRealTimers();
-  });
+  onTestFinished(() => void vi.useRealTimers());
   const body = bookmarkletBody("https://psn.example.dev");
   const dom = directDocument();
   const location = { host: "store.playstation.com", href: "https://store.playstation.com/" };

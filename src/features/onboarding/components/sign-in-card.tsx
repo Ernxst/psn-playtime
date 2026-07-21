@@ -184,9 +184,8 @@ function useSignIn() {
       dashboardStore.setActive(data.profile.accountId);
       void navigate({ to: "/dashboard" });
     },
-    onError: (err) => {
-      toast.error(err instanceof Error ? err.message : "Sign in failed. Check your token.");
-    },
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : "Sign in failed. Check your token."),
   });
 }
 

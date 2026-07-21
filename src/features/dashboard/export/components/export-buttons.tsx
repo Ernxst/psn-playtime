@@ -76,17 +76,13 @@ export function ExportButtons({
   const onlineId = data.profile.onlineId;
   const hasLibrary = data.games.length > 0 || data.meta.appsExcluded.length > 0;
 
-  const exportTransactions = () => {
+  const exportTransactions = () =>
     downloadCsv(buildTransactionsCsv(transactions), transactionsFileName(onlineId));
-  };
 
-  const exportGames = () => {
+  const exportGames = () =>
     downloadCsv(buildGamesCsv(data.games, data.meta.appsExcluded), gamesFileName(onlineId));
-  };
 
-  const exportAccount = () => {
-    downloadCsv(buildAccountCsv(data.profile), accountFileName(onlineId));
-  };
+  const exportAccount = () => downloadCsv(buildAccountCsv(data.profile), accountFileName(onlineId));
 
   return (
     <Card className="lg:col-span-3">

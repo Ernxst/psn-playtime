@@ -32,9 +32,8 @@ function useRefresh(onRefresh: Props["onRefresh"]) {
       setOpen(false);
       toast.success("PlayStation data refreshed.");
     },
-    onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "Refresh failed. Try again.");
-    },
+    onError: (error) =>
+      toast.error(error instanceof Error ? error.message : "Refresh failed. Try again."),
   });
 
   function submit(event: React.FormEvent) {

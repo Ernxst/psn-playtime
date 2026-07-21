@@ -219,9 +219,7 @@ function liveBuild(profileResult: ProfileFromUserNameResponse = Psn.profile()) {
   });
 }
 
-beforeEach(() => {
-  delete process.env.RAWG_API_KEY;
-});
+beforeEach(() => delete process.env.RAWG_API_KEY);
 
 describe(".signInEffect", () => {
   it("normalizes a live PSN account for a valid token", async () => {

@@ -317,9 +317,7 @@ describe(".filterByTimeframe", () => {
   it("scopes the this-year window to the actual current calendar year by last-played date", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2022-06-01T00:00:00.000Z"));
-    onTestFinished(() => {
-      vi.useRealTimers();
-    });
+    onTestFinished(() => void vi.useRealTimers());
 
     expect(filterByTimeframe(sample(), "this-year").games.map((g) => g.titleId)).toStrictEqual([
       "C",
@@ -329,9 +327,7 @@ describe(".filterByTimeframe", () => {
   it("anchors the this-year window to real now, not data.fetchedAt", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2021-12-31T00:00:00.000Z"));
-    onTestFinished(() => {
-      vi.useRealTimers();
-    });
+    onTestFinished(() => void vi.useRealTimers());
 
     // fetchedAt's year (2022) would start the window at 2022-01-01 and keep only C.
     // Anchoring to "now" (2021) starts it at 2021-01-01, so A is kept too.
@@ -344,9 +340,7 @@ describe(".filterByTimeframe", () => {
   it("includes a game last played exactly on the current year's 1 January lower bound", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2022-06-01T00:00:00.000Z"));
-    onTestFinished(() => {
-      vi.useRealTimers();
-    });
+    onTestFinished(() => void vi.useRealTimers());
 
     const onBoundary: DashboardData = {
       ...sample(),
@@ -372,9 +366,7 @@ describe(".filterByTimeframe", () => {
   it("keeps the this-year calendar window tighter than the rolling last-12-months window", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2022-06-01T00:00:00.000Z"));
-    onTestFinished(() => {
-      vi.useRealTimers();
-    });
+    onTestFinished(() => void vi.useRealTimers());
 
     const lib: DashboardData = {
       ...sample(),
@@ -416,9 +408,7 @@ describe(".filterByTimeframe", () => {
   it("yields an empty library with zeroed totals when no game falls in the current year", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2030-06-01T00:00:00.000Z"));
-    onTestFinished(() => {
-      vi.useRealTimers();
-    });
+    onTestFinished(() => void vi.useRealTimers());
 
     const scoped = filterByTimeframe(sample(), "this-year");
 

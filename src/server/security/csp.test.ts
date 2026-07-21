@@ -5,9 +5,7 @@ const scriptSrcOf = (csp: string): string =>
   csp.split("; ").find((directive) => directive.startsWith("script-src")) ?? "";
 
 describe(".buildCsp", () => {
-  afterEach(() => {
-    vi.unstubAllEnvs();
-  });
+  afterEach(() => vi.unstubAllEnvs());
 
   it("emits a nonce-based script-src without unsafe-inline in production", () => {
     vi.stubEnv("PROD", true);
