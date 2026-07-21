@@ -54,7 +54,7 @@ describe("LifespansCard", () => {
   it("lifespans card renders nothing when there are no games", async () => {
     await render(<LifespansCard data={withGames([])} />);
 
-    expect(page.getByText("Longest in rotation").query()).toBeNull();
+    await expect.element(page.getByText("Longest in rotation")).not.toBeInTheDocument();
   });
 });
 
@@ -70,7 +70,7 @@ describe("ComebacksCard", () => {
   it("comebacks card renders nothing when no game qualifies", async () => {
     await render(<ComebacksCard data={withGames([])} />);
 
-    expect(page.getByText("Kept coming back to").query()).toBeNull();
+    await expect.element(page.getByText("Kept coming back to")).not.toBeInTheDocument();
   });
 });
 
@@ -87,6 +87,6 @@ describe("AppsExcludedNote", () => {
     const data = { ...demoDashboard, meta: { ...demoDashboard.meta, appsExcluded: [] } };
     await render(<AppsExcludedNote data={data} />);
 
-    expect(page.getByText("Not counted: streaming & apps").query()).toBeNull();
+    await expect.element(page.getByText("Not counted: streaming & apps")).not.toBeInTheDocument();
   });
 });

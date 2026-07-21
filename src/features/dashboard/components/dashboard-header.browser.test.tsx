@@ -20,8 +20,8 @@ describe("DashboardHeader", () => {
     await expect.element(page.getByRole("heading", { name: "Ernxst_" })).toBeVisible();
     await expect.element(page.getByText("Demo", { exact: true })).toBeVisible();
     await expect.element(page.getByText("PS Plus")).toBeVisible();
-    expect(page.getByRole("button", { name: "Refresh" }).query()).toBeNull();
-    expect(page.getByRole("button", { name: /sign out/i }).query()).toBeNull();
+    await expect.element(page.getByRole("button", { name: "Refresh" })).not.toBeInTheDocument();
+    await expect.element(page.getByRole("button", { name: /sign out/i })).not.toBeInTheDocument();
   });
 
   it("signed-in header exposes a sign-out button that fires the callback", async () => {
@@ -33,7 +33,7 @@ describe("DashboardHeader", () => {
     );
     await render(element);
 
-    expect(page.getByText("Demo").query()).toBeNull();
+    await expect.element(page.getByText("Demo")).not.toBeInTheDocument();
     await expect.element(page.getByRole("button", { name: "Refresh" })).toBeVisible();
 
     await page.getByRole("button", { name: "Sign out" }).click();

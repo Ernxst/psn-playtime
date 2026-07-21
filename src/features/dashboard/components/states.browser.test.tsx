@@ -31,7 +31,7 @@ describe("DashboardError", () => {
     await render(<DashboardError message="No retry here" />);
 
     await expect.element(page.getByText("No retry here")).toBeVisible();
-    expect(page.getByRole("button", { name: "Try again" }).query()).toBeNull();
+    await expect.element(page.getByRole("button", { name: "Try again" })).not.toBeInTheDocument();
   });
 });
 

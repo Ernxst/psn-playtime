@@ -44,6 +44,6 @@ describe("CachedDataIndicator", () => {
     await render(<CachedDataIndicator data={demoDashboard} />);
 
     await expect.element(page.getByText("Demo data, not a live PSN pull")).toBeVisible();
-    expect(page.getByText(/Updated/).query()).toBeNull();
+    await expect.element(page.getByText(/Updated/)).not.toBeInTheDocument();
   });
 });

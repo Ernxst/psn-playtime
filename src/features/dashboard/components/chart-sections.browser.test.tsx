@@ -27,7 +27,7 @@ describe("TopGamesSection", () => {
 
     await render(<TopGamesSection data={empty} />);
 
-    expect(page.getByRole("img", { name: /Call of Duty/ }).query()).toBeNull();
+    await expect.element(page.getByRole("img", { name: /Call of Duty/ })).not.toBeInTheDocument();
     await expect
       .element(page.getByRole("img", { name: /Top games by lifetime hours/ }))
       .toBeInTheDocument();

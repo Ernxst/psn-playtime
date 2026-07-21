@@ -99,6 +99,8 @@ describe("SignInCard", () => {
     await render(element);
 
     const summary = page.getByText("Learn about the risk");
+    // The contract is the native summary/details relationship.
+    // oxlint-disable-next-line test-contract/no-dom-selector
     const details = summary.element().closest("details");
 
     expect(details).not.toHaveAttribute("open");

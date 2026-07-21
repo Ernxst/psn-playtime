@@ -19,9 +19,9 @@ describe("GenreChart", () => {
 
     expect(sector).toBeInstanceOf(SVGElement);
 
-    // Recharts wires the tooltip to the sector's mouse-enter handler; dispatch it
-    // directly to avoid fighting the slice's entrance animation.
-    sector?.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    // The animated path is repeatedly replaced and its SVG parent intercepts
+    // pointer events, so userEvent.hover cannot reach it reliably.
+    sector!.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
 
     // The genre and "lifetime hours" also appear in the hidden table, so scope to the donut.
     const donut = page.getByRole("img");
@@ -46,12 +46,7 @@ describe("GenreChart", () => {
     await render(<GenreChart data={demoDashboard} />);
 
     await expect.element(page.getByRole("row").nth(slices.length)).toBeInTheDocument();
-    expect(
-      page
-        .getByRole("row")
-        .nth(slices.length + 1)
-        .query()
-    ).toBeNull();
+    await expect.element(page.getByRole("row").nth(slices.length + 1)).not.toBeInTheDocument();
 
     await expect.element(page.getByRole("rowheader", { name: "Shooter" })).toBeInTheDocument();
   });

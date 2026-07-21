@@ -76,7 +76,9 @@ describe("AccountSwitcher", () => {
     await expect
       .element(page.getByText(demoDashboard.profile.onlineId, { exact: true }))
       .toBeVisible();
-    expect(page.getByRole("button", { name: /switch account/i }).query()).toBeNull();
+    await expect
+      .element(page.getByRole("button", { name: /switch account/i }))
+      .not.toBeInTheDocument();
   });
 
   it("opens the switcher for one cached account and links to Add account", async () => {
@@ -146,13 +148,13 @@ describe("AccountSwitcher", () => {
     await render(element);
 
     await expect.element(page.getByText("Aaron purchase")).toBeVisible();
-    expect(page.getByText("Zoe purchase").query()).toBeNull();
+    await expect.element(page.getByText("Zoe purchase")).not.toBeInTheDocument();
 
     await page.getByRole("button", { name: "Switch account, current account Aaron" }).click();
     await page.getByRole("button", { name: "Switch to Zoe" }).click();
 
     await expect.element(page.getByText("Zoe purchase")).toBeVisible();
-    expect(page.getByText("Aaron purchase").query()).toBeNull();
+    await expect.element(page.getByText("Aaron purchase")).not.toBeInTheDocument();
   });
 
   it("switches from the demo dashboard to a cached account", async () => {

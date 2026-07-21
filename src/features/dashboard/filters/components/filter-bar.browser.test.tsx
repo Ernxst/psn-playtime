@@ -44,7 +44,7 @@ describe("FilterBar", () => {
   it("opens the filter popover and reveals the facet controls when the trigger is clicked", async () => {
     await render(<FilterBar data={demoDashboard} filters={defaultFilters} onChange={() => {}} />);
 
-    expect(page.getByText("Genre").query()).toBeNull();
+    await expect.element(page.getByText("Genre")).not.toBeInTheDocument();
 
     await page.getByRole("button", { name: "Filters" }).click();
 
@@ -185,7 +185,7 @@ describe("FilterBar", () => {
 
     await page.getByRole("button", { name: "Filters" }).click();
 
-    expect(page.getByRole("button", { name: "Clear all" }).query()).toBeNull();
+    await expect.element(page.getByRole("button", { name: "Clear all" })).not.toBeInTheDocument();
 
     await page.getByText("Shooter").click();
     await page.getByText("PS5").click();
@@ -195,7 +195,7 @@ describe("FilterBar", () => {
 
     await page.getByRole("button", { name: "Clear all" }).click();
 
-    expect(page.getByRole("button", { name: "Clear all" }).query()).toBeNull();
+    await expect.element(page.getByRole("button", { name: "Clear all" })).not.toBeInTheDocument();
   });
 
   it("shows the active-filter count and clears every filter on demand", async () => {

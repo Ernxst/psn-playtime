@@ -211,8 +211,61 @@ const noDomSelector = rule(
   (context) => ({
     CallExpression(node) {
       const name = propertyName(node.callee);
-      if (name === "querySelector" || name === "querySelectorAll") {
+      if (
+        name === "querySelector" ||
+        name === "querySelectorAll" ||
+        name === "closest" ||
+        name === "matches" ||
+        name === "getElementById" ||
+        name?.startsWith("getElementsBy")
+      ) {
         context.report({ node, messageId: "semantic" });
+      }
+    },
+  })
+);
+
+const noQueryNullAssertion = rule(
+  {
+    presence:
+      "Use expect.element(locator).not.toBeInTheDocument() for retryable presence assertions",
+  },
+  (context) => ({
+    CallExpression(node) {
+      const current = expectation(node);
+      if (
+        current?.matcher === "toBeNull" &&
+        current.value?.type === "CallExpression" &&
+        propertyName(current.value.callee) === "query"
+      ) {
+        context.report({ node, messageId: "presence" });
+      }
+    },
+  })
+);
+
+const optionalActions = new Set([
+  "blur",
+  "click",
+  "dispatchEvent",
+  "focus",
+  "remove",
+  "setAttribute",
+  "submit",
+]);
+
+const noOptionalTestAction = rule(
+  { action: "Do not make {{name}} optional; the test must fail if its action target is absent" },
+  (context) => ({
+    CallExpression(node) {
+      const name = propertyName(node.callee);
+      if (
+        isInsideTest(node) &&
+        name &&
+        optionalActions.has(name) &&
+        (node.optional || node.callee.optional)
+      ) {
+        context.report({ node, messageId: "action", data: { name } });
       }
     },
   })
@@ -340,6 +393,8 @@ export default {
     "no-inexact-cardinality": noInexactCardinality,
     "no-broad-dom-text": noBroadDomText,
     "no-dom-selector": noDomSelector,
+    "no-query-null-assertion": noQueryNullAssertion,
+    "no-optional-test-action": noOptionalTestAction,
     "no-internal-module-mock": noInternalModuleMock,
     "no-ambiguous-called-with": noAmbiguousCalledWith,
     "no-callback-capture": noCallbackCapture,

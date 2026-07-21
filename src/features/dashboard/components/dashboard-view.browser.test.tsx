@@ -47,6 +47,8 @@ describe("DashboardView", () => {
     await expect.element(page.getByText("Games played")).toBeVisible();
 
     // Reveal the deferred chart section so its IntersectionObserver fires and loads the chart.
+    // The section itself is deliberately not rendered through an accessible locator yet.
+    // oxlint-disable-next-line test-contract/no-dom-selector
     document.getElementById("top-games")?.scrollIntoView();
 
     await expect.element(page.getByText("Top games by hours")).toBeVisible();
@@ -66,7 +68,7 @@ describe("DashboardView", () => {
     await render(element);
 
     await expect.element(page.getByText("demo dataset")).toBeVisible();
-    expect(page.getByRole("button", { name: "Sign out" }).query()).toBeNull();
+    await expect.element(page.getByRole("button", { name: "Sign out" })).not.toBeInTheDocument();
   });
 
   it("a signed-in dataset drops the demo banner and wires the sign-out button", async () => {
@@ -82,7 +84,7 @@ describe("DashboardView", () => {
 
     await render(element);
 
-    expect(page.getByText("demo dataset").query()).toBeNull();
+    await expect.element(page.getByText("demo dataset")).not.toBeInTheDocument();
 
     await page.getByRole("button", { name: "Sign out" }).click();
 
@@ -161,6 +163,8 @@ describe("DashboardView", () => {
 
     // The "Spent the most on" section is account-wide; scope spend reads to it.
     const spentMost = () =>
+      // The section has no accessible name; the contract here is its structural scope.
+      // oxlint-disable-next-line test-contract/no-dom-selector
       page.getByText("Spent the most on").element().closest("section")?.textContent ?? "";
 
     await expect.element(page.getByText(/98 titles in total/)).toBeVisible();
