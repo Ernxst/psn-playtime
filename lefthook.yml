@@ -55,9 +55,12 @@ pre-commit:
         - "**/*.{ts,tsx}"
       run: pnpm exec vitest --run --changed
 
-pre-push:
-  skip:
-    - rebase
-  commands:
     build:
+      glob:
+        - "package.json"
+        - "pnpm-lock.yaml"
+        - "vite.config.ts"
+        - "**/tsconfig*.json"
+        - "src/**/*.{ts,tsx,css}"
+        - "public/**"
       run: pnpm run build
