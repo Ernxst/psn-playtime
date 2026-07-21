@@ -1,30 +1,11 @@
 import * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import type { TransactionImport } from "@/domain/transactions";
+import { describe, expect, it, vi } from "vitest";
+import * as Transactions from "@/test/factories/transactions";
 import { createWindowStub } from "@/test/web-storage";
 import { makeTransactionStore } from "./transactions-store";
 
 const LEGACY_STORAGE_KEY = "psn-playtime:transactions";
 const ACCOUNTS_STORAGE_KEY = "psn-playtime:transactions:accounts";
-
-const validImport: TransactionImport = {
-  transactions: [
-    {
-      transactionId: "T1",
-      key: "k1",
-      date: "2024-01-01",
-      transactionType: "PURCHASE",
-      kind: "purchase",
-      productName: "Some Game",
-      quantity: 1,
-      amountMinor: 4490,
-      currency: "£",
-      displayAmount: "£44.90",
-    },
-  ],
-  importedAt: "2024-01-02T00:00:00.000Z",
-  source: "store.playstation.com",
-};
 
 function makeStore() {
   return makeTransactionStore(AtomRegistry.make());
@@ -36,10 +17,6 @@ function stubWindow() {
   vi.stubGlobal("localStorage", win.localStorage);
   return win;
 }
-
-afterEach(() => {
-  vi.unstubAllGlobals();
-});
 
 describe(".load", () => {
   it("returns null during server render", () => {
@@ -57,7 +34,7 @@ describe(".load", () => {
 describe("ownerless legacy data", () => {
   it("is not attributed to any account on initial load", () => {
     const win = stubWindow();
-    const raw = JSON.stringify(validImport);
+    const raw = JSON.stringify(Transactions.importRecord());
     win.localStorage.setItem(LEGACY_STORAGE_KEY, raw);
 
     const store = makeStore();
@@ -69,7 +46,7 @@ describe("ownerless legacy data", () => {
 
   it("is not erased when an account with no keyed data is cleared", () => {
     const win = stubWindow();
-    const raw = JSON.stringify(validImport);
+    const raw = JSON.stringify(Transactions.importRecord());
     win.localStorage.setItem(LEGACY_STORAGE_KEY, raw);
     const store = makeStore();
 
@@ -83,20 +60,20 @@ describe("account isolation", () => {
   it("saves distinct imports for distinct accounts", () => {
     stubWindow();
     const store = makeStore();
-    const second = { ...validImport, source: "second.account" };
+    const second = Transactions.importRecord({ source: "second.account" });
 
-    store.save("acc-1", validImport);
+    store.save("acc-1", Transactions.importRecord());
     store.save("acc-2", second);
 
-    expect(store.load("acc-1")).toStrictEqual(validImport);
+    expect(store.load("acc-1")).toStrictEqual(Transactions.importRecord());
     expect(store.load("acc-2")).toStrictEqual(second);
   });
 
   it("clears one account without clearing another", () => {
     stubWindow();
     const store = makeStore();
-    const second = { ...validImport, source: "second.account" };
-    store.save("acc-1", validImport);
+    const second = Transactions.importRecord({ source: "second.account" });
+    store.save("acc-1", Transactions.importRecord());
     store.save("acc-2", second);
 
     store.clear("acc-1");
@@ -107,10 +84,10 @@ describe("account isolation", () => {
 
   it("preserves unresolved legacy bytes across keyed save and clear", () => {
     const win = stubWindow();
-    const raw = `  ${JSON.stringify(validImport)}\n`;
+    const raw = `  ${JSON.stringify(Transactions.importRecord())}\n`;
     win.localStorage.setItem(LEGACY_STORAGE_KEY, raw);
     const store = makeStore();
-    const explicit = { ...validImport, source: "explicit.account" };
+    const explicit = Transactions.importRecord({ source: "explicit.account" });
 
     store.save("acc-2", explicit);
 
@@ -129,7 +106,7 @@ describe("server writes", () => {
   it("ignore save and clear", () => {
     const store = makeStore();
 
-    expect(() => store.save("acc-1", validImport)).not.toThrow();
+    expect(() => store.save("acc-1", Transactions.importRecord())).not.toThrow();
     expect(() => store.clear("acc-1")).not.toThrow();
   });
 });
