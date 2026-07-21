@@ -1,4 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { HttpResponse, http } from "msw";
+import { describe, expect, it, vi } from "vitest";
+import { TRANSACTION_HISTORY_ENDPOINT } from "@/domain/transaction-bookmarklet";
+import { server } from "./msw";
 import {
   PSN_AUTHORIZE_URL,
   PSN_PLAYED_GAMES_URL,
@@ -9,6 +12,7 @@ import {
   RAWG_SERIES_URL,
   psnAuthUrl,
   rawgUrl,
+  withTransactionCredentials,
 } from "./msw-handlers";
 
 const psnRequests = [
@@ -20,6 +24,37 @@ const psnRequests = [
 ] as const;
 
 const rawgRequests = [RAWG_GAMES_URL, RAWG_SERIES_URL.replace(":id", "42")];
+
+const transactionHeaders = {
+  "apollographql-client-name": "@sie-ppr-web-checkout/app",
+  "x-psn-storefront-type": "checkout:pdc",
+  "x-psn-request-id": "request-id",
+};
+
+const invalidTransactionRequests = [
+  { headers: transactionHeaders },
+  {
+    credentials: "include",
+    headers: {
+      "x-psn-storefront-type": "checkout:pdc",
+      "x-psn-request-id": "request-id",
+    },
+  },
+  {
+    credentials: "include",
+    headers: {
+      "apollographql-client-name": "@sie-ppr-web-checkout/app",
+      "x-psn-request-id": "request-id",
+    },
+  },
+  {
+    credentials: "include",
+    headers: {
+      "apollographql-client-name": "@sie-ppr-web-checkout/app",
+      "x-psn-storefront-type": "checkout:pdc",
+    },
+  },
+] as const;
 
 describe(".psnAuthUrl", () => {
   it("builds PSN auth endpoints from the PSN auth base", () => {
@@ -63,4 +98,26 @@ describe("shared request policies", () => {
 
     expect(response.status).toBe(403);
   });
+
+  it("composes an authenticated transaction scenario resolver", async () => {
+    const scenario = vi.fn(() => new HttpResponse(null, { status: 204 }));
+    server.use(http.get(TRANSACTION_HISTORY_ENDPOINT, withTransactionCredentials(scenario)));
+
+    const response = await fetch(TRANSACTION_HISTORY_ENDPOINT, {
+      credentials: "include",
+      headers: transactionHeaders,
+    });
+
+    expect(response.status).toBe(204);
+    expect(scenario).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(invalidTransactionRequests)(
+    "rejects incomplete transaction request input",
+    async (init) => {
+      const response = await fetch(TRANSACTION_HISTORY_ENDPOINT, init);
+
+      expect(response.status).toBe(401);
+    }
+  );
 });

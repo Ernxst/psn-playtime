@@ -53,6 +53,15 @@ const withRawgKey = withPolicy((request) =>
   new URL(request.url).searchParams.get("key") === "test-key" ? undefined : forbidden()
 );
 
+export const withTransactionCredentials = withPolicy((request) => {
+  const valid =
+    request.credentials === "include" &&
+    request.headers.get("apollographql-client-name") === "@sie-ppr-web-checkout/app" &&
+    request.headers.get("x-psn-storefront-type") === "checkout:pdc" &&
+    request.headers.has("x-psn-request-id");
+  return valid ? undefined : unauthorized();
+});
+
 export const handlers = [
   http.get(
     PSN_AUTHORIZE_URL,
@@ -90,5 +99,8 @@ export const handlers = [
     RAWG_SERIES_URL,
     withRawgKey(() => HttpResponse.json(rawgSeries()))
   ),
-  http.get(TRANSACTION_HISTORY_ENDPOINT, () => HttpResponse.json(Transactions.historyResponse([]))),
+  http.get(
+    TRANSACTION_HISTORY_ENDPOINT,
+    withTransactionCredentials(() => HttpResponse.json(Transactions.historyResponse([])))
+  ),
 ];
