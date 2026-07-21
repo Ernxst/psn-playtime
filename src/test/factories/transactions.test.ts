@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 import * as Transactions from "./transactions";
 
 const apiFactories = [
-  ["multi-product purchase", Transactions.multiProductPurchase],
-  ["pre-order purchase", Transactions.preOrderPurchase],
-  ["subscription purchase", Transactions.subscriptionPurchase],
-  ["free claim", Transactions.freeClaim],
-  ["null-name purchase", Transactions.nullNamePurchase],
-  ["wallet funding", Transactions.walletFunding],
+  ["multiProductPurchase", Transactions.multiProductPurchase],
+  ["preOrderPurchase", Transactions.preOrderPurchase],
+  ["subscriptionPurchase", Transactions.subscriptionPurchase],
+  ["freeClaim", Transactions.freeClaim],
+  ["nullNamePurchase", Transactions.nullNamePurchase],
+  ["walletFunding", Transactions.walletFunding],
 ] as const;
 
 describe.each(apiFactories)(".%s", (_name, factory) => {
@@ -44,14 +44,26 @@ describe(".row", () => {
 });
 
 describe(".importRecord", () => {
-  it("clones caller-owned rows", () => {
-    const row = Transactions.row();
+  it("returns independent imports without modifying caller-owned rows", () => {
+    const row = Transactions.row({ productName: "Caller-owned row" });
     const rows = [row];
-    const result = Transactions.importRecord({ transactions: rows });
+    const input = { transactions: rows };
+    const expected = structuredClone(input);
+    const first = Transactions.importRecord(input);
+    const second = Transactions.importRecord(input);
 
-    expect(result.transactions).not.toBe(rows);
-    expect(result.transactions[0]).not.toBe(row);
-    expect(result.transactions[0]).toEqual(row);
+    expect(first).not.toBe(second);
+    expect(first).not.toBe(input);
+    expect(second).not.toBe(input);
+    expect(first.transactions).not.toBe(second.transactions);
+    expect(first.transactions).not.toBe(rows);
+    expect(second.transactions).not.toBe(rows);
+    expect(first.transactions[0]).not.toBe(second.transactions[0]);
+    expect(first.transactions[0]).not.toBe(row);
+    expect(second.transactions[0]).not.toBe(row);
+    expect(first.transactions).toEqual(expected.transactions);
+    expect(second.transactions).toEqual(expected.transactions);
+    expect(input).toEqual(expected);
   });
 });
 
