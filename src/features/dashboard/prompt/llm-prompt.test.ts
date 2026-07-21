@@ -28,6 +28,23 @@ const SOFT_LEADS = PROMPT_VARIANTS.filter((v) => !METRIC_RUBRIC_GROUPS.has(v.gro
 /** Groups whose lead keeps the full metric calibration rubric. */
 const METRIC_RUBRIC_LEADS = PROMPT_VARIANTS.filter((v) => METRIC_RUBRIC_GROUPS.has(v.group));
 
+const SPEND_QUESTIONS = [
+  { id: "spend-over-time", question: "How has my spending on games changed over time?" },
+  {
+    id: "cost-per-hour",
+    question: "Which games were the most and least expensive per hour I played?",
+  },
+  {
+    id: "full-price-vs-sale",
+    question: "Which games did I buy at full price versus on a deep sale?",
+  },
+  { id: "add-on-spend", question: "Where did my DLC and add-on spending go?" },
+  { id: "wallet-top-ups", question: "How much did I top up my wallet versus spend on games?" },
+  { id: "spend-on-barely-played", question: "What did I spend on games I barely played?" },
+  { id: "free-vs-paid-played", question: "Which of my PS Plus or free games did I actually play?" },
+  { id: "value-for-money", question: "Which games gave me the best and worst value for money?" },
+] as const;
+
 describe(".PROMPT_VARIANTS", () => {
   it("gives every question a unique id", () => {
     const ids = PROMPT_VARIANTS.map((v) => v.id);
@@ -117,29 +134,25 @@ describe(".PROMPT_VARIANTS new groups", () => {
     ]);
   });
 
-  it("files every new and added variant under its declared group", () => {
-    const expected = { ...NEW_GROUP_IDS, ...EXISTING_GROUP_ADDITIONS };
-
-    const actual = Object.fromEntries(
-      Object.entries(expected).map(([group, ids]) => [
-        group,
-        ids.map((id) => PROMPT_VARIANTS.find((v) => v.id === id)?.group),
-      ])
-    );
-
-    expect(actual).toStrictEqual(
-      Object.fromEntries(
-        Object.entries(expected).map(([group, ids]) => [group, ids.map(() => group)])
-      )
-    );
+  it.each([
+    { id: "closest-platinums", group: "Trophies & completion" },
+    { id: "completionist-or-mover", group: "Trophies & completion" },
+    { id: "trophies-left-on-table", group: "Trophies & completion" },
+    { id: "hardest-earned-platinums", group: "Trophies & completion" },
+    { id: "finish-next-owned", group: "Backlog & what to play next" },
+    { id: "liked-but-drifted", group: "Backlog & what to play next" },
+    { id: "barely-played-owned", group: "Backlog & what to play next" },
+    { id: "gaming-wrapped", group: "Wrapped & shareable" },
+    { id: "gaming-identity", group: "Wrapped & shareable" },
+    { id: "binge-vs-bursts", group: "Engagement & enjoyment" },
+    { id: "genre-taste-shift", group: "Taste & preferences" },
+    { id: "franchise-loyalty", group: "Taste & preferences" },
+  ] as const)("files $id under $group", ({ id, group }) => {
+    expect(PROMPT_VARIANTS.find((variant) => variant.id === id)?.group).toBe(group);
   });
 
-  it("keeps every new variant always-available rather than spend-gated", () => {
-    const spendIds = SPEND_VARIANTS.map((v): string => v.id);
-
-    const overlap = ALL_NEW_IDS.map((id) => spendIds.includes(id));
-
-    expect(overlap).toStrictEqual(ALL_NEW_IDS.map(() => false));
+  it.each(ALL_NEW_IDS)("keeps $id always-available rather than spend-gated", (id) => {
+    expect(SPEND_VARIANTS.some((variant) => (variant.id as string) === id)).toBe(false);
   });
 
   it.each(ALL_NEW_IDS)("lists $id in the spend-free question menu", (id) => {
@@ -163,22 +176,19 @@ describe(".PROMPT_VARIANTS new groups", () => {
     expect(METRIC_RUBRIC_GROUPS.has("Wrapped & shareable")).toBe(false);
   });
 
-  it("keeps the backlog prompts to ownership and playtime without claiming price knowledge", () => {
-    const present = ["finish-next-owned", "barely-played-owned"].map((id) => {
-      const instruction = PROMPT_VARIANTS.find((v) => v.id === id)?.instruction ?? "";
-      return instruction.includes("NO price");
-    });
+  it.each(["finish-next-owned", "barely-played-owned"] as const)(
+    "keeps $id to ownership and playtime without claiming price knowledge",
+    (id) => {
+      const instruction = PROMPT_VARIANTS.find((variant) => variant.id === id)?.instruction;
 
-    expect(present).toStrictEqual([true, true]);
-  });
+      expect(instruction).toContain("NO price");
+    }
+  );
 
-  it("frames the wrapped prompts as synthesis-only", () => {
-    const present = NEW_GROUP_IDS["Wrapped & shareable"].map((id) => {
-      const instruction = PROMPT_VARIANTS.find((v) => v.id === id)?.instruction ?? "";
-      return instruction.toLowerCase().includes("synthesis");
-    });
+  it.each(["gaming-wrapped", "gaming-identity"] as const)("frames $id as synthesis-only", (id) => {
+    const instruction = PROMPT_VARIANTS.find((variant) => variant.id === id)?.instruction;
 
-    expect(present).toStrictEqual(NEW_GROUP_IDS["Wrapped & shareable"].map(() => true));
+    expect(instruction?.toLowerCase()).toContain("synthesis");
   });
 
   it("is explicit that the hardest-platinum prompt has no rarity or difficulty data", () => {
@@ -196,24 +206,22 @@ describe(".SPEND_VARIANTS", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it("files every spend question under the Spending & value group", () => {
-    const groups = SPEND_VARIANTS.map((v) => v.group);
-
-    expect(groups).toStrictEqual(SPEND_VARIANTS.map(() => "Spending & value"));
+  it.each(SPEND_QUESTIONS)("files $id under the Spending & value group", ({ id }) => {
+    expect(SPEND_VARIANTS.find((variant) => variant.id === id)?.group).toBe("Spending & value");
   });
 
   it("declares the Spending & value group in PROMPT_GROUPS", () => {
     expect(PROMPT_GROUPS).toContain("Spending & value");
   });
 
-  it("treats unmatched and free spend as unknown rather than zero in the new spend prompts", () => {
-    const present = ["spend-on-barely-played", "free-vs-paid-played"].map((id) => {
-      const instruction = SPEND_VARIANTS.find((v) => v.id === id)?.instruction ?? "";
-      return instruction.includes("UNKNOWN");
-    });
+  it.each(["spend-on-barely-played", "free-vs-paid-played"] as const)(
+    "treats unmatched and free spend as unknown rather than zero for $id",
+    (id) => {
+      const instruction = SPEND_VARIANTS.find((variant) => variant.id === id)?.instruction;
 
-    expect(present).toStrictEqual([true, true]);
-  });
+      expect(instruction).toContain("UNKNOWN");
+    }
+  );
 });
 
 describe(".buildDataSummary", () => {
@@ -498,28 +506,27 @@ describe(".buildFollowUps", () => {
     expect(buildFollowUps(lead)).toContain("don't ask me to resend it");
   });
 
-  it("omits the spend questions when no transactions are imported", () => {
-    const [lead] = PROMPT_VARIANTS;
+  it.each(SPEND_QUESTIONS)(
+    "omits the $id spend question when no transactions are imported",
+    ({ question }) => {
+      const [lead] = PROMPT_VARIANTS;
 
-    const followUps = buildFollowUps(lead);
+      expect(buildFollowUps(lead)).not.toContain(`- ${question}`);
+    }
+  );
 
-    const present = SPEND_VARIANTS.map((v) => followUps.includes(`- ${v.question}`));
+  it.each(SPEND_QUESTIONS)(
+    "lists the $id spend question when transactions are imported",
+    ({ question }) => {
+      const [lead] = PROMPT_VARIANTS;
+      const [game] = Dashboard.data().games;
+      const followUps = buildFollowUps(lead, [
+        Transactions.row({ productName: game?.name ?? "", skuId: game?.titleId }),
+      ]);
 
-    expect(present).toStrictEqual(SPEND_VARIANTS.map(() => false));
-  });
-
-  it("lists the spend questions as follow-ups when transactions are imported", () => {
-    const [lead] = PROMPT_VARIANTS;
-    const [game] = Dashboard.data().games;
-
-    const followUps = buildFollowUps(lead, [
-      Transactions.row({ productName: game?.name ?? "", skuId: game?.titleId }),
-    ]);
-
-    const present = SPEND_VARIANTS.map((v) => followUps.includes(`- ${v.question}`));
-
-    expect(present).toStrictEqual(SPEND_VARIANTS.map(() => true));
-  });
+      expect(followUps).toContain(`- ${question}`);
+    }
+  );
 });
 
 describe(".buildPrompt", () => {
@@ -863,29 +870,6 @@ describe(".buildPrompt", () => {
 });
 
 describe(".buildMenu", () => {
-  const SPEND_MENU_CASES = [
-    { id: "spend-over-time", question: "How has my spending on games changed over time?" },
-    {
-      id: "cost-per-hour",
-      question: "Which games were the most and least expensive per hour I played?",
-    },
-    {
-      id: "full-price-vs-sale",
-      question: "Which games did I buy at full price versus on a deep sale?",
-    },
-    { id: "add-on-spend", question: "Where did my DLC and add-on spending go?" },
-    {
-      id: "wallet-top-ups",
-      question: "How much did I top up my wallet versus spend on games?",
-    },
-    { id: "spend-on-barely-played", question: "What did I spend on games I barely played?" },
-    {
-      id: "free-vs-paid-played",
-      question: "Which of my PS Plus or free games did I actually play?",
-    },
-    { id: "value-for-money", question: "Which games gave me the best and worst value for money?" },
-  ] as const;
-
   it.each([
     "enjoyment-vs-time",
     "engaging-genres",
@@ -941,7 +925,7 @@ describe(".buildMenu", () => {
     expect(buildMenu()).not.toContain("Spending & value:");
   });
 
-  it.each(SPEND_MENU_CASES)(
+  it.each(SPEND_QUESTIONS)(
     "omits $id from the menu when no transactions are imported",
     ({ question }) => {
       expect(buildMenu()).not.toContain(`- ${question}`);
@@ -958,7 +942,7 @@ describe(".buildMenu", () => {
     expect(menu).toContain("Spending & value:");
   });
 
-  it.each(SPEND_MENU_CASES)(
+  it.each(SPEND_QUESTIONS)(
     "lists $id in the menu when transactions are imported",
     ({ question }) => {
       const [game] = Dashboard.data().games;
@@ -1047,18 +1031,26 @@ describe(".buildPrompt (menu mode)", () => {
     expect(prompt).not.toContain(SPEND_SIGNAL_GUIDANCE);
   });
 
-  it("folds the spend questions into the menu when transactions are imported", () => {
+  it("folds the spend group into the menu when transactions are imported", () => {
     const [game] = Dashboard.data().games;
-
     const prompt = buildPrompt(Dashboard.data(), MENU_MODE, [
       Transactions.row({ productName: game?.name ?? "", skuId: game?.titleId }),
     ]);
 
-    const present = SPEND_VARIANTS.map((v) => prompt.includes(`- ${v.question}`));
-
     expect(prompt).toContain("Spending & value:");
-    expect(present).toStrictEqual(SPEND_VARIANTS.map(() => true));
   });
+
+  it.each(SPEND_QUESTIONS)(
+    "folds the $id spend question into the menu when transactions are imported",
+    ({ question }) => {
+      const [game] = Dashboard.data().games;
+      const prompt = buildPrompt(Dashboard.data(), MENU_MODE, [
+        Transactions.row({ productName: game?.name ?? "", skuId: game?.titleId }),
+      ]);
+
+      expect(prompt).toContain(`- ${question}`);
+    }
+  );
 
   it("leaves the no-transactions menu prompt byte-identical to the undefined case", () => {
     expect(buildPrompt(Dashboard.data(), MENU_MODE, [])).toBe(
