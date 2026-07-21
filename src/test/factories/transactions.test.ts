@@ -61,9 +61,9 @@ describe(".importRecord", () => {
     expect(first.transactions[0]).not.toBe(second.transactions[0]);
     expect(first.transactions[0]).not.toBe(row);
     expect(second.transactions[0]).not.toBe(row);
-    expect(first.transactions).toEqual(expected.transactions);
-    expect(second.transactions).toEqual(expected.transactions);
-    expect(input).toEqual(expected);
+    expect(first.transactions).toStrictEqual(expected.transactions);
+    expect(second.transactions).toStrictEqual(expected.transactions);
+    expect(input).toStrictEqual(expected);
   });
 });
 
@@ -87,7 +87,7 @@ describe(".aggregate", () => {
     expect(first[0]?.purchaseDetails?.productPurchases[0]).not.toBe(
       second[0]?.purchaseDetails?.productPurchases[0]
     );
-    expect(transactions).toEqual(input);
+    expect(transactions).toStrictEqual(input);
   });
 });
 
@@ -119,10 +119,10 @@ describe(".historyResponse", () => {
     );
     expect(firstHistory.hasMore).toBe(true);
     expect(firstHistory.nextEndDate).toBe("2025-08-01");
-    expect(first.errors).toEqual(errors);
+    expect(first.errors).toStrictEqual(errors);
     expect(first.errors).not.toBe(errors);
     expect(first.errors).not.toBe(second.errors);
     expect(first.errors?.[0]).not.toBe(second.errors?.[0]);
-    expect({ transactions, errors }).toEqual(input);
+    expect({ transactions, errors }).toStrictEqual(input);
   });
 });

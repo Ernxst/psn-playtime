@@ -33,6 +33,7 @@ describe("style/prefer-concise-arrow", () => {
     `const assign = () => void (target = value);`,
   ])("rejects %s", (source) => {
     const result = lint(source);
+
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("style(prefer-concise-arrow)");
   });
@@ -44,6 +45,7 @@ describe("style/prefer-concise-arrow", () => {
     `(() => { task()\n  .then(finish); })();`,
   ])("accepts %s", (source) => {
     const result = lint(source);
+
     expect(result.status).toBe(0);
     expect(result.stdout).toBe("");
   });
