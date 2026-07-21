@@ -14,7 +14,12 @@ import { AccountSwitcher } from "./account-switcher";
 const aaron: DashboardData = {
   ...demoDashboard,
   isDemo: false,
-  profile: { ...demoDashboard.profile, accountId: "account-aaron", onlineId: "Aaron" },
+  profile: {
+    ...demoDashboard.profile,
+    accountId: "account-aaron",
+    onlineId: "Aaron",
+    sourceLabel: "Imported from PlayStation",
+  },
 };
 
 const zoe: DashboardData = {
@@ -33,6 +38,15 @@ function ActiveAccountTransactions() {
     <>
       <AccountSwitcher profile={data.profile} />
       <PurchaseHistorySection data={data} />
+    </>
+  );
+}
+
+function DismissibleAccountSwitcher() {
+  return (
+    <>
+      <button type="button">Outside switcher</button>
+      <ActiveAccountSwitcher />
     </>
   );
 }
@@ -99,8 +113,8 @@ describe("AccountSwitcher", () => {
       .element(page.getByRole("button", { name: "Aaron, current account" }))
       .toHaveAttribute("aria-current", "true");
     await expect
-      .element(page.getByRole("link", { name: "Add account" }))
-      .toHaveAttribute("href", "/");
+      .element(page.getByRole("link", { name: "Add PlayStation account" }))
+      .toHaveAttribute("href", "/#connect");
   });
 
   it("switches cached accounts with the keyboard and closes the popover", async () => {
@@ -124,10 +138,25 @@ describe("AccountSwitcher", () => {
       .element(page.getByRole("button", { name: "Aaron, current account" }))
       .toHaveAttribute("aria-current", "true");
     await expect
-      .element(page.getByRole("link", { name: "Add account" }))
-      .toHaveAttribute("href", "/");
+      .element(page.getByRole("link", { name: "Add PlayStation account" }))
+      .toHaveAttribute("href", "/#connect");
+    await expect
+      .element(
+        page
+          .getByRole("button", { name: "Aaron, current account" })
+          .getByText("Imported from PlayStation", { exact: true })
+      )
+      .toBeVisible();
+    const currentRow = page.getByRole("button", { name: "Aaron, current account" }).element();
+    const availableRow = page.getByRole("button", { name: "Switch to Zoe" }).element();
+    expect(currentRow.getBoundingClientRect().height).toBe(52);
+    expect(availableRow.getBoundingClientRect().height).toBe(52);
+    expect(currentRow.getBoundingClientRect().x).toBe(availableRow.getBoundingClientRect().x);
+    expect(currentRow.getBoundingClientRect().width).toBe(
+      availableRow.getBoundingClientRect().width
+    );
 
-    page.getByRole("button", { name: "Switch to Zoe" }).element().focus();
+    availableRow.focus();
     await userEvent.keyboard("{Enter}");
 
     await expect
@@ -136,6 +165,52 @@ describe("AccountSwitcher", () => {
     await expect
       .element(page.getByRole("heading", { name: "Switch account" }))
       .not.toBeInTheDocument();
+  });
+
+  it("dismisses outside without moving focus back from the chosen target", async () => {
+    cleanAccounts();
+    onTestFinished(cleanAccounts);
+    testDashboardStore.save(aaron);
+    testDashboardStore.setActive(aaron.profile.accountId);
+    const { element } = createHarness(<DismissibleAccountSwitcher />);
+
+    await render(element);
+
+    await page.getByRole("button", { name: "Switch account, current account Aaron" }).click();
+    await expect.element(page.getByRole("heading", { name: "Switch account" })).toBeVisible();
+
+    await page.getByRole("button", { name: "Outside switcher" }).click();
+
+    await expect
+      .element(page.getByRole("heading", { name: "Switch account" }))
+      .not.toBeInTheDocument();
+    await expect.element(page.getByRole("button", { name: "Outside switcher" })).toHaveFocus();
+  });
+
+  it("keeps the compact mobile trigger and switcher inside the viewport", async () => {
+    await page.viewport(390, 844);
+    cleanAccounts();
+    onTestFinished(() => {
+      cleanAccounts();
+      return page.viewport(1280, 800);
+    });
+    testDashboardStore.save(aaron);
+    testDashboardStore.save(zoe);
+    testDashboardStore.setActive(aaron.profile.accountId);
+    const { element } = createHarness(<ActiveAccountSwitcher />);
+
+    await render(element);
+
+    const trigger = page.getByRole("button", {
+      name: "Switch account, current account Aaron",
+    });
+    expect(trigger.element().getBoundingClientRect().width).toBe(44);
+
+    await trigger.click();
+
+    const menu = page.getByRole("dialog", { name: "Switch account" }).element();
+    expect(menu.getBoundingClientRect().left).toBeGreaterThanOrEqual(0);
+    expect(menu.getBoundingClientRect().right).toBeLessThanOrEqual(390);
   });
 
   it("switches the dashboard to the selected account's transactions", async () => {

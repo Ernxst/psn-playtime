@@ -22,6 +22,18 @@ describe("DashboardSkeleton", () => {
     await expect.element(page.getByRole("main")).toHaveAttribute("aria-busy", "true");
     await expect.element(page.getByRole("status")).toHaveTextContent("Loading PlayStation archive");
     await expect.element(page.getByText("Deterministic demo data")).toBeVisible();
+    expect(
+      container.querySelectorAll('[data-slot="dashboard-shell-header"] [data-slot="skeleton"]')
+        .length
+    ).toBe(3);
+    expect(
+      container
+        .querySelector<HTMLElement>('[data-slot="dashboard-shell-header"]')
+        ?.getBoundingClientRect().height
+    ).toBe(60);
+    await expect
+      .element(page.getByRole("link", { name: "Playloom — go to home page" }))
+      .toBeVisible();
   });
 });
 

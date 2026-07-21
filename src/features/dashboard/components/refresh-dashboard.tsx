@@ -24,6 +24,7 @@ interface Props {
   onRefresh: (npsso: string) => Promise<void>;
   onComplete?: () => void;
   safeDemo?: boolean;
+  shell?: boolean;
 }
 
 function refreshError(
@@ -337,8 +338,19 @@ export function RefreshDashboard(props: Props) {
   const refresh = useRefresh(props);
   return (
     <Sheet open={refresh.open} onOpenChange={refresh.setOpen}>
-      <SheetTrigger render={<Button variant="outline" size="sm" />}>
-        <RefreshCw /> Refresh
+      <SheetTrigger
+        render={
+          <Button
+            variant={props.shell ? "ghost" : "outline"}
+            size="sm"
+            className={
+              props.shell ? "h-10 rounded-none px-2 active:scale-[0.96] sm:h-10" : undefined
+            }
+            aria-label={props.shell ? "Refresh PlayStation data" : undefined}
+          />
+        }
+      >
+        <RefreshCw /> <span className={props.shell ? "max-sm:sr-only" : undefined}>Refresh</span>
       </SheetTrigger>
       <RefreshSheet refresh={refresh} />
     </Sheet>

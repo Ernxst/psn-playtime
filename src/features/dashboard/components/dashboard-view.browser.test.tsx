@@ -71,6 +71,12 @@ describe("DashboardView", () => {
     expect(container.querySelectorAll('[data-source="rawg-fixture"]').length).toBeGreaterThan(0);
     expect(container.querySelectorAll('[data-source="deterministic"]').length).toBeGreaterThan(0);
     expect(container.querySelector('[data-source="psn"] .playloom-poster-psn')).not.toBeNull();
+    const shellHeader = container.querySelector<HTMLElement>(
+      '[data-slot="dashboard-shell-header"]'
+    );
+    expect(shellHeader?.getBoundingClientRect().height).toBe(60);
+    expect(shellHeader?.querySelector('[aria-label="Playloom — go to home page"]')).not.toBeNull();
+    expect(container.querySelectorAll('[aria-label="Playloom — go to home page"]').length).toBe(1);
 
     // Reveal the deferred chart section so its IntersectionObserver fires and loads the chart.
     // The section itself is deliberately not rendered through an accessible locator yet.
@@ -247,10 +253,12 @@ describe("DashboardView", () => {
     await expect
       .element(page.getByText("Deterministic demo data", { exact: true }).first())
       .toBeVisible();
-    await page.getByRole("button", { name: /Open profile menu.*Deterministic demo data/ }).click();
-    await expect.element(page.getByText("Available profiles")).toBeVisible();
+    await page
+      .getByRole("button", { name: /Switch account, current account PlayloomDemo/ })
+      .click();
+    await expect.element(page.getByRole("heading", { name: "Switch account" })).toBeVisible();
     await expect
-      .element(page.getByRole("button", { name: "PlayloomDemo, active profile" }))
+      .element(page.getByRole("button", { name: "PlayloomDemo, current account" }))
       .toHaveAttribute("aria-current", "true");
     await expect
       .element(page.getByRole("button", { name: "Sign out" }))
@@ -286,7 +294,12 @@ describe("DashboardView", () => {
       .element(page.getByRole("img", { name: "ImportedPlayer avatar" }).first())
       .toBeVisible();
 
-    await page.getByRole("button", { name: "Sign out" }).click();
+    const refresh = page.getByRole("button", { name: "Refresh PlayStation data" });
+    const signOut = page.getByRole("button", { name: "Sign out" });
+    expect(refresh.element().closest('[data-slot="dashboard-shell-header"]')).not.toBeNull();
+    expect(signOut.element().closest('[data-slot="dashboard-shell-header"]')).not.toBeNull();
+
+    await signOut.click();
 
     expect(onSignOut).toHaveBeenCalledTimes(1);
   });
@@ -356,22 +369,24 @@ describe("DashboardView", () => {
     await render(element);
     window.scrollTo(0, 240);
     expect(window.scrollY).toBe(240);
-    const trigger = page.getByRole("button", { name: /Open profile menu/ });
+    const trigger = page.getByRole("button", { name: /Switch account, current account/ });
     const before = trigger.element().getBoundingClientRect();
+    const viewportWidth = document.documentElement.clientWidth;
 
     await trigger.click();
-    await expect
-      .element(page.getByRole("dialog", { name: demoDashboard.profile.onlineId }))
-      .toBeVisible();
+    await expect.element(page.getByRole("dialog", { name: "Switch account" })).toBeVisible();
 
     const open = trigger.element().getBoundingClientRect();
     expect(open.x).toBe(before.x);
     expect(open.y).toBe(before.y);
+    expect(document.documentElement.clientWidth).toBe(viewportWidth);
 
     await userEvent.keyboard("{Escape}");
 
     await expect.element(trigger).toHaveFocus();
     expect(window.scrollY).toBe(240);
+    expect(document.documentElement.clientWidth).toBe(viewportWidth);
+    expect(trigger.element().getBoundingClientRect().x).toBe(before.x);
   });
 
   it("focuses the connection heading after Add PlayStation account navigation", async () => {
@@ -390,7 +405,7 @@ describe("DashboardView", () => {
     });
 
     await render(element);
-    await page.getByRole("button", { name: /Open profile menu/ }).click();
+    await page.getByRole("button", { name: /Switch account, current account/ }).click();
     await page.getByRole("link", { name: "Add PlayStation account" }).click();
 
     const heading = page.getByRole("heading", { name: "Bring in your PlayStation history." });
@@ -448,16 +463,21 @@ describe("DashboardView", () => {
       const search = page.getByRole("searchbox", { name: "Search games by name" });
       await search.fill("Forza");
       await expect.element(page.getByText(/98 titles in total/)).not.toBeInTheDocument();
-      await page.getByRole("button", { name: /Open profile menu for FirstAccount/ }).click();
-      await expect.element(page.getByText("PSN avatar", { exact: false }).first()).toBeVisible();
-      await expect.element(page.getByText("Initials fallback", { exact: false })).toBeVisible();
+      await page
+        .getByRole("button", { name: /Switch account, current account FirstAccount/ })
+        .click();
+      await expect
+        .element(page.getByText("Imported from PlayStation", { exact: true }).first())
+        .toBeVisible();
       await page.getByRole("button", { name: "Switch to SecondAccount" }).click();
 
       await expect.element(page.getByRole("heading", { name: "SecondAccount" })).toBeVisible();
       await expect.element(search).toHaveValue("Forza");
       expect(window.location.hash).toBe("#library");
       await expect
-        .element(page.getByRole("button", { name: /Open profile menu for SecondAccount/ }))
+        .element(
+          page.getByRole("button", { name: /Switch account, current account SecondAccount/ })
+        )
         .toHaveFocus();
     }
   );
@@ -488,7 +508,9 @@ describe("DashboardView", () => {
     const search = page.getByRole("searchbox", { name: "Search games by name" });
     await search.fill("Grand Theft");
     expect(container.textContent).toContain("Grand Theft Imported Only");
-    await page.getByRole("button", { name: /Open profile menu for ImportedPlayer/ }).click();
+    await page
+      .getByRole("button", { name: /Switch account, current account ImportedPlayer/ })
+      .click();
     await page.getByRole("button", { name: "Switch to PlayloomDemo" }).click();
 
     await expect
@@ -500,7 +522,9 @@ describe("DashboardView", () => {
       .toBeVisible();
     await expect.element(search).toHaveValue("Grand Theft");
     expect(window.location.hash).toBe("#library");
-    await expect.element(page.getByRole("button", { name: /demo data/ })).toHaveFocus();
+    await expect
+      .element(page.getByRole("button", { name: /current account PlayloomDemo/ }))
+      .toHaveFocus();
   });
 
   it("keeps pruned facets removed across an account round trip", async () => {
@@ -558,7 +582,7 @@ describe("DashboardView", () => {
     await page.getByRole("checkbox", { name: "Sports" }).click();
     await page.getByRole("checkbox", { name: "PS4" }).click();
     await page.getByRole("button", { name: "Done filtering" }).click();
-    await page.getByRole("button", { name: /Open profile menu for FacetSource/ }).click();
+    await page.getByRole("button", { name: /Switch account, current account FacetSource/ }).click();
     await page.getByRole("button", { name: "Switch to FacetDestination" }).click();
 
     await expect
@@ -569,7 +593,9 @@ describe("DashboardView", () => {
     await expect.element(page.getByRole("checkbox", { name: "PS4" })).toBeChecked();
     expect(page.getByRole("checkbox", { name: "Sports" }).query()).toBeNull();
     await page.getByRole("button", { name: "Done filtering" }).click();
-    await page.getByRole("button", { name: /Open profile menu for FacetDestination/ }).click();
+    await page
+      .getByRole("button", { name: /Switch account, current account FacetDestination/ })
+      .click();
     await page.getByRole("button", { name: "Switch to FacetSource" }).click();
 
     await expect

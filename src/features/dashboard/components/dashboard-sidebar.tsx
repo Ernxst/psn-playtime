@@ -1,15 +1,5 @@
-import { Link } from "@tanstack/react-router";
 import { useState, useSyncExternalStore } from "react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarHeader,
-  useSidebar,
-} from "@/components/ui/sidebar";
-import { demoDashboard } from "@/domain/mock";
-import type { ProfileSummary } from "@/server/providers/account/snapshot";
+import { Sidebar, SidebarContent, SidebarFooter, useSidebar } from "@/components/ui/sidebar";
 
 const chapters = [
   {
@@ -171,39 +161,6 @@ function ChapterNav() {
   );
 }
 
-function SpineHeader({ profile }: { profile: ProfileSummary }) {
-  return (
-    <SidebarHeader className="gap-4 px-6 pt-7 pb-5">
-      <Link
-        className="w-fit font-[Fraunces_Variable] text-[1.9375rem] font-semibold tracking-[-0.04em] text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#7599f4]"
-        to="/"
-        aria-label="Playloom — go to home page"
-      >
-        Playloom
-      </Link>
-      <p className="font-[Fraunces_Variable] text-[0.8125rem] leading-[1.35] text-white/60">
-        Your gaming life,
-        <br />
-        woven together.
-      </p>
-      <div className="mt-2 grid grid-cols-[2.25rem_1fr] items-center gap-2.5 border-t border-white/15 pt-4">
-        <Avatar className="size-9 rounded-none">
-          <AvatarImage src={profile.avatarUrl} alt={`${profile.onlineId} avatar`} />
-          <AvatarFallback className="rounded-none bg-[#f5efe2] text-[0.6875rem] font-bold text-[var(--playloom-ink)]">
-            {profile.onlineId.slice(0, 2).toUpperCase()}
-          </AvatarFallback>
-        </Avatar>
-        <div className="flex min-w-0 flex-col text-xs">
-          <strong className="truncate">{profile.onlineId}</strong>
-          <small className="text-white/50">
-            {profile.sourceLabel ?? "Imported from PlayStation"}
-          </small>
-        </div>
-      </div>
-    </SidebarHeader>
-  );
-}
-
 function SpineFooter() {
   return (
     <SidebarFooter className="gap-3 px-6 py-5 text-[0.6875rem] leading-[1.45] text-white/50">
@@ -219,11 +176,7 @@ function SpineFooter() {
   );
 }
 
-export function DashboardSidebar({
-  profile = demoDashboard.profile,
-}: {
-  profile?: ProfileSummary;
-}) {
+export function DashboardSidebar() {
   return (
     <Sidebar
       collapsible="offcanvas"
@@ -231,8 +184,7 @@ export function DashboardSidebar({
       mobileTitle="Navigate Playloom"
       mobileDescription="Choose a dashboard chapter. Every destination is available in this scrollable drawer."
     >
-      <SpineHeader profile={profile} />
-      <SidebarContent className="min-h-0 overflow-y-auto overscroll-contain pb-6">
+      <SidebarContent className="min-h-0 overflow-y-auto overscroll-contain pt-7 pb-6">
         <ChapterNav />
       </SidebarContent>
       <SpineFooter />
