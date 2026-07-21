@@ -14,5 +14,6 @@ State the observable result and how it was verified. Attach screenshots, console
 
 ## Checklist
 
-- [ ] Code follows existing patterns and conventions
-- [ ] Review findings were repaired and the exact head was re-reviewed
+- [ ] Any removed, hidden, or demoted capability is explicitly identified and approved
+- [ ] Any required data migration, configuration change, or operator action is documented
+- [ ] User-visible changes include rendered evidence for the affected states
