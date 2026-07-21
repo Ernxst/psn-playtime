@@ -106,7 +106,7 @@ describe("RemoveTransactions", () => {
     seedImport();
     const dashboard = Dashboard.data();
     testDashboardStore.save(dashboard);
-    onTestFinished(() => testDashboardStore.clearActive());
+    onTestFinished(() => testDashboardStore.remove(dashboard.profile.accountId));
     const clear = vi.spyOn(testTransactionStore, "clear");
     const success = vi.spyOn(toast, "success");
 

@@ -98,6 +98,7 @@ describe("DashboardView", () => {
         ...game,
         lastPlayed: `${index === 0 ? currentYear : currentYear - 1}-06-01`,
       })),
+      meta: { ...dashboard.meta, totalGames: 2 },
     });
     const { element } = createHarness(
       <DashboardView data={data} onRefresh={vi.fn()} onSignOut={vi.fn()} signingOut={false} />
@@ -106,7 +107,7 @@ describe("DashboardView", () => {
     await render(element);
 
     // The games-table caption echoes the scoped title count — a stable recompute signal.
-    await expect.element(page.getByText(gamesCaption(98), { exact: true })).toBeVisible();
+    await expect.element(page.getByText(gamesCaption(2), { exact: true })).toBeVisible();
 
     await page.getByRole("tab", { name: "This year" }).click();
 

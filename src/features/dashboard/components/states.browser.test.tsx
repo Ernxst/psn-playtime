@@ -7,7 +7,10 @@ describe("DashboardSkeleton", () => {
   it("skeleton renders a visible loading state", async () => {
     const { container } = await render(<DashboardSkeleton />);
 
-    await expect.element(container).toBeVisible();
+    expect(container.getBoundingClientRect().height).toBeGreaterThan(0);
+    expect(container.getAnimations({ subtree: true }).some(({ playState }) => playState === "running")).toBe(
+      true
+    );
   });
 });
 
