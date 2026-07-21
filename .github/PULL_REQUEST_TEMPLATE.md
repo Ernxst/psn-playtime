@@ -15,10 +15,4 @@ State the observable result and how it was verified. Attach screenshots, console
 ## Checklist
 
 - [ ] Code follows existing patterns and conventions
-- [ ] `pnpm build` passes
-- [ ] `pnpm lint` is clean
-- [ ] `pnpm knip` is clean
-- [ ] `pnpm typecheck` is clean
-- [ ] `pnpm test` is clean
 - [ ] Review findings were repaired and the exact head was re-reviewed
-- [ ] Commit history is clean and follows conventional commits
