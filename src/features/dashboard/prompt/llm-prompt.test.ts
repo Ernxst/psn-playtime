@@ -142,28 +142,19 @@ describe(".PROMPT_VARIANTS new groups", () => {
     expect(overlap).toStrictEqual(ALL_NEW_IDS.map(() => false));
   });
 
-  it("lists every new variant in the spend-free question menu", () => {
-    const menu = buildMenu();
+  it.each(ALL_NEW_IDS)("lists $id in the spend-free question menu", (id) => {
+    const variant = PROMPT_VARIANTS.find((candidate) => candidate.id === id);
 
-    const present = ALL_NEW_IDS.map((id) => {
-      const variant = PROMPT_VARIANTS.find((v) => v.id === id);
-      return menu.includes(`- ${variant?.question}`);
-    });
-
-    expect(present).toStrictEqual(ALL_NEW_IDS.map(() => true));
+    expect(variant).toBeDefined();
+    expect(buildMenu()).toContain(`- ${variant?.question}`);
   });
 
-  it("lists every new variant among the follow-ups of an unrelated lead", () => {
+  it.each(ALL_NEW_IDS)("lists $id among the follow-ups of an unrelated lead", (id) => {
     const [lead] = PROMPT_VARIANTS;
+    const variant = PROMPT_VARIANTS.find((candidate) => candidate.id === id);
 
-    const followUps = buildFollowUps(lead);
-
-    const present = ALL_NEW_IDS.map((id) => {
-      const variant = PROMPT_VARIANTS.find((v) => v.id === id);
-      return followUps.includes(`- ${variant?.question}`);
-    });
-
-    expect(present).toStrictEqual(ALL_NEW_IDS.map(() => true));
+    expect(variant).toBeDefined();
+    expect(buildFollowUps(lead)).toContain(`- ${variant?.question}`);
   });
 
   it("gives the trophy and backlog groups the metric rubric but not the synthesis-only wrapped group", () => {
@@ -872,6 +863,29 @@ describe(".buildPrompt", () => {
 });
 
 describe(".buildMenu", () => {
+  const SPEND_MENU_CASES = [
+    { id: "spend-over-time", question: "How has my spending on games changed over time?" },
+    {
+      id: "cost-per-hour",
+      question: "Which games were the most and least expensive per hour I played?",
+    },
+    {
+      id: "full-price-vs-sale",
+      question: "Which games did I buy at full price versus on a deep sale?",
+    },
+    { id: "add-on-spend", question: "Where did my DLC and add-on spending go?" },
+    {
+      id: "wallet-top-ups",
+      question: "How much did I top up my wallet versus spend on games?",
+    },
+    { id: "spend-on-barely-played", question: "What did I spend on games I barely played?" },
+    {
+      id: "free-vs-paid-played",
+      question: "Which of my PS Plus or free games did I actually play?",
+    },
+    { id: "value-for-money", question: "Which games gave me the best and worst value for money?" },
+  ] as const;
+
   it.each([
     "enjoyment-vs-time",
     "engaging-genres",
@@ -923,27 +937,38 @@ describe(".buildMenu", () => {
     expect(buildMenu()).toContain(`- ${variant?.question}`);
   });
 
-  it("omits the spend group and its questions when no transactions are imported", () => {
-    const menu = buildMenu();
-
-    const present = SPEND_VARIANTS.map((v) => menu.includes(`- ${v.question}`));
-
-    expect(menu).not.toContain("Spending & value:");
-    expect(present).toStrictEqual(SPEND_VARIANTS.map(() => false));
+  it("omits the spend group when no transactions are imported", () => {
+    expect(buildMenu()).not.toContain("Spending & value:");
   });
 
-  it("folds in the spend group and its questions when transactions are imported", () => {
+  it.each(SPEND_MENU_CASES)(
+    "omits $id from the menu when no transactions are imported",
+    ({ question }) => {
+      expect(buildMenu()).not.toContain(`- ${question}`);
+    }
+  );
+
+  it("folds in the spend group when transactions are imported", () => {
     const [game] = Dashboard.data().games;
 
     const menu = buildMenu([
       Transactions.row({ productName: game?.name ?? "", skuId: game?.titleId }),
     ]);
 
-    const present = SPEND_VARIANTS.map((v) => menu.includes(`- ${v.question}`));
-
     expect(menu).toContain("Spending & value:");
-    expect(present).toStrictEqual(SPEND_VARIANTS.map(() => true));
   });
+
+  it.each(SPEND_MENU_CASES)(
+    "lists $id in the menu when transactions are imported",
+    ({ question }) => {
+      const [game] = Dashboard.data().games;
+      const menu = buildMenu([
+        Transactions.row({ productName: game?.name ?? "", skuId: game?.titleId }),
+      ]);
+
+      expect(menu).toContain(`- ${question}`);
+    }
+  );
 });
 
 describe(".buildPrompt (menu mode)", () => {
