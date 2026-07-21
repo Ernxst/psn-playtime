@@ -1,5 +1,5 @@
-import type { ProfileFromUserNameResponse, TrophyTitle } from "psn-api";
 import { describe, expect, it } from "vitest";
+import * as Psn from "@/test/factories/psn";
 import {
   buildTrophyMap,
   computeMeta,
@@ -8,89 +8,19 @@ import {
   toProfileSummary,
 } from "./normalize";
 
-type ProfileBody = ProfileFromUserNameResponse["profile"];
-type AvatarUrl = ProfileBody["avatarUrls"][number];
-
-const baseProfile: ProfileBody = {
-  onlineId: "Ernxst_",
-  accountId: "acc-1",
-  npId: "np-1",
-  avatarUrls: [{ size: "xl", avatarUrl: "https://img/xl" }],
-  plus: 1,
-  aboutMe: "Hello there",
-  languagesUsed: ["en"],
-  trophySummary: {
-    level: 220,
-    progress: 70,
-    earnedTrophies: { bronze: 887, silver: 188, gold: 54, platinum: 9 },
-  },
-  isOfficiallyVerified: false,
-  personalDetail: { firstName: "", lastName: "", profilePictureUrls: [] },
-  personalDetailSharing: "no",
-  personalDetailSharingRequestMessageFlag: false,
-  primaryOnlineStatus: "offline",
-  presences: [],
-  friendRelation: "no-relation",
-  requestMessageFlag: false,
-  blocking: false,
-  following: false,
-  consoleAvailability: { availabilityStatus: "unavailable" },
-};
-
-function profile(overrides: Partial<ProfileBody> = {}): ProfileBody {
-  return { ...baseProfile, ...overrides };
-}
-
-const basePlayed: PlayedTitle = {
-  titleId: "title-1",
-  name: "A Game",
-  localizedName: "A Game",
-  imageUrl: "https://img/game",
-  localizedImageUrl: "https://img/game",
-  category: "ps4_game",
-  service: "none",
-  playCount: 0,
-  concept: { id: 0, titleIds: [], name: "", media: { audios: [], videos: [], images: [] } },
-  media: {},
-  firstPlayedDateTime: "",
-  lastPlayedDateTime: "",
-  playDuration: "PT0S",
-};
-
-function played(overrides: Partial<PlayedTitle>): PlayedTitle {
-  return { ...basePlayed, ...overrides };
-}
-
-const baseTrophy: TrophyTitle = {
-  npServiceName: "trophy",
-  npCommunicationId: "",
-  trophySetVersion: "01.00",
-  trophyTitleName: "",
-  trophyTitleIconUrl: "",
-  trophyTitlePlatform: "PS4",
-  hasTrophyGroups: false,
-  definedTrophies: { bronze: 0, silver: 0, gold: 0, platinum: 0 },
-  progress: 0,
-  earnedTrophies: { bronze: 0, silver: 0, gold: 0, platinum: 0 },
-  hiddenFlag: false,
-  lastUpdatedDateTime: "",
-};
-
-function trophy(overrides: Partial<TrophyTitle>): TrophyTitle {
-  return { ...baseTrophy, ...overrides };
-}
+type AvatarUrl = Psn.Profile["avatarUrls"][number];
 
 /** The first (highest-hours) game produced for a single played title. */
 function gameFor(
   title: PlayedTitle,
-  trophies: TrophyTitle[] = []
+  trophies: ReturnType<typeof Psn.trophyTitle>[] = []
 ): ReturnType<typeof partitionTitles>["games"][number] {
   return partitionTitles([title], buildTrophyMap(trophies)).games[0]!;
 }
 
 describe(".toProfileSummary", () => {
   it("normalises a profile body into the profile summary contract", () => {
-    expect(toProfileSummary(profile())).toStrictEqual({
+    expect(toProfileSummary(Psn.profile().profile)).toStrictEqual({
       onlineId: "Ernxst_",
       accountId: "acc-1",
       aboutMe: "Hello there",
@@ -104,14 +34,14 @@ describe(".toProfileSummary", () => {
   });
 
   it("drops an empty about-me", () => {
-    expect(toProfileSummary(profile({ aboutMe: "" })).aboutMe).toBeUndefined();
+    expect(toProfileSummary(Psn.profile({ aboutMe: "" }).profile).aboutMe).toBeUndefined();
   });
 
   it.each<{ plus: 0 | 1; expected: boolean }>([
     { plus: 1, expected: true },
     { plus: 0, expected: false },
   ])("reads plus=$plus as isPlus=$expected", ({ plus, expected }) => {
-    expect(toProfileSummary(profile({ plus })).isPlus).toBe(expected);
+    expect(toProfileSummary(Psn.profile({ plus }).profile).isPlus).toBe(expected);
   });
 
   it.each<{ scenario: string; avatarUrls: AvatarUrl[]; expected: string | undefined }>([
@@ -148,21 +78,23 @@ describe(".toProfileSummary", () => {
       expected: undefined,
     },
   ])("$scenario", ({ avatarUrls, expected }) => {
-    expect(toProfileSummary(profile({ avatarUrls })).avatarUrl).toBe(expected);
+    expect(toProfileSummary(Psn.profile({ avatarUrls }).profile).avatarUrl).toBe(expected);
   });
 });
 
 describe(".buildTrophyMap", () => {
   it("keys each list by its normalised matching name", () => {
-    const map = buildTrophyMap([trophy({ trophyTitleName: "The Division®2", progress: 40 })]);
+    const map = buildTrophyMap([
+      Psn.trophyTitle({ trophyTitleName: "The Division®2", progress: 40 }),
+    ]);
 
     expect(map.get("the division 2")?.progress).toBe(40);
   });
 
   it("keeps the more-progressed list when two stacks share a name", () => {
     const map = buildTrophyMap([
-      trophy({ trophyTitleName: "Minecraft", progress: 30, trophyTitlePlatform: "PS4" }),
-      trophy({ trophyTitleName: "Minecraft", progress: 80, trophyTitlePlatform: "PS5" }),
+      Psn.trophyTitle({ trophyTitleName: "Minecraft", progress: 30, trophyTitlePlatform: "PS4" }),
+      Psn.trophyTitle({ trophyTitleName: "Minecraft", progress: 80, trophyTitlePlatform: "PS5" }),
     ]);
 
     expect(map.get("minecraft")?.progress).toBe(80);
@@ -170,8 +102,8 @@ describe(".buildTrophyMap", () => {
 
   it("keeps distinct lists under distinct normalised keys", () => {
     const map = buildTrophyMap([
-      trophy({ trophyTitleName: "Minecraft", progress: 30 }),
-      trophy({ trophyTitleName: "Minecraft • Set 2", progress: 10 }),
+      Psn.trophyTitle({ trophyTitleName: "Minecraft", progress: 30 }),
+      Psn.trophyTitle({ trophyTitleName: "Minecraft • Set 2", progress: 10 }),
     ]);
 
     expect(map.size).toBe(2);
@@ -182,10 +114,10 @@ describe(".partitionTitles", () => {
   it("separates games from excluded apps and sorts each group by hours descending", () => {
     const result = partitionTitles(
       [
-        played({ titleId: "short", name: "Short Game", playDuration: "PT2H" }),
-        played({ titleId: "long", name: "Long Game", playDuration: "PT10H" }),
-        played({ titleId: "yt", name: "YouTube", playDuration: "PT5H" }),
-        played({ titleId: "nf", name: "Netflix", playDuration: "PT8H" }),
+        Psn.playedTitle({ titleId: "short", name: "Short Game", playDuration: "PT2H" }),
+        Psn.playedTitle({ titleId: "long", name: "Long Game", playDuration: "PT10H" }),
+        Psn.playedTitle({ titleId: "yt", name: "YouTube", playDuration: "PT5H" }),
+        Psn.playedTitle({ titleId: "nf", name: "Netflix", playDuration: "PT8H" }),
       ],
       new Map()
     );
@@ -224,7 +156,7 @@ describe(".partitionTitles", () => {
       expected: "OTHER",
     },
   ])("$scenario", ({ category, name, expected }) => {
-    expect(gameFor(played({ category, name })).platform).toBe(expected);
+    expect(gameFor(Psn.playedTitle({ category, name })).platform).toBe(expected);
   });
 
   it.each([
@@ -235,7 +167,7 @@ describe(".partitionTitles", () => {
     { duration: "", hours: 0 },
     { duration: "not-a-duration", hours: 0 },
   ])("converts the duration $duration to $hours hours", ({ duration, hours }) => {
-    expect(gameFor(played({ playDuration: duration })).hours).toBe(hours);
+    expect(gameFor(Psn.playedTitle({ playDuration: duration })).hours).toBe(hours);
   });
 
   it.each([
@@ -247,19 +179,30 @@ describe(".partitionTitles", () => {
     { scenario: "drops an invalid timestamp", value: "not-a-date", expected: undefined },
     { scenario: "drops an empty timestamp", value: "", expected: undefined },
   ])("$scenario", ({ value, expected }) => {
-    expect(gameFor(played({ firstPlayedDateTime: value })).firstPlayed).toBe(expected);
+    expect(gameFor(Psn.playedTitle({ firstPlayedDateTime: value })).firstPlayed).toBe(expected);
   });
 
   it("drops an empty image URL", () => {
-    expect(gameFor(played({ imageUrl: "" })).imageUrl).toBeUndefined();
+    expect(gameFor(Psn.playedTitle({ imageUrl: "" })).imageUrl).toBeUndefined();
   });
 
   it("defaults the play count to zero when the field is absent", () => {
-    expect(gameFor(played({ playCount: undefined })).playCount).toBe(0);
+    const title = Psn.playedTitle();
+    Reflect.deleteProperty(title, "playCount");
+
+    expect(Object.hasOwn(title, "playCount")).toBe(false);
+    expect(gameFor(title).playCount).toBe(0);
+  });
+
+  it("defaults the play count to zero when the field is present but undefined", () => {
+    const title = Psn.playedTitle({ playCount: undefined });
+
+    expect(Object.hasOwn(title, "playCount")).toBe(true);
+    expect(gameFor(title).playCount).toBe(0);
   });
 
   it("leaves every game un-enriched with a baseline genre and no franchise", () => {
-    const game = gameFor(played({ name: "Call of Duty" }));
+    const game = gameFor(Psn.playedTitle({ name: "Call of Duty" }));
 
     expect(game.genre).toBe("Other");
     expect(game.franchise).toBeUndefined();
@@ -267,8 +210,8 @@ describe(".partitionTitles", () => {
   });
 
   it("attaches a matching trophy list to a game", () => {
-    const game = gameFor(played({ name: "Call of Duty®: Modern Warfare®" }), [
-      trophy({
+    const game = gameFor(Psn.playedTitle({ name: "Call of Duty®: Modern Warfare®" }), [
+      Psn.trophyTitle({
         trophyTitleName: "Call of Duty Modern Warfare",
         progress: 90,
         definedTrophies: { bronze: 40, silver: 10, gold: 5, platinum: 1 },
@@ -287,8 +230,8 @@ describe(".partitionTitles", () => {
   });
 
   it("keeps platinum eligibility when the platinum is available but unearned", () => {
-    const game = gameFor(played({ name: "Fresh Start" }), [
-      trophy({
+    const game = gameFor(Psn.playedTitle({ name: "Fresh Start" }), [
+      Psn.trophyTitle({
         trophyTitleName: "Fresh Start",
         progress: 80,
         definedTrophies: { bronze: 40, silver: 10, gold: 5, platinum: 1 },
@@ -304,11 +247,11 @@ describe(".partitionTitles", () => {
 
   it("matches a trophy list via the concept name when the store name differs", () => {
     const game = gameFor(
-      played({
+      Psn.playedTitle({
         name: "GTAV Premium Edition",
-        concept: { ...basePlayed.concept, name: "Grand Theft Auto V" },
+        concept: { ...Psn.playedTitle().concept, name: "Grand Theft Auto V" },
       }),
-      [trophy({ trophyTitleName: "Grand Theft Auto V", progress: 50 })]
+      [Psn.trophyTitle({ trophyTitleName: "Grand Theft Auto V", progress: 50 })]
     );
 
     expect(game.trophy?.progress).toBe(50);
@@ -316,32 +259,35 @@ describe(".partitionTitles", () => {
 
   it("matches a brand-prefixed trophy list via the trailing-token subset", () => {
     const game = gameFor(
-      played({ name: "The Division 2", concept: { ...basePlayed.concept, name: "" } }),
-      [trophy({ trophyTitleName: "Tom Clancy's The Division®2", progress: 65 })]
+      Psn.playedTitle({
+        name: "The Division 2",
+        concept: { ...Psn.playedTitle().concept, name: "" },
+      }),
+      [Psn.trophyTitle({ trophyTitleName: "Tom Clancy's The Division®2", progress: 65 })]
     );
 
     expect(game.trophy?.progress).toBe(65);
   });
 
   it("falls back to an empty concept name when the title has no concept", () => {
-    const game = gameFor(played({ name: "Call of Duty", concept: undefined }), [
-      trophy({ trophyTitleName: "Call of Duty", progress: 30 }),
+    const game = gameFor(Psn.playedTitle({ name: "Call of Duty", concept: undefined }), [
+      Psn.trophyTitle({ trophyTitleName: "Call of Duty", progress: 30 }),
     ]);
 
     expect(game.trophy?.progress).toBe(30);
   });
 
   it("leaves a game without a trophy when no candidate matches", () => {
-    const game = gameFor(played({ name: "Unmatched Title" }), [
-      trophy({ trophyTitleName: "A Different Game", progress: 10 }),
+    const game = gameFor(Psn.playedTitle({ name: "Unmatched Title" }), [
+      Psn.trophyTitle({ trophyTitleName: "A Different Game", progress: 10 }),
     ]);
 
     expect(game.trophy).toBeUndefined();
   });
 
   it("omits the last-earned date when no trophies have been earned", () => {
-    const game = gameFor(played({ name: "Fresh Start" }), [
-      trophy({
+    const game = gameFor(Psn.playedTitle({ name: "Fresh Start" }), [
+      Psn.trophyTitle({
         trophyTitleName: "Fresh Start",
         progress: 0,
         lastUpdatedDateTime: "2021-06-10T00:00:00Z",
@@ -362,14 +308,17 @@ describe(".partitionTitles", () => {
     { scenario: "by an _app category suffix", name: "Some App", category: "music_app" },
     { scenario: "by a streaming app name", name: "Spotify", category: "ps4_game" },
   ])("excludes a non-game app $scenario", ({ name, category }) => {
-    const result = partitionTitles([played({ name, category })], new Map());
+    const result = partitionTitles([Psn.playedTitle({ name, category })], new Map());
 
     expect(result.games).toStrictEqual([]);
     expect(result.appsExcluded.map((a) => a.name)).toStrictEqual([name]);
   });
 
   it("keeps a game whose name only contains an app word at a non-boundary", () => {
-    const result = partitionTitles([played({ name: "Mad Max", category: "ps4_game" })], new Map());
+    const result = partitionTitles(
+      [Psn.playedTitle({ titleId: "title-1", name: "Mad Max", category: "ps4_game" })],
+      new Map()
+    );
 
     expect(result.games.map((g) => g.titleId)).toStrictEqual(["title-1"]);
     expect(result.appsExcluded).toStrictEqual([]);
@@ -380,14 +329,14 @@ describe(".computeMeta", () => {
   it("aggregates totals, sessions and the activity span across games", () => {
     const { games, appsExcluded } = partitionTitles(
       [
-        played({
+        Psn.playedTitle({
           name: "Early Game",
           playDuration: "PT5H",
           playCount: 3,
           firstPlayedDateTime: "2019-01-01T00:00:00Z",
           lastPlayedDateTime: "2020-01-01T00:00:00Z",
         }),
-        played({
+        Psn.playedTitle({
           name: "Late Game",
           playDuration: "PT2H30M",
           playCount: 4,
@@ -409,7 +358,10 @@ describe(".computeMeta", () => {
   });
 
   it("leaves the activity span open when no play dates are present", () => {
-    const { games, appsExcluded } = partitionTitles([played({ name: "Undated Game" })], new Map());
+    const { games, appsExcluded } = partitionTitles(
+      [Psn.playedTitle({ name: "Undated Game" })],
+      new Map()
+    );
 
     const meta = computeMeta(games, appsExcluded);
 
