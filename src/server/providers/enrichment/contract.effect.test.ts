@@ -1,58 +1,73 @@
+import * as ConfigProvider from "effect/ConfigProvider";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
-import { RateLimitedError, UpstreamUnavailableError } from "../errors.effect";
-import { type GameMetadata, TitleEnrichment } from "./contract.effect";
+import { server } from "@/test/msw";
+import { RAWG_GAMES_URL, RAWG_SERIES_URL } from "@/test/msw-handlers";
+import { rawgGame, rawgSearch, rawgSeries } from "@/test/rawg-fixtures";
+import { TitleEnrichment } from "./contract.effect";
+import { TitleEnrichmentLayer } from "./rawg/provider.effect";
 
-/**
- * Proves the `TitleEnrichment` port and its tagged errors compose: a trivial
- * in-memory layer implements the port, an Effect consumes it, and the tagged
- * failures are recovered on the typed channel.
- */
+const RAWG = Layer.provide(
+  TitleEnrichmentLayer,
+  ConfigProvider.layer(ConfigProvider.fromUnknown({ RAWG_API_KEY: "test-key" }))
+);
 
-const ENRICHED: GameMetadata = { genre: "RPG", typicalPlaytime: 40 };
+const metadataFor = (title: string) =>
+  Effect.gen(function* () {
+    const enrichment = yield* TitleEnrichment;
+    return yield* enrichment.metadataFor(title);
+  }).pipe(Effect.provide(RAWG));
 
-/**
- * A stand-in enrichment source: a known title resolves to a `GameMetadata`,
- * one title rate-limits, everything else is upstream-unavailable.
- */
-const enrichmentTestLayer = Layer.succeed(TitleEnrichment, {
-  metadataFor: (title: string) => {
-    if (title === "Known Game") return Effect.succeed(ENRICHED);
-    if (title === "Busy Game") return Effect.fail(new RateLimitedError({ provider: "rawg" }));
-    return Effect.fail(
-      new UpstreamUnavailableError({ provider: "rawg", reason: "upstream_error" })
-    );
-  },
-  franchiseFor: () => Effect.succeed(undefined),
-});
+const franchiseFor = (title: string) =>
+  Effect.gen(function* () {
+    const enrichment = yield* TitleEnrichment;
+    return yield* enrichment.franchiseFor(title);
+  }).pipe(Effect.provide(RAWG));
 
 describe("TitleEnrichment", () => {
-  it("resolves a GameMetadata through the TitleEnrichment port", async () => {
-    const program = Effect.gen(function* () {
-      const provider = yield* TitleEnrichment;
-      return yield* provider.metadataFor("Known Game");
+  it("resolves metadata through the RAWG HTTP boundary", async () => {
+    server.use(
+      http.get(RAWG_GAMES_URL, () =>
+        HttpResponse.json(rawgSearch([rawgGame({ genres: ["RPG"], playtime: 40 })]))
+      )
+    );
+
+    await expect(Effect.runPromise(metadataFor("Known Game"))).resolves.toStrictEqual({
+      genre: "RPG",
+      typicalPlaytime: 40,
     });
-
-    const info = await Effect.runPromise(program.pipe(Effect.provide(enrichmentTestLayer)));
-
-    expect(info).toStrictEqual(ENRICHED);
   });
 
-  it("recovers both TitleEnrichment error tags on the typed channel", async () => {
-    const lookup = (title: string) =>
-      Effect.gen(function* () {
-        const provider = yield* TitleEnrichment;
-        return yield* provider.metadataFor(title);
-      }).pipe(
-        Effect.catchTags({
-          RateLimitedError: (error) => Effect.succeed(`rate:${error.provider}`),
-          UpstreamUnavailableError: (error) => Effect.succeed(`down:${error.reason}`),
-        }),
-        Effect.provide(enrichmentTestLayer)
-      );
+  it("resolves an absent RAWG match as successful absence", async () => {
+    server.use(http.get(RAWG_GAMES_URL, () => HttpResponse.json(rawgSearch())));
 
-    await expect(Effect.runPromise(lookup("Busy Game"))).resolves.toBe("rate:rawg");
-    await expect(Effect.runPromise(lookup("Other Game"))).resolves.toBe("down:upstream_error");
+    await expect(Effect.runPromise(metadataFor("Unknown Game"))).resolves.toStrictEqual({});
+  });
+
+  it("derives a franchise through the RAWG search and series boundaries", async () => {
+    server.use(
+      http.get(RAWG_GAMES_URL, () =>
+        HttpResponse.json(rawgSearch([rawgGame({ id: 42, name: "Forza Horizon 5" })]))
+      ),
+      http.get(RAWG_SERIES_URL, () =>
+        HttpResponse.json(rawgSeries(["Forza Horizon 4", "Forza Motorsport 7"]))
+      )
+    );
+
+    await expect(Effect.runPromise(franchiseFor("Forza Horizon 5"))).resolves.toBe("Forza");
+  });
+
+  it.each([
+    { tag: "RateLimitedError", status: 429 },
+    { tag: "UpstreamUnavailableError", status: 503 },
+  ])("surfaces $tag from the RAWG HTTP boundary", async ({ tag, status }) => {
+    server.use(http.get(RAWG_GAMES_URL, () => new HttpResponse(null, { status })));
+
+    const error = await Effect.runPromise(metadataFor("Busy Game").pipe(Effect.flip));
+
+    expect(error._tag).toBe(tag);
+    expect(error.provider).toBe("rawg");
   });
 });
