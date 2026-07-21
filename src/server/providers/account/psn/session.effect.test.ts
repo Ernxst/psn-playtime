@@ -7,7 +7,7 @@ import { authenticatePsnSession } from "@/server/providers/account/psn/session.e
 import { PsnTransportLive } from "@/server/providers/account/psn/transport.effect";
 import * as Psn from "@/test/factories/psn";
 import { server } from "@/test/msw";
-import { PSN_PLAYED_GAMES_URL, PSN_TROPHY_TITLES_URL, psnAuthUrl } from "@/test/msw-handlers";
+import { psnApiUrl, psnAuthUrl } from "@/test/msw-handlers";
 
 const authenticate = (credential = "npsso-token") =>
   Effect.runPromise(
@@ -42,8 +42,8 @@ describe(".authenticatePsnSession", () => {
     );
     server.use(
       http.get(psnAuthUrl("authorize"), authorize),
-      http.get(PSN_PLAYED_GAMES_URL, played),
-      http.get(PSN_TROPHY_TITLES_URL, trophies)
+      http.get(psnApiUrl("gamelist/v2/users/me/titles"), played),
+      http.get(psnApiUrl("trophy/v1/users/me/trophyTitles"), trophies)
     );
 
     const session = await authenticate();

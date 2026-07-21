@@ -9,12 +9,7 @@ import {
 } from "@/server/providers/account/psn/transport.effect";
 import * as Psn from "@/test/factories/psn";
 import { server } from "@/test/msw";
-import {
-  PSN_PLAYED_GAMES_URL,
-  PSN_PROFILE_URL,
-  PSN_TROPHY_TITLES_URL,
-  psnAuthUrl,
-} from "@/test/msw-handlers";
+import { psnApiUrl, psnAuthUrl, psnProfileUrl } from "@/test/msw-handlers";
 
 const runTransport = <A>(
   operation: (transport: PsnTransportShape) => Effect.Effect<A, PsnTransportError>
@@ -45,12 +40,12 @@ describe("PsnTransportLive", () => {
         const body = await request.text();
         return HttpResponse.json(body.includes("code=verified-code") ? Psn.tokenResponse() : {});
       }),
-      http.get(PSN_PROFILE_URL, ({ request }) =>
+      http.get(psnProfileUrl("users/me/profile2"), ({ request }) =>
         HttpResponse.json(
           request.headers.get("authorization") === "Bearer access-token" ? profile : { profile: {} }
         )
       ),
-      http.get(PSN_PLAYED_GAMES_URL, ({ request }) => {
+      http.get(psnApiUrl("gamelist/v2/users/me/titles"), ({ request }) => {
         const url = new URL(request.url);
         return HttpResponse.json(
           request.headers.get("authorization") === "Bearer access-token" &&
@@ -60,7 +55,7 @@ describe("PsnTransportLive", () => {
             : Psn.playedPage()
         );
       }),
-      http.get(PSN_TROPHY_TITLES_URL, ({ request }) => {
+      http.get(psnApiUrl("trophy/v1/users/me/trophyTitles"), ({ request }) => {
         const url = new URL(request.url);
         return HttpResponse.json(
           request.headers.get("authorization") === "Bearer access-token" &&
@@ -91,7 +86,7 @@ describe("PsnTransportLive", () => {
   });
 
   it("wraps a rejected psn-api request in PsnTransportError", async () => {
-    server.use(http.get(PSN_PROFILE_URL, () => HttpResponse.error()));
+    server.use(http.get(psnProfileUrl("users/me/profile2"), () => HttpResponse.error()));
 
     const error = await Effect.runPromise(
       Effect.gen(function* () {

@@ -15,12 +15,7 @@ import { PsnTransportLive } from "@/server/providers/account/psn/transport.effec
 import type { DashboardData } from "@/server/providers/account/snapshot";
 import * as Psn from "@/test/factories/psn";
 import { server } from "@/test/msw";
-import {
-  PSN_PLAYED_GAMES_URL,
-  PSN_PROFILE_URL,
-  PSN_TROPHY_TITLES_URL,
-  psnAuthUrl,
-} from "@/test/msw-handlers";
+import { psnApiUrl, psnAuthUrl, psnProfileUrl } from "@/test/msw-handlers";
 
 /**
  * Run the exported `signInEffect` through the production PSN provider and live
@@ -192,13 +187,13 @@ function mockPsn(
               : { Location: "https://example.test/redirect/?code=access-code" },
         })
     ),
-    http.get(PSN_PROFILE_URL, () =>
+    http.get(psnProfileUrl("users/me/profile2"), () =>
       HttpResponse.json(
         cfg.profileError ? { error: { message: cfg.profileError } } : (cfg.profile ?? Psn.profile())
       )
     ),
-    http.get(PSN_PLAYED_GAMES_URL, getPlayedGames),
-    http.get(PSN_TROPHY_TITLES_URL, getUserTitles),
+    http.get(psnApiUrl("gamelist/v2/users/me/titles"), getPlayedGames),
+    http.get(psnApiUrl("trophy/v1/users/me/trophyTitles"), getUserTitles),
   ];
   return { handlers, getPlayedGames, getUserTitles };
 }
@@ -716,7 +711,7 @@ describe(".signInEffect", () => {
   it("sanitises an unexpected normalization defect at the live HTTP boundary", async () => {
     server.use(...liveHandlers());
     server.use(
-      http.get(PSN_PROFILE_URL, () =>
+      http.get(psnProfileUrl("users/me/profile2"), () =>
         HttpResponse.json({
           ...Psn.profile(),
           profile: { ...Psn.profile().profile, aboutMe: null },

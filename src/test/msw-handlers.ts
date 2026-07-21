@@ -10,17 +10,15 @@ import * as Psn from "@/test/factories/psn";
 import * as Transactions from "@/test/factories/transactions";
 import { rawgSearch, rawgSeries } from "./rawg-fixtures";
 
+const PSN_API_BASE_URL = "https://m.np.playstation.com/api/";
 const PSN_AUTH_BASE_URL = "https://ca.account.sony.com/api/authz/v3/oauth/";
+const PSN_PROFILE_BASE_URL = "https://us-prof.np.community.playstation.net/userProfile/v1/";
 const RAWG_BASE_URL = "https://api.rawg.io/api/";
 
+export const psnApiUrl = (path: string): string => new URL(path, PSN_API_BASE_URL).href;
 export const psnAuthUrl = (path: string): string => new URL(path, PSN_AUTH_BASE_URL).href;
+export const psnProfileUrl = (path: string): string => new URL(path, PSN_PROFILE_BASE_URL).href;
 export const rawgUrl = (path: string): string => new URL(path, RAWG_BASE_URL).href;
-
-export const PSN_PROFILE_URL =
-  "https://us-prof.np.community.playstation.net/userProfile/v1/users/me/profile2";
-export const PSN_PLAYED_GAMES_URL = "https://m.np.playstation.com/api/gamelist/v2/users/me/titles";
-export const PSN_TROPHY_TITLES_URL =
-  "https://m.np.playstation.com/api/trophy/v1/users/me/trophyTitles";
 const unauthorized = () => new HttpResponse<null>(null, { status: 401 });
 const forbidden = () => new HttpResponse<null>(null, { status: 403 });
 
@@ -75,15 +73,15 @@ export const handlers = [
     withAuthorization(() => HttpResponse.json(Psn.tokenResponse()))
   ),
   http.get(
-    PSN_PROFILE_URL,
+    psnProfileUrl("users/me/profile2"),
     withAuthorization(() => HttpResponse.json(Psn.profile()))
   ),
   http.get(
-    PSN_PLAYED_GAMES_URL,
+    psnApiUrl("gamelist/v2/users/me/titles"),
     withAuthorization(() => HttpResponse.json(Psn.playedPage()))
   ),
   http.get(
-    PSN_TROPHY_TITLES_URL,
+    psnApiUrl("trophy/v1/users/me/trophyTitles"),
     withAuthorization(() => HttpResponse.json(Psn.trophyPage()))
   ),
   http.get(

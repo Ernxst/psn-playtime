@@ -8,7 +8,7 @@ import { PsnDashboardSourceLayer } from "@/server/providers/account/psn/provider
 import { PsnTransportLive } from "@/server/providers/account/psn/transport.effect";
 import * as Psn from "@/test/factories/psn";
 import { server } from "@/test/msw";
-import { PSN_PLAYED_GAMES_URL, PSN_PROFILE_URL, PSN_TROPHY_TITLES_URL } from "@/test/msw-handlers";
+import { psnApiUrl, psnProfileUrl } from "@/test/msw-handlers";
 
 const layer = Layer.provide(PsnDashboardSourceLayer, PsnTransportLive);
 
@@ -23,7 +23,7 @@ const loadDashboard = () =>
 describe(".loadDashboard", () => {
   it("normalises PSN HTTP responses and excludes media apps", async () => {
     server.use(
-      http.get(PSN_PLAYED_GAMES_URL, () =>
+      http.get(psnApiUrl("gamelist/v2/users/me/titles"), () =>
         HttpResponse.json(
           Psn.playedPage([
             Psn.playedTitle({
@@ -40,7 +40,7 @@ describe(".loadDashboard", () => {
           ])
         )
       ),
-      http.get(PSN_TROPHY_TITLES_URL, () =>
+      http.get(psnApiUrl("trophy/v1/users/me/trophyTitles"), () =>
         HttpResponse.json(
           Psn.trophyPage([
             Psn.trophyTitle({
@@ -65,21 +65,25 @@ describe(".loadDashboard", () => {
     ["429 Too Many Requests", "RateLimitedError"],
     ["503 service unavailable", "UpstreamUnavailableError"],
   ])("maps a profile failure containing %s to %s", async (message, tag) => {
-    server.use(http.get(PSN_PROFILE_URL, () => HttpResponse.json({ error: { message } })));
+    server.use(
+      http.get(psnProfileUrl("users/me/profile2"), () => HttpResponse.json({ error: { message } }))
+    );
 
     await expect(loadDashboard()).rejects.toMatchObject({ _tag: tag });
   });
 
   it("marks a successful empty live trophy response as available", async () => {
     server.use(
-      http.get(PSN_PLAYED_GAMES_URL, () =>
+      http.get(psnApiUrl("gamelist/v2/users/me/titles"), () =>
         HttpResponse.json(
           Psn.playedPage([
             Psn.playedTitle({ titleId: "hzd", name: "Horizon", playDuration: "PT5H" }),
           ])
         )
       ),
-      http.get(PSN_TROPHY_TITLES_URL, () => HttpResponse.json(Psn.trophyPage()))
+      http.get(psnApiUrl("trophy/v1/users/me/trophyTitles"), () =>
+        HttpResponse.json(Psn.trophyPage())
+      )
     );
 
     const result = await loadDashboard();
@@ -90,7 +94,7 @@ describe(".loadDashboard", () => {
 
   it("keeps playtime when live psn-api reports upstream trophy transport degradation", async () => {
     server.use(
-      http.get(PSN_PLAYED_GAMES_URL, () =>
+      http.get(psnApiUrl("gamelist/v2/users/me/titles"), () =>
         HttpResponse.json(
           Psn.playedPage([
             Psn.playedTitle({ titleId: "hzd", name: "Horizon", playDuration: "PT5H" }),
@@ -100,7 +104,7 @@ describe(".loadDashboard", () => {
       // Live psn-api does not expose HTTP status semantics here. A real network
       // failure becomes PsnTransportError and exercises fetchTrophies recovery;
       // this deliberately does not claim to test HTTP 429/rate-limit mapping.
-      http.get(PSN_TROPHY_TITLES_URL, () => HttpResponse.error())
+      http.get(psnApiUrl("trophy/v1/users/me/trophyTitles"), () => HttpResponse.error())
     );
 
     const result = await loadDashboard();
