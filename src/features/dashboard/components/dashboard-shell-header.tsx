@@ -27,7 +27,7 @@ export function DashboardShellHeader({
       className="sticky top-0 z-30 flex h-15 items-center gap-2 border-b border-[var(--playloom-rule)] bg-[rgb(243_239_229/96%)] px-5 backdrop-blur-md max-sm:px-3"
       data-slot="dashboard-shell-header"
     >
-      <SidebarTrigger className="size-11 md:hidden" aria-label="Open chapter navigation" />
+      <SidebarTrigger className="size-11" aria-label="Toggle chapter navigation" />
       <Link
         className="font-[Fraunces_Variable] text-xl font-semibold tracking-[-0.035em] text-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
         to="/"

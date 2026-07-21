@@ -1,5 +1,7 @@
 import { useState, useSyncExternalStore } from "react";
-import { Sidebar, SidebarContent, SidebarFooter, useSidebar } from "@/components/ui/sidebar";
+import { Sidebar, SidebarContent, useSidebar } from "@/components/ui/sidebar";
+
+const READING_LINE = 96;
 
 const chapters = [
   {
@@ -45,6 +47,7 @@ export const dashboardSectionIds = chapters.flatMap((chapter) =>
 );
 
 function hashSection(): string | undefined {
+  if (typeof window === "undefined") return undefined;
   const id = window.location.hash.slice(1);
   return dashboardSectionIds.some((sectionId) => sectionId === id) ? id : undefined;
 }
@@ -57,40 +60,90 @@ export function alignHashDestination(): void {
   window.requestAnimationFrame(() => window.requestAnimationFrame(align));
 }
 
+type ActiveSectionState = {
+  active: string;
+  requested?: string;
+  notify?: () => void;
+};
+
+function keepSectionLinkVisible(id: string): void {
+  const link = document.querySelector<HTMLElement>(`[data-dashboard-section="${id}"]`);
+  const navigation = link?.closest<HTMLElement>('[data-slot="sidebar-content"]');
+  if (!link || !navigation) return;
+  const linkRect = link.getBoundingClientRect();
+  const navigationRect = navigation.getBoundingClientRect();
+  if (linkRect.top < navigationRect.top) navigation.scrollTop -= navigationRect.top - linkRect.top;
+  if (linkRect.bottom > navigationRect.bottom) {
+    navigation.scrollTop += linkRect.bottom - navigationRect.bottom;
+  }
+}
+
+function activateSection(state: ActiveSectionState, id: string, requested: boolean): void {
+  const changed = state.active !== id;
+  state.active = id;
+  state.requested = requested ? id : undefined;
+  if (changed) state.notify?.();
+  keepSectionLinkVisible(id);
+}
+
+function holdRequestedSection(
+  state: ActiveSectionState,
+  entries: IntersectionObserverEntry[]
+): boolean {
+  const requested = state.requested;
+  if (!requested) return false;
+  const arrived = entries.some((entry) => entry.isIntersecting && entry.target.id === requested);
+  if (arrived) state.requested = undefined;
+  return true;
+}
+
+function firstVisibleSection(entries: IntersectionObserverEntry[]): string | undefined {
+  return entries
+    .filter((entry) => entry.isIntersecting)
+    .toSorted(
+      (a, b) =>
+        Math.abs(a.boundingClientRect.top - READING_LINE) -
+        Math.abs(b.boundingClientRect.top - READING_LINE)
+    )[0]?.target.id;
+}
+
+function observeSections(state: ActiveSectionState, entries: IntersectionObserverEntry[]): void {
+  if (holdRequestedSection(state, entries)) return;
+  const id = firstVisibleSection(entries);
+  if (id) activateSection(state, id, false);
+}
+
+function subscribeToSections(state: ActiveSectionState, onStoreChange: () => void): () => void {
+  state.notify = onStoreChange;
+  const followHash = () => {
+    const id = hashSection();
+    if (!id) return;
+    activateSection(state, id, true);
+    alignHashDestination();
+  };
+  const observer = new IntersectionObserver((entries) => observeSections(state, entries), {
+    threshold: 0,
+  });
+  for (const id of dashboardSectionIds) {
+    const section = document.getElementById(id);
+    if (section) observer.observe(section);
+  }
+  window.addEventListener("hashchange", followHash);
+  keepSectionLinkVisible(state.active);
+  return () => {
+    state.notify = undefined;
+    observer.disconnect();
+    window.removeEventListener("hashchange", followHash);
+  };
+}
+
 function activeSectionStore() {
-  let active = "overview";
-  let notify: (() => void) | undefined;
+  const hashed = hashSection();
+  const state: ActiveSectionState = { active: hashed ?? "overview", requested: hashed };
   return {
-    subscribe: (onStoreChange: () => void) => {
-      notify = onStoreChange;
-      const hashed = hashSection();
-      if (hashed) active = hashed;
-      const observer = new IntersectionObserver(
-        (entries) => {
-          const first = entries
-            .filter((entry) => entry.isIntersecting)
-            .toSorted((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
-          if (!first || first.target.id === active) return;
-          active = first.target.id;
-          notify?.();
-        },
-        { rootMargin: "-15% 0px -72%", threshold: 0 }
-      );
-      for (const id of dashboardSectionIds) {
-        const section = document.getElementById(id);
-        if (section) observer.observe(section);
-      }
-      return () => {
-        notify = undefined;
-        observer.disconnect();
-      };
-    },
-    activate: (id: string) => {
-      if (id === active) return;
-      active = id;
-      notify?.();
-    },
-    getSnapshot: () => active,
+    subscribe: (onStoreChange: () => void) => subscribeToSections(state, onStoreChange),
+    activate: (id: string) => activateSection(state, id, true),
+    getSnapshot: () => state.active,
     getServerSnapshot: () => "overview",
   };
 }
@@ -113,6 +166,7 @@ function ChapterLink({
       href={`#${id}`}
       aria-current={active ? "location" : undefined}
       data-active={active}
+      data-dashboard-section={id}
       onClick={() => {
         onActivate();
         if (isMobile) {
@@ -161,21 +215,6 @@ function ChapterNav() {
   );
 }
 
-function SpineFooter() {
-  return (
-    <SidebarFooter className="gap-3 px-6 py-5 text-[0.6875rem] leading-[1.45] text-white/50">
-      <a
-        className="text-white/70 underline underline-offset-3"
-        href="https://rawg.io"
-        target="_blank"
-        rel="noreferrer"
-      >
-        Game metadata and artwork provided by RAWG
-      </a>
-    </SidebarFooter>
-  );
-}
-
 export function DashboardSidebar() {
   return (
     <Sidebar
@@ -184,10 +223,9 @@ export function DashboardSidebar() {
       mobileTitle="Navigate Playloom"
       mobileDescription="Choose a dashboard chapter. Every destination is available in this scrollable drawer."
     >
-      <SidebarContent className="min-h-0 overflow-y-auto overscroll-contain pt-7 pb-6">
+      <SidebarContent className="min-h-0 overflow-y-auto overscroll-contain py-7">
         <ChapterNav />
       </SidebarContent>
-      <SpineFooter />
     </Sidebar>
   );
 }
