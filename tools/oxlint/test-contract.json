@@ -94,7 +94,9 @@
         "test-contract/no-ambiguous-called-with": "error",
         "test-contract/no-callback-capture": "error",
         "test-contract/no-mock-implementation-shortcut": "error",
-        "test-contract/no-global-mock-cleanup": "error"
+        "test-contract/no-global-mock-cleanup": "error",
+        "test-contract/no-indirect-msw-overrides": "error",
+        "test-contract/no-inline-msw-url": "error"
       }
     }
   ]

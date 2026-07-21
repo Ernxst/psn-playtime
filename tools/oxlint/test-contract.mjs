@@ -3,7 +3,14 @@ const testNames = new Set(["it", "test"]);
 function propertyName(node) {
   if (node?.type !== "MemberExpression") return undefined;
   if (node.computed && node.property?.type === "Literal") return node.property.value;
-  return node.property?.name;
+  if (
+    node.computed &&
+    node.property?.type === "TemplateLiteral" &&
+    node.property.expressions.length === 0
+  ) {
+    return node.property.quasis[0]?.value.cooked;
+  }
+  return node.computed ? undefined : node.property?.name;
 }
 
 function isViCall(node, name) {
@@ -429,6 +436,71 @@ const noGlobalMockCleanup = rule(
   })
 );
 
+const mswRegistrationBoundaries = new Set(["beforeAll", "beforeEach", ...testNames]);
+
+function callbackOwner(fn) {
+  const call = containingCall(fn);
+  if (call?.callee.type !== "CallExpression") return callName(call);
+  const factory = call.callee.callee;
+  if (factory.type === "MemberExpression" && factory.object.type === "Identifier") {
+    return factory.object.name;
+  }
+  return undefined;
+}
+
+function isInsideMswRegistrationBoundary(node) {
+  for (let fn = nearestFunction(node); fn; fn = nearestFunction(fn)) {
+    if (mswRegistrationBoundaries.has(callbackOwner(fn))) return true;
+  }
+  return false;
+}
+
+const noIndirectMswOverrides = rule(
+  { indirect: "Register MSW overrides directly in a test or setup boundary" },
+  (context) => ({
+    CallExpression(node) {
+      if (
+        node.callee.type === "MemberExpression" &&
+        node.callee.object.type === "Identifier" &&
+        node.callee.object.name === "server" &&
+        propertyName(node.callee) === "use" &&
+        nearestFunction(node) &&
+        !isInsideMswRegistrationBoundary(node)
+      ) {
+        context.report({ node, messageId: "indirect" });
+      }
+    },
+  })
+);
+
+const httpMethods = new Set(["all", "delete", "get", "head", "options", "patch", "post", "put"]);
+
+const noInlineMswUrl = rule(
+  { inline: "Use a canonical endpoint or named URL builder for MSW handler targets" },
+  (context) => ({
+    CallExpression(node) {
+      if (
+        node.callee.type !== "MemberExpression" ||
+        node.callee.object.type !== "Identifier" ||
+        node.callee.object.name !== "http" ||
+        !httpMethods.has(propertyName(node.callee))
+      ) {
+        return;
+      }
+      const target = node.arguments[0];
+      const value =
+        target?.type === "Literal"
+          ? target.value
+          : target?.type === "TemplateLiteral"
+            ? target.quasis[0]?.value.cooked
+            : undefined;
+      if (typeof value === "string" && /^https?:\/\//iu.test(value)) {
+        context.report({ node: target, messageId: "inline" });
+      }
+    },
+  })
+);
+
 export default {
   meta: { name: "test-contract" },
   rules: {
@@ -451,5 +523,7 @@ export default {
     "no-callback-capture": noCallbackCapture,
     "no-mock-implementation-shortcut": noMockImplementationShortcut,
     "no-global-mock-cleanup": noGlobalMockCleanup,
+    "no-indirect-msw-overrides": noIndirectMswOverrides,
+    "no-inline-msw-url": noInlineMswUrl,
   },
 };
