@@ -70,7 +70,7 @@ describe(".loadDashboard", () => {
     await expect(loadDashboard()).rejects.toMatchObject({ _tag: tag });
   });
 
-  it("keeps playtime when the trophy endpoint is unavailable", async () => {
+  it("marks a successful empty live trophy response as available", async () => {
     server.use(
       http.get(PSN_PLAYED_GAMES_URL, () =>
         HttpResponse.json(
@@ -79,6 +79,27 @@ describe(".loadDashboard", () => {
           ])
         )
       ),
+      http.get(PSN_TROPHY_TITLES_URL, () => HttpResponse.json(Psn.trophyPage()))
+    );
+
+    const result = await loadDashboard();
+
+    expect(result.trophiesUnavailable).toBe(false);
+    expect(result.games).toMatchObject([{ titleId: "hzd", hours: 5 }]);
+  });
+
+  it("keeps playtime when live psn-api reports upstream trophy transport degradation", async () => {
+    server.use(
+      http.get(PSN_PLAYED_GAMES_URL, () =>
+        HttpResponse.json(
+          Psn.playedPage([
+            Psn.playedTitle({ titleId: "hzd", name: "Horizon", playDuration: "PT5H" }),
+          ])
+        )
+      ),
+      // Live psn-api does not expose HTTP status semantics here. A real network
+      // failure becomes PsnTransportError and exercises fetchTrophies recovery;
+      // this deliberately does not claim to test HTTP 429/rate-limit mapping.
       http.get(PSN_TROPHY_TITLES_URL, () => HttpResponse.error())
     );
 

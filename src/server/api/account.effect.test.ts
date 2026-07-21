@@ -688,6 +688,30 @@ describe(".signInEffect", () => {
     await expect(promise).rejects.not.toThrow(/trophyLevel|Finite|NaN|SchemaError/);
   });
 
+  it("sanitises an unexpected normalization defect at the live HTTP boundary", async () => {
+    liveBuild();
+    server.use(
+      http.get(PSN_PROFILE_URL, () =>
+        HttpResponse.json({
+          ...Psn.profile(),
+          profile: { ...Psn.profile().profile, aboutMe: null },
+        })
+      )
+    );
+
+    // The malformed upstream value reaches toProfileSummary and defects on
+    // `aboutMe.length`. This is Effect.catchDefect coverage, distinct from the
+    // DashboardData SchemaError case above.
+    const promise = runSignIn("npsso-token");
+
+    await expect(promise).rejects.toMatchObject({
+      name: "SignInError",
+      kind: "internal",
+      message: "Something went wrong on our end. Please try again.",
+    });
+    await expect(promise).rejects.not.toThrow(/aboutMe|length|null|TypeError/);
+  });
+
   it("keeps paging played games past a full first page when PSN omits the total", async () => {
     // A full first page (== the 200 limit) with no total: the loop must keep
     // going and fetch the (short) second page rather than stop after page one.
