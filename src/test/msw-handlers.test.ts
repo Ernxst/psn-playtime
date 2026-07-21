@@ -3,27 +3,23 @@ import { describe, expect, it, vi } from "vitest";
 import { TRANSACTION_HISTORY_ENDPOINT } from "@/domain/transaction-bookmarklet";
 import { server } from "./msw";
 import {
-  PSN_AUTHORIZE_URL,
   PSN_PLAYED_GAMES_URL,
   PSN_PROFILE_URL,
-  PSN_TOKEN_URL,
   PSN_TROPHY_TITLES_URL,
-  RAWG_GAMES_URL,
-  RAWG_SERIES_URL,
   psnAuthUrl,
   rawgUrl,
   withTransactionCredentials,
 } from "./msw-handlers";
 
 const psnRequests = [
-  [PSN_AUTHORIZE_URL, { headers: { cookie: "npsso=test-token" }, redirect: "manual" }, 302],
-  [PSN_TOKEN_URL, { method: "POST", headers: { authorization: "Basic test-client" } }, 200],
+  [psnAuthUrl("authorize"), { headers: { cookie: "npsso=test-token" }, redirect: "manual" }, 302],
+  [psnAuthUrl("token"), { method: "POST", headers: { authorization: "Basic test-client" } }, 200],
   [PSN_PROFILE_URL, { headers: { authorization: "Bearer access-token" } }, 200],
   [PSN_PLAYED_GAMES_URL, { headers: { authorization: "Bearer access-token" } }, 200],
   [PSN_TROPHY_TITLES_URL, { headers: { authorization: "Bearer access-token" } }, 200],
 ] as const;
 
-const rawgRequests = [RAWG_GAMES_URL, RAWG_SERIES_URL.replace(":id", "42")];
+const rawgRequests = [rawgUrl("games"), rawgUrl("games/42/game-series")];
 
 const transactionHeaders = {
   "apollographql-client-name": "@sie-ppr-web-checkout/app",
@@ -58,15 +54,17 @@ const invalidTransactionRequests = [
 
 describe(".psnAuthUrl", () => {
   it("builds PSN auth endpoints from the PSN auth base", () => {
-    expect(psnAuthUrl("authorize")).toBe(PSN_AUTHORIZE_URL);
-    expect(psnAuthUrl("token")).toBe(PSN_TOKEN_URL);
+    expect(psnAuthUrl("authorize")).toBe(
+      "https://ca.account.sony.com/api/authz/v3/oauth/authorize"
+    );
+    expect(psnAuthUrl("token")).toBe("https://ca.account.sony.com/api/authz/v3/oauth/token");
   });
 });
 
 describe(".rawgUrl", () => {
   it("builds RAWG endpoints from the RAWG API base", () => {
-    expect(rawgUrl("games")).toBe(RAWG_GAMES_URL);
-    expect(rawgUrl("games/:id/game-series")).toBe(RAWG_SERIES_URL);
+    expect(rawgUrl("games")).toBe("https://api.rawg.io/api/games");
+    expect(rawgUrl("games/:id/game-series")).toBe("https://api.rawg.io/api/games/:id/game-series");
   });
 });
 

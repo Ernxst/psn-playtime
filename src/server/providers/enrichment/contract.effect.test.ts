@@ -4,7 +4,7 @@ import * as Layer from "effect/Layer";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
 import { server } from "@/test/msw";
-import { RAWG_GAMES_URL, RAWG_SERIES_URL } from "@/test/msw-handlers";
+import { rawgUrl } from "@/test/msw-handlers";
 import { rawgGame, rawgSearch, rawgSeries } from "@/test/rawg-fixtures";
 import { TitleEnrichment } from "./contract.effect";
 import { TitleEnrichmentLayer } from "./rawg/provider.effect";
@@ -29,7 +29,7 @@ const franchiseFor = (title: string) =>
 describe("TitleEnrichment", () => {
   it("resolves metadata through the RAWG HTTP boundary", async () => {
     server.use(
-      http.get(RAWG_GAMES_URL, () =>
+      http.get(rawgUrl("games"), () =>
         HttpResponse.json(rawgSearch([rawgGame({ genres: ["RPG"], playtime: 40 })]))
       )
     );
@@ -41,17 +41,17 @@ describe("TitleEnrichment", () => {
   });
 
   it("resolves an absent RAWG match as successful absence", async () => {
-    server.use(http.get(RAWG_GAMES_URL, () => HttpResponse.json(rawgSearch())));
+    server.use(http.get(rawgUrl("games"), () => HttpResponse.json(rawgSearch())));
 
     await expect(Effect.runPromise(metadataFor("Unknown Game"))).resolves.toStrictEqual({});
   });
 
   it("derives a franchise through the RAWG search and series boundaries", async () => {
     server.use(
-      http.get(RAWG_GAMES_URL, () =>
+      http.get(rawgUrl("games"), () =>
         HttpResponse.json(rawgSearch([rawgGame({ id: 42, name: "Forza Horizon 5" })]))
       ),
-      http.get(RAWG_SERIES_URL, () =>
+      http.get(rawgUrl("games/:id/game-series"), () =>
         HttpResponse.json(rawgSeries(["Forza Horizon 4", "Forza Motorsport 7"]))
       )
     );
@@ -63,7 +63,7 @@ describe("TitleEnrichment", () => {
     { tag: "RateLimitedError", status: 429 },
     { tag: "UpstreamUnavailableError", status: 503 },
   ])("surfaces $tag from the RAWG HTTP boundary", async ({ tag, status }) => {
-    server.use(http.get(RAWG_GAMES_URL, () => new HttpResponse(null, { status })));
+    server.use(http.get(rawgUrl("games"), () => new HttpResponse(null, { status })));
 
     const error = await Effect.runPromise(metadataFor("Busy Game").pipe(Effect.flip));
 

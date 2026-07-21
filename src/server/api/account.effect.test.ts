@@ -16,10 +16,10 @@ import type { DashboardData } from "@/server/providers/account/snapshot";
 import * as Psn from "@/test/factories/psn";
 import { server } from "@/test/msw";
 import {
-  PSN_AUTH_URL,
   PSN_PLAYED_GAMES_URL,
   PSN_PROFILE_URL,
   PSN_TROPHY_TITLES_URL,
+  psnAuthUrl,
 } from "@/test/msw-handlers";
 
 /**
@@ -182,7 +182,7 @@ function mockPsn(
       });
   const handlers = [
     http.get(
-      `${PSN_AUTH_URL}/authorize`,
+      psnAuthUrl("authorize"),
       () =>
         new HttpResponse(null, {
           status: cfg.authorize === "reject" ? 200 : 302,

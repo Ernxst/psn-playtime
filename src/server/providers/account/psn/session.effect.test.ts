@@ -7,7 +7,7 @@ import { authenticatePsnSession } from "@/server/providers/account/psn/session.e
 import { PsnTransportLive } from "@/server/providers/account/psn/transport.effect";
 import * as Psn from "@/test/factories/psn";
 import { server } from "@/test/msw";
-import { PSN_AUTH_URL, PSN_PLAYED_GAMES_URL, PSN_TROPHY_TITLES_URL } from "@/test/msw-handlers";
+import { PSN_PLAYED_GAMES_URL, PSN_TROPHY_TITLES_URL, psnAuthUrl } from "@/test/msw-handlers";
 
 const authenticate = (credential = "npsso-token") =>
   Effect.runPromise(
@@ -41,7 +41,7 @@ describe(".authenticatePsnSession", () => {
       HttpResponse.json(Psn.trophyPage([Psn.trophyTitle({ trophyTitleName: "First" })]))
     );
     server.use(
-      http.get(`${PSN_AUTH_URL}/authorize`, authorize),
+      http.get(psnAuthUrl("authorize"), authorize),
       http.get(PSN_PLAYED_GAMES_URL, played),
       http.get(PSN_TROPHY_TITLES_URL, trophies)
     );
@@ -56,9 +56,7 @@ describe(".authenticatePsnSession", () => {
   });
 
   it("rejects a credential before creating a session", async () => {
-    server.use(
-      http.get(`${PSN_AUTH_URL}/authorize`, () => new HttpResponse(null, { status: 200 }))
-    );
+    server.use(http.get(psnAuthUrl("authorize"), () => new HttpResponse(null, { status: 200 })));
 
     await expect(authenticate("bad-token")).rejects.toMatchObject({
       _tag: "CredentialRejectedError",

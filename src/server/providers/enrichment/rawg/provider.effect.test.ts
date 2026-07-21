@@ -12,7 +12,7 @@ import {
   TitleEnrichmentLayer,
 } from "@/server/providers/enrichment/rawg/provider.effect";
 import { server } from "@/test/msw";
-import { RAWG_GAMES_URL, RAWG_SERIES_URL } from "@/test/msw-handlers";
+import { rawgUrl } from "@/test/msw-handlers";
 import { rawgGame, rawgSearch, rawgSeries } from "@/test/rawg-fixtures";
 
 const KEYED = Layer.provide(
@@ -55,7 +55,7 @@ const franchiseForError = (title: string) => runKeyed(franchiseProgram(title).pi
 describe(".metadataFor", () => {
   it("returns absent metadata and skips the network when no key is set", async () => {
     const search = vi.fn(() => searchResult({ genres: ["Action"] }));
-    server.use(http.get(RAWG_GAMES_URL, search));
+    server.use(http.get(rawgUrl("games"), search));
 
     await expect(runNoKey(metaProgram("Celeste"))).resolves.toStrictEqual({});
 
@@ -73,7 +73,7 @@ describe(".metadataFor", () => {
         ? searchResult({ genres: ["Action", "Shooter"] })
         : HttpResponse.json(rawgSearch());
     });
-    server.use(http.get(RAWG_GAMES_URL, search));
+    server.use(http.get(rawgUrl("games"), search));
 
     await expect(metadataFor("Returnal")).resolves.toMatchObject({ genre: "Action-Adventure" });
 
@@ -82,7 +82,7 @@ describe(".metadataFor", () => {
 
   it("returns the genre and typical playtime from one shared request", async () => {
     const search = vi.fn(() => searchResult({ genres: ["Action"], playtime: 25 }));
-    server.use(http.get(RAWG_GAMES_URL, search));
+    server.use(http.get(rawgUrl("games"), search));
 
     await expect(metadataFor("Celeste")).resolves.toStrictEqual({
       genre: "Action-Adventure",
@@ -94,7 +94,7 @@ describe(".metadataFor", () => {
 
   it("caches a result so a repeated lookup hits the network once", async () => {
     const search = vi.fn(() => searchResult({ genres: ["Racing"] }));
-    server.use(http.get(RAWG_GAMES_URL, search));
+    server.use(http.get(rawgUrl("games"), search));
 
     const [first, second] = await runKeyed(
       Effect.gen(function* () {
@@ -111,7 +111,7 @@ describe(".metadataFor", () => {
   });
 
   it("returns absent metadata when the search yields no mappable genre", async () => {
-    server.use(http.get(RAWG_GAMES_URL, () => searchResult({ genres: ["Simulation"] })));
+    server.use(http.get(rawgUrl("games"), () => searchResult({ genres: ["Simulation"] })));
 
     await expect(metadataFor("Powerwash Simulator")).resolves.toStrictEqual({
       genre: undefined,
@@ -120,7 +120,7 @@ describe(".metadataFor", () => {
   });
 
   it("treats a playtime of 0 as no data", async () => {
-    server.use(http.get(RAWG_GAMES_URL, () => searchResult({ playtime: 0 })));
+    server.use(http.get(rawgUrl("games"), () => searchResult({ playtime: 0 })));
 
     await expect(metadataFor("Some Game")).resolves.toStrictEqual({
       genre: undefined,
@@ -129,13 +129,13 @@ describe(".metadataFor", () => {
   });
 
   it("returns absent metadata for a genuine empty search result", async () => {
-    server.use(http.get(RAWG_GAMES_URL, () => HttpResponse.json(rawgSearch())));
+    server.use(http.get(rawgUrl("games"), () => HttpResponse.json(rawgSearch())));
 
     await expect(metadataFor("Totally Unknown Title")).resolves.toStrictEqual({});
   });
 
   it("surfaces a non-ok response as an UpstreamUnavailableError on the typed channel", async () => {
-    server.use(http.get(RAWG_GAMES_URL, () => new HttpResponse("nope", { status: 503 })));
+    server.use(http.get(rawgUrl("games"), () => new HttpResponse("nope", { status: 503 })));
 
     const error = await metadataForError("Some Game");
 
@@ -144,7 +144,7 @@ describe(".metadataFor", () => {
   });
 
   it("surfaces a transport failure as an UpstreamUnavailableError on the typed channel", async () => {
-    server.use(http.get(RAWG_GAMES_URL, () => HttpResponse.error()));
+    server.use(http.get(rawgUrl("games"), () => HttpResponse.error()));
 
     const error = await metadataForError("Some Game");
 
@@ -153,7 +153,7 @@ describe(".metadataFor", () => {
   });
 
   it("surfaces an invalid-JSON payload as an UpstreamUnavailableError on the typed channel", async () => {
-    server.use(http.get(RAWG_GAMES_URL, () => HttpResponse.json({ results: "not-an-array" })));
+    server.use(http.get(rawgUrl("games"), () => HttpResponse.json({ results: "not-an-array" })));
 
     const error = await metadataForError("Some Game");
 
@@ -162,7 +162,7 @@ describe(".metadataFor", () => {
   });
 
   it("keeps the API key off an UpstreamUnavailableError after an MSW transport failure", async () => {
-    server.use(http.get(RAWG_GAMES_URL, () => HttpResponse.error()));
+    server.use(http.get(rawgUrl("games"), () => HttpResponse.error()));
 
     const error = await metadataForError("Some Game");
 
@@ -174,7 +174,7 @@ describe(".metadataFor", () => {
 
   it("returns absent for a result with no genres array", async () => {
     server.use(
-      http.get(RAWG_GAMES_URL, () =>
+      http.get(rawgUrl("games"), () =>
         HttpResponse.json(rawgSearch([rawgGame({ name: "Some Game" })]))
       )
     );
@@ -187,7 +187,7 @@ describe(".metadataFor", () => {
 
   it("skips the network when the name normalizes to an empty query", async () => {
     const search = vi.fn(() => searchResult());
-    server.use(http.get(RAWG_GAMES_URL, search));
+    server.use(http.get(rawgUrl("games"), search));
 
     await expect(metadataFor("™®©")).resolves.toStrictEqual({});
 
@@ -195,7 +195,7 @@ describe(".metadataFor", () => {
   });
 
   it("surfaces a 429 as a RateLimitedError on the typed channel", async () => {
-    server.use(http.get(RAWG_GAMES_URL, () => new HttpResponse("slow down", { status: 429 })));
+    server.use(http.get(rawgUrl("games"), () => new HttpResponse("slow down", { status: 429 })));
 
     const error = await metadataForError("Busy Game");
 
@@ -213,7 +213,7 @@ describe(".metadataFor", () => {
           }
         )
     );
-    server.use(http.get(RAWG_GAMES_URL, search));
+    server.use(http.get(rawgUrl("games"), search));
 
     const error = await metadataForError("Busy Game");
 
@@ -227,7 +227,7 @@ describe(".metadataFor", () => {
 describe(".franchiseFor", () => {
   it("returns undefined and skips the network when no key is set", async () => {
     const search = vi.fn(() => searchResult());
-    server.use(http.get(RAWG_GAMES_URL, search));
+    server.use(http.get(rawgUrl("games"), search));
 
     await expect(runNoKey(franchiseProgram("Celeste"))).resolves.toBeUndefined();
 
@@ -242,7 +242,7 @@ describe(".franchiseFor", () => {
           : rawgSearch()
       )
     );
-    server.use(http.get(RAWG_GAMES_URL, search));
+    server.use(http.get(rawgUrl("games"), search));
     const series = vi.fn(({ request }) =>
       HttpResponse.json(
         new URL(request.url).pathname.endsWith("/42/game-series")
@@ -250,7 +250,7 @@ describe(".franchiseFor", () => {
           : rawgSeries()
       )
     );
-    server.use(http.get(RAWG_SERIES_URL, series));
+    server.use(http.get(rawgUrl("games/:id/game-series"), series));
 
     await expect(franchiseFor("Forza Horizon 5")).resolves.toBe("Forza");
 
@@ -262,9 +262,9 @@ describe(".franchiseFor", () => {
     const search = vi.fn(() =>
       HttpResponse.json(rawgSearch([rawgGame({ id: 1, name: "God of War Ragnarök" })]))
     );
-    server.use(http.get(RAWG_GAMES_URL, search));
+    server.use(http.get(rawgUrl("games"), search));
     const series = vi.fn(() => HttpResponse.json(rawgSeries(["God of War"])));
-    server.use(http.get(RAWG_SERIES_URL, series));
+    server.use(http.get(rawgUrl("games/:id/game-series"), series));
 
     const [first, second] = await runKeyed(
       Effect.gen(function* () {
@@ -283,9 +283,9 @@ describe(".franchiseFor", () => {
 
   it("returns undefined and skips the series request when the search has no match", async () => {
     const search = vi.fn(() => HttpResponse.json(rawgSearch()));
-    server.use(http.get(RAWG_GAMES_URL, search));
+    server.use(http.get(rawgUrl("games"), search));
     const series = vi.fn(() => HttpResponse.json(rawgSeries(["unused"])));
-    server.use(http.get(RAWG_SERIES_URL, series));
+    server.use(http.get(rawgUrl("games/:id/game-series"), series));
 
     await expect(franchiseFor("Totally Unknown Title")).resolves.toBeUndefined();
 
@@ -295,18 +295,18 @@ describe(".franchiseFor", () => {
 
   it("returns undefined when the matched game belongs to no series", async () => {
     server.use(
-      http.get(RAWG_GAMES_URL, () =>
+      http.get(rawgUrl("games"), () =>
         HttpResponse.json(rawgSearch([rawgGame({ id: 7, name: "Stray" })]))
       )
     );
-    server.use(http.get(RAWG_SERIES_URL, () => HttpResponse.json(rawgSeries())));
+    server.use(http.get(rawgUrl("games/:id/game-series"), () => HttpResponse.json(rawgSeries())));
 
     await expect(franchiseFor("Stray")).resolves.toBeUndefined();
   });
 
   it("returns undefined when the matched game has no id", async () => {
     server.use(
-      http.get(RAWG_GAMES_URL, () =>
+      http.get(rawgUrl("games"), () =>
         HttpResponse.json(rawgSearch([rawgGame({ name: "no id here" })]))
       )
     );
@@ -316,11 +316,13 @@ describe(".franchiseFor", () => {
 
   it("surfaces a non-ok series response as an UpstreamUnavailableError", async () => {
     server.use(
-      http.get(RAWG_GAMES_URL, () =>
+      http.get(rawgUrl("games"), () =>
         HttpResponse.json(rawgSearch([rawgGame({ id: 7, name: "Stray" })]))
       )
     );
-    server.use(http.get(RAWG_SERIES_URL, () => new HttpResponse("nope", { status: 503 })));
+    server.use(
+      http.get(rawgUrl("games/:id/game-series"), () => new HttpResponse("nope", { status: 503 }))
+    );
 
     const error = await franchiseForError("Stray");
 
@@ -329,7 +331,7 @@ describe(".franchiseFor", () => {
   });
 
   it("surfaces a non-ok search response as an UpstreamUnavailableError", async () => {
-    server.use(http.get(RAWG_GAMES_URL, () => new HttpResponse("nope", { status: 503 })));
+    server.use(http.get(rawgUrl("games"), () => new HttpResponse("nope", { status: 503 })));
 
     const error = await franchiseForError("Some Game");
 
@@ -338,7 +340,7 @@ describe(".franchiseFor", () => {
   });
 
   it("surfaces a transport failure as an UpstreamUnavailableError", async () => {
-    server.use(http.get(RAWG_GAMES_URL, () => HttpResponse.error()));
+    server.use(http.get(rawgUrl("games"), () => HttpResponse.error()));
 
     const error = await franchiseForError("Some Game");
 
@@ -347,7 +349,7 @@ describe(".franchiseFor", () => {
   });
 
   it("surfaces an invalid-JSON search payload as an UpstreamUnavailableError", async () => {
-    server.use(http.get(RAWG_GAMES_URL, () => HttpResponse.json({ results: "not-an-array" })));
+    server.use(http.get(rawgUrl("games"), () => HttpResponse.json({ results: "not-an-array" })));
 
     const error = await franchiseForError("Some Game");
 
@@ -356,7 +358,7 @@ describe(".franchiseFor", () => {
   });
 
   it("surfaces a 429 search response as a RateLimitedError", async () => {
-    server.use(http.get(RAWG_GAMES_URL, () => new HttpResponse("slow down", { status: 429 })));
+    server.use(http.get(rawgUrl("games"), () => new HttpResponse("slow down", { status: 429 })));
 
     const error = await franchiseForError("Busy Game");
 
@@ -366,7 +368,7 @@ describe(".franchiseFor", () => {
 
   it("skips the network when the name normalizes to an empty query", async () => {
     const search = vi.fn(() => searchResult());
-    server.use(http.get(RAWG_GAMES_URL, search));
+    server.use(http.get(rawgUrl("games"), search));
 
     await expect(franchiseFor("™®©")).resolves.toBeUndefined();
 
@@ -381,9 +383,9 @@ describe("shared game-info search across genre and franchise", () => {
         rawgSearch([rawgGame({ id: 9, name: "Halo Infinite", genres: ["Shooter"], playtime: 12 })])
       )
     );
-    server.use(http.get(RAWG_GAMES_URL, search));
+    server.use(http.get(rawgUrl("games"), search));
     const series = vi.fn(() => HttpResponse.json(rawgSeries(["Halo Infinite", "Halo 5"])));
-    server.use(http.get(RAWG_SERIES_URL, series));
+    server.use(http.get(rawgUrl("games/:id/game-series"), series));
 
     const [metadata, franchise] = await runKeyed(
       Effect.gen(function* () {
@@ -408,9 +410,11 @@ describe("concurrent cache-miss dedup", () => {
         rawgSearch([rawgGame({ id: 9, name: "Halo Infinite", genres: ["Shooter"], playtime: 12 })])
       )
     );
-    server.use(http.get(RAWG_GAMES_URL, search));
+    server.use(http.get(rawgUrl("games"), search));
     server.use(
-      http.get(RAWG_SERIES_URL, () => HttpResponse.json(rawgSeries(["Halo Infinite", "Halo 5"])))
+      http.get(rawgUrl("games/:id/game-series"), () =>
+        HttpResponse.json(rawgSeries(["Halo Infinite", "Halo 5"]))
+      )
     );
 
     const [metadata, franchise] = await runKeyed(
@@ -431,7 +435,7 @@ describe("transient failures are not cached", () => {
       .fn()
       .mockReturnValueOnce(new HttpResponse("nope", { status: 503 }))
       .mockReturnValue(searchResult({ genres: ["Action"] }));
-    server.use(http.get(RAWG_GAMES_URL, search));
+    server.use(http.get(rawgUrl("games"), search));
     const runtime = ManagedRuntime.make(KEYED);
     onTestFinished(() => runtime.dispose());
     const lookup = metaProgram("Hades");
@@ -450,7 +454,7 @@ describe("transient failures are not cached", () => {
 describe("process-lived cache across a shared runtime", () => {
   it("reuses the cache between two separate runtime invocations", async () => {
     const search = vi.fn(() => searchResult({ genres: ["Racing"] }));
-    server.use(http.get(RAWG_GAMES_URL, search));
+    server.use(http.get(rawgUrl("games"), search));
     const runtime = ManagedRuntime.make(KEYED);
     onTestFinished(() => runtime.dispose());
     const lookup = metaProgram("Gran Turismo 7");
@@ -466,7 +470,7 @@ describe("process-lived cache across a shared runtime", () => {
 
 describe("prefetch boundary degradation", () => {
   it("degrades to blank metadata when the provider surfaces an UpstreamUnavailableError", async () => {
-    server.use(http.get(RAWG_GAMES_URL, () => new HttpResponse("nope", { status: 503 })));
+    server.use(http.get(rawgUrl("games"), () => new HttpResponse("nope", { status: 503 })));
 
     const metadata = await runKeyed(prefetchGameMetadata(["Some Game"]));
 
@@ -474,7 +478,7 @@ describe("prefetch boundary degradation", () => {
   });
 
   it("degrades to blank metadata when the provider surfaces a RateLimitedError", async () => {
-    server.use(http.get(RAWG_GAMES_URL, () => new HttpResponse("slow down", { status: 429 })));
+    server.use(http.get(rawgUrl("games"), () => new HttpResponse("slow down", { status: 429 })));
 
     const metadata = await runKeyed(prefetchGameMetadata(["Busy Game"]));
 
@@ -482,7 +486,7 @@ describe("prefetch boundary degradation", () => {
   });
 
   it("degrades to a blank franchise when the provider surfaces an UpstreamUnavailableError", async () => {
-    server.use(http.get(RAWG_GAMES_URL, () => new HttpResponse("nope", { status: 503 })));
+    server.use(http.get(rawgUrl("games"), () => new HttpResponse("nope", { status: 503 })));
 
     const franchises = await runKeyed(prefetchFranchises(["Some Game"]));
 
