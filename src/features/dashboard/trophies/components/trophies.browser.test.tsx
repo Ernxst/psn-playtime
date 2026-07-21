@@ -1,30 +1,27 @@
 import { describe, expect, it } from "vitest";
 import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
-import { demoDashboard } from "@/domain/mock";
 import type { DashboardData, GamePlay } from "@/server/providers/account/snapshot";
+import * as Dashboard from "@/test/factories/dashboard";
 import { TrophySection } from "./trophies";
 
 function game(overrides: Partial<GamePlay>): GamePlay {
   return {
+    ...Dashboard.data().games[0]!,
     titleId: overrides.titleId ?? "T",
     name: overrides.name ?? "Game",
-    platform: "PS5",
-    hours: 10,
-    playCount: 1,
-    genre: "Other",
-    isApp: false,
+    trophy: undefined,
     ...overrides,
   };
 }
 
 function dataWith(games: GamePlay[]): DashboardData {
-  return { ...demoDashboard, games };
+  return Dashboard.data({ games });
 }
 
 describe("TrophySection", () => {
   it("surfaces account trophy KPIs straight from the profile", async () => {
-    await render(<TrophySection data={demoDashboard} />);
+    await render(<TrophySection data={Dashboard.data()} />);
 
     await expect.element(page.getByText("Trophy level")).toBeVisible();
     await expect.element(page.getByText("220", { exact: true })).toBeVisible();
@@ -32,14 +29,14 @@ describe("TrophySection", () => {
   });
 
   it("lists the games where a platinum was earned", async () => {
-    await render(<TrophySection data={demoDashboard} />);
+    await render(<TrophySection data={Dashboard.data()} />);
 
     await expect.element(page.getByText("Your platinums")).toBeVisible();
     await expect.element(page.getByText("STAR WARS Jedi: Survivor™").first()).toBeVisible();
   });
 
   it("states the matched-game denominator rather than implying unmatched games are 0%", async () => {
-    await render(<TrophySection data={demoDashboard} />);
+    await render(<TrophySection data={Dashboard.data()} />);
 
     await expect
       .element(page.getByText(/Based on the 95 of 98 games with a matched trophy list/).first())
@@ -47,7 +44,7 @@ describe("TrophySection", () => {
   });
 
   it("gives the trophy-split chart an accessible name covering each type", async () => {
-    await render(<TrophySection data={demoDashboard} />);
+    await render(<TrophySection data={Dashboard.data()} />);
 
     await expect
       .element(page.getByRole("img"))
@@ -83,13 +80,13 @@ describe("TrophySection", () => {
   });
 
   it("notes when trophy data couldn't be loaded", async () => {
-    await render(<TrophySection data={{ ...demoDashboard, trophiesUnavailable: true }} />);
+    await render(<TrophySection data={{ ...Dashboard.data(), trophiesUnavailable: true }} />);
 
     await expect.element(page.getByText(/Couldn't load trophy data/)).toBeVisible();
   });
 
   it("omits the trophy-unavailable note when trophy data loaded", async () => {
-    await render(<TrophySection data={demoDashboard} />);
+    await render(<TrophySection data={Dashboard.data()} />);
 
     await expect.element(page.getByText(/Couldn't load trophy data/)).not.toBeInTheDocument();
   });

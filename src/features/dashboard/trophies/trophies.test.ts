@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { demoDashboard } from "@/domain/mock";
 import type {
   DashboardData,
   GamePlay,
@@ -7,6 +6,7 @@ import type {
   ProfileSummary,
   TrophyCounts,
 } from "@/server/providers/account/snapshot";
+import * as Dashboard from "@/test/factories/dashboard";
 import { summariseTrophies } from "./trophies";
 
 const noTrophies: TrophyCounts = { platinum: 0, gold: 0, silver: 0, bronze: 0 };
@@ -31,15 +31,12 @@ interface GameOptions {
 /** Build a played title; pass `trophy` to make it a matched game. */
 function makeGame({ titleId = "t", name = "Game", imageUrl, trophy }: GameOptions = {}): GamePlay {
   return {
+    ...Dashboard.data().games[0]!,
     titleId,
     name,
     imageUrl,
-    platform: "PS5",
-    hours: 10,
-    playCount: 3,
-    genre: "Other",
-    isApp: false,
-    trophy,
+    trophy: undefined,
+    ...(trophy && { trophy }),
   };
 }
 
@@ -55,14 +52,14 @@ function makeTrophy(overrides: Partial<GameTrophy> = {}): GameTrophy {
 }
 
 function makeData(games: GamePlay[], profile: ProfileSummary = baseProfile): DashboardData {
-  return {
+  return Dashboard.data({
     profile,
     games,
     fetchedAt: "2024-01-01T00:00:00.000Z",
     meta: { totalGames: games.length, totalHours: 0, totalSessions: 0, appsExcluded: [], span: {} },
     isDemo: false,
     trophiesUnavailable: false,
-  };
+  });
 }
 
 describe(".summariseTrophies", () => {
@@ -380,12 +377,13 @@ describe(".summariseTrophies", () => {
   });
 
   it("summarises the bundled demo dataset consistently with its profile", () => {
-    const summary = summariseTrophies(demoDashboard);
+    const data = Dashboard.data();
+    const summary = summariseTrophies(data);
 
-    expect(summary.trophyLevel).toBe(demoDashboard.profile.trophyLevel);
-    expect(summary.totalTrophies).toBe(demoDashboard.profile.totalTrophies);
-    expect(summary.totalGames).toBe(demoDashboard.games.length);
-    expect(summary.matchedGames).toBe(demoDashboard.games.filter((game) => game.trophy).length);
+    expect(summary.trophyLevel).toBe(data.profile.trophyLevel);
+    expect(summary.totalTrophies).toBe(data.profile.totalTrophies);
+    expect(summary.totalGames).toBe(data.games.length);
+    expect(summary.matchedGames).toBe(data.games.filter((game) => game.trophy).length);
     expect(summary.matchedGames).toBeLessThanOrEqual(summary.totalGames);
   });
 });
