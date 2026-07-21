@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { demoDashboard } from "@/domain/mock";
-import { dashboardData } from "@/test/dashboard-fixtures";
+import * as Dashboard from "./dashboard";
 
-describe(".dashboardData", () => {
+describe(".data", () => {
   it("returns independent nested dashboard data", () => {
-    const first = dashboardData();
-    const second = dashboardData();
+    const first = Dashboard.data();
+    const second = Dashboard.data();
 
     expect(first.profile).not.toBe(second.profile);
     expect(first.profile.earned).not.toBe(second.profile.earned);
@@ -38,14 +38,32 @@ describe(".dashboardData", () => {
     expect(demoDashboard.meta.span.from).toBe("2017-06-26");
   });
 
-  it("clones nested override values", () => {
-    const games = [demoDashboard.games[0]!];
-    const first = dashboardData({ games });
-    const second = dashboardData({ games });
+  it("returns independent data without modifying nested overrides", () => {
+    const profile = structuredClone(demoDashboard.profile);
+    const games = structuredClone(demoDashboard.games);
+    const meta = structuredClone(demoDashboard.meta);
+    const overrides = {
+      profile: { earned: profile.earned },
+      games,
+      meta: { appsExcluded: meta.appsExcluded, span: meta.span },
+    };
+    const expected = structuredClone(overrides);
+    const first = Dashboard.data(overrides);
+    const second = Dashboard.data(overrides);
 
+    Object.assign(first.profile.earned, { silver: -1 });
     Object.assign(first.games[0]!.trophy!.earned, { silver: -1 });
+    Object.assign(first.meta.appsExcluded[0]!, { name: "mutated" });
+    Object.assign(first.meta.span, { from: "mutated" });
 
-    expect(second.games[0]?.trophy?.earned.silver).toBe(9);
-    expect(games[0]?.trophy?.earned.silver).toBe(9);
+    expect(overrides).toStrictEqual(expected);
+    expect(second.profile.earned).toStrictEqual(expected.profile.earned);
+    expect(second.games).toStrictEqual(expected.games);
+    expect(second.meta.appsExcluded).toStrictEqual(expected.meta.appsExcluded);
+    expect(second.meta.span).toStrictEqual(expected.meta.span);
+    expect(first.profile.earned).not.toBe(second.profile.earned);
+    expect(first.games[0]?.trophy?.earned).not.toBe(second.games[0]?.trophy?.earned);
+    expect(first.meta.appsExcluded).not.toBe(second.meta.appsExcluded);
+    expect(first.meta.span).not.toBe(second.meta.span);
   });
 });
