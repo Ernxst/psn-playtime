@@ -22,7 +22,7 @@ vi.mock("@/server/api/account.effect", () => ({
 function ActiveDashboardView() {
   return (
     <DashboardView
-      data={useActiveDashboard()}
+      data={prototypeDashboard(useActiveDashboard())}
       onRefresh={vi.fn()}
       onSignOut={vi.fn()}
       signingOut={false}
@@ -57,7 +57,9 @@ describe("DashboardView", () => {
 
     const { container } = await render(element);
 
-    await expect.element(page.getByRole("heading", { name: "Ernxst_" })).toBeVisible();
+    await expect
+      .element(page.getByRole("heading", { name: demoDashboard.profile.onlineId }))
+      .toBeVisible();
     const overview = document.querySelector("#overview")?.textContent ?? "";
     expect(overview).toContain("Lifetime play");
     expect(overview).toContain("Games played");
@@ -237,27 +239,38 @@ describe("DashboardView", () => {
     expect(target?.getBoundingClientRect().top).toBeLessThanOrEqual(100);
   });
 
-  it("shows the demo banner for the demo dataset and offers no sign-out", async () => {
-    const { element } = createHarness(
-      <DashboardView
-        data={demoDashboard}
-        onRefresh={vi.fn()}
-        onSignOut={vi.fn()}
-        signingOut={false}
-      />
-    );
+  it("renders the selected demo profile and offers no unavailable account actions", async () => {
+    const { element } = createHarness(<DashboardView data={demoDashboard} signingOut={false} />);
 
     await render(element);
 
-    await expect.element(page.getByText("demo dataset")).toBeVisible();
-    await expect.element(page.getByRole("button", { name: "Sign out" })).not.toBeInTheDocument();
+    await expect
+      .element(page.getByText("Deterministic demo data", { exact: true }).first())
+      .toBeVisible();
+    await page.getByRole("button", { name: /Open profile menu.*Deterministic demo data/ }).click();
+    await expect.element(page.getByText("Available profiles")).toBeVisible();
+    await expect
+      .element(page.getByRole("button", { name: "PlayloomDemo, active profile" }))
+      .toHaveAttribute("aria-current", "true");
+    await expect
+      .element(page.getByRole("button", { name: "Sign out" }))
+      .not.toBeInTheDocument();
   });
 
-  it("a signed-in dataset drops the demo banner and wires the sign-out button", async () => {
+  it("renders the selected imported profile and wires its account actions", async () => {
     const onSignOut = vi.fn();
     const { element } = createHarness(
       <DashboardView
-        data={{ ...demoDashboard, isDemo: false }}
+        data={{
+          ...demoDashboard,
+          profile: {
+            ...demoDashboard.profile,
+            onlineId: "ImportedPlayer",
+            avatarUrl: "/playloom/sample-psn-avatar.svg",
+            sourceLabel: "Imported from PlayStation",
+          },
+          isDemo: false,
+        }}
         onRefresh={vi.fn()}
         onSignOut={onSignOut}
         signingOut={false}
@@ -266,7 +279,12 @@ describe("DashboardView", () => {
 
     await render(element);
 
-    await expect.element(page.getByText("demo dataset")).not.toBeInTheDocument();
+    await expect
+      .element(page.getByText("Imported from PlayStation", { exact: true }).first())
+      .toBeVisible();
+    await expect
+      .element(page.getByRole("img", { name: "ImportedPlayer avatar" }).first())
+      .toBeVisible();
 
     await page.getByRole("button", { name: "Sign out" }).click();
 
@@ -342,7 +360,9 @@ describe("DashboardView", () => {
     const before = trigger.element().getBoundingClientRect();
 
     await trigger.click();
-    await expect.element(page.getByRole("dialog", { name: "Ernxst_" })).toBeVisible();
+    await expect
+      .element(page.getByRole("dialog", { name: demoDashboard.profile.onlineId }))
+      .toBeVisible();
 
     const open = trigger.element().getBoundingClientRect();
     expect(open.x).toBe(before.x);
@@ -380,43 +400,107 @@ describe("DashboardView", () => {
       .toBeInViewport();
   });
 
-  it("retains the game filter and chapter when switching connected import sources", async () => {
-    const first = {
+  it.each([
+    [1440, 900],
+    [390, 844],
+  ])(
+    "retains the game filter and chapter when switching connected import sources at %i by %i",
+    async (width, height) => {
+      await page.viewport(width, height);
+      const first = {
+        ...demoDashboard,
+        profile: {
+          ...demoDashboard.profile,
+          accountId: "acc-1",
+          onlineId: "FirstAccount",
+          avatarUrl: "/playloom/sample-psn-avatar.svg",
+          sourceLabel: "Imported from PlayStation",
+        },
+        isDemo: false,
+      };
+      const fallbackProfile = {
+        ...demoDashboard.profile,
+        accountId: "acc-2",
+        onlineId: "SecondAccount",
+        sourceLabel: "Imported from PlayStation",
+      };
+      delete fallbackProfile.avatarUrl;
+      const second = {
+        ...demoDashboard,
+        fetchedAt: "2025-06-01T00:00:00.000Z",
+        profile: fallbackProfile,
+        isDemo: false,
+      };
+      testDashboardStore.save(first);
+      testDashboardStore.save(second);
+      testDashboardStore.setActive(first.profile.accountId);
+      window.history.replaceState(null, "", "#library");
+      onTestFinished(() => {
+        testDashboardStore.remove(first.profile.accountId);
+        testDashboardStore.remove(second.profile.accountId);
+        testDashboardStore.clearActive();
+        window.history.replaceState(null, "", window.location.pathname);
+        return page.viewport(1280, 800);
+      });
+      const { element } = createHarness(<ActiveDashboardView />);
+
+      await render(element);
+      const search = page.getByRole("searchbox", { name: "Search games by name" });
+      await search.fill("Forza");
+      await expect.element(page.getByText(/98 titles in total/)).not.toBeInTheDocument();
+      await page.getByRole("button", { name: /Open profile menu for FirstAccount/ }).click();
+      await expect.element(page.getByText("PSN avatar", { exact: false }).first()).toBeVisible();
+      await expect.element(page.getByText("Initials fallback", { exact: false })).toBeVisible();
+      await page.getByRole("button", { name: "Switch to SecondAccount" }).click();
+
+      await expect.element(page.getByRole("heading", { name: "SecondAccount" })).toBeVisible();
+      await expect.element(search).toHaveValue("Forza");
+      expect(window.location.hash).toBe("#library");
+      await expect
+        .element(page.getByRole("button", { name: /Open profile menu for SecondAccount/ }))
+        .toHaveFocus();
+    }
+  );
+
+  it("switches from an imported account to demo data without losing the destination or filter", async () => {
+    const imported = {
       ...demoDashboard,
-      profile: { ...demoDashboard.profile, accountId: "acc-1", onlineId: "FirstAccount" },
+      profile: {
+        ...demoDashboard.profile,
+        accountId: "acc-imported",
+        onlineId: "ImportedPlayer",
+        sourceLabel: "Imported from PlayStation",
+      },
+      games: [{ ...demoDashboard.games[0]!, name: "Grand Theft Imported Only" }],
       isDemo: false,
     };
-    const second = {
-      ...demoDashboard,
-      fetchedAt: "2025-06-01T00:00:00.000Z",
-      profile: { ...demoDashboard.profile, accountId: "acc-2", onlineId: "SecondAccount" },
-      isDemo: false,
-    };
-    testDashboardStore.save(first);
-    testDashboardStore.save(second);
-    testDashboardStore.setActive(first.profile.accountId);
+    testDashboardStore.save(imported);
+    testDashboardStore.setActive(imported.profile.accountId);
     window.history.replaceState(null, "", "#library");
     onTestFinished(() => {
-      testDashboardStore.remove(first.profile.accountId);
-      testDashboardStore.remove(second.profile.accountId);
+      testDashboardStore.remove(imported.profile.accountId);
       testDashboardStore.clearActive();
       window.history.replaceState(null, "", window.location.pathname);
     });
     const { element } = createHarness(<ActiveDashboardView />);
 
-    await render(element);
+    const { container } = await render(element);
     const search = page.getByRole("searchbox", { name: "Search games by name" });
-    await search.fill("Forza");
-    await expect.element(page.getByText(/98 titles in total/)).not.toBeInTheDocument();
-    await page.getByRole("button", { name: /Open profile menu for FirstAccount/ }).click();
-    await page.getByRole("button", { name: "Switch to SecondAccount" }).click();
+    await search.fill("Grand Theft");
+    expect(container.textContent).toContain("Grand Theft Imported Only");
+    await page.getByRole("button", { name: /Open profile menu for ImportedPlayer/ }).click();
+    await page.getByRole("button", { name: "Switch to PlayloomDemo" }).click();
 
-    await expect.element(page.getByRole("heading", { name: "SecondAccount" })).toBeVisible();
-    await expect.element(search).toHaveValue("Forza");
-    expect(window.location.hash).toBe("#library");
     await expect
-      .element(page.getByRole("button", { name: /Open profile menu for SecondAccount/ }))
-      .toHaveFocus();
+      .element(page.getByRole("heading", { name: demoDashboard.profile.onlineId }))
+      .toBeVisible();
+    expect(container.textContent).not.toContain("Grand Theft Imported Only");
+    await expect
+      .element(page.getByText("Grand Theft Auto V (PlayStation®5)", { exact: true }).first())
+      .toBeVisible();
+    await expect.element(search).toHaveValue("Grand Theft");
+    expect(window.location.hash).toBe("#library");
+    await expect.element(page.getByRole("button", { name: /demo data/ })).toHaveFocus();
   });
 
   it("filters the purchase ledger by date and sorts every retained column", async () => {

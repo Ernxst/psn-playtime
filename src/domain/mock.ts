@@ -1,25 +1,28 @@
 /**
- * Bundled demo dataset, generated from a real PSN export.
- * Used as a fallback so the dashboard renders without a live token.
- * Do not edit by hand — regenerate via scripts/gen-mock if the shape changes.
+ * Raw game fixture generated from a PSN export, with an explicitly fictional
+ * fallback identity. The rendered demo narrows and re-authors these values in
+ * `features/prototype/prototype-data.ts` so it never presents a real profile.
+ * Regenerate the game fixture via scripts/gen-mock if the snapshot shape changes.
  */
 import type { DashboardData } from "@/server/providers/account/snapshot";
 
 export const demoDashboard: DashboardData = {
   profile: {
-    onlineId: "Ernxst_",
+    onlineId: "PlayloomDemo",
     accountId: "demo",
-    aboutMe: "Demo profile — your real data replaces this once you sign in.",
-    isPlus: true,
-    trophyLevel: 220,
-    levelProgress: 70,
+    aboutMe: "A fictional player with deterministic games, sessions, trophies and purchases.",
+    avatarUrl: "/playloom/demo-avatar.svg",
+    sourceLabel: "Deterministic demo data",
+    isPlus: false,
+    trophyLevel: 128,
+    levelProgress: 42,
     earned: {
-      platinum: 9,
-      gold: 54,
-      silver: 188,
-      bronze: 887,
+      platinum: 2,
+      gold: 18,
+      silver: 64,
+      bronze: 211,
     },
-    totalTrophies: 1138,
+    totalTrophies: 295,
   },
   games: [
     {

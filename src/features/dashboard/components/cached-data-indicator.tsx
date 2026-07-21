@@ -6,16 +6,8 @@ import { fmtRelative } from "../format";
 const CACHE_EXPLANATION =
   "Your data is cached in this browser from your last sign-in or refresh, so it may be behind your latest activity.";
 
-/**
- * Subtle freshness signal for the dashboard. Real data shows when it was last
- * pulled from PSN plus a tooltip explaining the browser cache. Demo data is
- * labelled, never given a fake time.
- */
+/** Subtle freshness signal for the selected dashboard snapshot. */
 export function CachedDataIndicator({ data }: { data: DashboardData }) {
-  if (data.isDemo) {
-    return <span className="text-xs text-muted-foreground">Demo data, not a live PSN pull</span>;
-  }
-
   return (
     <Tooltip>
       <TooltipTrigger className="inline-flex items-center gap-1 text-xs text-muted-foreground">

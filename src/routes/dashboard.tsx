@@ -12,7 +12,7 @@ import {
 import { prototypeDashboard, safeSignedInDashboard } from "@/features/prototype/prototype-data";
 import { signInWithToken } from "@/server/api/account.effect";
 import type { DashboardData, GamePlay, Genre } from "@/server/providers/account/snapshot";
-import { useActiveDashboard } from "@/stores/dashboard-store";
+import { type DashboardStore, useActiveDashboard } from "@/stores/dashboard-store";
 
 type PrototypeState = "loading" | "error" | "empty" | "partial" | "signed-in";
 interface DashboardSearch {
@@ -126,7 +126,7 @@ function partialDashboard(data: DashboardData): DashboardData {
 }
 
 const prototypeViews: Record<PrototypeState, (data: DashboardData) => ReactNode> = {
-  loading: () => <DashboardSkeleton />,
+  loading: (data) => <DashboardSkeleton profile={data.profile} />,
   error: (data) => (
     <DashboardError
       message="PlayStation could not return this archive. Your existing browser data is unchanged."
@@ -160,6 +160,26 @@ interface CachedViewProps {
   data: DashboardData;
   safeDemo?: boolean;
   partialData?: boolean;
+}
+
+function accountActions(data: DashboardData, safeDemo: boolean, store: DashboardStore) {
+  if (data.isDemo) return {};
+  const onRefresh = safeDemo
+    ? () => new Promise<void>((resolve) => window.setTimeout(resolve, 700))
+    : async (npsso: string) => {
+        const refreshed = await signInWithToken({ data: { npsso } });
+        if (refreshed.profile.accountId !== data.profile.accountId) {
+          throw new Error("That token belongs to a different PlayStation account.");
+        }
+        store.save(refreshed);
+      };
+  return {
+    onRefresh,
+    onSignOut: () => {
+      store.clearActive();
+      toast.success("Signed out — showing demo data.");
+    },
+  };
 }
 
 function DashboardCachedView({ data, safeDemo = false, partialData = false }: CachedViewProps) {
@@ -200,18 +220,8 @@ function DashboardCachedView({ data, safeDemo = false, partialData = false }: Ca
       data={enrichedData}
       safeDemo={safeDemo}
       partialData={partialData}
-      onRefresh={async (npsso) => {
-        const refreshed = await signInWithToken({ data: { npsso } });
-        if (refreshed.profile.accountId !== data.profile.accountId) {
-          throw new Error("That token belongs to a different PlayStation account.");
-        }
-        dashboardStore.save(refreshed);
-      }}
-      onSignOut={() => {
-        dashboardStore.clearActive();
-        toast.success("Signed out — showing demo data.");
-      }}
       signingOut={false}
+      {...accountActions(data, safeDemo, dashboardStore)}
     />
   );
 }

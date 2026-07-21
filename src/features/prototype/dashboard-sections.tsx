@@ -14,7 +14,6 @@ import { fmtDate, fmtHours, fmtNumber } from "@/features/dashboard/format";
 import { isAddOnPurchase, summariseAddOns, summariseSpend } from "@/features/dashboard/spend/spend";
 import type { DashboardData, GamePlay } from "@/server/providers/account/snapshot";
 import { GamePoster } from "./poster";
-import { prototypeTransactions } from "./prototype-data";
 
 function OverviewMetric({
   label,
@@ -744,11 +743,11 @@ function SpendingLedger({
 
 export function PrototypeSpending({
   data,
-  transactions = prototypeTransactions,
+  transactions,
   unavailableMessage = "No imported purchase history is available for this account. Purchase destinations remain available below.",
 }: {
   data: DashboardData;
-  transactions?: TransactionRow[];
+  transactions: TransactionRow[];
   unavailableMessage?: string;
 }) {
   if (transactions.length === 0) {

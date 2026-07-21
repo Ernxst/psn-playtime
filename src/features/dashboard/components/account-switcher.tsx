@@ -10,7 +10,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import type { ProfileSummary } from "@/server/providers/account/snapshot";
-import { type CachedAccount, useCachedAccounts } from "@/stores/dashboard-store";
+import { type CachedAccount, useAvailableAccounts } from "@/stores/dashboard-store";
 
 function AccountTrigger({ profile }: { profile: ProfileSummary }) {
   return (
@@ -19,17 +19,22 @@ function AccountTrigger({ profile }: { profile: ProfileSummary }) {
         <Button
           variant="ghost"
           className="min-w-0 px-2"
-          aria-label={`Switch account, current account ${profile.onlineId}`}
+          aria-label={`Switch account, current account ${profile.onlineId}, ${profile.sourceLabel ?? "Imported from PlayStation"}`}
         />
       }
     >
-      <Avatar className="size-6">
-        <AvatarImage src={profile.avatarUrl} alt="" />
-        <AvatarFallback className="text-xs">
+      <Avatar className="size-6 rounded-none">
+        <AvatarImage src={profile.avatarUrl} alt={`${profile.onlineId} avatar`} />
+        <AvatarFallback className="rounded-none text-xs">
           {profile.onlineId.slice(0, 2).toUpperCase()}
         </AvatarFallback>
       </Avatar>
-      <span className="truncate">{profile.onlineId}</span>
+      <span className="flex min-w-0 flex-col items-start">
+        <strong className="truncate">{profile.onlineId}</strong>
+        <small className="text-muted-foreground">
+          {profile.sourceLabel ?? "Imported from PlayStation"}
+        </small>
+      </span>
       <ChevronDown className="size-4" />
     </PopoverTrigger>
   );
@@ -58,18 +63,25 @@ function AccountOption({
         />
       }
     >
-      <Avatar className="size-8">
-        <AvatarImage src={account.avatarUrl} alt="" />
-        <AvatarFallback>{account.onlineId.slice(0, 2).toUpperCase()}</AvatarFallback>
+      <Avatar className="size-8 rounded-none">
+        <AvatarImage src={account.avatarUrl} alt={`${account.onlineId} PlayStation avatar`} />
+        <AvatarFallback className="rounded-none">
+          {account.onlineId.slice(0, 2).toUpperCase()}
+        </AvatarFallback>
       </Avatar>
-      <span className="min-w-0 flex-1 truncate text-left">{account.onlineId}</span>
+      <span className="flex min-w-0 flex-1 flex-col text-left">
+        <strong className="truncate">{account.onlineId}</strong>
+        <small className="text-muted-foreground">
+          {account.sourceLabel} · {account.avatarLabel}
+        </small>
+      </span>
       {current ? <Check className="size-4" aria-hidden="true" /> : null}
     </PopoverClose>
   );
 }
 
 export function AccountSwitcher({ profile }: { profile: ProfileSummary }) {
-  const accounts = useCachedAccounts();
+  const accounts = useAvailableAccounts();
   const { dashboardStore } = useRouteContext({ from: "__root__" });
 
   if (accounts.length === 0) {

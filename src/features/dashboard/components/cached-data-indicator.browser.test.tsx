@@ -40,10 +40,9 @@ describe("CachedDataIndicator", () => {
     await expect.element(page.getByText(/cached in this browser/)).toBeVisible();
   });
 
-  it("labels demo data instead of showing a fetch time", async () => {
+  it("renders the selected demo snapshot timestamp through the same boundary", async () => {
     await render(<CachedDataIndicator data={demoDashboard} />);
 
-    await expect.element(page.getByText("Demo data, not a live PSN pull")).toBeVisible();
-    await expect.element(page.getByText(/Updated/)).not.toBeInTheDocument();
+    await expect.element(page.getByRole("button", { name: /Updated/ })).toBeVisible();
   });
 });

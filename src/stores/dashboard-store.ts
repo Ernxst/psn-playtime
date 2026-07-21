@@ -40,6 +40,8 @@ export interface CachedAccount {
   accountId: string;
   onlineId: string;
   avatarUrl?: string;
+  avatarLabel: string;
+  sourceLabel: string;
   fetchedAt: string;
 }
 
@@ -80,10 +82,18 @@ const activeAccountIdAtom = Atom.kvs({
 });
 
 function toCachedAccount(data: DashboardData): CachedAccount {
+  const sourceLabel = data.profile.sourceLabel ?? "Imported from PlayStation";
+  const avatarLabel = data.profile.avatarUrl
+    ? sourceLabel === "Deterministic demo data"
+      ? "Demo avatar"
+      : "PSN avatar"
+    : "Initials fallback";
   return {
     accountId: data.profile.accountId,
     onlineId: data.profile.onlineId,
     avatarUrl: data.profile.avatarUrl,
+    avatarLabel,
+    sourceLabel,
     fetchedAt: data.fetchedAt,
   };
 }
@@ -112,11 +122,21 @@ const activeDashboardAtom = Atom.make((get): DashboardData => {
  * keeps a stable reference until a write changes the record — empty on the
  * server and until the first kvs read resolves.
  */
-const cachedAccountsAtom = Atom.map(dashboardsAtom, (dashboards): CachedAccount[] =>
-  Object.values(dashboards)
-    .map(toCachedAccount)
-    .sort((a, b) => a.onlineId.localeCompare(b.onlineId))
-);
+function cachedImportedAccounts(dashboards: Record<string, DashboardData>): CachedAccount[] {
+  const accounts = Object.values(dashboards).reduce<CachedAccount[]>((result, data) => {
+    if (data.profile.accountId !== demoDashboard.profile.accountId)
+      result.push(toCachedAccount(data));
+    return result;
+  }, []);
+  return accounts.sort((a, b) => a.onlineId.localeCompare(b.onlineId));
+}
+
+const cachedAccountsAtom = Atom.map(dashboardsAtom, cachedImportedAccounts);
+
+const availableAccountsAtom = Atom.map(dashboardsAtom, (dashboards): CachedAccount[] => [
+  toCachedAccount(demoDashboard),
+  ...cachedImportedAccounts(dashboards),
+]);
 
 /**
  * Imperative read/write surface over the persisted dashboards. Built per request
@@ -164,7 +184,10 @@ export function makeDashboardStore(registry: AtomRegistry.AtomRegistry): Dashboa
     },
     setActive: (accountId) => {
       if (typeof window === "undefined") return;
-      registry.set(activeAccountIdAtom, accountId);
+      registry.set(
+        activeAccountIdAtom,
+        accountId === demoDashboard.profile.accountId ? null : accountId
+      );
     },
     clearActive: () => {
       if (typeof window === "undefined") return;
@@ -194,4 +217,9 @@ export function useActiveDashboard(): DashboardData {
 /** Subscribe to the accounts with a cached dashboard entry; empty on the server. */
 export function useCachedAccounts(): CachedAccount[] {
   return useAtomValue(cachedAccountsAtom);
+}
+
+/** Subscribe to every profile available from the dashboard switcher, including demo data. */
+export function useAvailableAccounts(): CachedAccount[] {
+  return useAtomValue(availableAccountsAtom);
 }

@@ -1,5 +1,5 @@
 import { Link, useRouteContext } from "@tanstack/react-router";
-import { Check, ChevronDown, Home, Info, LogOut, UserPlus } from "lucide-react";
+import { Check, ChevronDown, Home, LogOut, UserPlus } from "lucide-react";
 import { useDeferredValue, useRef, useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,6 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Progress } from "@/components/ui/progress";
-import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { RefreshDashboard } from "@/features/dashboard/components/refresh-dashboard";
 import { RemoveTransactions } from "@/features/dashboard/components/remove-transactions";
@@ -48,17 +47,16 @@ import {
   PrototypeLibrary,
   PrototypeSpending,
 } from "@/features/prototype/dashboard-sections";
-import { prototypeTransactions } from "@/features/prototype/prototype-data";
 import type { DashboardData } from "@/server/providers/account/snapshot";
-import { type CachedAccount, useCachedAccounts } from "@/stores/dashboard-store";
-import { useTransactionImport } from "@/stores/transactions-store";
+import { type CachedAccount, useAvailableAccounts } from "@/stores/dashboard-store";
+import { useDashboardTransactionImport } from "@/stores/transactions-store";
 import { alignHashDestination, DashboardSidebar } from "./dashboard-sidebar";
 import { DashboardEmpty, DashboardNoMatches, DashboardPartialNotice } from "./states";
 
 interface Props {
   data: DashboardData;
-  onRefresh: (npsso: string) => Promise<void>;
-  onSignOut: () => void;
+  onRefresh?: (npsso: string) => Promise<void>;
+  onSignOut?: () => void;
   signingOut: boolean;
   safeDemo?: boolean;
   partialData?: boolean;
@@ -263,7 +261,32 @@ function TimeframeControl({
   );
 }
 
-function ImportSource({
+function AccountAvatar({ account }: { account: CachedAccount }) {
+  return (
+    <Avatar className="size-8 rounded-none">
+      <AvatarImage src={account.avatarUrl} alt={`${account.onlineId} avatar`} />
+      <AvatarFallback className="rounded-none bg-primary text-xs text-primary-foreground">
+        {account.onlineId.slice(0, 2).toUpperCase()}
+      </AvatarFallback>
+    </Avatar>
+  );
+}
+
+function accountLabels(account: CachedAccount, current: boolean) {
+  const refreshedAt = new Date(account.fetchedAt).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+  return {
+    action: current ? `${account.onlineId}, active profile` : `Switch to ${account.onlineId}`,
+    detail: `${account.avatarLabel} · refreshed ${refreshedAt}`,
+    state: current ? "active" : "available",
+  };
+}
+
+function AccountSource({
   account,
   current,
   onSelect,
@@ -272,70 +295,42 @@ function ImportSource({
   current: boolean;
   onSelect: (accountId: string) => void;
 }) {
-  const refreshedAt = new Date(account.fetchedAt).toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  });
+  const labels = accountLabels(account, current);
   return (
     <PopoverClose
       render={
         <button
           type="button"
           className="grid w-full grid-cols-[2.125rem_minmax(0,1fr)_1.25rem] items-center gap-2.5 border border-transparent p-2.5 text-left transition-colors duration-200 hover:border-primary/25 hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-          aria-label={
-            current ? `${account.onlineId}, active account` : `Switch to ${account.onlineId}`
-          }
+          aria-label={labels.action}
           aria-current={current ? "true" : undefined}
           onClick={() => onSelect(account.accountId)}
         />
       }
     >
-      <SourceMark label="PS" />
+      <AccountAvatar account={account} />
       <span className="flex min-w-0 flex-col">
-        <strong>PlayStation · {account.onlineId}</strong>
+        <strong>{account.onlineId}</strong>
         <small className="text-muted-foreground">
-          {current ? "Active" : "Connected"} · refreshed {refreshedAt}
+          {account.sourceLabel} · {labels.state}
         </small>
+        <small className="text-muted-foreground">{labels.detail}</small>
       </span>
-      {current && <Check aria-label="Active account" />}
+      {current && <Check aria-label="Active profile" />}
     </PopoverClose>
   );
 }
 
-function SourceMark({ label }: { label: string }) {
-  return (
-    <span className="grid aspect-square place-items-center bg-primary text-[0.625rem] font-extrabold text-primary-foreground">
-      {label}
-    </span>
-  );
-}
-
-function profileAccounts(data: DashboardData, accounts: CachedAccount[]): CachedAccount[] {
-  const { profile } = data;
-  if (accounts.some((account) => account.accountId === profile.accountId)) return accounts;
-  return [
-    {
-      accountId: profile.accountId,
-      onlineId: profile.onlineId,
-      avatarUrl: profile.avatarUrl,
-      fetchedAt: data.fetchedAt,
-    },
-    ...accounts,
-  ];
-}
-
 function ProfileSources({ data }: { data: DashboardData }) {
-  const accounts = profileAccounts(data, useCachedAccounts());
+  const accounts = useAvailableAccounts();
   const { dashboardStore } = useRouteContext({ from: "__root__" });
   return (
     <div className="mt-4 border-t border-[var(--playloom-rule-strong)] pt-3">
       <small className="mb-2 block text-[0.5625rem] font-bold tracking-[0.12em] text-muted-foreground uppercase">
-        Connected import sources
+        Available profiles
       </small>
       {accounts.map((account) => (
-        <ImportSource
+        <AccountSource
           key={account.accountId}
           account={account}
           current={account.accountId === data.profile.accountId}
@@ -356,7 +351,9 @@ function ProfileMenu({ data }: { data: DashboardData }) {
       <PopoverTitle className="font-[Fraunces_Variable] text-xl font-semibold">
         {profile.onlineId}
       </PopoverTitle>
-      <p className="mt-1 text-xs text-muted-foreground">Personal Playloom profile</p>
+      <p className="mt-1 text-xs text-muted-foreground">
+        {profile.sourceLabel ?? "Imported from PlayStation"}
+      </p>
       <ProfileSources data={data} />
       <Button
         variant="ghost"
@@ -365,34 +362,13 @@ function ProfileMenu({ data }: { data: DashboardData }) {
       >
         <UserPlus /> Add PlayStation account
       </Button>
-      <Separator className="my-3 bg-[var(--playloom-rule-strong)]" />
-      <div className="grid grid-cols-[2.125rem_minmax(0,1fr)] items-center gap-2.5 px-2.5 pb-2 pt-1">
-        <span className="grid aspect-square place-items-center bg-primary text-[0.625rem] font-extrabold text-primary-foreground">
-          PL
-        </span>
-        <div className="flex flex-col">
-          <strong>Playloom demo profile</strong>
-          <small className="text-muted-foreground">Stable local evaluation data</small>
-        </div>
-      </div>
-      <Button
-        variant="ghost"
-        className="w-full justify-start rounded-none text-foreground hover:bg-accent"
-        render={<Link to="/dashboard" />}
-      >
-        Explore demo profile
-      </Button>
     </PopoverContent>
   );
 }
 
-function ProfileTrigger({
-  profile,
-  capture,
-}: {
-  profile: DashboardData["profile"];
-  capture: () => void;
-}) {
+function ProfileTrigger({ data, capture }: { data: DashboardData; capture: () => void }) {
+  const { profile } = data;
+  const sourceLabel = profile.sourceLabel ?? "Imported from PlayStation";
   return (
     <span onPointerDownCapture={capture} onKeyDownCapture={capture} onClickCapture={capture}>
       <PopoverTrigger
@@ -400,17 +376,19 @@ function ProfileTrigger({
           <Button
             variant="ghost"
             className="h-11 min-w-0 rounded-none px-2 text-foreground hover:bg-accent focus-visible:ring-ring"
-            aria-label={`Open profile menu for ${profile.onlineId}`}
+            aria-label={`Open profile menu for ${profile.onlineId}, ${sourceLabel}`}
           />
         }
       >
-        <Avatar className="size-9">
-          <AvatarImage src={profile.avatarUrl} alt="" />
-          <AvatarFallback>{profile.onlineId.slice(0, 2).toUpperCase()}</AvatarFallback>
+        <Avatar className="size-9 rounded-none">
+          <AvatarImage src={profile.avatarUrl} alt={`${profile.onlineId} avatar`} />
+          <AvatarFallback className="rounded-none bg-primary text-primary-foreground">
+            {profile.onlineId.slice(0, 2).toUpperCase()}
+          </AvatarFallback>
         </Avatar>
         <span className="flex min-w-0 flex-col items-start leading-[1.1]">
           <strong className="max-w-35 truncate">{profile.onlineId}</strong>
-          <small className="text-[0.625rem] text-muted-foreground">Personal profile</small>
+          <small className="text-[0.625rem] text-muted-foreground">{sourceLabel}</small>
         </span>
         <ChevronDown aria-hidden="true" />
       </PopoverTrigger>
@@ -429,7 +407,7 @@ function ProfileControl({ data }: { data: DashboardData }) {
   };
   return (
     <Popover open={open} onOpenChange={preserveScroll} onOpenChangeComplete={restoreScroll}>
-      <ProfileTrigger profile={data.profile} capture={() => (scroll.current = window.scrollY)} />
+      <ProfileTrigger data={data} capture={() => (scroll.current = window.scrollY)} />
       <ProfileMenu data={data} />
     </Popover>
   );
@@ -457,7 +435,7 @@ function TopBar({ data }: { data: DashboardData }) {
 }
 
 function ProfileSummary({ data, refreshed }: { data: DashboardData; refreshed: boolean }) {
-  const account = data.profile.isPlus ? "PlayStation Plus" : "PlayStation account";
+  const account = data.profile.isPlus ? "PlayStation Plus account" : "PlayStation account";
   const refreshedAt = new Date(data.fetchedAt).toLocaleDateString("en-GB", {
     day: "numeric",
     month: "short",
@@ -467,7 +445,7 @@ function ProfileSummary({ data, refreshed }: { data: DashboardData; refreshed: b
   return (
     <div>
       <p className="text-[0.6875rem] font-bold tracking-[0.14em] text-primary uppercase">
-        A life in games
+        {data.profile.sourceLabel ?? "Imported from PlayStation"}
       </p>
       <h1 className="mt-1 max-w-[16ch] font-[Fraunces_Variable] text-[clamp(2.75rem,5vw,4.5rem)] font-[570] tracking-[-0.06em] leading-[0.92] text-balance">
         {data.profile.onlineId}
@@ -493,24 +471,32 @@ function ProfileSummary({ data, refreshed }: { data: DashboardData; refreshed: b
   );
 }
 
-function AccountActions({ props, onSafeRefresh }: { props: Props; onSafeRefresh: () => void }) {
-  if (props.data.isDemo) return null;
-  const safeDemo = props.safeDemo === true;
-  const refresh = safeDemo ? (
+function RefreshAction({ props, onComplete }: { props: Props; onComplete: () => void }) {
+  if (!props.onRefresh) return null;
+  return (
     <RefreshDashboard
-      safeDemo
-      onRefresh={() => new Promise((resolve) => window.setTimeout(resolve, 700))}
-      onComplete={onSafeRefresh}
+      safeDemo={props.safeDemo}
+      onRefresh={props.onRefresh}
+      onComplete={onComplete}
     />
-  ) : (
-    <RefreshDashboard onRefresh={props.onRefresh} onComplete={onSafeRefresh} />
   );
+}
+
+function SignOutAction({ props }: { props: Props }) {
+  if (!props.onSignOut) return null;
+  return (
+    <Button variant="ghost" size="sm" onClick={props.onSignOut} disabled={props.signingOut}>
+      <LogOut /> {props.signingOut ? "Signing out…" : "Sign out"}
+    </Button>
+  );
+}
+
+function AccountActions({ props, onSafeRefresh }: { props: Props; onSafeRefresh: () => void }) {
+  if (!props.onRefresh && !props.onSignOut) return null;
   return (
     <div className="flex h-fit gap-1.5">
-      {refresh}
-      <Button variant="ghost" size="sm" onClick={props.onSignOut} disabled={props.signingOut}>
-        <LogOut /> {props.signingOut ? "Signing out…" : "Sign out"}
-      </Button>
+      <RefreshAction props={props} onComplete={onSafeRefresh} />
+      <SignOutAction props={props} />
     </div>
   );
 }
@@ -522,25 +508,6 @@ function Marquee(props: Props) {
       <ProfileSummary data={props.data} refreshed={refreshed} />
       <AccountActions props={props} onSafeRefresh={() => setRefreshed(true)} />
     </header>
-  );
-}
-
-function DemoNotice() {
-  return (
-    <div className="grid grid-cols-[1.125rem_minmax(0,1fr)_auto] items-center gap-2.5 border-b border-[var(--playloom-rule)] px-[clamp(1.25rem,5vw,4rem)] py-3 text-[0.6875rem] text-muted-foreground max-sm:grid-cols-[1.125rem_minmax(0,1fr)]">
-      <Info className="size-4" />
-      <span>
-        This <strong>demo dataset</strong> is a stable Playloom profile. Artwork and purchases are
-        local fixtures; no network data is required.
-      </span>
-      <Link
-        className="font-bold text-primary underline-offset-4 hover:underline max-sm:col-start-2"
-        to="/dashboard"
-        search={{ prototypeState: "signed-in" }}
-      >
-        Open safe signed-in demo
-      </Link>
-    </div>
   );
 }
 
@@ -643,8 +610,7 @@ function SpendingChapterUnavailable({ data }: { data: DashboardData }) {
 }
 
 function SpendingChapter({ data }: { data: DashboardData }) {
-  const imported = useTransactionImport(data.profile.accountId);
-  const transactions = data.isDemo ? prototypeTransactions : (imported?.transactions ?? []);
+  const transactions = useDashboardTransactionImport(data.profile.accountId)?.transactions ?? [];
   return (
     <div className="playloom-chapter playloom-chapter-spending">
       <ChapterHeading number="03" title="Spending">
@@ -688,8 +654,7 @@ function LibraryChapter({ data }: { data: DashboardData }) {
 }
 
 function ToolsChapterAvailable({ data }: { data: DashboardData }) {
-  const imported = useTransactionImport(data.profile.accountId);
-  const transactions = imported?.transactions ?? (data.isDemo ? prototypeTransactions : []);
+  const transactions = useDashboardTransactionImport(data.profile.accountId)?.transactions ?? [];
   return (
     <div className="playloom-chapter playloom-chapter-tools">
       <ChapterHeading number="05" title="Tools">
@@ -831,7 +796,6 @@ function ReadingSurface(props: Props) {
       ref={alignHashDestination}
     >
       <Marquee {...props} />
-      {props.data.isDemo && <DemoNotice />}
       <FilterScope
         data={props.data}
         filters={filters}

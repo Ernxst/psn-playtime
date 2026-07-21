@@ -433,7 +433,6 @@ interface TransactionSectionProps {
 function useSectionTransactions(data: DashboardData, transactions?: TransactionRow[]) {
   const imported = useTransactionImport(data.profile.accountId);
   if (transactions) return transactions;
-  if (data.isDemo) return [];
   return imported?.transactions ?? [];
 }
 

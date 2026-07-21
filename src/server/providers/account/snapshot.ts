@@ -52,6 +52,7 @@ export const ProfileSummary = Schema.Struct({
   accountId: Schema.String,
   aboutMe: Schema.optional(Schema.String),
   avatarUrl: Schema.optional(Schema.String),
+  sourceLabel: Schema.optional(Schema.String),
   isPlus: Schema.Boolean,
   /** PSN trophy level (e.g. 220). */
   trophyLevel: Schema.Finite,

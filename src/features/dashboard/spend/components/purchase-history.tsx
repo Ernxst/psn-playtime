@@ -211,7 +211,7 @@ export function PurchaseHistorySection({
   transactions?: TransactionRow[];
 }) {
   const imported = useTransactionImport(data.profile.accountId);
-  const rows = transactions ?? (data.isDemo ? [] : (imported?.transactions ?? []));
+  const rows = transactions ?? imported?.transactions ?? [];
   if (rows.length === 0) {
     return (
       <Card>

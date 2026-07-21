@@ -66,7 +66,7 @@ function cleanAccounts() {
 }
 
 describe("AccountSwitcher", () => {
-  it("renders the demo account as text when there are no cached accounts", async () => {
+  it("renders the demo dataset as the only available profile when there are no imports", async () => {
     cleanAccounts();
     onTestFinished(cleanAccounts);
     const { element } = createHarness(<ActiveAccountSwitcher />);
@@ -76,9 +76,10 @@ describe("AccountSwitcher", () => {
     await expect
       .element(page.getByText(demoDashboard.profile.onlineId, { exact: true }))
       .toBeVisible();
+    await page.getByRole("button", { name: /switch account/i }).click();
     await expect
-      .element(page.getByRole("button", { name: /switch account/i }))
-      .not.toBeInTheDocument();
+      .element(page.getByRole("button", { name: "PlayloomDemo, current account" }))
+      .toHaveAttribute("aria-current", "true");
   });
 
   it("opens the switcher for one cached account and links to Add account", async () => {

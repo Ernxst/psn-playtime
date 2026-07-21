@@ -27,8 +27,12 @@ describe("TrophySection", () => {
     await render(<TrophySection data={demoDashboard} />);
 
     await expect.element(page.getByText("Trophy level")).toBeVisible();
-    await expect.element(page.getByText("220", { exact: true })).toBeVisible();
-    await expect.element(page.getByText("1,138", { exact: true })).toBeVisible();
+    await expect
+      .element(page.getByText(String(demoDashboard.profile.trophyLevel), { exact: true }))
+      .toBeVisible();
+    await expect
+      .element(page.getByText(String(demoDashboard.profile.totalTrophies), { exact: true }))
+      .toBeVisible();
   });
 
   it("lists the games where a platinum was earned", async () => {

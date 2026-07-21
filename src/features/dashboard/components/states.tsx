@@ -33,6 +33,14 @@ function StateShell({
         <header className="sticky top-0 z-30 flex min-h-15 items-center gap-3 border-b border-[var(--playloom-rule)] bg-[rgb(243_239_229/96%)] px-5 backdrop-blur-md">
           <SidebarTrigger className="size-11 md:hidden" aria-label="Open chapter navigation" />
           <span className="font-[Fraunces_Variable] text-xl font-semibold">Playloom</span>
+          {profile ? (
+            <span className="ml-auto flex min-w-0 flex-col items-end text-xs">
+              <strong className="max-w-36 truncate">{profile.onlineId}</strong>
+              <small className="text-muted-foreground">
+                {profile.sourceLabel ?? "Imported from PlayStation"}
+              </small>
+            </span>
+          ) : null}
         </header>
         <div className="min-h-[calc(100dvh-3.75rem)] bg-[var(--playloom-paper)] text-[var(--playloom-ink)]">
           {children}
@@ -42,9 +50,9 @@ function StateShell({
   );
 }
 
-export function DashboardSkeleton() {
+export function DashboardSkeleton({ profile }: { profile?: ProfileSummary } = {}) {
   return (
-    <StateShell busy>
+    <StateShell busy profile={profile}>
       <div className="px-[clamp(1.25rem,5vw,4rem)] py-8">
         <output className="sr-only" aria-live="polite">
           Loading PlayStation archive

@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { useState, useSyncExternalStore } from "react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Sidebar,
   SidebarContent,
@@ -186,12 +187,17 @@ function SpineHeader({ profile }: { profile: ProfileSummary }) {
         woven together.
       </p>
       <div className="mt-2 grid grid-cols-[2.25rem_1fr] items-center gap-2.5 border-t border-white/15 pt-4">
-        <span className="grid aspect-square place-items-center bg-[#f5efe2] text-[0.6875rem] font-bold text-[var(--playloom-ink)]">
-          {profile.onlineId.slice(0, 2).toUpperCase()}
-        </span>
+        <Avatar className="size-9 rounded-none">
+          <AvatarImage src={profile.avatarUrl} alt={`${profile.onlineId} avatar`} />
+          <AvatarFallback className="rounded-none bg-[#f5efe2] text-[0.6875rem] font-bold text-[var(--playloom-ink)]">
+            {profile.onlineId.slice(0, 2).toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
         <div className="flex min-w-0 flex-col text-xs">
           <strong className="truncate">{profile.onlineId}</strong>
-          <small className="text-white/50">Personal profile</small>
+          <small className="text-white/50">
+            {profile.sourceLabel ?? "Imported from PlayStation"}
+          </small>
         </div>
       </div>
     </SidebarHeader>

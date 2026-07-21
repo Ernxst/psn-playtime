@@ -13,7 +13,7 @@ import {
 
 describe("DashboardSkeleton", () => {
   it("keeps the Playloom shell and exposes a busy loading status", async () => {
-    const { element } = createHarness(<DashboardSkeleton />);
+    const { element } = createHarness(<DashboardSkeleton profile={demoDashboard.profile} />);
     const { container } = await render(element);
 
     // Skeleton count is an intentional loading-layout structure contract.
@@ -21,6 +21,7 @@ describe("DashboardSkeleton", () => {
     expect(container.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(12);
     await expect.element(page.getByRole("main")).toHaveAttribute("aria-busy", "true");
     await expect.element(page.getByRole("status")).toHaveTextContent("Loading PlayStation archive");
+    await expect.element(page.getByText("Deterministic demo data")).toBeVisible();
   });
 });
 
@@ -29,7 +30,11 @@ describe("DashboardError", () => {
     await page.viewport(1280, 800);
     onTestFinished(() => page.viewport(1280, 800));
     const onRetry = vi.fn();
-    const profile = { ...demoDashboard.profile, onlineId: "ActiveArchive" };
+    const profile = {
+      ...demoDashboard.profile,
+      onlineId: "ActiveArchive",
+      sourceLabel: "Imported from PlayStation",
+    };
     const { element } = createHarness(
       <DashboardError message="Token expired" onRetry={onRetry} profile={profile} />
     );
@@ -40,7 +45,8 @@ describe("DashboardError", () => {
     await expect
       .element(page.getByRole("heading", { name: "Couldn't load this archive" }))
       .toHaveFocus();
-    await expect.element(page.getByText("ActiveArchive")).toBeVisible();
+    await expect.element(page.getByText("ActiveArchive").first()).toBeVisible();
+    await expect.element(page.getByText("Imported from PlayStation").first()).toBeVisible();
     await expect.element(page.getByText("Your saved browser data is unchanged.")).toBeVisible();
     await expect.element(page.getByRole("link", { name: "Home", exact: true })).toBeVisible();
 

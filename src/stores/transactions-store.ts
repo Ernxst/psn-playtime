@@ -9,10 +9,17 @@ import { useAtomValue } from "@effect/atom-react";
 import * as Schema from "effect/Schema";
 import * as Atom from "effect/unstable/reactivity/Atom";
 import type * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
+import { demoTransactions } from "@/domain/demo-transactions";
 import { type TransactionImport, transactionImportSchema } from "@/domain/transactions";
 import { kvsRuntime } from "@/runtime/kvs.effect";
 
 const TRANSACTIONS_STORAGE_KEY = "psn-playtime:transactions:accounts";
+const DEMO_ACCOUNT_ID = "demo";
+const demoTransactionImport: TransactionImport = {
+  transactions: demoTransactions,
+  importedAt: "2026-05-14T10:30:00.000Z",
+  source: "playloom.demo",
+};
 
 /** Every persisted transaction import, keyed by its owning PSN account id. */
 const transactionImportsAtom = Atom.kvs({
@@ -57,4 +64,11 @@ export function makeTransactionStore(registry: AtomRegistry.AtomRegistry): Trans
 /** Subscribe to one account's persisted transaction import. */
 export function useTransactionImport(accountId: string): TransactionImport | null {
   return useAtomValue(transactionImportsAtom)[accountId] ?? null;
+}
+
+/** Resolve the complete transaction dataset selected for a dashboard account. */
+export function useDashboardTransactionImport(accountId: string): TransactionImport | null {
+  const imported = useAtomValue(transactionImportsAtom)[accountId];
+  if (imported) return imported;
+  return accountId === DEMO_ACCOUNT_ID ? demoTransactionImport : null;
 }

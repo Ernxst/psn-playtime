@@ -112,7 +112,7 @@ describe(".headlineTotals", () => {
     expect(totals.totalHours).toBe(7687.75);
     expect(totals.gamesPlayed).toBe(98);
     expect(totals.sessions).toBe(5966);
-    expect(totals.trophyLevel).toBe(220);
+    expect(totals.trophyLevel).toBe(demoDashboard.profile.trophyLevel);
     expect(totals.biggestGame).toBe(demoDashboard.games[0]);
   });
 });
