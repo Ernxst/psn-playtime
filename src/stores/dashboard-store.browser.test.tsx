@@ -6,7 +6,7 @@ import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
 import { demoDashboard } from "@/domain/mock";
 import { EffectAtomProvider } from "@/runtime/provider.effect";
-import type { DashboardData } from "@/server/providers/account/snapshot";
+import * as Dashboard from "@/test/factories/dashboard";
 import {
   type CachedAccount,
   type DashboardStore,
@@ -15,14 +15,8 @@ import {
   useCachedAccounts,
 } from "./dashboard-store";
 
-const accountA: DashboardData = {
-  ...demoDashboard,
-  profile: { ...demoDashboard.profile, accountId: "acc-1", onlineId: "Aaron" },
-};
-const accountZ: DashboardData = {
-  ...demoDashboard,
-  profile: { ...demoDashboard.profile, accountId: "acc-2", onlineId: "Zoe" },
-};
+const accountA = () => Dashboard.data({ profile: { accountId: "acc-1", onlineId: "Aaron" } });
+const accountZ = () => Dashboard.data({ profile: { accountId: "acc-2", onlineId: "Zoe" } });
 
 // A fresh registry (and a provider bound to it) per test isolates the dashboards
 // record between tests — the store has no clear-all surface by design, so each
@@ -52,9 +46,9 @@ function CachedAccountNames() {
 
 describe(".load", () => {
   it("returns the cached dashboard for a saved account", () => {
-    store.save(accountA);
+    store.save(accountA());
 
-    expect(store.load("acc-1")).toStrictEqual(accountA);
+    expect(store.load("acc-1")).toStrictEqual(accountA());
   });
 
   it("returns null for an account with no cached dashboard", () => {
@@ -70,7 +64,7 @@ describe(".useActiveDashboard", () => {
   });
 
   it("re-renders with the active account's cached dashboard after the store sets it active", async () => {
-    store.save(accountA);
+    store.save(accountA());
 
     await render(<ActiveOnlineId />, { wrapper: Provider });
 
@@ -90,7 +84,7 @@ describe(".useActiveDashboard", () => {
   });
 
   it("falls back to demo data after the active account is cleared", async () => {
-    store.save(accountA);
+    store.save(accountA());
     store.setActive("acc-1");
 
     await render(<ActiveOnlineId />, { wrapper: Provider });
@@ -109,14 +103,14 @@ describe(".useCachedAccounts", () => {
 
     await expect.element(page.getByText("none")).toBeVisible();
 
-    store.save(accountA);
+    store.save(accountA());
 
     await expect.element(page.getByText("Aaron")).toBeVisible();
   });
 
   it("lists cached accounts sorted by online id", async () => {
-    store.save(accountZ);
-    store.save(accountA);
+    store.save(accountZ());
+    store.save(accountA());
 
     await render(<CachedAccountNames />, { wrapper: Provider });
 
@@ -124,8 +118,8 @@ describe(".useCachedAccounts", () => {
   });
 
   it("drops a removed account from the cached list while leaving the others", async () => {
-    store.save(accountZ);
-    store.save(accountA);
+    store.save(accountZ());
+    store.save(accountA());
 
     await render(<CachedAccountNames />, { wrapper: Provider });
 
@@ -137,7 +131,7 @@ describe(".useCachedAccounts", () => {
   });
 
   it("keeps a stable snapshot reference across re-renders that do not change the store", async () => {
-    store.save(accountA);
+    store.save(accountA());
     const refs: CachedAccount[][] = [];
 
     function Probe() {
@@ -165,17 +159,17 @@ describe(".useCachedAccounts", () => {
 
 describe(".remove", () => {
   it("deletes the removed account's cached dashboard and leaves the others intact", () => {
-    store.save(accountA);
-    store.save(accountZ);
+    store.save(accountA());
+    store.save(accountZ());
 
     store.remove("acc-1");
 
     expect(store.load("acc-1")).toBeNull();
-    expect(store.load("acc-2")).toStrictEqual(accountZ);
+    expect(store.load("acc-2")).toStrictEqual(accountZ());
   });
 
   it("clears the active pointer when the removed account was active", async () => {
-    store.save(accountA);
+    store.save(accountA());
     store.setActive("acc-1");
 
     await render(<ActiveOnlineId />, { wrapper: Provider });
@@ -188,8 +182,8 @@ describe(".remove", () => {
   });
 
   it("keeps the active pointer when a different account is removed", async () => {
-    store.save(accountA);
-    store.save(accountZ);
+    store.save(accountA());
+    store.save(accountZ());
     store.setActive("acc-2");
 
     await render(<ActiveOnlineId />, { wrapper: Provider });

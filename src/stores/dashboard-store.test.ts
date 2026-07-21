@@ -1,6 +1,6 @@
 import * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
-import { describe, expect, it, onTestFinished, vi } from "vitest";
-import { demoDashboard } from "@/domain/mock";
+import { describe, expect, it, vi } from "vitest";
+import * as Dashboard from "@/test/factories/dashboard";
 import { makeDashboardStore } from "./dashboard-store";
 
 /**
@@ -22,7 +22,7 @@ describe(".load", () => {
 
 describe(".save", () => {
   it("does nothing during server render when there is no window", () => {
-    expect(() => makeStore().save(demoDashboard)).not.toThrow();
+    expect(() => makeStore().save(Dashboard.data())).not.toThrow();
   });
 });
 
@@ -50,14 +50,11 @@ describe("server-side rendering", () => {
     const setItem = vi.fn();
     const removeItem = vi.fn();
     vi.stubGlobal("localStorage", { getItem, setItem, removeItem });
-    onTestFinished(() => {
-      vi.unstubAllGlobals();
-    });
     const store = makeStore();
 
     expect(store.load("demo")).toBeNull();
 
-    store.save(demoDashboard);
+    store.save(Dashboard.data());
     store.setActive("demo");
     store.clearActive();
     store.remove("demo");
