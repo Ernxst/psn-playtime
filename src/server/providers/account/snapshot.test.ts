@@ -1,6 +1,6 @@
 import * as Schema from "effect/Schema";
 import { describe, expect, it } from "vitest";
-import { demoDashboard } from "@/domain/mock";
+import * as Dashboard from "@/test/factories/dashboard";
 import * as Psn from "@/test/factories/psn";
 import { DashboardData, GamePlay, Genre, Platform } from "./snapshot";
 
@@ -27,14 +27,16 @@ const aGame = {
 
 describe("snapshot schema", () => {
   it("round-trips a valid DashboardData through decode then encode", () => {
-    const decoded = decodeData(demoDashboard);
+    const data = Dashboard.data();
+    const decoded = decodeData(data);
 
-    expect(encodeData(decoded)).toStrictEqual(demoDashboard);
+    expect(encodeData(decoded)).toStrictEqual(data);
   });
 
   it("decodes a payload with optional fields omitted", () => {
-    const { aboutMe: _aboutMe, avatarUrl: _avatarUrl, ...leanProfile } = demoDashboard.profile;
-    const lean = { ...demoDashboard, games: [], profile: leanProfile };
+    const data = Dashboard.data();
+    const { aboutMe: _aboutMe, avatarUrl: _avatarUrl, ...leanProfile } = data.profile;
+    const lean = { ...data, games: [], profile: leanProfile };
 
     const decoded = decodeData(lean);
 
@@ -44,7 +46,7 @@ describe("snapshot schema", () => {
   });
 
   it("defaults trophiesUnavailable to false when an old cached payload omits it", () => {
-    const { trophiesUnavailable: _trophiesUnavailable, ...withoutFlag } = demoDashboard;
+    const { trophiesUnavailable: _trophiesUnavailable, ...withoutFlag } = Dashboard.data();
 
     const decoded = decodeData(withoutFlag);
 
@@ -52,15 +54,16 @@ describe("snapshot schema", () => {
   });
 
   it("rejects a payload missing a required field", () => {
-    const { fetchedAt: _fetchedAt, ...withoutFetchedAt } = demoDashboard;
+    const { fetchedAt: _fetchedAt, ...withoutFetchedAt } = Dashboard.data();
 
     expect(() => decodeData(withoutFetchedAt)).toThrow(/fetchedAt/);
   });
 
   it("rejects a payload whose field has the wrong type", () => {
+    const data = Dashboard.data();
     const badProfile = {
-      ...demoDashboard,
-      profile: { ...demoDashboard.profile, isPlus: "yes" },
+      ...data,
+      profile: { ...data.profile, isPlus: "yes" },
     };
 
     expect(() => decodeData(badProfile)).toThrow(/isPlus/);
