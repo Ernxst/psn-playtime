@@ -42,6 +42,7 @@ function withPrototypeArtwork(games: readonly GamePlay[]): GamePlay[] {
 }
 
 export function prototypeDashboard(data: DashboardData): DashboardData {
+  if (!data.isDemo) return data;
   return { ...data, games: withPrototypeArtwork(data.games) };
 }
 
