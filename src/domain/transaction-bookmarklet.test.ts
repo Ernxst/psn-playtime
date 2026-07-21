@@ -6,6 +6,7 @@ import { HttpResponse, http } from "msw";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import * as Transactions from "@/test/factories/transactions";
 import { server } from "@/test/msw";
+import { withTransactionCredentials } from "@/test/msw-handlers";
 import {
   AUTHENTICATED_ACCOUNT_ENDPOINT,
   bookmarkletHref,
@@ -540,31 +541,30 @@ describe("bookmarklet transaction-history workflow", () => {
   it("executes the authenticated GraphQL request through successful pagination", async () => {
     const cursor = "2024-01-01T00:00:00.000Z";
     server.use(
-      http.get(TRANSACTION_HISTORY_ENDPOINT, ({ request }) => {
-        const url = new URL(request.url);
-        const variables = transactionQuery(request);
-        const valid =
-          url.searchParams.get("operationName") === "transactionHistoryRetrieve" &&
-          variables.limit === 100 &&
-          variables.startDate === "1994-01-01T00:00:00.000Z" &&
-          request.credentials === "include" &&
-          request.headers.get("apollographql-client-name") === "@sie-ppr-web-checkout/app" &&
-          request.headers.get("x-psn-storefront-type") === "checkout:pdc" &&
-          request.headers.get("x-psn-request-id") === "request-id";
-        return HttpResponse.json(
-          valid
-            ? variables.endDate === cursor
-              ? Transactions.historyResponse([
-                  Transactions.multiProductPurchase(),
-                  Transactions.walletFunding(),
-                ])
-              : Transactions.historyResponse([Transactions.multiProductPurchase()], {
-                  hasMore: true,
-                  nextEndDate: cursor,
-                })
-            : { errors: [{ message: "invalid request" }] }
-        );
-      })
+      http.get(
+        TRANSACTION_HISTORY_ENDPOINT,
+        withTransactionCredentials(({ request }) => {
+          const url = new URL(request.url);
+          const variables = transactionQuery(request);
+          const valid =
+            url.searchParams.get("operationName") === "transactionHistoryRetrieve" &&
+            variables.limit === 100 &&
+            variables.startDate === "1994-01-01T00:00:00.000Z";
+          return HttpResponse.json(
+            valid
+              ? variables.endDate === cursor
+                ? Transactions.historyResponse([
+                    Transactions.multiProductPurchase(),
+                    Transactions.walletFunding(),
+                  ])
+                : Transactions.historyResponse([Transactions.multiProductPurchase()], {
+                    hasMore: true,
+                    nextEndDate: cursor,
+                  })
+              : { errors: [{ message: "invalid request" }] }
+          );
+        })
+      )
     );
 
     const result = await runNetworkBookmarklet();
@@ -589,11 +589,14 @@ describe("bookmarklet transaction-history workflow", () => {
 
   it("continues with usable transaction data when GraphQL also returns errors", async () => {
     server.use(
-      http.get(TRANSACTION_HISTORY_ENDPOINT, () =>
-        HttpResponse.json(
-          Transactions.historyResponse([Transactions.nullNamePurchase()], {
-            errors: [{ message: "productName was null" }],
-          })
+      http.get(
+        TRANSACTION_HISTORY_ENDPOINT,
+        withTransactionCredentials(() =>
+          HttpResponse.json(
+            Transactions.historyResponse([Transactions.nullNamePurchase()], {
+              errors: [{ message: "productName was null" }],
+            })
+          )
         )
       )
     );
@@ -608,8 +611,11 @@ describe("bookmarklet transaction-history workflow", () => {
 
   it("leaves the first-page failure visible and does not hand off an import", async () => {
     server.use(
-      http.get(TRANSACTION_HISTORY_ENDPOINT, () =>
-        HttpResponse.json({ errors: [{ message: "PersistedQueryNotFound" }] })
+      http.get(
+        TRANSACTION_HISTORY_ENDPOINT,
+        withTransactionCredentials(() =>
+          HttpResponse.json({ errors: [{ message: "PersistedQueryNotFound" }] })
+        )
       )
     );
 
@@ -623,17 +629,20 @@ describe("bookmarklet transaction-history workflow", () => {
   it("hands off the collected rows when a later page fails", async () => {
     const cursor = "2024-01-01T00:00:00.000Z";
     server.use(
-      http.get(TRANSACTION_HISTORY_ENDPOINT, ({ request }) => {
-        const variables = transactionQuery(request);
-        return HttpResponse.json(
-          variables.endDate === cursor
-            ? { errors: [{ message: "later page unavailable" }] }
-            : Transactions.historyResponse([Transactions.walletFunding()], {
-                hasMore: true,
-                nextEndDate: cursor,
-              })
-        );
-      })
+      http.get(
+        TRANSACTION_HISTORY_ENDPOINT,
+        withTransactionCredentials(({ request }) => {
+          const variables = transactionQuery(request);
+          return HttpResponse.json(
+            variables.endDate === cursor
+              ? { errors: [{ message: "later page unavailable" }] }
+              : Transactions.historyResponse([Transactions.walletFunding()], {
+                  hasMore: true,
+                  nextEndDate: cursor,
+                })
+          );
+        })
+      )
     );
 
     const result = await runNetworkBookmarklet();
