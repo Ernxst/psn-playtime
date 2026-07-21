@@ -1,10 +1,9 @@
-import type { ReactNode } from "react";
-import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import { page, userEvent } from "vitest/browser";
-import { demoDashboard } from "@/domain/mock";
-import type { TransactionRow } from "@/domain/transactions";
 import { TestAtomProvider, testTransactionStore } from "@/test/atom-registry";
+import * as Dashboard from "@/test/factories/dashboard";
+import * as Transactions from "@/test/factories/transactions";
 import { LlmPromptCard } from "./llm-prompt-card";
 
 const LEAD_QUESTION = "Which games gave me the most enjoyment relative to time played?";
@@ -12,34 +11,21 @@ const SIGNATURE_QUESTION =
   "What's my signature genre, and how dominant is it versus everything else?";
 const SPEND_QUESTION = "How has my spending on games changed over time?";
 
-afterEach(() => {
-  vi.restoreAllMocks();
-});
-
-/** Render under the atom provider so `useTransactionImport` shares the seeded registry. */
-function renderWithAtoms(ui: ReactNode) {
-  return render(ui, { wrapper: TestAtomProvider });
-}
-
 function seedTransaction() {
-  const transaction: TransactionRow = {
+  const transaction = Transactions.row({
     transactionId: "t1",
     key: "t1",
     date: "2023-01-01",
-    transactionType: "PRODUCT_PURCHASE",
-    kind: "purchase",
     productName: "FIFA 18",
-    quantity: 1,
     amountMinor: 4499,
-    currency: "£",
     displayAmount: "£44.99",
-  };
-  testTransactionStore.save(demoDashboard.profile.accountId, {
+  });
+  testTransactionStore.save(Dashboard.data().profile.accountId, {
     transactions: [transaction],
     importedAt: "2024-01-01T00:00:00.000Z",
     source: "store.playstation.com",
   });
-  onTestFinished(() => testTransactionStore.clear(demoDashboard.profile.accountId));
+  onTestFinished(() => testTransactionStore.clear(Dashboard.data().profile.accountId));
 }
 
 /** Expand a collapsed category section by clicking its accordion trigger. */
@@ -49,7 +35,7 @@ async function expandSection(name: RegExp) {
 
 describe("LlmPromptCard", () => {
   it("renders the searchable question picker and a prompt preview", async () => {
-    await render(<LlmPromptCard data={demoDashboard} />);
+    await render(<LlmPromptCard data={Dashboard.data()} />);
 
     await expect.element(page.getByText("Ask an AI about your playtime")).toBeVisible();
     await expect.element(page.getByRole("searchbox", { name: "Search questions" })).toBeVisible();
@@ -58,7 +44,7 @@ describe("LlmPromptCard", () => {
   });
 
   it("renders all four prompt actions alongside the preview without squashing them", async () => {
-    await render(<LlmPromptCard data={demoDashboard} />);
+    await render(<LlmPromptCard data={Dashboard.data()} />);
 
     await expect.element(page.getByRole("textbox", { name: "Prompt preview" })).toBeVisible();
     await expect.element(page.getByRole("button", { name: "Copy prompt" })).toBeVisible();
@@ -70,7 +56,7 @@ describe("LlmPromptCard", () => {
   it("copies the prompt leading with the default question plus follow-ups", async () => {
     const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
 
-    await render(<LlmPromptCard data={demoDashboard} />);
+    await render(<LlmPromptCard data={Dashboard.data()} />);
 
     await page.getByRole("button", { name: "Copy prompt" }).click();
 
@@ -86,7 +72,7 @@ describe("LlmPromptCard", () => {
     const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
     const open = vi.spyOn(window, "open").mockReturnValue(window);
 
-    await render(<LlmPromptCard data={demoDashboard} />);
+    await render(<LlmPromptCard data={Dashboard.data()} />);
 
     await page.getByRole("button", { name: "Open in ChatGPT" }).click();
 
@@ -104,7 +90,7 @@ describe("LlmPromptCard", () => {
     const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
     const open = vi.spyOn(window, "open").mockReturnValue(window);
 
-    await render(<LlmPromptCard data={demoDashboard} />);
+    await render(<LlmPromptCard data={Dashboard.data()} />);
 
     await page.getByRole("button", { name: "Open in Claude" }).click();
 
@@ -122,7 +108,7 @@ describe("LlmPromptCard", () => {
     vi.spyOn(navigator.clipboard, "writeText").mockRejectedValue(new Error("denied"));
     const open = vi.spyOn(window, "open").mockReturnValue(window);
 
-    await render(<LlmPromptCard data={demoDashboard} />);
+    await render(<LlmPromptCard data={Dashboard.data()} />);
 
     await page.getByRole("button", { name: "Open in ChatGPT" }).click();
 
@@ -139,7 +125,7 @@ describe("LlmPromptCard", () => {
     vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
     const open = vi.spyOn(window, "open").mockReturnValue(null);
 
-    await render(<LlmPromptCard data={demoDashboard} />);
+    await render(<LlmPromptCard data={Dashboard.data()} />);
 
     await page.getByRole("button", { name: "Open in ChatGPT" }).click();
 
@@ -154,7 +140,7 @@ describe("LlmPromptCard", () => {
   });
 
   it("captions each action group beneath its buttons", async () => {
-    await render(<LlmPromptCard data={demoDashboard} />);
+    await render(<LlmPromptCard data={Dashboard.data()} />);
 
     await expect
       .element(page.getByText("Copy the full prompt to paste into any AI chat."))
@@ -176,7 +162,7 @@ describe("LlmPromptCard", () => {
     const revokeObjectURL = vi.spyOn(URL, "revokeObjectURL").mockReturnValue();
     const blob = vi.spyOn(globalThis, "Blob");
 
-    await render(<LlmPromptCard data={demoDashboard} />);
+    await render(<LlmPromptCard data={Dashboard.data()} />);
 
     const anchor = document.createElement("a");
     const click = vi.spyOn(anchor, "click").mockReturnValue();
@@ -190,7 +176,7 @@ describe("LlmPromptCard", () => {
     expect(createObjectURL).toHaveBeenCalledTimes(1);
     expect(anchor).toHaveAttribute(
       "download",
-      `psn-playtime-prompt-${demoDashboard.profile.onlineId}.md`
+      `psn-playtime-prompt-${Dashboard.data().profile.onlineId}.md`
     );
     expect(click).toHaveBeenCalledTimes(1);
     expect(revokeObjectURL).toHaveBeenCalledExactlyOnceWith("blob:prompt");
@@ -199,7 +185,10 @@ describe("LlmPromptCard", () => {
   it("strips unsafe characters from the PSN id in the download filename", async () => {
     vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:prompt");
     vi.spyOn(URL, "revokeObjectURL").mockReturnValue();
-    const data = { ...demoDashboard, profile: { ...demoDashboard.profile, onlineId: "a/b ?c" } };
+    const data = {
+      ...Dashboard.data(),
+      profile: { ...Dashboard.data().profile, onlineId: "a/b ?c" },
+    };
 
     await render(<LlmPromptCard data={data} />);
 
@@ -215,7 +204,7 @@ describe("LlmPromptCard", () => {
   it("choosing a different lead question changes the copied prompt", async () => {
     const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
 
-    await render(<LlmPromptCard data={demoDashboard} />);
+    await render(<LlmPromptCard data={Dashboard.data()} />);
 
     await expandSection(/^More/);
     await page.getByRole("button", { name: SIGNATURE_QUESTION }).click();
@@ -227,7 +216,7 @@ describe("LlmPromptCard", () => {
   });
 
   it("keeps a collapsed group's questions out of the document until expanded", async () => {
-    await render(<LlmPromptCard data={demoDashboard} />);
+    await render(<LlmPromptCard data={Dashboard.data()} />);
 
     await expect
       .element(page.getByRole("button", { name: SIGNATURE_QUESTION }))
@@ -239,7 +228,7 @@ describe("LlmPromptCard", () => {
   });
 
   it("expanding a section and selecting its question updates the prompt hint", async () => {
-    await render(<LlmPromptCard data={demoDashboard} />);
+    await render(<LlmPromptCard data={Dashboard.data()} />);
 
     await expandSection(/^More/);
     await page.getByRole("button", { name: SIGNATURE_QUESTION }).click();
@@ -248,7 +237,7 @@ describe("LlmPromptCard", () => {
   });
 
   it("selecting the pinned menu entry switches the hint to menu mode", async () => {
-    await render(<LlmPromptCard data={demoDashboard} />);
+    await render(<LlmPromptCard data={Dashboard.data()} />);
 
     await page.getByRole("button", { name: "Let the AI ask me (no specific question)" }).click();
 
@@ -258,7 +247,7 @@ describe("LlmPromptCard", () => {
   });
 
   it("auto-expands the matching group when searching so results show", async () => {
-    await render(<LlmPromptCard data={demoDashboard} />);
+    await render(<LlmPromptCard data={Dashboard.data()} />);
 
     await expect
       .element(page.getByRole("button", { name: SIGNATURE_QUESTION }))
@@ -270,7 +259,7 @@ describe("LlmPromptCard", () => {
   });
 
   it("re-collapses the sections when the search is cleared", async () => {
-    await render(<LlmPromptCard data={demoDashboard} />);
+    await render(<LlmPromptCard data={Dashboard.data()} />);
 
     const search = page.getByRole("searchbox", { name: "Search questions" });
     await userEvent.fill(search, "signature");
@@ -286,7 +275,7 @@ describe("LlmPromptCard", () => {
   });
 
   it("searching filters the question list", async () => {
-    await render(<LlmPromptCard data={demoDashboard} />);
+    await render(<LlmPromptCard data={Dashboard.data()} />);
 
     await userEvent.fill(page.getByRole("searchbox", { name: "Search questions" }), "signature");
 
@@ -299,7 +288,7 @@ describe("LlmPromptCard", () => {
   it("choosing the menu option copies a no-lead menu prompt", async () => {
     const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
 
-    await render(<LlmPromptCard data={demoDashboard} />);
+    await render(<LlmPromptCard data={Dashboard.data()} />);
 
     await page.getByRole("button", { name: MENU_OPTION }).click();
     await page.getByRole("button", { name: "Copy prompt" }).click();
@@ -313,7 +302,7 @@ describe("LlmPromptCard", () => {
   it("picking a question after the menu option restores a lead prompt", async () => {
     const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
 
-    await render(<LlmPromptCard data={demoDashboard} />);
+    await render(<LlmPromptCard data={Dashboard.data()} />);
 
     await page.getByRole("button", { name: MENU_OPTION }).click();
     await expandSection(/^More/);
@@ -326,7 +315,7 @@ describe("LlmPromptCard", () => {
   });
 
   it("hides the spend questions from the picker when no transactions are imported", async () => {
-    await renderWithAtoms(<LlmPromptCard data={demoDashboard} />);
+    await render(<LlmPromptCard data={Dashboard.data()} />, { wrapper: TestAtomProvider });
 
     await expect.element(page.getByRole("button", { name: LEAD_QUESTION })).toBeVisible();
     await expect
@@ -337,7 +326,7 @@ describe("LlmPromptCard", () => {
   it("shows the spend questions in the picker once transactions are imported", async () => {
     seedTransaction();
 
-    await renderWithAtoms(<LlmPromptCard data={demoDashboard} />);
+    await render(<LlmPromptCard data={Dashboard.data()} />, { wrapper: TestAtomProvider });
 
     await expandSection(/^Spending & value/);
 
@@ -348,7 +337,7 @@ describe("LlmPromptCard", () => {
     const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
     seedTransaction();
 
-    await renderWithAtoms(<LlmPromptCard data={demoDashboard} />);
+    await render(<LlmPromptCard data={Dashboard.data()} />, { wrapper: TestAtomProvider });
 
     await expandSection(/^Spending & value/);
     await page.getByRole("button", { name: SPEND_QUESTION }).click();

@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { demoDashboard } from "@/domain/mock";
-import type { TransactionRow } from "@/domain/transactions";
 import { topGamesByHours } from "@/features/dashboard/filters/analytics";
 import { fmtDate } from "@/features/dashboard/format";
 import { summariseSpend } from "@/features/dashboard/spend/spend";
 import type { GamePlay } from "@/server/providers/account/snapshot";
+import * as Dashboard from "@/test/factories/dashboard";
+import * as Transactions from "@/test/factories/transactions";
 import { buildDataSummary, buildFollowUps, buildMenu, buildPrompt } from "./llm-prompt";
 import {
   ADD_ON_SIGNAL_GUIDANCE,
@@ -23,26 +23,27 @@ import {
   TROPHY_SIGNAL_GUIDANCE,
 } from "./llm-prompt-catalogue";
 
-function tx(overrides: Partial<TransactionRow>): TransactionRow {
-  return {
-    transactionId: "t",
-    key: "k",
-    date: "2023-01-01",
-    transactionType: "PRODUCT_PURCHASE",
-    kind: "purchase",
-    productName: "",
-    quantity: 1,
-    amountMinor: 0,
-    currency: "£",
-    displayAmount: "",
-    ...overrides,
-  };
-}
-
 /** Soft groups whose lead drops the metric rubric (keeping caveat + genre). */
 const SOFT_LEADS = PROMPT_VARIANTS.filter((v) => !METRIC_RUBRIC_GROUPS.has(v.group));
 /** Groups whose lead keeps the full metric calibration rubric. */
 const METRIC_RUBRIC_LEADS = PROMPT_VARIANTS.filter((v) => METRIC_RUBRIC_GROUPS.has(v.group));
+
+const SPEND_QUESTIONS = [
+  { id: "spend-over-time", question: "How has my spending on games changed over time?" },
+  {
+    id: "cost-per-hour",
+    question: "Which games were the most and least expensive per hour I played?",
+  },
+  {
+    id: "full-price-vs-sale",
+    question: "Which games did I buy at full price versus on a deep sale?",
+  },
+  { id: "add-on-spend", question: "Where did my DLC and add-on spending go?" },
+  { id: "wallet-top-ups", question: "How much did I top up my wallet versus spend on games?" },
+  { id: "spend-on-barely-played", question: "What did I spend on games I barely played?" },
+  { id: "free-vs-paid-played", question: "Which of my PS Plus or free games did I actually play?" },
+  { id: "value-for-money", question: "Which games gave me the best and worst value for money?" },
+] as const;
 
 describe(".PROMPT_VARIANTS", () => {
   it("gives every question a unique id", () => {
@@ -63,41 +64,26 @@ describe(".PROMPT_VARIANTS", () => {
 describe(".PROMPT_VARIANTS Recommendations", () => {
   const RECOMMENDATION_IDS = ["rec-upcoming", "rec-out-now", "rec-recent", "rec-throwback"];
 
-  it("files the taste-based recommendation prompts under the Recommendations group", () => {
-    const groups = RECOMMENDATION_IDS.map((id) => PROMPT_VARIANTS.find((v) => v.id === id)?.group);
-
-    expect(groups).toStrictEqual(RECOMMENDATION_IDS.map(() => "Recommendations"));
+  it.each(RECOMMENDATION_IDS)("files $id under Recommendations", (id) => {
+    expect(PROMPT_VARIANTS.find((variant) => variant.id === id)?.group).toBe("Recommendations");
   });
 
-  it("keeps the taste-based recommendation prompts out of the spend-gated set", () => {
-    const spendIds = SPEND_VARIANTS.map((v): string => v.id);
-
-    const overlap = RECOMMENDATION_IDS.map((id) => spendIds.includes(id));
-
-    expect(overlap).toStrictEqual(RECOMMENDATION_IDS.map(() => false));
+  it.each(RECOMMENDATION_IDS)("keeps $id out of the spend-gated set", (id) => {
+    expect(SPEND_VARIANTS.some((variant) => variant.id === id)).toBe(false);
   });
 
-  it("lists every taste-based recommendation prompt in the question menu", () => {
-    const menu = buildMenu();
+  it.each(RECOMMENDATION_IDS)("lists $id in the question menu", (id) => {
+    const variant = PROMPT_VARIANTS.find((candidate) => candidate.id === id);
 
-    const present = RECOMMENDATION_IDS.map((id) => {
-      const variant = PROMPT_VARIANTS.find((v) => v.id === id);
-      return menu.includes(`- ${variant?.question}`);
-    });
-
-    expect(present).toStrictEqual(RECOMMENDATION_IDS.map(() => true));
+    expect(variant).toBeDefined();
+    expect(buildMenu()).toContain(`- ${variant?.question}`);
   });
 
-  it("tells the model the data has no games catalogue and not to claim price knowledge", () => {
-    const present = RECOMMENDATION_IDS.map((id) => {
-      const instruction = PROMPT_VARIANTS.find((v) => v.id === id)?.instruction ?? "";
-      return (
-        instruction.includes("NO games catalogue") &&
-        instruction.includes("Don't reason about price or what I paid")
-      );
-    });
+  it.each(RECOMMENDATION_IDS)("keeps the catalogue and price caveats for $id", (id) => {
+    const instruction = PROMPT_VARIANTS.find((variant) => variant.id === id)?.instruction;
 
-    expect(present).toStrictEqual(RECOMMENDATION_IDS.map(() => true));
+    expect(instruction).toContain("NO games catalogue");
+    expect(instruction).toContain("Don't reason about price or what I paid");
   });
 });
 
@@ -148,53 +134,40 @@ describe(".PROMPT_VARIANTS new groups", () => {
     ]);
   });
 
-  it("files every new and added variant under its declared group", () => {
-    const expected = { ...NEW_GROUP_IDS, ...EXISTING_GROUP_ADDITIONS };
-
-    const actual = Object.fromEntries(
-      Object.entries(expected).map(([group, ids]) => [
-        group,
-        ids.map((id) => PROMPT_VARIANTS.find((v) => v.id === id)?.group),
-      ])
-    );
-
-    expect(actual).toStrictEqual(
-      Object.fromEntries(
-        Object.entries(expected).map(([group, ids]) => [group, ids.map(() => group)])
-      )
-    );
+  it.each([
+    { id: "closest-platinums", group: "Trophies & completion" },
+    { id: "completionist-or-mover", group: "Trophies & completion" },
+    { id: "trophies-left-on-table", group: "Trophies & completion" },
+    { id: "hardest-earned-platinums", group: "Trophies & completion" },
+    { id: "finish-next-owned", group: "Backlog & what to play next" },
+    { id: "liked-but-drifted", group: "Backlog & what to play next" },
+    { id: "barely-played-owned", group: "Backlog & what to play next" },
+    { id: "gaming-wrapped", group: "Wrapped & shareable" },
+    { id: "gaming-identity", group: "Wrapped & shareable" },
+    { id: "binge-vs-bursts", group: "Engagement & enjoyment" },
+    { id: "genre-taste-shift", group: "Taste & preferences" },
+    { id: "franchise-loyalty", group: "Taste & preferences" },
+  ] as const)("files $id under $group", ({ id, group }) => {
+    expect(PROMPT_VARIANTS.find((variant) => variant.id === id)?.group).toBe(group);
   });
 
-  it("keeps every new variant always-available rather than spend-gated", () => {
-    const spendIds = SPEND_VARIANTS.map((v): string => v.id);
-
-    const overlap = ALL_NEW_IDS.map((id) => spendIds.includes(id));
-
-    expect(overlap).toStrictEqual(ALL_NEW_IDS.map(() => false));
+  it.each(ALL_NEW_IDS)("keeps $id always-available rather than spend-gated", (id) => {
+    expect(SPEND_VARIANTS.some((variant) => (variant.id as string) === id)).toBe(false);
   });
 
-  it("lists every new variant in the spend-free question menu", () => {
-    const menu = buildMenu();
+  it.each(ALL_NEW_IDS)("lists $id in the spend-free question menu", (id) => {
+    const variant = PROMPT_VARIANTS.find((candidate) => candidate.id === id);
 
-    const present = ALL_NEW_IDS.map((id) => {
-      const variant = PROMPT_VARIANTS.find((v) => v.id === id);
-      return menu.includes(`- ${variant?.question}`);
-    });
-
-    expect(present).toStrictEqual(ALL_NEW_IDS.map(() => true));
+    expect(variant).toBeDefined();
+    expect(buildMenu()).toContain(`- ${variant?.question}`);
   });
 
-  it("lists every new variant among the follow-ups of an unrelated lead", () => {
+  it.each(ALL_NEW_IDS)("lists $id among the follow-ups of an unrelated lead", (id) => {
     const [lead] = PROMPT_VARIANTS;
+    const variant = PROMPT_VARIANTS.find((candidate) => candidate.id === id);
 
-    const followUps = buildFollowUps(lead);
-
-    const present = ALL_NEW_IDS.map((id) => {
-      const variant = PROMPT_VARIANTS.find((v) => v.id === id);
-      return followUps.includes(`- ${variant?.question}`);
-    });
-
-    expect(present).toStrictEqual(ALL_NEW_IDS.map(() => true));
+    expect(variant).toBeDefined();
+    expect(buildFollowUps(lead)).toContain(`- ${variant?.question}`);
   });
 
   it("gives the trophy and backlog groups the metric rubric but not the synthesis-only wrapped group", () => {
@@ -203,22 +176,19 @@ describe(".PROMPT_VARIANTS new groups", () => {
     expect(METRIC_RUBRIC_GROUPS.has("Wrapped & shareable")).toBe(false);
   });
 
-  it("keeps the backlog prompts to ownership and playtime without claiming price knowledge", () => {
-    const present = ["finish-next-owned", "barely-played-owned"].map((id) => {
-      const instruction = PROMPT_VARIANTS.find((v) => v.id === id)?.instruction ?? "";
-      return instruction.includes("NO price");
-    });
+  it.each(["finish-next-owned", "barely-played-owned"] as const)(
+    "keeps $id to ownership and playtime without claiming price knowledge",
+    (id) => {
+      const instruction = PROMPT_VARIANTS.find((variant) => variant.id === id)?.instruction;
 
-    expect(present).toStrictEqual([true, true]);
-  });
+      expect(instruction).toContain("NO price");
+    }
+  );
 
-  it("frames the wrapped prompts as synthesis-only", () => {
-    const present = NEW_GROUP_IDS["Wrapped & shareable"].map((id) => {
-      const instruction = PROMPT_VARIANTS.find((v) => v.id === id)?.instruction ?? "";
-      return instruction.toLowerCase().includes("synthesis");
-    });
+  it.each(["gaming-wrapped", "gaming-identity"] as const)("frames $id as synthesis-only", (id) => {
+    const instruction = PROMPT_VARIANTS.find((variant) => variant.id === id)?.instruction;
 
-    expect(present).toStrictEqual(NEW_GROUP_IDS["Wrapped & shareable"].map(() => true));
+    expect(instruction?.toLowerCase()).toContain("synthesis");
   });
 
   it("is explicit that the hardest-platinum prompt has no rarity or difficulty data", () => {
@@ -236,43 +206,41 @@ describe(".SPEND_VARIANTS", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it("files every spend question under the Spending & value group", () => {
-    const groups = SPEND_VARIANTS.map((v) => v.group);
-
-    expect(groups).toStrictEqual(SPEND_VARIANTS.map(() => "Spending & value"));
+  it.each(SPEND_QUESTIONS)("files $id under the Spending & value group", ({ id }) => {
+    expect(SPEND_VARIANTS.find((variant) => variant.id === id)?.group).toBe("Spending & value");
   });
 
   it("declares the Spending & value group in PROMPT_GROUPS", () => {
     expect(PROMPT_GROUPS).toContain("Spending & value");
   });
 
-  it("treats unmatched and free spend as unknown rather than zero in the new spend prompts", () => {
-    const present = ["spend-on-barely-played", "free-vs-paid-played"].map((id) => {
-      const instruction = SPEND_VARIANTS.find((v) => v.id === id)?.instruction ?? "";
-      return instruction.includes("UNKNOWN");
-    });
+  it.each(["spend-on-barely-played", "free-vs-paid-played"] as const)(
+    "treats unmatched and free spend as unknown rather than zero for $id",
+    (id) => {
+      const instruction = SPEND_VARIANTS.find((variant) => variant.id === id)?.instruction;
 
-    expect(present).toStrictEqual([true, true]);
-  });
+      expect(instruction).toContain("UNKNOWN");
+    }
+  );
 });
 
 describe(".buildDataSummary", () => {
   it("embeds the headline totals from the dashboard meta", () => {
-    const summary = buildDataSummary(demoDashboard);
+    const summary = buildDataSummary(Dashboard.data());
 
     expect(summary).toContain(
-      `${demoDashboard.meta.totalGames} games, ${demoDashboard.meta.totalHours}h played`
+      `${Dashboard.data().meta.totalGames} games, ${Dashboard.data().meta.totalHours}h played`
     );
   });
 
   it("embeds the top game by hours", () => {
-    const [top] = topGamesByHours(demoDashboard, 1);
+    const [top] = topGamesByHours(Dashboard.data(), 1);
 
-    expect(buildDataSummary(demoDashboard)).toContain(`${top?.name} — ${top?.hours}h`);
+    expect(buildDataSummary(Dashboard.data())).toContain(`${top?.name} — ${top?.hours}h`);
   });
 
   it("states the hours are PSN-recorded and can under-report with no per-period playtime", () => {
-    const summary = buildDataSummary(demoDashboard);
+    const summary = buildDataSummary(Dashboard.data());
 
     expect(summary).toContain("every hour below is what PSN has RECORDED");
     expect(summary).toContain("PSN can under-report or miss play time");
@@ -280,19 +248,19 @@ describe(".buildDataSummary", () => {
   });
 
   it("marks a game's timing as unknown when it has no play dates", () => {
-    const games = demoDashboard.games.map((g) => ({
+    const games = Dashboard.data().games.map((g) => ({
       ...g,
       lastPlayed: undefined,
       firstPlayed: undefined,
     }));
 
-    const summary = buildDataSummary({ ...demoDashboard, games });
+    const summary = buildDataSummary({ ...Dashboard.data(), games });
 
     expect(summary).toContain(", timing unknown");
   });
 
   it("reports a platinum-eligible game as platinum available but not earned", () => {
-    const games = demoDashboard.games.map((g) =>
+    const games = Dashboard.data().games.map((g) =>
       g.trophy
         ? {
             ...g,
@@ -301,23 +269,23 @@ describe(".buildDataSummary", () => {
         : g
     );
 
-    const summary = buildDataSummary({ ...demoDashboard, games });
+    const summary = buildDataSummary({ ...Dashboard.data(), games });
 
     expect(summary).toContain("platinum available, not earned");
   });
 
   it("reports no franchises when none are detected", () => {
-    const games = demoDashboard.games.map((g) => ({ ...g, franchise: undefined }));
+    const games = Dashboard.data().games.map((g) => ({ ...g, franchise: undefined }));
 
-    const summary = buildDataSummary({ ...demoDashboard, games });
+    const summary = buildDataSummary({ ...Dashboard.data(), games });
 
     expect(summary).toContain("Franchises by hours:\n  (none detected)");
   });
 
   it("includes each game's last and first played dates on its line", () => {
-    const [top] = demoDashboard.games.toSorted((a, b) => b.hours - a.hours);
+    const [top] = Dashboard.data().games.toSorted((a, b) => b.hours - a.hours);
 
-    const line = buildDataSummary(demoDashboard)
+    const line = buildDataSummary(Dashboard.data())
       .split("\n")
       .find((l) => l.includes(`${top?.name} —`));
 
@@ -326,16 +294,16 @@ describe(".buildDataSummary", () => {
   });
 
   it("lists every game in the library, not just a top slice", () => {
-    const summary = buildDataSummary(demoDashboard);
+    const summary = buildDataSummary(Dashboard.data());
 
     const gameLines = summary.split("\n").filter((line) => /^ {2}\d+\. /.test(line));
 
-    expect(gameLines).toHaveLength(demoDashboard.games.length);
+    expect(gameLines).toHaveLength(Dashboard.data().games.length);
   });
 
   it("includes every genre bucket, not just a top slice", () => {
-    const summary = buildDataSummary(demoDashboard);
-    const genres = [...new Set(demoDashboard.games.map((g) => g.genre))];
+    const summary = buildDataSummary(Dashboard.data());
+    const genres = [...new Set(Dashboard.data().games.map((g) => g.genre))];
 
     const present = genres.map((genre) => summary.includes(`- ${genre}:`));
 
@@ -343,8 +311,8 @@ describe(".buildDataSummary", () => {
   });
 
   it("reports earned trophy counts and platinum status for every game with trophy data", () => {
-    const summary = buildDataSummary(demoDashboard);
-    const withTrophy = demoDashboard.games.filter(
+    const summary = buildDataSummary(Dashboard.data());
+    const withTrophy = Dashboard.data().games.filter(
       (g): g is GamePlay & { trophy: NonNullable<GamePlay["trophy"]> } => Boolean(g.trophy)
     );
 
@@ -364,20 +332,20 @@ describe(".buildDataSummary", () => {
   });
 
   it("surfaces missing trophy data as unknown rather than zero", () => {
-    const games = demoDashboard.games.map((g) => ({ ...g, trophy: undefined }));
+    const games = Dashboard.data().games.map((g) => ({ ...g, trophy: undefined }));
 
-    const summary = buildDataSummary({ ...demoDashboard, games });
+    const summary = buildDataSummary({ ...Dashboard.data(), games });
 
     expect(summary).toContain("trophies unknown (no data)");
   });
 
   it("compares lifetime hours against the typical playtime when RAWG has one", () => {
-    const [top] = demoDashboard.games.toSorted((a, b) => b.hours - a.hours);
-    const games = demoDashboard.games.map((g) =>
+    const [top] = Dashboard.data().games.toSorted((a, b) => b.hours - a.hours);
+    const games = Dashboard.data().games.map((g) =>
       g.titleId === top?.titleId ? { ...g, typicalPlaytime: 25 } : g
     );
 
-    const line = buildDataSummary({ ...demoDashboard, games })
+    const line = buildDataSummary({ ...Dashboard.data(), games })
       .split("\n")
       .find((l) => l.includes(`${top?.name} —`));
 
@@ -389,29 +357,29 @@ describe(".buildDataSummary", () => {
   });
 
   it("omits the playtime comparison for games without a typical playtime", () => {
-    const games = demoDashboard.games.map((g) => ({ ...g, typicalPlaytime: undefined }));
+    const games = Dashboard.data().games.map((g) => ({ ...g, typicalPlaytime: undefined }));
 
-    const summary = buildDataSummary({ ...demoDashboard, games });
+    const summary = buildDataSummary({ ...Dashboard.data(), games });
 
     expect(summary).not.toContain("vs typical ~");
   });
 
   it("includes the completionist baseline with the account platinums and platinum rate", () => {
-    const eligible = demoDashboard.games.filter((g) => g.trophy?.hasPlatinum === true);
+    const eligible = Dashboard.data().games.filter((g) => g.trophy?.hasPlatinum === true);
     const platinumed = eligible.filter((g) => (g.trophy?.earned.platinum ?? 0) >= 1);
     const rate = Math.round((platinumed.length / eligible.length) * 100);
 
-    const summary = buildDataSummary(demoDashboard);
+    const summary = buildDataSummary(Dashboard.data());
 
     expect(summary).toContain(
-      `Completionist baseline: ${demoDashboard.profile.earned.platinum} platinums earned account-wide; platinumed ${platinumed.length} of ${eligible.length} platinum-eligible games with trophy data (${rate}% platinum rate)`
+      `Completionist baseline: ${Dashboard.data().profile.earned.platinum} platinums earned account-wide; platinumed ${platinumed.length} of ${eligible.length} platinum-eligible games with trophy data (${rate}% platinum rate)`
     );
   });
 
   it("degrades the platinum rate gracefully when no game has a platinum available", () => {
-    const games = demoDashboard.games.map((g) => ({ ...g, trophy: undefined }));
+    const games = Dashboard.data().games.map((g) => ({ ...g, trophy: undefined }));
 
-    const summary = buildDataSummary({ ...demoDashboard, games });
+    const summary = buildDataSummary({ ...Dashboard.data(), games });
 
     expect(summary).toContain(
       "platinumed 0 of 0 platinum-eligible games with trophy data (no platinum-eligible games with trophy data, so no rate)"
@@ -419,9 +387,9 @@ describe(".buildDataSummary", () => {
   });
 
   it("includes matched per-game add-on counts from imported transactions", () => {
-    const [game] = demoDashboard.games;
-    const summary = buildDataSummary(demoDashboard, [
-      tx({ productName: `${game?.name} Season Pass`, skuId: game?.titleId }),
+    const [game] = Dashboard.data().games;
+    const summary = buildDataSummary(Dashboard.data(), [
+      Transactions.row({ productName: `${game?.name} Season Pass`, skuId: game?.titleId }),
     ]);
 
     expect(summary).toContain(`${game?.name} —`);
@@ -429,16 +397,16 @@ describe(".buildDataSummary", () => {
   });
 
   it("omits add-on transaction lines when no transactions are imported", () => {
-    const summary = buildDataSummary(demoDashboard);
+    const summary = buildDataSummary(Dashboard.data());
 
     expect(summary).not.toContain("add-ons purchased");
     expect(summary).not.toContain("Imported transaction signal");
   });
 
   it("surfaces per-game purchase-price context when spend matches the base game", () => {
-    const [game] = demoDashboard.games;
-    const summary = buildDataSummary(demoDashboard, [
-      tx({
+    const [game] = Dashboard.data().games;
+    const summary = buildDataSummary(Dashboard.data(), [
+      Transactions.row({
         productName: game?.name ?? "",
         skuId: game?.titleId,
         amountMinor: 374,
@@ -451,17 +419,17 @@ describe(".buildDataSummary", () => {
   });
 
   it("omits purchase-price context when no transactions are imported", () => {
-    const summary = buildDataSummary(demoDashboard);
+    const summary = buildDataSummary(Dashboard.data());
 
     expect(summary).not.toContain("bought:");
   });
 
   it("surfaces account-wide spend totals and wallet top-ups from imported transactions", () => {
-    const [game] = demoDashboard.games;
+    const [game] = Dashboard.data().games;
 
-    const summary = buildDataSummary(demoDashboard, [
-      tx({ productName: game?.name ?? "", skuId: game?.titleId, amountMinor: 4499 }),
-      tx({
+    const summary = buildDataSummary(Dashboard.data(), [
+      Transactions.row({ productName: game?.name ?? "", skuId: game?.titleId, amountMinor: 4499 }),
+      Transactions.row({
         kind: "top-up",
         transactionType: "WALLET_TOPUP",
         productName: "Wallet",
@@ -477,10 +445,10 @@ describe(".buildDataSummary", () => {
   });
 
   it("breaks imported spend down by year", () => {
-    const [game] = demoDashboard.games;
+    const [game] = Dashboard.data().games;
 
-    const summary = buildDataSummary(demoDashboard, [
-      tx({
+    const summary = buildDataSummary(Dashboard.data(), [
+      Transactions.row({
         productName: game?.name ?? "",
         skuId: game?.titleId,
         amountMinor: 4499,
@@ -492,13 +460,13 @@ describe(".buildDataSummary", () => {
   });
 
   it("lists matched games by cost per hour played, lowest first", () => {
-    const [game] = demoDashboard.games;
+    const [game] = Dashboard.data().games;
     const transactions = [
-      tx({ productName: game?.name ?? "", skuId: game?.titleId, amountMinor: 4499 }),
+      Transactions.row({ productName: game?.name ?? "", skuId: game?.titleId, amountMinor: 4499 }),
     ];
-    const [leader] = summariseSpend(demoDashboard, transactions).leaderboard;
+    const [leader] = summariseSpend(Dashboard.data(), transactions).leaderboard;
 
-    const summary = buildDataSummary(demoDashboard, transactions);
+    const summary = buildDataSummary(Dashboard.data(), transactions);
 
     expect(summary).toContain(
       "Cost per hour played (matched purchases, lowest first — total matched spend ÷ lifetime hours):"
@@ -509,7 +477,7 @@ describe(".buildDataSummary", () => {
   });
 
   it("omits the spend block when no transactions are imported", () => {
-    const summary = buildDataSummary(demoDashboard);
+    const summary = buildDataSummary(Dashboard.data());
 
     expect(summary).not.toContain("Spend (imported transaction history)");
     expect(summary).not.toContain("Cost per hour played");
@@ -538,75 +506,74 @@ describe(".buildFollowUps", () => {
     expect(buildFollowUps(lead)).toContain("don't ask me to resend it");
   });
 
-  it("omits the spend questions when no transactions are imported", () => {
-    const [lead] = PROMPT_VARIANTS;
+  it.each(SPEND_QUESTIONS)(
+    "omits the $id spend question when no transactions are imported",
+    ({ question }) => {
+      const [lead] = PROMPT_VARIANTS;
 
-    const followUps = buildFollowUps(lead);
+      expect(buildFollowUps(lead)).not.toContain(`- ${question}`);
+    }
+  );
 
-    const present = SPEND_VARIANTS.map((v) => followUps.includes(`- ${v.question}`));
+  it.each(SPEND_QUESTIONS)(
+    "lists the $id spend question when transactions are imported",
+    ({ question }) => {
+      const [lead] = PROMPT_VARIANTS;
+      const [game] = Dashboard.data().games;
+      const followUps = buildFollowUps(lead, [
+        Transactions.row({ productName: game?.name ?? "", skuId: game?.titleId }),
+      ]);
 
-    expect(present).toStrictEqual(SPEND_VARIANTS.map(() => false));
-  });
-
-  it("lists the spend questions as follow-ups when transactions are imported", () => {
-    const [lead] = PROMPT_VARIANTS;
-    const [game] = demoDashboard.games;
-
-    const followUps = buildFollowUps(lead, [
-      tx({ productName: game?.name ?? "", skuId: game?.titleId }),
-    ]);
-
-    const present = SPEND_VARIANTS.map((v) => followUps.includes(`- ${v.question}`));
-
-    expect(present).toStrictEqual(SPEND_VARIANTS.map(() => true));
-  });
+      expect(followUps).toContain(`- ${question}`);
+    }
+  );
 });
 
 describe(".buildPrompt", () => {
   it.each(PROMPT_VARIANTS)("leads with the $id instruction over the shared data", (variant) => {
-    const prompt = buildPrompt(demoDashboard, variant);
+    const prompt = buildPrompt(Dashboard.data(), variant);
 
     expect(prompt).toContain(`TASK: ${variant.instruction}`);
-    expect(prompt).toContain(buildDataSummary(demoDashboard));
+    expect(prompt).toContain(buildDataSummary(Dashboard.data()));
   });
 
   it.each(PROMPT_VARIANTS)("embeds the data summary exactly once for $id", (variant) => {
-    const prompt = buildPrompt(demoDashboard, variant);
+    const prompt = buildPrompt(Dashboard.data(), variant);
 
     expect(prompt.split("DATA (my PlayStation playtime, lifetime totals):")).toHaveLength(2);
   });
 
   it.each(PROMPT_VARIANTS)("appends the follow-up menu for $id", (variant) => {
-    const prompt = buildPrompt(demoDashboard, variant);
+    const prompt = buildPrompt(Dashboard.data(), variant);
 
     expect(prompt).toContain(buildFollowUps(variant));
   });
 
   it.each(PROMPT_VARIANTS)("tells the model to weigh recency over raw hours for $id", (variant) => {
-    const prompt = buildPrompt(demoDashboard, variant);
+    const prompt = buildPrompt(Dashboard.data(), variant);
 
     expect(prompt).toContain("Weigh WHEN I played (recency and trends");
   });
 
   it("gives each variant a distinct prompt body", () => {
-    const prompts = PROMPT_VARIANTS.map((v) => buildPrompt(demoDashboard, v));
+    const prompts = PROMPT_VARIANTS.map((v) => buildPrompt(Dashboard.data(), v));
 
     expect(new Set(prompts).size).toBe(PROMPT_VARIANTS.length);
   });
 
   it.each(PROMPT_VARIANTS)("includes the genre on every game's line for $id", (variant) => {
-    const prompt = buildPrompt(demoDashboard, variant);
+    const prompt = buildPrompt(Dashboard.data(), variant);
 
-    const present = demoDashboard.games.map((g) => {
+    const present = Dashboard.data().games.map((g) => {
       const line = prompt.split("\n").find((l) => l.includes(`${g.name} —`));
       return line?.includes(`(${g.genre}`);
     });
 
-    expect(present).toStrictEqual(demoDashboard.games.map(() => true));
+    expect(present).toStrictEqual(Dashboard.data().games.map(() => true));
   });
 
   it.each(PROMPT_VARIANTS)("embeds the global metric caveat for $id", (variant) => {
-    const prompt = buildPrompt(demoDashboard, variant);
+    const prompt = buildPrompt(Dashboard.data(), variant);
 
     expect(prompt).toContain(METRIC_GUIDANCE_CAVEAT);
   });
@@ -627,7 +594,7 @@ describe(".buildPrompt", () => {
   it.each(PROMPT_VARIANTS)(
     "embeds the genre-calibrated play-pattern guidance for $id",
     (variant) => {
-      const prompt = buildPrompt(demoDashboard, variant);
+      const prompt = buildPrompt(Dashboard.data(), variant);
 
       expect(prompt).toContain(PLAY_PATTERN_GUIDANCE);
     }
@@ -651,7 +618,7 @@ describe(".buildPrompt", () => {
   it.each(METRIC_RUBRIC_LEADS)(
     "embeds the baseline-weighted trophy guidance for $id",
     (variant) => {
-      const prompt = buildPrompt(demoDashboard, variant);
+      const prompt = buildPrompt(Dashboard.data(), variant);
 
       expect(prompt).toContain(TROPHY_SIGNAL_GUIDANCE);
     }
@@ -685,7 +652,7 @@ describe(".buildPrompt", () => {
   it.each(METRIC_RUBRIC_LEADS)(
     "embeds the lifetime-vs-typical playtime guidance for $id",
     (variant) => {
-      const prompt = buildPrompt(demoDashboard, variant);
+      const prompt = buildPrompt(Dashboard.data(), variant);
 
       expect(prompt).toContain(PLAYTIME_SIGNAL_GUIDANCE);
     }
@@ -704,7 +671,7 @@ describe(".buildPrompt", () => {
   it.each(METRIC_RUBRIC_LEADS)(
     "embeds the satisfied-completion vs abandonment guidance for $id",
     (variant) => {
-      const prompt = buildPrompt(demoDashboard, variant);
+      const prompt = buildPrompt(Dashboard.data(), variant);
 
       expect(prompt).toContain(COMPLETION_INTERPRETATION_GUIDANCE);
     }
@@ -745,10 +712,10 @@ describe(".buildPrompt", () => {
   });
 
   it("embeds add-on guidance when imported transactions match add-ons", () => {
-    const [game] = demoDashboard.games;
+    const [game] = Dashboard.data().games;
     const [variant] = PROMPT_VARIANTS;
-    const prompt = buildPrompt(demoDashboard, variant, [
-      tx({ productName: `${game?.name} Season Pass`, skuId: game?.titleId }),
+    const prompt = buildPrompt(Dashboard.data(), variant, [
+      Transactions.row({ productName: `${game?.name} Season Pass`, skuId: game?.titleId }),
     ]);
 
     expect(prompt).toContain(ADD_ON_SIGNAL_GUIDANCE);
@@ -765,17 +732,17 @@ describe(".buildPrompt", () => {
 
   it("omits add-on guidance when no transactions are imported", () => {
     const [variant] = PROMPT_VARIANTS;
-    const prompt = buildPrompt(demoDashboard, variant);
+    const prompt = buildPrompt(Dashboard.data(), variant);
 
     expect(prompt).not.toContain(ADD_ON_SIGNAL_GUIDANCE);
     expect(prompt).not.toContain("add-ons purchased");
   });
 
   it("embeds price-context guidance when imported transactions match a base game", () => {
-    const [game] = demoDashboard.games;
+    const [game] = Dashboard.data().games;
     const [variant] = PROMPT_VARIANTS;
-    const prompt = buildPrompt(demoDashboard, variant, [
-      tx({
+    const prompt = buildPrompt(Dashboard.data(), variant, [
+      Transactions.row({
         productName: game?.name ?? "",
         skuId: game?.titleId,
         amountMinor: 374,
@@ -790,7 +757,7 @@ describe(".buildPrompt", () => {
 
   it("omits price-context guidance when no transactions are imported", () => {
     const [variant] = PROMPT_VARIANTS;
-    const prompt = buildPrompt(demoDashboard, variant);
+    const prompt = buildPrompt(Dashboard.data(), variant);
 
     expect(prompt).not.toContain(PRICE_CONTEXT_GUIDANCE);
     expect(prompt).not.toContain("bought:");
@@ -806,11 +773,11 @@ describe(".buildPrompt", () => {
   });
 
   it("embeds spend guidance for a metric lead when transactions are imported", () => {
-    const [game] = demoDashboard.games;
+    const [game] = Dashboard.data().games;
     const [variant] = PROMPT_VARIANTS;
 
-    const prompt = buildPrompt(demoDashboard, variant, [
-      tx({ productName: game?.name ?? "", skuId: game?.titleId, amountMinor: 4499 }),
+    const prompt = buildPrompt(Dashboard.data(), variant, [
+      Transactions.row({ productName: game?.name ?? "", skuId: game?.titleId, amountMinor: 4499 }),
     ]);
 
     expect(prompt).toContain(SPEND_SIGNAL_GUIDANCE);
@@ -819,7 +786,7 @@ describe(".buildPrompt", () => {
   it("omits spend guidance when no transactions are imported", () => {
     const [variant] = PROMPT_VARIANTS;
 
-    const prompt = buildPrompt(demoDashboard, variant);
+    const prompt = buildPrompt(Dashboard.data(), variant);
 
     expect(prompt).not.toContain(SPEND_SIGNAL_GUIDANCE);
   });
@@ -841,7 +808,7 @@ describe(".buildPrompt", () => {
   });
 
   it.each(SOFT_LEADS)("drops the metric rubric blocks for the soft lead $id", (variant) => {
-    const prompt = buildPrompt(demoDashboard, variant);
+    const prompt = buildPrompt(Dashboard.data(), variant);
 
     expect(prompt).not.toContain(TROPHY_SIGNAL_GUIDANCE);
     expect(prompt).not.toContain(PLAYTIME_SIGNAL_GUIDANCE);
@@ -851,7 +818,7 @@ describe(".buildPrompt", () => {
   it.each(SOFT_LEADS)(
     "keeps the global caveat and genre play-pattern for the soft lead $id",
     (variant) => {
-      const prompt = buildPrompt(demoDashboard, variant);
+      const prompt = buildPrompt(Dashboard.data(), variant);
 
       expect(prompt).toContain(METRIC_GUIDANCE_CAVEAT);
       expect(prompt).toContain(PLAY_PATTERN_GUIDANCE);
@@ -861,11 +828,11 @@ describe(".buildPrompt", () => {
   it.each(SOFT_LEADS)(
     "gates add-on and price guidance off for the soft lead $id even with matching transactions",
     (variant) => {
-      const [game] = demoDashboard.games;
+      const [game] = Dashboard.data().games;
 
-      const prompt = buildPrompt(demoDashboard, variant, [
-        tx({ productName: `${game?.name} Season Pass`, skuId: game?.titleId }),
-        tx({
+      const prompt = buildPrompt(Dashboard.data(), variant, [
+        Transactions.row({ productName: `${game?.name} Season Pass`, skuId: game?.titleId }),
+        Transactions.row({
           productName: game?.name ?? "",
           skuId: game?.titleId,
           amountMinor: 374,
@@ -885,67 +852,119 @@ describe(".buildPrompt", () => {
   it.each(METRIC_RUBRIC_LEADS)(
     "leaves the no-transactions prompt byte-identical for the metric lead $id",
     (variant) => {
-      expect(buildPrompt(demoDashboard, variant, [])).toBe(buildPrompt(demoDashboard, variant));
+      expect(buildPrompt(Dashboard.data(), variant, [])).toBe(
+        buildPrompt(Dashboard.data(), variant)
+      );
     }
   );
 
   it.each(PROMPT_VARIANTS)(
     "leaves the lead-question prompt unchanged when menu mode is added for $id",
     (variant) => {
-      expect(buildPrompt(demoDashboard, variant)).toContain(`TASK: ${variant.instruction}`);
-      expect(buildPrompt(demoDashboard, MENU_MODE)).not.toBe(buildPrompt(demoDashboard, variant));
+      expect(buildPrompt(Dashboard.data(), variant)).toContain(`TASK: ${variant.instruction}`);
+      expect(buildPrompt(Dashboard.data(), MENU_MODE)).not.toBe(
+        buildPrompt(Dashboard.data(), variant)
+      );
     }
   );
 });
 
 describe(".buildMenu", () => {
-  it("lists every question grouped under its category", () => {
-    const menu = buildMenu();
+  it.each([
+    "enjoyment-vs-time",
+    "engaging-genres",
+    "lost-interest-fastest",
+    "session-balance",
+    "mechanics-return",
+    "binge-vs-bursts",
+    "finish-vs-abandon",
+    "typical-completion",
+    "time-no-progress",
+    "finishing-blockers",
+    "closest-platinums",
+    "completionist-or-mover",
+    "trophies-left-on-table",
+    "hardest-earned-platinums",
+    "hidden-preferences",
+    "taste-over-time",
+    "consistent-franchises",
+    "outliers",
+    "genre-taste-shift",
+    "franchise-loyalty",
+    "another-chance",
+    "one-backlog-pick",
+    "rec-upcoming",
+    "rec-out-now",
+    "rec-recent",
+    "rec-throwback",
+    "finish-next-owned",
+    "liked-but-drifted",
+    "barely-played-owned",
+    "personality-traits",
+    "profile-paragraph",
+    "someone-else",
+    "gaming-wrapped",
+    "gaming-identity",
+    "binge-vs-steady",
+    "revivals",
+    "under-explored-genre",
+    "efficient-completionist",
+    "signature-genre",
+    "last-12-months",
+    "comfort-vs-one-and-done",
+    "top-10-ranking",
+  ])("lists the authored $id question under its category", (id) => {
+    const variant = PROMPT_VARIANTS.find((candidate) => candidate.id === id);
 
-    const populatedGroups = PROMPT_GROUPS.filter((group) =>
-      PROMPT_VARIANTS.some((v) => v.group === group)
-    );
-    const present = populatedGroups.flatMap((group) => [
-      menu.includes(`${group}:`),
-      ...PROMPT_VARIANTS.filter((v) => v.group === group).map((v) =>
-        menu.includes(`- ${v.question}`)
-      ),
+    expect(variant).toBeDefined();
+    expect(buildMenu()).toContain(`${variant?.group}:`);
+    expect(buildMenu()).toContain(`- ${variant?.question}`);
+  });
+
+  it("omits the spend group when no transactions are imported", () => {
+    expect(buildMenu()).not.toContain("Spending & value:");
+  });
+
+  it.each(SPEND_QUESTIONS)(
+    "omits $id from the menu when no transactions are imported",
+    ({ question }) => {
+      expect(buildMenu()).not.toContain(`- ${question}`);
+    }
+  );
+
+  it("folds in the spend group when transactions are imported", () => {
+    const [game] = Dashboard.data().games;
+
+    const menu = buildMenu([
+      Transactions.row({ productName: game?.name ?? "", skuId: game?.titleId }),
     ]);
 
-    expect(present).toStrictEqual(present.map(() => true));
-  });
-
-  it("omits the spend group and its questions when no transactions are imported", () => {
-    const menu = buildMenu();
-
-    const present = SPEND_VARIANTS.map((v) => menu.includes(`- ${v.question}`));
-
-    expect(menu).not.toContain("Spending & value:");
-    expect(present).toStrictEqual(SPEND_VARIANTS.map(() => false));
-  });
-
-  it("folds in the spend group and its questions when transactions are imported", () => {
-    const [game] = demoDashboard.games;
-
-    const menu = buildMenu([tx({ productName: game?.name ?? "", skuId: game?.titleId })]);
-
-    const present = SPEND_VARIANTS.map((v) => menu.includes(`- ${v.question}`));
-
     expect(menu).toContain("Spending & value:");
-    expect(present).toStrictEqual(SPEND_VARIANTS.map(() => true));
   });
+
+  it.each(SPEND_QUESTIONS)(
+    "lists $id in the menu when transactions are imported",
+    ({ question }) => {
+      const [game] = Dashboard.data().games;
+      const menu = buildMenu([
+        Transactions.row({ productName: game?.name ?? "", skuId: game?.titleId }),
+      ]);
+
+      expect(menu).toContain(`- ${question}`);
+    }
+  );
 });
 
 describe(".buildPrompt (menu mode)", () => {
   it("replaces the TASK analysis lead with the menu instruction", () => {
-    const prompt = buildPrompt(demoDashboard, MENU_MODE);
+    const prompt = buildPrompt(Dashboard.data(), MENU_MODE);
 
     expect(prompt).not.toContain("TASK:");
     expect(prompt).toContain(MENU_INSTRUCTION);
   });
 
   it("does not embed any lead question's analysis instruction", () => {
-    const prompt = buildPrompt(demoDashboard, MENU_MODE);
+    const prompt = buildPrompt(Dashboard.data(), MENU_MODE);
 
     const embedded = PROMPT_VARIANTS.map((v) => prompt.includes(v.instruction));
 
@@ -953,27 +972,27 @@ describe(".buildPrompt (menu mode)", () => {
   });
 
   it("presents the full grouped question menu", () => {
-    const prompt = buildPrompt(demoDashboard, MENU_MODE);
+    const prompt = buildPrompt(Dashboard.data(), MENU_MODE);
 
     expect(prompt).toContain(buildMenu());
   });
 
   it("still embeds the data summary exactly once", () => {
-    const prompt = buildPrompt(demoDashboard, MENU_MODE);
+    const prompt = buildPrompt(Dashboard.data(), MENU_MODE);
 
-    expect(prompt).toContain(buildDataSummary(demoDashboard));
+    expect(prompt).toContain(buildDataSummary(Dashboard.data()));
     expect(prompt.split("DATA (my PlayStation playtime, lifetime totals):")).toHaveLength(2);
   });
 
   it("keeps the always-on global caveat and genre play-pattern guidance", () => {
-    const prompt = buildPrompt(demoDashboard, MENU_MODE);
+    const prompt = buildPrompt(Dashboard.data(), MENU_MODE);
 
     expect(prompt).toContain(METRIC_GUIDANCE_CAVEAT);
     expect(prompt).toContain(PLAY_PATTERN_GUIDANCE);
   });
 
   it("defers the per-metric calibration rubric until a question is picked", () => {
-    const prompt = buildPrompt(demoDashboard, MENU_MODE);
+    const prompt = buildPrompt(Dashboard.data(), MENU_MODE);
 
     expect(prompt).not.toContain(TROPHY_SIGNAL_GUIDANCE);
     expect(prompt).not.toContain(PLAYTIME_SIGNAL_GUIDANCE);
@@ -981,11 +1000,11 @@ describe(".buildPrompt (menu mode)", () => {
   });
 
   it("defers the add-on and price rubric even when transactions match", () => {
-    const [game] = demoDashboard.games;
+    const [game] = Dashboard.data().games;
 
-    const prompt = buildPrompt(demoDashboard, MENU_MODE, [
-      tx({ productName: `${game?.name} Season Pass`, skuId: game?.titleId }),
-      tx({
+    const prompt = buildPrompt(Dashboard.data(), MENU_MODE, [
+      Transactions.row({ productName: `${game?.name} Season Pass`, skuId: game?.titleId }),
+      Transactions.row({
         productName: game?.name ?? "",
         skuId: game?.titleId,
         amountMinor: 374,
@@ -1002,45 +1021,55 @@ describe(".buildPrompt (menu mode)", () => {
   });
 
   it("still surfaces the spend data block while deferring the spend guidance", () => {
-    const [game] = demoDashboard.games;
+    const [game] = Dashboard.data().games;
 
-    const prompt = buildPrompt(demoDashboard, MENU_MODE, [
-      tx({ productName: game?.name ?? "", skuId: game?.titleId, amountMinor: 4499 }),
+    const prompt = buildPrompt(Dashboard.data(), MENU_MODE, [
+      Transactions.row({ productName: game?.name ?? "", skuId: game?.titleId, amountMinor: 4499 }),
     ]);
 
     expect(prompt).toContain("Spend (imported transaction history):");
     expect(prompt).not.toContain(SPEND_SIGNAL_GUIDANCE);
   });
 
-  it("folds the spend questions into the menu when transactions are imported", () => {
-    const [game] = demoDashboard.games;
-
-    const prompt = buildPrompt(demoDashboard, MENU_MODE, [
-      tx({ productName: game?.name ?? "", skuId: game?.titleId }),
+  it("folds the spend group into the menu when transactions are imported", () => {
+    const [game] = Dashboard.data().games;
+    const prompt = buildPrompt(Dashboard.data(), MENU_MODE, [
+      Transactions.row({ productName: game?.name ?? "", skuId: game?.titleId }),
     ]);
 
-    const present = SPEND_VARIANTS.map((v) => prompt.includes(`- ${v.question}`));
-
     expect(prompt).toContain("Spending & value:");
-    expect(present).toStrictEqual(SPEND_VARIANTS.map(() => true));
   });
 
+  it.each(SPEND_QUESTIONS)(
+    "folds the $id spend question into the menu when transactions are imported",
+    ({ question }) => {
+      const [game] = Dashboard.data().games;
+      const prompt = buildPrompt(Dashboard.data(), MENU_MODE, [
+        Transactions.row({ productName: game?.name ?? "", skuId: game?.titleId }),
+      ]);
+
+      expect(prompt).toContain(`- ${question}`);
+    }
+  );
+
   it("leaves the no-transactions menu prompt byte-identical to the undefined case", () => {
-    expect(buildPrompt(demoDashboard, MENU_MODE, [])).toBe(buildPrompt(demoDashboard, MENU_MODE));
+    expect(buildPrompt(Dashboard.data(), MENU_MODE, [])).toBe(
+      buildPrompt(Dashboard.data(), MENU_MODE)
+    );
   });
 
   it("keeps the menu instruction's enumerated group list spend-free without transactions", () => {
-    const prompt = buildPrompt(demoDashboard, MENU_MODE);
+    const prompt = buildPrompt(Dashboard.data(), MENU_MODE);
 
     expect(prompt).toContain(MENU_INSTRUCTION);
     expect(prompt).not.toContain("Wrapped & shareable, Spending & value, More)");
   });
 
   it("adds the spend group to the menu instruction's enumerated list with transactions", () => {
-    const [game] = demoDashboard.games;
+    const [game] = Dashboard.data().games;
 
-    const prompt = buildPrompt(demoDashboard, MENU_MODE, [
-      tx({ productName: game?.name ?? "", skuId: game?.titleId }),
+    const prompt = buildPrompt(Dashboard.data(), MENU_MODE, [
+      Transactions.row({ productName: game?.name ?? "", skuId: game?.titleId }),
     ]);
 
     expect(prompt).toContain("Wrapped & shareable, Spending & value, More)");
