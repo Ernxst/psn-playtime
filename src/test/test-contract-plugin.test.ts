@@ -27,6 +27,8 @@ const rules = [
   "no-callback-capture",
   "no-mock-implementation-shortcut",
   "no-global-mock-cleanup",
+  "no-indirect-msw-overrides",
+  "no-inline-msw-url",
 ] as const;
 
 function lint(source: string) {
@@ -84,6 +86,23 @@ describe("test-contract", () => {
       `it("fails", () => callback.mockImplementation(() => { throw new Error("failure"); }));`,
     ],
     ["no-global-mock-cleanup", `it("cleans up", () => vi.restoreAllMocks());`],
+    [
+      "no-indirect-msw-overrides",
+      `const useSearch = (resolver) => server.use(http.get(RAWG_GAMES_URL, resolver));`,
+    ],
+    [
+      "no-indirect-msw-overrides",
+      `function useSeries(resolver) { server.use(http.get(RAWG_SERIES_URL, resolver)); }`,
+    ],
+    ["no-inline-msw-url", `http.all("https://example.test/games", resolver);`],
+    ["no-inline-msw-url", `http.delete("https://example.test/games", resolver);`],
+    ["no-inline-msw-url", `http.get("https://example.test/games", resolver);`],
+    ["no-inline-msw-url", `http.head("https://example.test/games", resolver);`],
+    ["no-inline-msw-url", `http.options("https://example.test/games", resolver);`],
+    ["no-inline-msw-url", `http.patch("https://example.test/games", resolver);`],
+    ["no-inline-msw-url", "http.post(`http://${host}/games`, resolver);"],
+    ["no-inline-msw-url", `http.put("https://example.test/games", resolver);`],
+    ["no-inline-msw-url", 'http[`get`]("https://example.test/games", resolver);'],
   ])("rejects %s", (rule, source) => {
     const result = lint(source);
 
@@ -91,14 +110,39 @@ describe("test-contract", () => {
     expect(result.stdout).toContain(`test-contract(${rule})`);
   });
 
-  it("accepts exact observable assertions and hook-scoped cleanup", () => {
+  it("accepts exact observable assertions, MSW boundaries, and canonical targets", () => {
     const result = lint(`
       afterEach(() => vi.restoreAllMocks());
       vi.waitFor(callback);
+      server.use(http.get(SHARED_ENDPOINT, resolver));
+      beforeAll(() => {
+        const register = () => server.use(http.get(endpointFor("games"), resolver));
+        register();
+      });
+      beforeEach(() => {
+        const register = () => server.use(http.get(endpointFor("games"), resolver));
+        register();
+      });
       it("renders the expected items", () => {
+        const register = () => server.use(http.get(SHARED_ENDPOINT, resolver));
+        register();
         expect(elements).toHaveLength(2);
         expect(view).toHaveTextContent("Ready");
       });
+      it.each([1, 2])("registers case %s", () => {
+        server.use(http.get(SHARED_ENDPOINT, resolver));
+      });
+      test("registers directly", () => {
+        server.use(http.get(SHARED_ENDPOINT, resolver));
+      });
+      test.each([1, 2])("registers test case %s", () => {
+        server.use(http.get(SHARED_ENDPOINT, resolver));
+      });
+      client.get("https://example.test/games");
+      client["get"]("https://example.test/games");
+      const method = "connect";
+      http[method]("https://example.test/games", resolver);
+      http.get(dynamicTarget, resolver);
     `);
 
     expect(result.status).toBe(0);
