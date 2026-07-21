@@ -1,13 +1,29 @@
 import * as Schema from "effect/Schema";
 import { describe, expect, it } from "vitest";
 import { demoDashboard } from "@/domain/mock";
+import * as Psn from "@/test/factories/psn";
 import { DashboardData, GamePlay, Genre, Platform } from "./snapshot";
 
 const decodeData = Schema.decodeUnknownSync(DashboardData);
 const encodeData = Schema.encodeSync(DashboardData);
 
-/** A realistic title from the demo fixture for per-field GamePlay checks. */
-const aGame = demoDashboard.games[0];
+/** A PSN-shaped title mapped to the snapshot boundary for per-field checks. */
+const psnGame = Psn.playedTitle({
+  titleId: "game-1",
+  name: "Game One",
+  category: "ps5_native_game",
+  playDuration: "PT1H",
+  playCount: 1,
+});
+const aGame = {
+  titleId: psnGame.titleId,
+  name: psnGame.name,
+  platform: "PS5" as const,
+  hours: 1,
+  playCount: psnGame.playCount,
+  genre: "Other" as const,
+  isApp: false,
+};
 
 describe("snapshot schema", () => {
   it("round-trips a valid DashboardData through decode then encode", () => {
