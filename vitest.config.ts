@@ -93,6 +93,7 @@ export default defineConfig({
           sequence: { groupOrder: 1 },
           browser: {
             enabled: true,
+            headless: true,
             connectTimeout: 5000,
             instances: [{ browser: "chromium" }],
             provider: playwright({ actionTimeout: 3000 }),
