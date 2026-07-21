@@ -1,3 +1,4 @@
+/* oxlint-disable test-contract/no-dom-selector -- Poster provenance is expressed by the rendered image element and its source. */
 import { describe, expect, it } from "vitest";
 import { render } from "vitest-browser-react";
 import { signedInPreviewDashboard } from "@/domain/mock";

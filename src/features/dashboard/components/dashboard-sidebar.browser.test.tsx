@@ -1,3 +1,4 @@
+/* oxlint-disable test-contract/no-dom-selector -- These tests verify scroll geometry and DOM-bound hash destinations. */
 import { describe, expect, it, onTestFinished } from "vitest";
 import { render } from "vitest-browser-react";
 import { page, userEvent } from "vitest/browser";

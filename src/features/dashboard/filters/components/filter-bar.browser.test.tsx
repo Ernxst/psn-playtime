@@ -1,3 +1,4 @@
+/* oxlint-disable test-contract/no-dom-selector -- These tests verify sheet geometry, clipping, and scroll ownership. */
 import { useState } from "react";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { render } from "vitest-browser-react";
@@ -116,7 +117,7 @@ describe("FilterBar", () => {
     await page.getByRole("searchbox", { name: "Search franchises" }).fill("Forza");
 
     await expect.element(page.getByText(/Forza/).first()).toBeVisible();
-    expect(page.getByText("Grand Theft Auto").query()).toBeNull();
+    await expect.element(page.getByText("Grand Theft Auto")).not.toBeInTheDocument();
   });
 
   it("the trophy facet appears only when the library has trophy data", async () => {

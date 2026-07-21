@@ -1,3 +1,4 @@
+/* oxlint-disable test-contract/no-dom-selector -- These integration tests verify dashboard layout, CSS ownership, and geometry. */
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import { page, userEvent } from "vitest/browser";
@@ -265,9 +266,7 @@ describe("DashboardView", () => {
     await expect
       .element(page.getByRole("button", { name: "PlayloomDemo, current account" }))
       .toHaveAttribute("aria-current", "true");
-    await expect
-      .element(page.getByRole("button", { name: "Sign out" }))
-      .not.toBeInTheDocument();
+    await expect.element(page.getByRole("button", { name: "Sign out" })).not.toBeInTheDocument();
   });
 
   it("renders the selected imported profile and wires its account actions", async () => {
@@ -536,7 +535,9 @@ describe("DashboardView", () => {
     await expect
       .element(page.getByRole("heading", { name: demoDashboard.profile.onlineId }))
       .toBeVisible();
-    expect(page.getByText("Grand Theft Imported Only", { exact: true }).query()).toBeNull();
+    await expect
+      .element(page.getByText("Grand Theft Imported Only", { exact: true }))
+      .not.toBeInTheDocument();
     await expect
       .element(page.getByText("Grand Theft Auto V (PlayStation®5)", { exact: true }).first())
       .toBeVisible();
@@ -613,7 +614,7 @@ describe("DashboardView", () => {
     await page.getByRole("button", { name: /Filter games/ }).click();
 
     await expect.element(page.getByRole("checkbox", { name: "PS4" })).toBeChecked();
-    expect(page.getByRole("checkbox", { name: "Sports" }).query()).toBeNull();
+    await expect.element(page.getByRole("checkbox", { name: "Sports" })).not.toBeInTheDocument();
 
     await page.getByRole("button", { name: "Done filtering" }).click();
     await page
@@ -625,7 +626,7 @@ describe("DashboardView", () => {
       .element(page.getByText("Grand Theft Source", { exact: true }).first())
       .toBeVisible();
     await expect.element(search).toHaveValue("Grand Theft");
-    expect(page.getByText("No games match your filters").query()).toBeNull();
+    await expect.element(page.getByText("No games match your filters")).not.toBeInTheDocument();
 
     await page.getByRole("button", { name: /Filter games/ }).click();
 
@@ -802,7 +803,9 @@ describe("DashboardView", () => {
     expect(container.textContent).not.toContain("Seeded private purchase");
     expect(container.textContent).not.toContain("£9,876.54");
     expect(prompt?.value).not.toContain("Seeded private purchase");
-    expect(page.getByText("Remove imported transaction data").query()).toBeNull();
+    await expect
+      .element(page.getByText("Remove imported transaction data"))
+      .not.toBeInTheDocument();
     await expect
       .element(page.getByRole("button", { name: "Export transactions (CSV)" }))
       .toBeDisabled();

@@ -1,3 +1,4 @@
+/* oxlint-disable test-contract/no-dom-selector -- Loading-state tests intentionally verify skeleton structure and shell geometry. */
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
