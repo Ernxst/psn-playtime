@@ -1,11 +1,7 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
 import { CopyButton } from "./copy-button";
-
-afterEach(() => {
-  vi.restoreAllMocks();
-});
 
 describe("CopyButton", () => {
   it("writes the value to the clipboard and fires onCopy once when clicked", async () => {

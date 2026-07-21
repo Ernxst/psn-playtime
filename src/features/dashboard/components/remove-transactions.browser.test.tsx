@@ -7,38 +7,28 @@ import {
   RouterProvider,
 } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
-import { demoDashboard } from "@/domain/mock";
-import type { TransactionRow } from "@/domain/transactions";
 import type { TransactionStore } from "@/stores/transactions-store";
 import { TestAtomProvider, testDashboardStore, testTransactionStore } from "@/test/atom-registry";
+import * as Dashboard from "@/test/factories/dashboard";
+import * as Transactions from "@/test/factories/transactions";
 import { RemoveTransactions } from "./remove-transactions";
 
-afterEach(() => {
-  vi.restoreAllMocks();
-});
-
-/** A single purchase the bookmarklet would have imported. */
-const purchase: TransactionRow = {
-  transactionId: "t1",
-  key: "t1",
-  date: "2022-05-12",
-  transactionType: "PRODUCT_PURCHASE",
-  kind: "purchase",
-  productName: "Satisfactory",
-  quantity: 1,
-  amountMinor: 3300,
-  currency: "£",
-  displayAmount: "£33.00",
-};
-
-const accountId = demoDashboard.profile.accountId;
+const accountId = Dashboard.data().profile.accountId;
 
 function seedImport() {
   testTransactionStore.save(accountId, {
-    transactions: [purchase],
+    transactions: [
+      Transactions.row({
+        transactionId: "t1",
+        key: "t1",
+        productName: "Satisfactory",
+        amountMinor: 3300,
+        displayAmount: "£33.00",
+      }),
+    ],
     importedAt: "2024-01-01T00:00:00.000Z",
     source: "store.playstation.com",
   });
@@ -53,7 +43,9 @@ function seedImport() {
  * untouched.
  */
 function renderControl() {
-  const rootRoute = createRootRouteWithContext<{ transactionStore: TransactionStore }>()({
+  const rootRoute = createRootRouteWithContext<{
+    transactionStore: TransactionStore;
+  }>()({
     component: () => (
       <TestAtomProvider>
         <Outlet />
@@ -112,7 +104,8 @@ describe("RemoveTransactions", () => {
 
   it("clears only the import on confirm, leaving dashboard data intact", async () => {
     seedImport();
-    testDashboardStore.save(demoDashboard);
+    const dashboard = Dashboard.data();
+    testDashboardStore.save(dashboard);
     onTestFinished(() => testDashboardStore.clearActive());
     const clear = vi.spyOn(testTransactionStore, "clear");
     const success = vi.spyOn(toast, "success");
@@ -126,8 +119,8 @@ describe("RemoveTransactions", () => {
     expect(testTransactionStore.load(accountId)).toBeNull();
     expect(success).toHaveBeenCalledExactlyOnceWith("Removed your imported transaction data.");
     // The account's cached games/snapshot are untouched by clearing the import.
-    expect(testDashboardStore.load(demoDashboard.profile.accountId)?.games).toStrictEqual(
-      demoDashboard.games
+    expect(testDashboardStore.load(dashboard.profile.accountId)?.games).toStrictEqual(
+      dashboard.games
     );
 
     // The control hides itself once the import is gone.

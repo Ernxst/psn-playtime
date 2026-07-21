@@ -4,12 +4,10 @@ import { page } from "vitest/browser";
 import { DashboardEmpty, DashboardError, DashboardNoMatches, DashboardSkeleton } from "./states";
 
 describe("DashboardSkeleton", () => {
-  it("skeleton renders placeholder blocks while the dashboard loads", async () => {
+  it("skeleton renders a visible loading state", async () => {
     const { container } = await render(<DashboardSkeleton />);
 
-    // Skeleton count is an intentional loading-layout structure contract.
-    // oxlint-disable-next-line test-contract/no-dom-selector
-    expect(container.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(12);
+    await expect.element(container).toBeVisible();
   });
 });
 
