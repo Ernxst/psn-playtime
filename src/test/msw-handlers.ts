@@ -1,4 +1,10 @@
-import { HttpResponse, http, type DefaultBodyType, type ResponseResolver } from "msw";
+import {
+  HttpResponse,
+  http,
+  type DefaultBodyType,
+  type HttpResponseResolver,
+  type PathParams,
+} from "msw";
 import { TRANSACTION_HISTORY_ENDPOINT } from "@/domain/transaction-bookmarklet";
 import * as Psn from "@/test/factories/psn";
 import * as Transactions from "@/test/factories/transactions";
@@ -18,37 +24,31 @@ export const PSN_TROPHY_TITLES_URL =
 const unauthorized = () => new HttpResponse<null>(null, { status: 401 });
 const forbidden = () => new HttpResponse<null>(null, { status: 403 });
 
-type RequestPolicy = (request: Request) => HttpResponse<null> | undefined;
+type RequestPolicy = (input: Parameters<HttpResponseResolver>[0]) => HttpResponse<null> | undefined;
 
 function withPolicy(policy: RequestPolicy) {
   return function policyResolver<
-    Extra extends Record<string, unknown>,
+    Params extends PathParams,
     RequestBody extends DefaultBodyType,
     ResponseBody extends DefaultBodyType,
   >(
-    resolver: ResponseResolver<Extra, RequestBody, ResponseBody>
-  ): ResponseResolver<Extra, RequestBody, ResponseBody | null> {
-    return (input) => policy(input.request) ?? resolver(input);
+    resolver: HttpResponseResolver<Params, RequestBody, ResponseBody>
+  ): HttpResponseResolver<Params, RequestBody, ResponseBody | null> {
+    return (input) => policy(input) ?? resolver(input);
   };
 }
 
-const withAuthorization = withPolicy((request) =>
+const withAuthorization = withPolicy(({ request }) =>
   request.headers.get("authorization") ? undefined : unauthorized()
 );
 
-const withNpsso = withPolicy((request) => {
-  const cookie = request.headers.get("cookie");
-  const hasNpsso = cookie
-    ?.split(";")
-    .some((part) => part.trim().startsWith("npsso=") && part.trim() !== "npsso=");
-  return hasNpsso ? undefined : unauthorized();
-});
+const withNpsso = withPolicy(({ cookies }) => (cookies.npsso ? undefined : unauthorized()));
 
-const withRawgKey = withPolicy((request) =>
+const withRawgKey = withPolicy(({ request }) =>
   new URL(request.url).searchParams.get("key") === "test-key" ? undefined : forbidden()
 );
 
-export const withTransactionCredentials = withPolicy((request) => {
+export const withTransactionCredentials = withPolicy(({ request }) => {
   const valid =
     request.credentials === "include" &&
     request.headers.get("apollographql-client-name") === "@sie-ppr-web-checkout/app" &&
