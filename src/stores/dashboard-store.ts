@@ -25,7 +25,7 @@ import { useAtomValue } from "@effect/atom-react";
 import * as Schema from "effect/Schema";
 import * as Atom from "effect/unstable/reactivity/Atom";
 import type * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
-import { demoDashboard } from "@/domain/mock";
+import { prototypeDemoDashboard as demoDashboard } from "@/domain/mock";
 import { kvsRuntime } from "@/runtime/kvs.effect";
 import { DashboardData } from "@/server/providers/account/snapshot";
 
@@ -151,7 +151,7 @@ export interface DashboardStore {
   save(data: DashboardData): void;
   /** Mark an account as the one the dashboard should render. */
   setActive(accountId: string): void;
-  /** Drop the active-account pointer so the dashboard falls back to demo data. */
+  /** Select the demo account without deleting any cached account. */
   clearActive(): void;
   /**
    * Delete an account's cached dashboard, and clear the active-account pointer
@@ -184,14 +184,11 @@ export function makeDashboardStore(registry: AtomRegistry.AtomRegistry): Dashboa
     },
     setActive: (accountId) => {
       if (typeof window === "undefined") return;
-      registry.set(
-        activeAccountIdAtom,
-        accountId === demoDashboard.profile.accountId ? null : accountId
-      );
+      registry.set(activeAccountIdAtom, accountId);
     },
     clearActive: () => {
       if (typeof window === "undefined") return;
-      registry.set(activeAccountIdAtom, null);
+      registry.set(activeAccountIdAtom, demoDashboard.profile.accountId);
     },
     remove: (accountId) => {
       if (typeof window === "undefined") return;

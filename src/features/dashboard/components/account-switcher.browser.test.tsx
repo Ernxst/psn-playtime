@@ -1,9 +1,10 @@
 import { describe, expect, it, onTestFinished } from "vitest";
 import { render } from "vitest-browser-react";
 import { page, userEvent } from "vitest/browser";
-import { demoDashboard } from "@/domain/mock";
+import { demoDashboard, signedInPreviewDashboard } from "@/domain/mock";
 import type { TransactionImport } from "@/domain/transactions";
 import { PurchaseHistorySection } from "@/features/dashboard/spend/components/purchase-history";
+import { activateSignedInPreview } from "@/features/prototype/prototype-data";
 import type { DashboardData } from "@/server/providers/account/snapshot";
 import { useActiveDashboard } from "@/stores/dashboard-store";
 import { testDashboardStore, testTransactionStore } from "@/test/atom-registry";
@@ -60,6 +61,7 @@ function transaction(productName: string): TransactionImport {
 function cleanAccounts() {
   testDashboardStore.remove(aaron.profile.accountId);
   testDashboardStore.remove(zoe.profile.accountId);
+  testDashboardStore.remove(signedInPreviewDashboard.profile.accountId);
   testDashboardStore.clearActive();
   testTransactionStore.clear(aaron.profile.accountId);
   testTransactionStore.clear(zoe.profile.accountId);
@@ -156,6 +158,41 @@ describe("AccountSwitcher", () => {
 
     await expect.element(page.getByText("Zoe purchase")).toBeVisible();
     await expect.element(page.getByText("Aaron purchase")).not.toBeInTheDocument();
+  });
+
+  it("keeps demo current when the signed-in preview route is revisited after switching", async () => {
+    cleanAccounts();
+    onTestFinished(cleanAccounts);
+    activateSignedInPreview(testDashboardStore);
+    const { element } = createHarness(<ActiveAccountSwitcher />);
+
+    await render(element);
+
+    await page.getByRole("button", { name: /Switch account, current account MiraOnPSN/ }).click();
+    await page.getByRole("button", { name: "Switch to PlayloomDemo" }).click();
+    activateSignedInPreview(testDashboardStore);
+
+    await expect
+      .element(page.getByRole("button", { name: /current account PlayloomDemo/ }))
+      .toBeVisible();
+  });
+
+  it("keeps demo current when the signed-in preview route is revisited after sign-out", async () => {
+    cleanAccounts();
+    onTestFinished(cleanAccounts);
+    activateSignedInPreview(testDashboardStore);
+    testDashboardStore.clearActive();
+
+    activateSignedInPreview(testDashboardStore);
+    const { element } = createHarness(<ActiveAccountSwitcher />);
+
+    await render(element);
+
+    await expect
+      .element(page.getByRole("button", { name: /current account PlayloomDemo/ }))
+      .toBeVisible();
+    await page.getByRole("button", { name: /current account PlayloomDemo/ }).click();
+    await expect.element(page.getByRole("button", { name: "Switch to MiraOnPSN" })).toBeVisible();
   });
 
   it("switches from the demo dashboard to a cached account", async () => {

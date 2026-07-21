@@ -1,9 +1,6 @@
-import type {
-  DashboardData,
-  DashboardMeta,
-  GamePlay,
-  ProfileSummary,
-} from "@/server/providers/account/snapshot";
+import { signedInPreviewDashboard } from "@/domain/mock";
+import type { DashboardData, GamePlay } from "@/server/providers/account/snapshot";
+import type { DashboardStore } from "@/stores/dashboard-store";
 
 const atlasSlots = ["city", "stadium", "snow", "blocks", "desert", "coast"] as const;
 const validatedRawgFixtures = new Set([
@@ -36,11 +33,6 @@ export function posterSlot(game: Pick<GamePlay, "titleId">): PosterSlot | undefi
   return atlasSlots[value % atlasSlots.length];
 }
 
-const demoGameIndexes = [5, 6, 7, 8, 10, 11, 16, 20] as const;
-const demoHours = [184, 142, 96, 81, 64, 51, 37, 22] as const;
-const demoSessions = [73, 58, 44, 39, 31, 26, 19, 12] as const;
-const demoTrophyProgress = [100, 82, 71, 64, 52, 43, 31, 18] as const;
-
 function withPrototypeArtwork(games: readonly GamePlay[]): GamePlay[] {
   return games.map((game, index) => ({
     ...game,
@@ -49,80 +41,14 @@ function withPrototypeArtwork(games: readonly GamePlay[]): GamePlay[] {
   }));
 }
 
-function demoProfile(profile: ProfileSummary): ProfileSummary {
-  return {
-    ...profile,
-    onlineId: "PlayloomDemo",
-    accountId: "demo",
-    aboutMe: "A fictional player with deterministic games, sessions, trophies and purchases.",
-    isPlus: false,
-    trophyLevel: 128,
-    levelProgress: 42,
-    earned: { platinum: 2, gold: 18, silver: 64, bronze: 211 },
-    totalTrophies: 295,
-  };
-}
-
-function demoMeta(meta: DashboardMeta, games: readonly GamePlay[]): DashboardMeta {
-  return {
-    ...meta,
-    totalGames: games.length,
-    totalHours: games.reduce((total, game) => total + game.hours, 0),
-    totalSessions: games.reduce((total, game) => total + game.playCount, 0),
-    appsExcluded: [],
-    firstEverPlayed: "2021-02-14",
-    span: { from: "2021-02-14", to: "2026-05-14" },
-  };
-}
-
-function demoFixture(data: DashboardData): DashboardData {
-  const games = demoGameIndexes.map((gameIndex, index) => ({
-    ...data.games[gameIndex]!,
-    hours: demoHours[index]!,
-    playCount: demoSessions[index]!,
-    trophy: {
-      progress: demoTrophyProgress[index]!,
-      earned: {
-        platinum: index < 2 ? 1 : 0,
-        gold: 2 + index,
-        silver: 4 + index,
-        bronze: 9 + index,
-      },
-      total: 20 + index * 4,
-      hasPlatinum: index < 2,
-      lastEarnedAt: data.games[gameIndex]!.lastPlayed!,
-    },
-  }));
-  return {
-    ...data,
-    profile: demoProfile(data.profile),
-    games: withPrototypeArtwork(games),
-    meta: demoMeta(data.meta, games),
-  };
-}
-
 export function prototypeDashboard(data: DashboardData): DashboardData {
-  return data.isDemo ? demoFixture(data) : { ...data, games: withPrototypeArtwork(data.games) };
+  return { ...data, games: withPrototypeArtwork(data.games) };
 }
 
-export function safeSignedInDashboard(data: DashboardData): DashboardData {
-  if (!data.isDemo) return prototypeDashboard(data);
-  return {
-    ...data,
-    profile: {
-      ...data.profile,
-      onlineId: "MiraOnPSN",
-      accountId: "preview-imported",
-      aboutMe: "A sample PlayStation import for previewing account actions.",
-      avatarUrl: "/playloom/sample-psn-avatar.svg",
-      sourceLabel: "Imported from PlayStation",
-      isPlus: true,
-      trophyLevel: 220,
-      levelProgress: 70,
-      earned: { platinum: 9, gold: 54, silver: 188, bronze: 887 },
-      totalTrophies: 1138,
-    },
-    games: withPrototypeArtwork(data.games),
-    isDemo: false,
-  };
+/** Seed the signed-in prototype once, then respect the user's selected account. */
+export function activateSignedInPreview(store: DashboardStore): void {
+  const previewId = signedInPreviewDashboard.profile.accountId;
+  if (store.load(previewId) !== null) return;
+  store.save(signedInPreviewDashboard);
+  store.setActive(previewId);
 }

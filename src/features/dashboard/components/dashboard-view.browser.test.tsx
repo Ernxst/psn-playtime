@@ -503,6 +503,52 @@ describe("DashboardView", () => {
     await expect.element(page.getByRole("button", { name: /demo data/ })).toHaveFocus();
   });
 
+  it("drops hidden destination facets when switching accounts", async () => {
+    const shooter = {
+      ...demoDashboard,
+      profile: {
+        ...demoDashboard.profile,
+        accountId: "facet-source",
+        onlineId: "FacetSource",
+        sourceLabel: "Imported from PlayStation",
+      },
+      games: [{ ...demoDashboard.games[0]!, name: "Source Shooter", genre: "Shooter" as const }],
+      isDemo: false,
+    };
+    const rolePlaying = {
+      ...demoDashboard,
+      profile: {
+        ...demoDashboard.profile,
+        accountId: "facet-destination",
+        onlineId: "FacetDestination",
+        sourceLabel: "Imported from PlayStation",
+      },
+      games: [{ ...demoDashboard.games[0]!, name: "Destination RPG", genre: "RPG" as const }],
+      isDemo: false,
+    };
+    testDashboardStore.save(shooter);
+    testDashboardStore.save(rolePlaying);
+    testDashboardStore.setActive(shooter.profile.accountId);
+    onTestFinished(() => {
+      testDashboardStore.remove(shooter.profile.accountId);
+      testDashboardStore.remove(rolePlaying.profile.accountId);
+      testDashboardStore.clearActive();
+    });
+    const { element } = createHarness(<ActiveDashboardView />);
+
+    await render(element);
+
+    await page.getByRole("button", { name: "Filter games" }).click();
+    await page.getByRole("checkbox", { name: "Shooter" }).click();
+    await page.getByRole("button", { name: "Done filtering" }).click();
+    await page.getByRole("button", { name: /Open profile menu for FacetSource/ }).click();
+    await page.getByRole("button", { name: "Switch to FacetDestination" }).click();
+
+    await expect.element(page.getByText("Destination RPG", { exact: true }).first()).toBeVisible();
+    expect(page.getByText("No games match your filters").query()).toBeNull();
+    expect(page.getByRole("button", { name: "Clear all filters" }).query()).toBeNull();
+  });
+
   it("filters the purchase ledger by date and sorts every retained column", async () => {
     const { element } = createHarness(
       <DashboardView

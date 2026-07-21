@@ -138,6 +138,49 @@ export const defaultFilters: DashboardFilters = {
   activity: "all",
 };
 
+interface DestinationFacets {
+  genres: Set<Genre>;
+  franchises: Set<string>;
+  platforms: Set<Platform>;
+  maxHours: number;
+  maxSessions: number;
+  hasTrophies: boolean;
+}
+
+function destinationFacets(data: DashboardData): DestinationFacets {
+  return {
+    genres: new Set(data.games.map((game) => game.genre)),
+    franchises: new Set(data.games.flatMap((game) => game.franchise ?? [])),
+    platforms: new Set(data.games.map((game) => game.platform)),
+    maxHours: Math.max(0, ...data.games.map((game) => game.hours)),
+    maxSessions: Math.max(0, ...data.games.map((game) => game.playCount)),
+    hasTrophies: data.games.some((game) => game.trophy !== undefined),
+  };
+}
+
+function validMinimum(value: number | undefined, maximum: number): number | undefined {
+  if (value === undefined || value > maximum) return undefined;
+  return value;
+}
+
+/** Keep account-switch filters only when the destination can satisfy them. */
+export function retainValidFilters(
+  data: DashboardData,
+  filters: DashboardFilters
+): DashboardFilters {
+  const facets = destinationFacets(data);
+  return {
+    ...filters,
+    genres: filters.genres.filter((genre) => facets.genres.has(genre)),
+    franchises: filters.franchises.filter((franchise) => facets.franchises.has(franchise)),
+    platforms: filters.platforms.filter((platform) => facets.platforms.has(platform)),
+    minHours: validMinimum(filters.minHours, facets.maxHours),
+    minSessions: validMinimum(filters.minSessions, facets.maxSessions),
+    hasPlatinum: facets.hasTrophies ? filters.hasPlatinum : false,
+    minTrophyProgress: facets.hasTrophies ? filters.minTrophyProgress : undefined,
+  };
+}
+
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 /** Combined inclusive lower bound (ms) from the timeframe preset + custom from. */

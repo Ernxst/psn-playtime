@@ -1,28 +1,27 @@
 /**
- * Raw game fixture generated from a PSN export, with an explicitly fictional
- * fallback identity. The rendered demo narrows and re-authors these values in
- * `features/prototype/prototype-data.ts` so it never presents a real profile.
- * Regenerate the game fixture via scripts/gen-mock if the snapshot shape changes.
+ * Fictional datasets generated from a PSN-shaped export. This module owns every
+ * authored demo and signed-in preview value; presentation code only decorates
+ * these ordinary `DashboardData` values.
  */
-import type { DashboardData } from "@/server/providers/account/snapshot";
+import type { DashboardData, GamePlay } from "@/server/providers/account/snapshot";
 
-export const demoDashboard: DashboardData = {
+const importedPreviewFixture: DashboardData = {
   profile: {
-    onlineId: "PlayloomDemo",
-    accountId: "demo",
-    aboutMe: "A fictional player with deterministic games, sessions, trophies and purchases.",
-    avatarUrl: "/playloom/demo-avatar.svg",
-    sourceLabel: "Deterministic demo data",
-    isPlus: false,
-    trophyLevel: 128,
-    levelProgress: 42,
+    onlineId: "MiraOnPSN",
+    accountId: "preview-imported",
+    aboutMe: "A sample PlayStation import for previewing account actions.",
+    avatarUrl: "/playloom/sample-psn-avatar.svg",
+    sourceLabel: "Imported from PlayStation",
+    isPlus: true,
+    trophyLevel: 220,
+    levelProgress: 70,
     earned: {
-      platinum: 2,
-      gold: 18,
-      silver: 64,
-      bronze: 211,
+      platinum: 9,
+      gold: 54,
+      silver: 188,
+      bronze: 887,
     },
-    totalTrophies: 295,
+    totalTrophies: 1138,
   },
   games: [
     {
@@ -1978,6 +1977,164 @@ export const demoDashboard: DashboardData = {
       to: "2026-06-25",
     },
   },
-  isDemo: true,
+  isDemo: false,
   trophiesUnavailable: false,
 };
+
+interface DemoGame {
+  titleId: string;
+  hours: number;
+  playCount: number;
+  trophy: NonNullable<GamePlay["trophy"]>;
+}
+
+const demoGames: readonly DemoGame[] = [
+  {
+    titleId: "DEMO-5",
+    hours: 184,
+    playCount: 73,
+    trophy: {
+      progress: 100,
+      earned: { platinum: 1, gold: 2, silver: 4, bronze: 9 },
+      total: 20,
+      hasPlatinum: true,
+      lastEarnedAt: "2025-05-22",
+    },
+  },
+  {
+    titleId: "DEMO-6",
+    hours: 142,
+    playCount: 58,
+    trophy: {
+      progress: 82,
+      earned: { platinum: 1, gold: 3, silver: 5, bronze: 10 },
+      total: 24,
+      hasPlatinum: true,
+      lastEarnedAt: "2026-06-25",
+    },
+  },
+  {
+    titleId: "DEMO-7",
+    hours: 96,
+    playCount: 44,
+    trophy: {
+      progress: 71,
+      earned: { platinum: 0, gold: 4, silver: 6, bronze: 11 },
+      total: 28,
+      hasPlatinum: false,
+      lastEarnedAt: "2026-02-25",
+    },
+  },
+  {
+    titleId: "DEMO-8",
+    hours: 81,
+    playCount: 39,
+    trophy: {
+      progress: 64,
+      earned: { platinum: 0, gold: 5, silver: 7, bronze: 12 },
+      total: 32,
+      hasPlatinum: false,
+      lastEarnedAt: "2025-01-26",
+    },
+  },
+  {
+    titleId: "DEMO-10",
+    hours: 64,
+    playCount: 31,
+    trophy: {
+      progress: 52,
+      earned: { platinum: 0, gold: 6, silver: 8, bronze: 13 },
+      total: 36,
+      hasPlatinum: false,
+      lastEarnedAt: "2025-06-19",
+    },
+  },
+  {
+    titleId: "DEMO-11",
+    hours: 51,
+    playCount: 26,
+    trophy: {
+      progress: 43,
+      earned: { platinum: 0, gold: 7, silver: 9, bronze: 14 },
+      total: 40,
+      hasPlatinum: false,
+      lastEarnedAt: "2025-12-09",
+    },
+  },
+  {
+    titleId: "DEMO-16",
+    hours: 37,
+    playCount: 19,
+    trophy: {
+      progress: 31,
+      earned: { platinum: 0, gold: 8, silver: 10, bronze: 15 },
+      total: 44,
+      hasPlatinum: false,
+      lastEarnedAt: "2026-06-24",
+    },
+  },
+  {
+    titleId: "DEMO-20",
+    hours: 22,
+    playCount: 12,
+    trophy: {
+      progress: 18,
+      earned: { platinum: 0, gold: 9, silver: 11, bronze: 16 },
+      total: 48,
+      hasPlatinum: false,
+      lastEarnedAt: "2024-09-20",
+    },
+  },
+];
+
+const importedGameById = new Map(
+  importedPreviewFixture.games.map((game) => [game.titleId, game] as const)
+);
+
+function toDemoGame(fixture: DemoGame): GamePlay {
+  const game = importedGameById.get(fixture.titleId)!;
+  return {
+    ...game,
+    hours: fixture.hours,
+    playCount: fixture.playCount,
+    trophy: fixture.trophy,
+  };
+}
+
+const games = demoGames.map(toDemoGame);
+
+const demoProfile: DashboardData["profile"] = {
+  onlineId: "PlayloomDemo",
+  accountId: "demo",
+  aboutMe: "A fictional player with deterministic games, sessions, trophies and purchases.",
+  avatarUrl: "/playloom/demo-avatar.svg",
+  sourceLabel: "Deterministic demo data",
+  isPlus: false,
+  trophyLevel: 128,
+  levelProgress: 42,
+  earned: { platinum: 2, gold: 18, silver: 64, bronze: 211 },
+  totalTrophies: 295,
+};
+
+/** Full PSN-shaped fixture retained for selectors and component contracts. */
+export const demoDashboard: DashboardData = {
+  ...importedPreviewFixture,
+  profile: demoProfile,
+  isDemo: true,
+};
+
+/** The sole authored demo dataset rendered by the Playloom prototype. */
+export const prototypeDemoDashboard: DashboardData = {
+  ...demoDashboard,
+  games,
+  meta: {
+    totalGames: games.length,
+    totalHours: games.reduce((total, game) => total + game.hours, 0),
+    totalSessions: games.reduce((total, game) => total + game.playCount, 0),
+    appsExcluded: [],
+    firstEverPlayed: "2021-02-14",
+    span: { from: "2021-02-14", to: "2026-05-14" },
+  },
+};
+
+export const signedInPreviewDashboard: DashboardData = importedPreviewFixture;

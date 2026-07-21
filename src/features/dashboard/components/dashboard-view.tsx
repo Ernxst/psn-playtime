@@ -20,6 +20,7 @@ import {
   currentYear,
   type DashboardFilters,
   defaultFilters,
+  retainValidFilters,
   type Timeframe,
 } from "@/features/dashboard/filters/analytics";
 import { FilterBar } from "@/features/dashboard/filters/components/filter-bar";
@@ -782,8 +783,24 @@ function DashboardResult({
   );
 }
 
+interface AccountFilters {
+  accountId: string;
+  value: DashboardFilters;
+}
+
+function useAccountFilters(data: DashboardData) {
+  const accountId = data.profile.accountId;
+  const [state, setState] = useState<AccountFilters>({ accountId, value: defaultFilters });
+  const filters =
+    state.accountId === accountId ? state.value : retainValidFilters(data, state.value);
+  return {
+    filters,
+    setFilters: (value: DashboardFilters) => setState({ accountId, value }),
+  };
+}
+
 function ReadingSurface(props: Props) {
-  const [filters, setFilters] = useState<DashboardFilters>(defaultFilters);
+  const { filters, setFilters } = useAccountFilters(props.data);
   const deferredSearch = useDeferredValue(filters.search);
   const scoped = applyFilters(props.data, { ...filters, search: deferredSearch });
   const clearFilters = () => {

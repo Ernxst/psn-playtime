@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { type ReactNode, useEffect, useMemo } from "react";
 import { toast } from "sonner";
+import { signedInPreviewDashboard } from "@/domain/mock";
 import { DashboardView } from "@/features/dashboard/components/dashboard-view";
 import { DashboardError, DashboardSkeleton } from "@/features/dashboard/components/states";
 import {
@@ -9,7 +10,7 @@ import {
   rawgGenresQueryOptions,
   shouldPersistEnrichment,
 } from "@/features/dashboard/enrichment/query";
-import { prototypeDashboard, safeSignedInDashboard } from "@/features/prototype/prototype-data";
+import { activateSignedInPreview, prototypeDashboard } from "@/features/prototype/prototype-data";
 import { signInWithToken } from "@/server/api/account.effect";
 import type { DashboardData, GamePlay, Genre } from "@/server/providers/account/snapshot";
 import { type DashboardStore, useActiveDashboard } from "@/stores/dashboard-store";
@@ -75,6 +76,7 @@ export const Route = createFileRoute("/dashboard")({
     const state = prototypeState(search.prototypeState);
     return state ? { prototypeState: state } : {};
   },
+  loaderDeps: ({ search }) => ({ prototypeState: search.prototypeState }),
   // Client-render only. The dashboard is built entirely from the user's
   // browser-local data (the persisted snapshot via `Atom.kvs` and the imported
   // transactions store). The server has none of it, so any SSR'd DOM reflects
@@ -84,6 +86,9 @@ export const Route = createFileRoute("/dashboard")({
   // eliminates the whole mismatch class. Mirrors `/import`, which is `ssr:false`
   // for the same client-only-data reason.
   ssr: false,
+  loader: ({ context, deps }) => {
+    if (deps.prototypeState === "signed-in") activateSignedInPreview(context.dashboardStore);
+  },
   head: () => ({
     meta: [
       { title: "Playloom — Your gaming life, woven together" },
@@ -136,7 +141,12 @@ const prototypeViews: Record<PrototypeState, (data: DashboardData) => ReactNode>
   ),
   empty: (data) => <DashboardCachedView data={emptyDashboard(data)} />,
   partial: (data) => <DashboardCachedView data={partialDashboard(data)} partialData />,
-  "signed-in": (data) => <DashboardCachedView data={safeSignedInDashboard(data)} safeDemo />,
+  "signed-in": (data) => (
+    <DashboardCachedView
+      data={prototypeDashboard(data)}
+      safeDemo={data.profile.accountId === signedInPreviewDashboard.profile.accountId}
+    />
+  ),
 };
 
 function PrototypeDashboard({ state, data }: { state: PrototypeState; data: DashboardData }) {
