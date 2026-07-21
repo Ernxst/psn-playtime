@@ -1,7 +1,7 @@
 import * as ConfigProvider from "effect/ConfigProvider";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import { HttpResponse, http, type ResponseResolver } from "msw";
+import { HttpResponse, http } from "msw";
 import { describe, expect, it, vi } from "vitest";
 import { rawgFranchisesEffect, rawgGenresEffect } from "@/server/api/enrichment.effect";
 import { TitleEnrichmentLayer } from "@/server/providers/enrichment/rawg/provider.effect";
@@ -16,18 +16,6 @@ const RAWG = Layer.provide(
 
 type RawgTitle = { titleId: string; name: string };
 
-const useSearch = (resolver: ResponseResolver) => {
-  const handler = vi.fn(resolver);
-  server.use(http.get(RAWG_GAMES_URL, handler));
-  return handler;
-};
-
-const useSeries = (resolver: ResponseResolver) => {
-  const handler = vi.fn(resolver);
-  server.use(http.get(RAWG_SERIES_URL, handler));
-  return handler;
-};
-
 const runGenres = (titles: RawgTitle[]) =>
   Effect.runPromise(rawgGenresEffect(titles).pipe(Effect.provide(RAWG)));
 
@@ -36,13 +24,14 @@ const runFranchises = (titles: RawgTitle[]) =>
 
 describe(".rawgGenresEffect", () => {
   it("returns RAWG metadata and drops titles with absent metadata", async () => {
-    const search = useSearch(({ request }) =>
+    const search = vi.fn(({ request }: { request: Request }) =>
       HttpResponse.json(
         new URL(request.url).searchParams.get("search") === "Halo"
           ? rawgSearch([rawgGame({ genres: ["Shooter"], playtime: 12 })])
           : rawgSearch()
       )
     );
+    server.use(http.get(RAWG_GAMES_URL, search));
 
     const result = await runGenres([
       { titleId: "halo", name: "Halo" },
@@ -65,7 +54,7 @@ describe(".rawgGenresEffect", () => {
       enrichment: { typicalPlaytime: 20 },
     },
   ])("includes $label", async ({ game, enrichment }) => {
-    useSearch(() => HttpResponse.json(rawgSearch([game])));
+    server.use(http.get(RAWG_GAMES_URL, () => HttpResponse.json(rawgSearch([game]))));
 
     await expect(runGenres([{ titleId: "t1", name: "Game" }])).resolves.toStrictEqual([
       { titleId: "t1", ...enrichment },
@@ -73,9 +62,8 @@ describe(".rawgGenresEffect", () => {
   });
 
   it("looks a duplicated title name up once and applies its metadata to every title", async () => {
-    const search = useSearch(() =>
-      HttpResponse.json(rawgSearch([rawgGame({ genres: ["Racing"] })]))
-    );
+    const search = vi.fn(() => HttpResponse.json(rawgSearch([rawgGame({ genres: ["Racing"] })])));
+    server.use(http.get(RAWG_GAMES_URL, search));
 
     const result = await runGenres([
       { titleId: "gt-ps4", name: "Gran Turismo" },
@@ -93,7 +81,7 @@ describe(".rawgGenresEffect", () => {
     { label: "rate-limits", status: 429 },
     { label: "is unavailable", status: 503 },
   ])("degrades to blank enrichment when RAWG $label", async ({ status }) => {
-    useSearch(() => new HttpResponse(null, { status }));
+    server.use(http.get(RAWG_GAMES_URL, () => new HttpResponse(null, { status })));
 
     await expect(runGenres([{ titleId: "t1", name: "Game" }])).resolves.toStrictEqual([]);
   });
@@ -101,16 +89,17 @@ describe(".rawgGenresEffect", () => {
 
 describe(".rawgFranchisesEffect", () => {
   it("returns a derived RAWG franchise and drops titles with no match", async () => {
-    const search = useSearch(({ request }) =>
+    const search = vi.fn(({ request }: { request: Request }) =>
       HttpResponse.json(
         new URL(request.url).searchParams.get("search") === "Forza Horizon 5"
           ? rawgSearch([rawgGame({ id: 42, name: "Forza Horizon 5" })])
           : rawgSearch()
       )
     );
-    const series = useSeries(() =>
+    const series = vi.fn(() =>
       HttpResponse.json(rawgSeries(["Forza Horizon 4", "Forza Motorsport 7"]))
     );
+    server.use(http.get(RAWG_GAMES_URL, search), http.get(RAWG_SERIES_URL, series));
 
     const result = await runFranchises([
       { titleId: "forza", name: "Forza Horizon 5" },
@@ -123,10 +112,11 @@ describe(".rawgFranchisesEffect", () => {
   });
 
   it("looks a duplicated title name up once and applies its franchise to every title", async () => {
-    const search = useSearch(() =>
+    const search = vi.fn(() =>
       HttpResponse.json(rawgSearch([rawgGame({ id: 42, name: "Gran Turismo 7" })]))
     );
-    const series = useSeries(() => HttpResponse.json(rawgSeries(["Gran Turismo Sport"])));
+    const series = vi.fn(() => HttpResponse.json(rawgSeries(["Gran Turismo Sport"])));
+    server.use(http.get(RAWG_GAMES_URL, search), http.get(RAWG_SERIES_URL, series));
 
     const result = await runFranchises([
       { titleId: "gt-ps4", name: "Gran Turismo 7" },
@@ -145,7 +135,7 @@ describe(".rawgFranchisesEffect", () => {
     { label: "rate-limits", status: 429 },
     { label: "is unavailable", status: 503 },
   ])("degrades to blank enrichment when RAWG $label", async ({ status }) => {
-    useSearch(() => new HttpResponse(null, { status }));
+    server.use(http.get(RAWG_GAMES_URL, () => new HttpResponse(null, { status })));
 
     await expect(runFranchises([{ titleId: "t1", name: "Game" }])).resolves.toStrictEqual([]);
   });
