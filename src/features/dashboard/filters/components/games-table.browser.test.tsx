@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
-import { demoDashboard } from "@/domain/mock";
 import type { GamePlay } from "@/server/providers/account/snapshot";
+import * as Dashboard from "@/test/factories/dashboard";
 import { GamesTable } from "./games-table";
 
 describe("GamesTable", () => {
   it("lists played game names from the data", async () => {
-    await render(<GamesTable data={demoDashboard} />);
+    await render(<GamesTable data={Dashboard.data()} />);
 
     await expect.element(page.getByText("Every game you've played")).toBeInTheDocument();
     await expect.element(page.getByText("Forza Horizon 5")).toBeInTheDocument();
@@ -15,7 +15,7 @@ describe("GamesTable", () => {
   });
 
   it("labels the hours column as PSN-recorded", async () => {
-    await render(<GamesTable data={demoDashboard} />);
+    await render(<GamesTable data={Dashboard.data()} />);
 
     await expect
       .element(page.getByRole("button", { name: "Sort by Lifetime hours" }))
@@ -32,8 +32,8 @@ describe("GamesTable", () => {
       lastEarnedAt: "2024-01-01",
     };
     const data = {
-      ...demoDashboard,
-      games: demoDashboard.games.map((g, i) => (i === 0 ? { ...g, trophy } : g)),
+      ...Dashboard.data(),
+      games: Dashboard.data().games.map((g, i) => (i === 0 ? { ...g, trophy } : g)),
     };
 
     await render(<GamesTable data={data} />);
@@ -43,7 +43,7 @@ describe("GamesTable", () => {
   });
 
   it("keeps games without trophy data at the bottom when sorting trophies both ways", async () => {
-    await render(<GamesTable data={demoDashboard} />);
+    await render(<GamesTable data={Dashboard.data()} />);
 
     const lastTrophyCell = () =>
       page.getByRole("row").last().getByRole("cell").last().element().textContent;
@@ -64,7 +64,7 @@ describe("GamesTable", () => {
   });
 
   it("clicking a column header re-sorts the rows in both directions", async () => {
-    await render(<GamesTable data={demoDashboard} />);
+    await render(<GamesTable data={Dashboard.data()} />);
 
     // Default sort is hours-descending: the biggest game leads.
     await expect.element(page.getByText("Every game you've played")).toBeInTheDocument();

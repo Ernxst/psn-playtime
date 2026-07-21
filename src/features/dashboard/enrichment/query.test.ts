@@ -1,7 +1,7 @@
 import type { QueryStatus } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
-import { demoDashboard } from "@/domain/mock";
 import type { DashboardData, GamePlay } from "@/server/providers/account/snapshot";
+import * as Dashboard from "@/test/factories/dashboard";
 import {
   rawgFranchisesQueryOptions,
   rawgGenresQueryOptions,
@@ -9,22 +9,11 @@ import {
 } from "./query";
 
 function game(overrides: Partial<GamePlay> = {}): GamePlay {
-  return {
-    titleId: "t",
-    name: "Title",
-    platform: "PS5",
-    hours: 1,
-    playCount: 1,
-    category: "ps5_native_game",
-    genre: "Shooter",
-    franchise: "Series",
-    isApp: false,
-    ...overrides,
-  };
+  return { ...Dashboard.data().games[0]!, ...overrides };
 }
 
 function data(overrides: Partial<DashboardData> = {}): DashboardData {
-  return { ...demoDashboard, isDemo: false, enriched: false, games: [game()], ...overrides };
+  return Dashboard.data({ isDemo: false, enriched: false, games: [game()], ...overrides });
 }
 
 describe(".rawgGenresQueryOptions", () => {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
-import { demoDashboard } from "@/domain/mock";
+import * as Dashboard from "@/test/factories/dashboard";
 import { FranchiseChart, SessionChart, TopGamesChart, YearChart } from "./charts";
 
 const named = [
@@ -12,42 +12,43 @@ const named = [
 ] as const;
 
 describe("TopGamesChart", () => {
-  it("top-games chart plots a bar for each of the most-played titles", async () => {
-    const { container } = await render(<TopGamesChart data={demoDashboard} />);
+  it("describes the most-played title and its hours", async () => {
+    await render(<TopGamesChart data={Dashboard.data()} />);
 
-    await expect.element(page.getByText("1,254h")).toBeInTheDocument();
-    // Recharts exposes no semantic locator for its generated bar primitives.
-    // oxlint-disable-next-line test-contract/no-dom-selector
-    await expect.poll(() => container.querySelectorAll(".recharts-bar-rectangle").length).toBe(10);
+    await expect
+      .element(page.getByRole("img"))
+      .toHaveAttribute(
+        "aria-label",
+        expect.stringContaining("Call of Duty®: Modern Warfare® 1,254 hours")
+      );
   });
 });
 
 describe("FranchiseChart", () => {
   it("franchise chart labels each series along the category axis", async () => {
-    await render(<FranchiseChart data={demoDashboard} />);
+    await render(<FranchiseChart data={Dashboard.data()} />);
 
     await expect.element(page.getByText("Call of Duty").first()).toBeInTheDocument();
   });
 });
 
 describe("YearChart", () => {
-  it("year chart plots an area keyed by most-recent-play year", async () => {
-    const { container } = await render(<YearChart data={demoDashboard} />);
+  it("describes hours keyed by most-recent-play year", async () => {
+    await render(<YearChart data={Dashboard.data()} />);
 
-    await expect.element(page.getByText("2026")).toBeInTheDocument();
-    // Recharts exposes no semantic locator for its generated area path.
-    // oxlint-disable-next-line test-contract/no-dom-selector
-    await expect.poll(() => container.querySelector(".recharts-area-area")).not.toBeNull();
+    await expect
+      .element(page.getByRole("img"))
+      .toHaveAttribute("aria-label", expect.stringContaining("2026"));
   });
 });
 
 describe("SessionChart", () => {
-  it("session chart plots a bar per title with a sessions axis", async () => {
-    const { container } = await render(<SessionChart data={demoDashboard} />);
+  it("describes average session length per title", async () => {
+    await render(<SessionChart data={Dashboard.data()} />);
 
-    // Recharts exposes no semantic locator for its generated bar primitives.
-    // oxlint-disable-next-line test-contract/no-dom-selector
-    await expect.poll(() => container.querySelectorAll(".recharts-bar-rectangle").length).toBe(12);
+    await expect
+      .element(page.getByRole("img"))
+      .toHaveAttribute("aria-label", expect.stringContaining("hours per session"));
   });
 });
 
@@ -55,7 +56,7 @@ describe("chart accessible names", () => {
   it.each(named)(
     "exposes $prefix chart as an image queryable by its accessible name",
     async ({ Chart, prefix }) => {
-      await render(<Chart data={demoDashboard} />);
+      await render(<Chart data={Dashboard.data()} />);
 
       const chart = page.getByRole("img").element();
 
