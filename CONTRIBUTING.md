@@ -107,6 +107,8 @@ Before summarising, verify each claim against added/removed lines in the diff. U
 
 Every issue defines its observable success condition, verification layer, dependencies, and required human input before implementation begins.
 
+Use the Agent task issue form for bounded implementation work intended to receive `ready-for-agent`. Use the bug and feature forms for initial reports and product discussion.
+
 - `ready-for-agent` — fully specified and executable without further human input
 - `ready-for-human` — awaiting judgement, access, direction, or manual validation
 - `blocked` — cannot proceed until a named dependency or condition is resolved
