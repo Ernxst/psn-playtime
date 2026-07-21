@@ -1,5 +1,4 @@
 import type {
-  AuthTokensResponse,
   ProfileFromUserNameResponse,
   TrophyTitle,
   UserPlayedGamesResponse,
@@ -9,20 +8,6 @@ import * as Psn from "@/test/factories/psn";
 
 export type PsnProfile = Psn.Profile;
 export type PsnPlayedTitle = Psn.PlayedTitle;
-
-type PsnTokenResponse = Psn.TokenResponse;
-
-export function createPsnAuthTokens(
-  overrides: Partial<AuthTokensResponse> = {}
-): AuthTokensResponse {
-  return Psn.authTokens(overrides);
-}
-
-export function createPsnTokenResponse(
-  overrides: Partial<PsnTokenResponse> = {}
-): PsnTokenResponse {
-  return Psn.tokenResponse(overrides);
-}
 
 export function psnProfile(overrides: Partial<PsnProfile> = {}): ProfileFromUserNameResponse {
   return Psn.profile(overrides);
