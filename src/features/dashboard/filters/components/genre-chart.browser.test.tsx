@@ -6,6 +6,21 @@ import * as Dashboard from "@/test/factories/dashboard";
 import { GenreChart } from "./charts";
 
 describe("GenreChart", () => {
+  it("shows a genre's formatted lifetime hours and share when the donut is hovered", async () => {
+    const slices = genreBreakdown(Dashboard.data());
+    await render(<GenreChart data={Dashboard.data()} />);
+
+    const donut = page.getByRole("img");
+    await donut.hover({ position: { x: 250, y: 150 } });
+
+    await expect
+      .element(donut.getByText(new RegExp(slices.map((slice) => slice.genre).join("|"))))
+      .toBeInTheDocument();
+    await expect
+      .element(donut.getByText(/^\d[\d,]* lifetime hours · \d+(?:\.\d+)?%$/))
+      .toBeInTheDocument();
+  });
+
   it("names the donut with each genre's share and hours as its text equivalent", async () => {
     const slices = genreBreakdown(Dashboard.data());
     const expected = `Genre share of lifetime hours: ${slices
