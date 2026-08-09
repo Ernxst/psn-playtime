@@ -35,7 +35,7 @@ function refreshError(
   if (validation) return validation;
   if (demo) return demo;
   if (mutation instanceof Error) return mutation.message;
-  if (mutation) return "Refresh failed. Try again.";
+  if (mutation) return "Unable to refresh the PlayStation archive. Try again.";
   return undefined;
 }
 
@@ -66,12 +66,14 @@ function useRefreshMutation(
   return useMutation({
     mutationFn: (token: string) => onRefresh(token),
     onSuccess: () => {
+      toast.success(
+        "PlayStation archive refreshed. Your updated archive is saved in this browser and ready to browse."
+      );
       state.setNpsso("");
       state.setValidationError(undefined);
       state.setDemoError(undefined);
       state.setOpenState(false);
       onComplete?.();
-      toast.success("PlayStation data refreshed.");
     },
   });
 }
@@ -84,7 +86,7 @@ interface SubmitRefreshOptions {
   mutate: (token: string) => void;
 }
 
-function submitRefresh(event: React.FormEvent, options: SubmitRefreshOptions) {
+function submitRefresh(event: React.FormEvent<HTMLFormElement>, options: SubmitRefreshOptions) {
   event.preventDefault();
   if (options.safeDemo) {
     options.setDemoError(undefined);
@@ -93,7 +95,9 @@ function submitRefresh(event: React.FormEvent, options: SubmitRefreshOptions) {
   }
   const token = normalizeNpsso(options.npsso);
   if (!token) {
-    options.setValidationError("Paste your npsso token first.");
+    options.setValidationError("Paste your npsso token to refresh this archive.");
+    const input = event.currentTarget.elements.namedItem("npsso");
+    if (input instanceof HTMLInputElement) input.focus();
     return;
   }
   options.setValidationError(undefined);
@@ -121,7 +125,7 @@ function useRefresh({ onRefresh, onComplete, safeDemo = false }: Props) {
     pending: refresh.isPending,
     error: refreshError(state.validationError, state.demoError, refresh.error),
     safeDemo,
-    submit: (event: React.FormEvent) =>
+    submit: (event: React.FormEvent<HTMLFormElement>) =>
       submitRefresh(event, {
         safeDemo,
         npsso: state.npsso,
@@ -129,10 +133,7 @@ function useRefresh({ onRefresh, onComplete, safeDemo = false }: Props) {
         setDemoError: state.setDemoError,
         mutate: refresh.mutate,
       }),
-    previewFailure: () =>
-      state.setDemoError(
-        "That demo credential was rejected. It remains visible so the attempt can be checked."
-      ),
+    previewFailure: () => state.setDemoError("That demo credential was rejected."),
   };
 }
 
@@ -140,8 +141,10 @@ function TokenHelp() {
   return (
     <div className="space-y-3 text-sm text-muted-foreground">
       <p>
-        Your npsso token is password-equivalent. It is sent once through the server to PlayStation,
-        never stored, and your refreshed dashboard remains in this browser.
+        Use a fresh npsso token for this PlayStation account. The token can sign in to your account,
+        so treat it like your password. It is sent once through the server to PlayStation to update
+        playtime and trophies, then discarded. The archive already saved in this browser remains
+        available if the refresh fails.
       </p>
       <p>
         <a
@@ -168,13 +171,14 @@ function TokenHelp() {
 }
 
 function LiveTokenField({ refresh }: { refresh: ReturnType<typeof useRefresh> }) {
-  const describedBy = refresh.error ? "refresh-error" : "refresh-guidance";
+  const describedBy = refresh.error ? "refresh-guidance refresh-error" : "refresh-guidance";
   return (
     <Field data-invalid={refresh.error ? "true" : undefined}>
       <FieldLabel>npsso token</FieldLabel>
       <FieldControl
         render={
           <Input
+            name="npsso"
             type="password"
             value={refresh.npsso}
             onChange={(event) => refresh.changeToken(event.target.value)}
@@ -188,7 +192,7 @@ function LiveTokenField({ refresh }: { refresh: ReturnType<typeof useRefresh> })
         }
       />
       <FieldDescription id="refresh-guidance">
-        The token is sent once for this refresh, then discarded. It is never stored.
+        The refreshed archive is saved in this browser; the token is not.
       </FieldDescription>
     </Field>
   );
@@ -205,12 +209,12 @@ function DemoTokenField({ refresh }: { refresh: ReturnType<typeof useRefresh> })
             readOnly
             disabled={refresh.pending}
             aria-invalid={refresh.error ? true : undefined}
-            aria-describedby={refresh.error ? "refresh-error" : "refresh-guidance"}
+            aria-describedby={refresh.error ? "refresh-guidance refresh-error" : "refresh-guidance"}
           />
         }
       />
       <FieldDescription id="refresh-guidance">
-        A fixed, non-secret fixture. This sheet never accepts or transmits a real token.
+        This non-secret demo credential stays in the browser. No PlayStation request is made.
       </FieldDescription>
     </Field>
   );
@@ -228,6 +232,7 @@ function RefreshStatus({ refresh }: { refresh: ReturnType<typeof useRefresh> }) 
   if (refresh.pending) {
     return (
       <output
+        aria-label="Refresh progress"
         ref={(element) => {
           element?.focus();
         }}
@@ -235,19 +240,21 @@ function RefreshStatus({ refresh }: { refresh: ReturnType<typeof useRefresh> }) 
         className="grid gap-2 border-l-[3px] border-primary bg-primary/7 p-3 text-[0.6875rem] text-muted-foreground outline-none"
       >
         <Progress value={68} aria-label="Refresh in progress" className="h-1.25 gap-0" />
-        <span>Refreshing playtime and trophies…</span>
+        <span className="font-medium text-foreground">Refreshing PlayStation archive…</span>
+        <span>Your saved archive stays available until the update completes.</span>
       </output>
     );
   }
   if (!refresh.error) return null;
   return (
-    <p
+    <div
       id="refresh-error"
-      className="border-l-[3px] border-destructive bg-destructive/8 px-3 py-2.5 text-[0.6875rem] leading-[1.45] text-destructive-foreground"
+      className="space-y-1 border-l-[3px] border-destructive bg-destructive/8 px-3 py-2.5 text-[0.6875rem] leading-[1.45] text-destructive-foreground"
       role="alert"
     >
-      {refresh.error}
-    </p>
+      <p className="font-medium">{refresh.error}</p>
+      <p>Your saved archive is unchanged. Try again when ready, or cancel to keep browsing.</p>
+    </div>
   );
 }
 
@@ -256,8 +263,8 @@ function RefreshForm({ refresh }: { refresh: ReturnType<typeof useRefresh> }) {
     <form id="refresh-dashboard" className="space-y-4" onSubmit={refresh.submit}>
       {refresh.safeDemo ? (
         <div className="border-l-[3px] border-primary bg-primary/7 p-4 text-sm leading-[1.6]">
-          No token or network request is used. The fixed credential below exists only to make
-          validation, failure retention, progress and success states evaluable.
+          This demo refresh uses saved local data only. It cannot accept or send a real PlayStation
+          token.
         </div>
       ) : (
         <TokenHelp />
@@ -287,7 +294,7 @@ function RefreshHeader({ description }: { description: string }) {
         Archive status
       </p>
       <SheetTitle className="font-[Fraunces_Variable] text-2xl font-semibold">
-        Refresh PlayStation data
+        Refresh PlayStation archive
       </SheetTitle>
       <SheetDescription>{description}</SheetDescription>
     </SheetHeader>
@@ -297,13 +304,16 @@ function RefreshHeader({ description }: { description: string }) {
 function RefreshSheet({ refresh }: { refresh: ReturnType<typeof useRefresh> }) {
   const isMobile = useMediaQuery("max-md");
   const description = refresh.safeDemo
-    ? "Safe signed-in prototype workflow using local demo data only."
-    : "Load your latest playtime and trophies without storing your token.";
+    ? "Update the saved demo archive from local data without contacting PlayStation."
+    : "Update the saved archive with the latest playtime and trophies from this PlayStation account.";
   return (
     <SheetPopup
       side={isMobile ? "bottom" : "right"}
       className="border-[var(--playloom-rule-strong)] bg-[var(--playloom-paper-raised)] text-foreground shadow-[-12px_0_30px_var(--playloom-shadow)] sm:max-w-md max-sm:max-h-[calc(100dvh-3rem)]"
-      closeProps={{ className: "min-h-11 min-w-11 rounded-none" }}
+      closeProps={{
+        className: "min-h-11 min-w-11 rounded-none",
+        disabled: refresh.pending,
+      }}
     >
       <RefreshHeader description={description} />
       <SheetPanel>
@@ -311,12 +321,7 @@ function RefreshSheet({ refresh }: { refresh: ReturnType<typeof useRefresh> }) {
       </SheetPanel>
       <SheetFooter className="border-[var(--playloom-rule-strong)] bg-[var(--playloom-paper-recessed)] px-6 py-4 max-sm:flex-col sm:justify-between">
         <SheetClose
-          render={
-            <Button
-              variant="ghost"
-              className="min-h-11 rounded-none text-foreground hover:bg-accent"
-            />
-          }
+          render={<Button variant="ghost" className="min-h-11 rounded-none" />}
           disabled={refresh.pending}
         >
           Cancel
@@ -327,7 +332,7 @@ function RefreshSheet({ refresh }: { refresh: ReturnType<typeof useRefresh> }) {
           loading={refresh.pending}
           className="min-h-11 rounded-none border-primary bg-primary text-primary-foreground hover:bg-accent-foreground"
         >
-          Refresh data
+          Refresh PlayStation archive
         </Button>
       </SheetFooter>
     </SheetPopup>
@@ -346,11 +351,12 @@ export function RefreshDashboard(props: Props) {
             className={
               props.shell ? "h-10 rounded-none px-2 active:scale-[0.96] sm:h-10" : undefined
             }
-            aria-label={props.shell ? "Refresh PlayStation data" : undefined}
+            aria-label={props.shell ? "Refresh PlayStation data for this archive" : undefined}
           />
         }
       >
-        <RefreshCw /> <span className={props.shell ? "max-sm:sr-only" : undefined}>Refresh</span>
+        <RefreshCw />
+        <span className={props.shell ? "max-sm:sr-only" : undefined}>Refresh archive</span>
       </SheetTrigger>
       <RefreshSheet refresh={refresh} />
     </Sheet>
