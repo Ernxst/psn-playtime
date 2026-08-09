@@ -427,7 +427,7 @@ function TimeframeControl({
   return (
     <fieldset className="min-w-0" aria-describedby="timeframe-semantics">
       <legend className="mb-1 text-xs font-bold">Last played</legend>
-      <div className="grid grid-cols-2 border border-[var(--playloom-rule-strong)] sm:grid-cols-4">
+      <div className="grid grid-cols-2 border border-[var(--playloom-rule-strong)] lg:grid-cols-4">
         {TIMEFRAMES.map((timeframe) => (
           <TimeframeOption
             key={timeframe.value}
@@ -513,7 +513,7 @@ function FilterTrigger({ count, ...props }: { count: number } & ButtonProps) {
   return (
     <Button
       variant="outline"
-      className="min-h-11 rounded-none border-[var(--playloom-rule-strong)] bg-transparent"
+      className="h-11 min-h-11 rounded-none border-[var(--playloom-rule-strong)] bg-transparent"
       {...props}
     >
       <SlidersHorizontal className="size-4" />
@@ -672,16 +672,19 @@ function GameSearch({
   set: Setter;
 }) {
   return (
-    <Input
-      ref={searchRef}
-      type="search"
-      aria-label="Search games by name"
-      placeholder="Search games…"
-      value={filters.search}
-      disabled={disabled}
-      onChange={(event) => set({ search: event.target.value })}
-      className="min-h-11 w-full rounded-none border-[var(--playloom-rule-strong)] bg-transparent"
-    />
+    <Label className="grid min-w-0 gap-1 text-xs font-bold">
+      Search games
+      <Input
+        ref={searchRef}
+        type="search"
+        aria-label="Search games by name"
+        placeholder="Search games…"
+        value={filters.search}
+        disabled={disabled}
+        onChange={(event) => set({ search: event.target.value })}
+        className="min-h-11 w-full rounded-none border-[var(--playloom-rule-strong)] bg-transparent"
+      />
+    </Label>
   );
 }
 
@@ -719,8 +722,7 @@ function FilterTaskSummary({
       />
       <Button
         variant="ghost"
-        size="sm"
-        className={`min-h-8 justify-self-start rounded-none px-2 sm:justify-self-end ${activeCount === 0 ? "invisible" : ""}`}
+        className={`min-h-11 justify-self-start rounded-none px-2 sm:justify-self-end ${activeCount === 0 ? "invisible" : ""}`}
         disabled={activeCount === 0}
         onClick={clear}
       >
@@ -728,6 +730,32 @@ function FilterTaskSummary({
         Clear all
       </Button>
     </div>
+  );
+}
+
+function FilterTaskActions(
+  props: Omit<FilterSheetProps, "onOpenStateChange"> & {
+    sheetOpen: boolean;
+    setSheetOpen: (open: boolean) => void;
+    clear: () => void;
+    result: number;
+  }
+) {
+  return (
+    <section aria-labelledby="filter-actions-title" className="min-w-0">
+      <p id="filter-actions-title" className="mb-1 text-xs font-bold">
+        More filters
+      </p>
+      <div className="grid gap-2 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center">
+        <FilterSheet {...props} onOpenStateChange={props.setSheetOpen} />
+        <FilterTaskSummary
+          result={props.result}
+          activeCount={props.activeCount}
+          sheetOpen={props.sheetOpen}
+          clear={props.clear}
+        />
+      </div>
+    </section>
   );
 }
 
@@ -741,14 +769,12 @@ export function FilterBar({ data, filters, onChange, resultCount, disabled = fal
   const clear = () => clearFilters(setFilters, searchRef);
   const result = resultCount ?? data.games.length;
   return (
-    <div className="grid w-full gap-3" data-filter-task="">
-      <div className="grid gap-3 lg:grid-cols-[minmax(14rem,1fr)_minmax(26rem,auto)] lg:items-start">
+    <div className="grid w-full gap-5" data-filter-task="">
+      <div className="grid gap-x-5 gap-y-4 md:grid-cols-2 md:items-start xl:grid-cols-4">
         <GameSearch searchRef={searchRef} filters={filters} disabled={disabled} set={set} />
         <TimeframeControl filters={filters} disabled={disabled} set={set} />
-      </div>
-      <div className="grid gap-3 sm:grid-cols-[minmax(14rem,1fr)_auto] sm:items-end">
         <ActivityControl filters={filters} disabled={disabled} set={set} />
-        <FilterSheet
+        <FilterTaskActions
           data={data}
           filters={filters}
           resultCount={resultCount}
@@ -756,15 +782,12 @@ export function FilterBar({ data, filters, onChange, resultCount, disabled = fal
           options={options}
           activeCount={activeCount}
           set={set}
-          onOpenStateChange={setSheetOpen}
+          sheetOpen={sheetOpen}
+          setSheetOpen={setSheetOpen}
+          clear={clear}
+          result={result}
         />
       </div>
-      <FilterTaskSummary
-        result={result}
-        activeCount={activeCount}
-        sheetOpen={sheetOpen}
-        clear={clear}
-      />
       {result === 0 && activeCount > 0 && <NoResultsRecovery onClear={clear} />}
     </div>
   );

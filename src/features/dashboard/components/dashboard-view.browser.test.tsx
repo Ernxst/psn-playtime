@@ -148,7 +148,7 @@ describe("DashboardView", () => {
     await expect.element(page.getByText("Lifetime-hours caveat.")).toBeVisible();
   });
 
-  it("stacks legible timeframe and search controls beside the sidebar at 768 by 900", async () => {
+  it("keeps compact filtering controls aligned beside the sidebar at 768 by 900", async () => {
     await page.viewport(768, 900);
     onTestFinished(() => page.viewport(1280, 800));
     const { element } = createHarness(
@@ -172,14 +172,14 @@ describe("DashboardView", () => {
     const twoYearsRect = twoYears?.getBoundingClientRect();
     const thisYearRect = thisYear?.getBoundingClientRect();
 
-    expect(allTimeRect?.width).toBeGreaterThanOrEqual(60);
-    expect(twelveMonthsRect?.width).toBeGreaterThanOrEqual(60);
-    expect(twoYearsRect?.width).toBeGreaterThanOrEqual(60);
-    expect(thisYearRect?.width).toBeGreaterThanOrEqual(60);
+    expect(allTimeRect?.width).toBeGreaterThanOrEqual(80);
+    expect(twelveMonthsRect?.width).toBeGreaterThanOrEqual(80);
+    expect(twoYearsRect?.width).toBeGreaterThanOrEqual(80);
+    expect(thisYearRect?.width).toBeGreaterThanOrEqual(80);
     expect(allTimeRect?.right).toBeLessThanOrEqual(twelveMonthsRect?.left ?? 0);
-    expect(twelveMonthsRect?.right).toBeLessThanOrEqual(twoYearsRect?.left ?? 0);
+    expect(twoYearsRect?.top).toBeGreaterThanOrEqual(allTimeRect?.bottom ?? 0);
     expect(twoYearsRect?.right).toBeLessThanOrEqual(thisYearRect?.left ?? 0);
-    expect(search.getBoundingClientRect().bottom).toBeLessThanOrEqual(allTimeRect?.top ?? 0);
+    expect(search.getBoundingClientRect().top).toBeCloseTo(allTimeRect?.top ?? 0, 0);
   });
 
   it("keeps disabled timeframe labels legible above their message at 1440 by 900", async () => {

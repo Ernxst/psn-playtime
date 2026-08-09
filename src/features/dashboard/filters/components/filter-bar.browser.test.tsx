@@ -33,6 +33,56 @@ const withTrophies = {
   games: demoDashboard.games.map((game, index) => (index === 0 ? { ...game, trophy } : game)),
 };
 
+function expectWideControlGeometry(
+  search: DOMRect | undefined,
+  timeframe: DOMRect | undefined,
+  activity: DOMRect | undefined,
+  actions: DOMRect | undefined
+) {
+  expect(search?.top).toBeCloseTo(timeframe?.top ?? 0, 0);
+  expect(timeframe?.top).toBeCloseTo(activity?.top ?? 0, 0);
+  expect(activity?.top).toBeCloseTo(actions?.top ?? 0, 0);
+}
+
+function expectCompactControlGeometry(
+  search: DOMRect | undefined,
+  timeframe: DOMRect | undefined,
+  activity: DOMRect | undefined,
+  actions: DOMRect | undefined
+) {
+  expect(search?.left).toBeCloseTo(activity?.left ?? 0, 0);
+  expect(timeframe?.left).toBeCloseTo(actions?.left ?? 0, 0);
+  expect(activity?.top).toBeGreaterThanOrEqual(timeframe?.bottom ?? 0);
+}
+
+function expectNarrowControlGeometry({
+  search,
+  timeframe,
+  activity,
+  actions,
+  task,
+}: Record<string, DOMRect | undefined>) {
+  for (const rect of [search, timeframe, activity, actions]) {
+    expect(rect?.left).toBeCloseTo(task?.left ?? 0, 0);
+    expect(rect?.right).toBeCloseTo(task?.right ?? 0, 0);
+  }
+
+  expect(timeframe?.top).toBeGreaterThanOrEqual(search?.bottom ?? 0);
+  expect(activity?.top).toBeGreaterThanOrEqual(timeframe?.bottom ?? 0);
+  expect(actions?.top).toBeGreaterThanOrEqual(activity?.bottom ?? 0);
+}
+
+function expectBounded(elements: Element[]) {
+  for (const element of elements) {
+    const rect = element.getBoundingClientRect();
+
+    expect(rect.left).toBeGreaterThanOrEqual(0);
+    expect(rect.right).toBeLessThanOrEqual(document.documentElement.clientWidth);
+  }
+
+  expect(document.documentElement.scrollWidth).toBe(document.documentElement.clientWidth);
+}
+
 describe("FilterBar", () => {
   it("opens a named filter sheet with persistent task controls", async () => {
     await render(<ControlledFilterBar />);
@@ -103,47 +153,132 @@ describe("FilterBar", () => {
 
   it.each([
     [1440, 900],
-    [1024, 900],
-    [768, 900],
-    [767, 900],
+    [1280, 900],
+    [1279, 900],
+    [1024, 768],
+    [768, 768],
+    [767, 768],
     [390, 844],
-  ])("aligns the filtering task without overlap at %i by %i", async (width, height) => {
+    [320, 844],
+  ])("keeps the filtering controls aligned at %i by %i", async (width, height) => {
     await page.viewport(width, height);
     onTestFinished(() => page.viewport(1280, 800));
     await render(<ControlledFilterBar />);
-
     const search = page.getByRole("searchbox", { name: "Search games by name" }).element();
-    const searchControl = search.closest<HTMLElement>('[data-slot="input-control"]');
-    const trigger = page.getByRole("button", { name: "Filter games" }).element();
+    const searchGroup = search.closest("label");
+    const searchSurface = search.closest<HTMLElement>('[data-slot="input-control"]');
     const timeframe = page.getByRole("radio", { name: "All time" }).element().closest("fieldset");
+    const timeframeSurface = page.getByRole("radio", { name: "All time" }).element()
+      .parentElement?.parentElement;
     const activity = page
       .getByRole("radio", { name: "All", exact: true })
       .element()
       .closest("fieldset");
-    const status = page.getByRole("status").element();
-    const searchRect = searchControl?.getBoundingClientRect();
-    const triggerRect = trigger.getBoundingClientRect();
+    const activitySurface = page.getByRole("radio", { name: "All", exact: true }).element()
+      .parentElement?.parentElement;
+    const trigger = page.getByRole("button", { name: "Filter games" }).element();
+    const actions = trigger.closest("section");
     const task = document.querySelector<HTMLElement>("[data-filter-task]");
-    const controls = [searchControl, timeframe, activity, trigger, status].filter(
-      (control): control is HTMLElement => control !== null
+    const groups = [searchGroup, timeframe, activity, actions].filter(
+      (group): group is HTMLElement => group !== null
     );
 
-    expect(searchControl).not.toBeNull();
-    expect(timeframe).not.toBeNull();
-    expect(activity).not.toBeNull();
+    expect(groups).toHaveLength(4);
     expect(task).not.toBeNull();
-    expect(searchRect?.height).toBeGreaterThanOrEqual(44);
-    expect(triggerRect.height).toBeGreaterThanOrEqual(44);
-    expect(controls).toHaveLength(5);
+    expect(searchSurface?.getBoundingClientRect().height).toBeGreaterThanOrEqual(44);
+    expect(timeframeSurface?.getBoundingClientRect().height).toBeGreaterThanOrEqual(44);
+    expect(activitySurface?.getBoundingClientRect().height).toBeGreaterThanOrEqual(44);
+    expect(trigger.getBoundingClientRect().height).toBeGreaterThanOrEqual(44);
 
-    for (const control of controls) {
-      const rect = control.getBoundingClientRect();
+    for (const group of groups) {
+      const rect = group.getBoundingClientRect();
 
       expect(rect.left).toBeGreaterThanOrEqual(0);
       expect(rect.right).toBeLessThanOrEqual(document.documentElement.clientWidth);
     }
+    const searchRect = searchGroup?.getBoundingClientRect();
+    const timeframeRect = timeframe?.getBoundingClientRect();
+    const activityRect = activity?.getBoundingClientRect();
+    const actionsRect = actions?.getBoundingClientRect();
+    const taskRect = task?.getBoundingClientRect();
+    if (width >= 1280)
+      expectWideControlGeometry(searchRect, timeframeRect, activityRect, actionsRect);
+    else if (width >= 768)
+      expectCompactControlGeometry(searchRect, timeframeRect, activityRect, actionsRect);
+    else
+      expectNarrowControlGeometry({
+        search: searchRect,
+        timeframe: timeframeRect,
+        activity: activityRect,
+        actions: actionsRect,
+        task: taskRect,
+      });
 
     expect(document.documentElement.scrollWidth).toBe(document.documentElement.clientWidth);
+  });
+
+  it.each([
+    [1024, 768],
+    [390, 844],
+  ])("keeps bounds through filtering state combinations at %i by %i", async (width, height) => {
+    await page.viewport(width, height);
+    onTestFinished(() => page.viewport(1280, 800));
+    const { rerender } = await render(<ControlledFilterBar />);
+
+    for (const name of ["All time", "12 months", "2 years", "This year"]) {
+      await page.getByRole("radio", { name }).click();
+      expectBounded([
+        page.getByRole("searchbox", { name: "Search games by name" }).element(),
+        page.getByRole("button", { name: "Filter games" }).element(),
+      ]);
+    }
+    for (const name of ["All", "Active", "Dormant"]) {
+      await page.getByRole("radio", { name, exact: true }).click();
+      expectBounded([page.getByRole("button", { name: "Filter games" }).element()]);
+    }
+
+    await page.getByRole("button", { name: "Filter games" }).click();
+    await page.getByRole("checkbox", { name: "Shooter" }).click();
+    await page.getByRole("button", { name: "Done filtering" }).click();
+
+    await expect.element(page.getByRole("button", { name: "Clear all" })).toBeVisible();
+
+    expectBounded([
+      page.getByRole("button", { name: "Filter games" }).element(),
+      page.getByRole("button", { name: "Clear all" }).element(),
+    ]);
+    await page.getByRole("button", { name: "Clear all" }).click();
+
+    await page.getByRole("button", { name: "Filter games" }).click();
+    const from = page.getByLabelText("Last played from");
+    await from.fill("2024-01");
+
+    await expect.element(page.getByText("Use YYYY-MM-DD.")).toBeVisible();
+
+    await from.fill("2024-02-30");
+
+    await expect.element(page.getByText("Enter a real calendar date in YYYY-MM-DD.")).toBeVisible();
+
+    await from.fill("2024-02-29");
+    expectBounded([page.getByRole("dialog", { name: "Filter games" }).element()]);
+    await page.getByRole("button", { name: "Done filtering" }).click();
+
+    await rerender(
+      <FilterBar
+        data={demoDashboard}
+        filters={{ ...defaultFilters, search: "missing" }}
+        onChange={() => {}}
+        resultCount={0}
+      />
+    );
+
+    await expect
+      .element(
+        page.getByText("No games match these filters. Clear them to see your full library again.")
+      )
+      .toBeVisible();
+
+    expectBounded([page.getByRole("button", { name: "Clear filters" }).element()]);
   });
 
   it("reports search and checkbox changes through the controlled filter model", async () => {
