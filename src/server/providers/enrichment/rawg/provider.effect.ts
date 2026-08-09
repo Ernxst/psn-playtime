@@ -75,6 +75,9 @@ const GAMES_PATH = "/games";
 /** Max RAWG lookups in flight at once. */
 const RAWG_LOOKUP_CONCURRENCY = 8;
 
+/** Bound one complete RAWG response, including its JSON decode. */
+const RAWG_REQUEST_TIMEOUT = Duration.seconds(2);
+
 /**
  * Bound on distinct normalised titles the search `Cache` retains. RAWG metadata
  * is static so entries never go stale, but a `Cache` requires a capacity; this
@@ -194,6 +197,11 @@ const searchGame = (
       playtime: first.playtime,
     };
   }).pipe(
+    Effect.timeoutOrElse({
+      duration: RAWG_REQUEST_TIMEOUT,
+      orElse: () =>
+        Effect.fail(new UpstreamUnavailableError({ provider: "rawg", reason: "upstream_error" })),
+    }),
     Effect.catchTags({
       HttpClientError: classifyRawgFailure,
       SchemaError: classifyRawgFailure,
@@ -218,6 +226,11 @@ const fetchSeriesNames = (
     const body = yield* HttpClientResponse.schemaBodyJson(RawgSeries)(response);
     return body.results.map((g) => g.name);
   }).pipe(
+    Effect.timeoutOrElse({
+      duration: RAWG_REQUEST_TIMEOUT,
+      orElse: () =>
+        Effect.fail(new UpstreamUnavailableError({ provider: "rawg", reason: "upstream_error" })),
+    }),
     Effect.catchTags({
       HttpClientError: classifyRawgFailure,
       SchemaError: classifyRawgFailure,

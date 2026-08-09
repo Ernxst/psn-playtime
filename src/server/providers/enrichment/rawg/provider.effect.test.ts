@@ -480,6 +480,44 @@ describe("process-lived cache across a shared runtime", () => {
 });
 
 describe("prefetch boundary outcomes", () => {
+  it("keeps settled metadata while counting a never-settling RAWG search as failed", async () => {
+    useSearch(({ request }) =>
+      new URL(request.url).searchParams.get("search") === "Never Settles"
+        ? new Promise<never>(() => undefined)
+        : searchResult({ genres: ["Action"] })
+    );
+
+    const result = await runKeyed(prefetchGameMetadata(["Settles", "Never Settles"]));
+
+    expect(result).toStrictEqual({
+      availability: "available",
+      values: new Map([["Settles", { matched: true, metadata: { genre: "Action-Adventure" } }]]),
+      failures: 1,
+    });
+  }, 3_000);
+
+  it("keeps settled franchises while counting a never-settling RAWG series response as failed", async () => {
+    useSearch(({ request }) => {
+      const name = new URL(request.url).searchParams.get("search");
+      return HttpResponse.json(
+        rawgSearch([rawgGame({ id: name === "Never Settles" ? 2 : 1, name: name ?? "" })])
+      );
+    });
+    useSeries(({ request }) =>
+      new URL(request.url).pathname.endsWith("/2/game-series")
+        ? new Promise<never>(() => undefined)
+        : HttpResponse.json(rawgSeries(["Forza Horizon 4"]))
+    );
+
+    const result = await runKeyed(prefetchFranchises(["Forza Horizon 5", "Never Settles"]));
+
+    expect(result).toStrictEqual({
+      availability: "available",
+      values: new Map([["Forza Horizon 5", { matched: true, franchise: "Forza Horizon" }]]),
+      failures: 1,
+    });
+  }, 3_000);
+
   it("preserves an upstream failure as batch evidence", async () => {
     useSearch(() => new HttpResponse("nope", { status: 503 }));
 
