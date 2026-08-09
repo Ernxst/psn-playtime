@@ -1,18 +1,8 @@
-import { Download, Search, Sparkles, SquareArrowOutUpRight } from "lucide-react";
+import { Download, Search, SquareArrowOutUpRight } from "lucide-react";
 import type { ReactNode } from "react";
-import { useMemo, useState } from "react";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionHeader,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
+import { useId, useMemo, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Textarea } from "@/components/ui/textarea";
 import type { TransactionRow } from "@/domain/transactions";
 import { CopyButton, useCopied } from "@/features/dashboard/components/copy-button";
 import { availableVariants, buildPrompt } from "@/features/dashboard/prompt/llm-prompt";
@@ -40,25 +30,20 @@ function filterVariants(
 ): readonly PromptVariant[] {
   const q = query.trim().toLowerCase();
   if (q === "") return variants;
-  return variants.filter((v) => v.question.toLowerCase().includes(q));
+  return variants.filter((variant) => variant.question.toLowerCase().includes(q));
 }
 
-/** Group `variants` into their display categories in order, dropping empty groups. */
+/** Group `variants` into their display categories in catalogue order, dropping empty groups. */
 function groupVariants(variants: readonly PromptVariant[]): VariantGroup[] {
   const groups: VariantGroup[] = [];
   for (const group of PROMPT_GROUPS) {
-    const questions = variants.filter((v) => v.group === group);
+    const questions = variants.filter((variant) => variant.group === group);
     if (questions.length > 0) groups.push({ group, questions });
   }
   return groups;
 }
 
-/** The display group that holds `id`, falling back to the first group. */
-function groupOf(variants: readonly PromptVariant[], id: string): PromptGroup {
-  return variants.find((v) => v.id === id)?.group ?? PROMPT_GROUPS[0];
-}
-
-/** A selectable picker row: a lead question or the pinned menu-mode entry. */
+/** A selectable lead question or the pinned general-analysis option. */
 function PickerButton({
   selected,
   onClick,
@@ -75,8 +60,8 @@ function PickerButton({
       aria-pressed={selected}
       onClick={onClick}
       className={cn(
-        "h-auto w-full justify-start whitespace-normal py-1.5 text-left font-normal",
-        selected && "bg-accent text-accent-foreground"
+        "h-auto min-h-11 w-full justify-start whitespace-normal rounded-none border-0 border-l-2 border-l-transparent bg-transparent px-3 py-2.5 text-left font-normal text-foreground/75 shadow-none transition-colors before:hidden hover:bg-primary/6 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring focus-visible:ring-0 sm:min-h-10",
+        selected && "border-l-primary bg-primary/8 font-medium text-foreground"
       )}
     >
       {children}
@@ -84,152 +69,137 @@ function PickerButton({
   );
 }
 
-/** One collapsible category section: its name and count plus its question buttons. */
-function QuestionSection({
+/** One visible group in the catalogue. The open list keeps discovery direct rather than concealed. */
+function QuestionGroup({
   group,
   questions,
   selectedId,
   onSelect,
 }: VariantGroup & { selectedId: string; onSelect: (id: string) => void }) {
   return (
-    <AccordionItem value={group} className="border-b-0">
-      <AccordionHeader>
-        <AccordionTrigger className="px-1">
-          <span className="flex items-baseline gap-2">
-            <span className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-              {group}
-            </span>
-            <span className="text-muted-foreground text-xs tabular-nums">{questions.length}</span>
-          </span>
-        </AccordionTrigger>
-      </AccordionHeader>
-      <AccordionContent className="space-y-1 pb-1">
-        {questions.map((v) => (
-          <PickerButton key={v.id} selected={v.id === selectedId} onClick={() => onSelect(v.id)}>
-            {v.question}
+    <section aria-label={group} className="border-t border-[var(--playloom-rule)] py-3">
+      <div className="flex items-baseline gap-2 px-1">
+        <h4 className="font-bold text-[0.6875rem] text-muted-foreground uppercase tracking-[0.14em]">
+          {group}
+        </h4>
+        <span className="text-muted-foreground text-xs tabular-nums">{questions.length}</span>
+      </div>
+      <div className="mt-2 space-y-px">
+        {questions.map((variant) => (
+          <PickerButton
+            key={variant.id}
+            selected={variant.id === selectedId}
+            onClick={() => onSelect(variant.id)}
+          >
+            {variant.question}
           </PickerButton>
         ))}
-      </AccordionContent>
-    </AccordionItem>
+      </div>
+    </section>
   );
 }
 
-interface QuestionSectionsProps {
-  groups: VariantGroup[];
-  query: string;
-  selectedId: string;
-  onSelect: (id: string) => void;
-  value: string[];
-  onValueChange: (value: string[]) => void;
-}
-
-/** The empty state, or the controlled multi-open accordion of category sections. */
-function QuestionSections({
+/** The explicit no-result state or the full, grouped question catalogue. */
+function QuestionGroups({
   groups,
   query,
   selectedId,
   onSelect,
-  value,
-  onValueChange,
-}: QuestionSectionsProps) {
+}: {
+  groups: VariantGroup[];
+  query: string;
+  selectedId: string;
+  onSelect: (id: string) => void;
+}) {
   if (groups.length === 0) {
     return (
-      <p className="px-1 py-6 text-center text-sm text-muted-foreground">
+      <output className="block w-full border-t border-[var(--playloom-rule)] px-1 py-8 text-pretty text-sm text-muted-foreground">
         No questions match “{query}”.
-      </p>
+      </output>
     );
   }
-  return (
-    <Accordion multiple value={value} onValueChange={onValueChange}>
-      {groups.map((g) => (
-        <QuestionSection key={g.group} {...g} selectedId={selectedId} onSelect={onSelect} />
-      ))}
-    </Accordion>
-  );
+
+  return groups.map((group) => (
+    <QuestionGroup key={group.group} {...group} selectedId={selectedId} onSelect={onSelect} />
+  ));
 }
 
-/** The search box for narrowing the question list. */
-function QuestionSearch({ query, onQuery }: { query: string; onQuery: (q: string) => void }) {
+/** The labelled search control for narrowing the question catalogue. */
+function QuestionSearch({ query, onQuery }: { query: string; onQuery: (query: string) => void }) {
+  const id = useId();
+
   return (
-    <div className="relative">
-      <Search className="pointer-events-none absolute start-2.5 top-1/2 z-10 size-4 -translate-y-1/2 text-muted-foreground" />
-      <Input
-        type="search"
-        value={query}
-        onChange={(e) => onQuery(e.currentTarget.value)}
-        aria-label="Search questions"
-        placeholder="Search questions…"
-        className="[&_[data-slot=input]]:ps-8"
-      />
+    <div className="grid gap-2">
+      <label
+        htmlFor={id}
+        className="font-bold text-[0.6875rem] text-muted-foreground uppercase tracking-[0.14em]"
+      >
+        Search questions
+      </label>
+      <div className="relative">
+        <Search
+          aria-hidden="true"
+          className="pointer-events-none absolute start-2.5 top-1/2 z-10 size-4 -translate-y-1/2 text-muted-foreground"
+        />
+        <Input
+          id={id}
+          type="search"
+          value={query}
+          onChange={(event) => onQuery(event.currentTarget.value)}
+          placeholder="Filter by topic or phrase…"
+          className="rounded-none border-x-0 border-t-0 border-b-[var(--playloom-rule-strong)] bg-transparent shadow-none before:hidden has-focus-visible:border-primary has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-ring has-focus-visible:ring-0 [&_[data-slot=input]]:ps-8"
+        />
+      </div>
     </div>
   );
 }
 
-interface QuestionPickerProps {
-  variants: readonly PromptVariant[];
-  selectedId: string;
-  menuMode: boolean;
-  onSelect: (id: string) => void;
-  onMenuMode: () => void;
-}
-
-/**
- * Searchable picker with a pinned no-lead menu entry over collapsible category
- * sections. The accordion's open value is DERIVED each render (no effect): while
- * searching, every group with a match is expanded so results are never hidden;
- * otherwise it is the user-toggled set, which defaults to the selected question's
- * group. `onValueChange` records toggles only when not searching, so clearing the
- * query reverts to that default. Nothing here reads an external system, so there
- * is nothing for `useSyncExternalStore` or a `useEffect` to do.
- */
 function QuestionPicker({
   variants,
   selectedId,
   menuMode,
   onSelect,
   onMenuMode,
-}: QuestionPickerProps) {
+}: {
+  variants: readonly PromptVariant[];
+  selectedId: string;
+  menuMode: boolean;
+  onSelect: (id: string) => void;
+  onMenuMode: () => void;
+}) {
   const [query, setQuery] = useState("");
-  const [openGroups, setOpenGroups] = useState<string[]>(() => [groupOf(variants, selectedId)]);
   const groups = useMemo(() => groupVariants(filterVariants(variants, query)), [variants, query]);
-  const searching = query.trim() !== "";
-  const value = useMemo(
-    () => (searching ? groups.map((g) => g.group) : openGroups),
-    [searching, groups, openGroups]
-  );
 
   return (
-    <>
+    <div className="grid gap-4">
       <QuestionSearch query={query} onQuery={setQuery} />
-      <ScrollArea className="h-56 rounded-lg border">
-        <fieldset className="space-y-1 p-2">
-          <legend className="sr-only">Lead question</legend>
-          <PickerButton selected={menuMode} onClick={onMenuMode}>
-            Let the AI ask me (no specific question)
-          </PickerButton>
-          <QuestionSections
+      <fieldset>
+        <legend className="sr-only">Lead question</legend>
+        <div className="max-h-[28rem] overflow-y-auto overscroll-y-contain border-b border-[var(--playloom-rule)]">
+          <div className="border-t border-[var(--playloom-rule)]">
+            <PickerButton selected={menuMode} onClick={onMenuMode}>
+              Start with a general analysis
+            </PickerButton>
+          </div>
+          <QuestionGroups
             groups={groups}
             query={query}
             selectedId={menuMode ? "" : selectedId}
             onSelect={onSelect}
-            value={value}
-            onValueChange={(next) => {
-              if (!searching) setOpenGroups(next);
-            }}
           />
-        </fieldset>
-      </ScrollArea>
-    </>
+        </div>
+      </fieldset>
+    </div>
   );
 }
 
-/** The line under the picker describing what the current selection will produce. */
+/** The line under the catalogue describing what the current selection will produce. */
 function PromptHint({ menuMode, question }: { menuMode: boolean; question: string }) {
   return (
-    <p className="text-sm text-muted-foreground">
+    <p className="text-pretty text-sm leading-6 text-muted-foreground">
       {menuMode
         ? "The AI introduces what it can tell you, then presents a grouped menu and asks what to explore first."
-        : `Leads with “${question}”. The rest are added as paste-able follow-ups.`}
+        : `Leads with “${question}”. The rest stay in the document as ready-to-paste follow-ups.`}
     </p>
   );
 }
@@ -252,42 +222,24 @@ function savePromptToFile(prompt: string, onlineId: string) {
 
 interface OpenInChatButtonProps {
   prompt: string;
-  /** Idle button text, e.g. "Open in ChatGPT". */
   label: string;
-  /** Chat site opened in a new tab once the copy succeeds. */
   url: string;
-  /** Site name woven into the inline failure/blocked messages, e.g. "ChatGPT". */
   site: string;
 }
 
-/**
- * Copy `prompt` to the clipboard, then open a chat site in a new tab so the user
- * can paste it. The prompt embeds the whole library (routinely ~35k chars), far
- * past any URL length limit, so a `?q=` deep-link would truncate. Copy+paste is
- * the only mechanism that works at any size.
- *
- * The copy is awaited FIRST and the tab is only opened once it definitely
- * succeeds: navigating implies the clipboard holds the prompt. We accept the
- * small popup-block risk of writing before opening because the alternative
- * (open first) sends focus to the new tab, where the user can never see a
- * success or error message on the page they left. The clipboard write can reject
- * (Safari, denied permission, non-secure context) or be missing entirely; on any
- * failure we do NOT navigate and surface an inline message on the current page so
- * the user can fall back to the Copy prompt button. If the write succeeds but the
- * popup is blocked (`window.open` returns null) the user is still here, so we tell
- * them the prompt is copied and to open the site manually.
- */
+/** Copy the complete prompt before opening a chat destination, surfacing both failure modes inline. */
 function OpenInChatButton({ prompt, label, url, site }: OpenInChatButtonProps) {
   const [flashed, flash] = useCopied();
   const [status, setStatus] = useState<"blocked" | "error">("error");
 
   const openChat = () => {
-    // oxlint-disable-next-line typescript/no-unnecessary-condition -- feature detection protects older and non-secure browser contexts despite the DOM type
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- feature detection protects non-secure browser contexts despite the DOM type
     if (!navigator.clipboard?.writeText) {
       setStatus("error");
       flash();
       return;
     }
+
     navigator.clipboard
       .writeText(prompt)
       .then(() => {
@@ -309,32 +261,43 @@ function OpenInChatButton({ prompt, label, url, site }: OpenInChatButtonProps) {
       : `Couldn't copy, click Copy prompt then open ${site}.`;
 
   return (
-    <Button variant="outline" onClick={openChat} className="flex-1 gap-2 sm:flex-none">
-      <SquareArrowOutUpRight /> {text}
+    <Button
+      variant="link"
+      onClick={openChat}
+      className="h-auto min-h-11 flex-1 justify-start whitespace-normal rounded-none px-0 text-left text-primary shadow-none before:hidden focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:ring-0 sm:min-h-10 sm:flex-none"
+    >
+      <SquareArrowOutUpRight aria-hidden="true" /> {text}
     </Button>
   );
 }
 
-/** A muted, one-line caption describing the action group it sits under. */
 function ActionCaption({ children }: { children: string }) {
-  return <p className="text-muted-foreground text-xs">{children}</p>;
+  return <p className="text-pretty text-muted-foreground text-xs leading-5">{children}</p>;
 }
 
-/**
- * The copy, open-in-chat, and download action groups. Each group owns its caption;
- * `gap-4` between the groups keeps it obvious which caption belongs to which action
- * in both layouts. The two Open buttons wrap together on mobile and stack in the
- * column from `sm` up.
- */
+function ActionRow({ children, caption }: { children: ReactNode; caption: string }) {
+  return (
+    <div className="grid gap-2 border-t border-[var(--playloom-rule)] py-4 first:border-t-0 sm:grid-cols-[11rem_minmax(0,1fr)] sm:items-center sm:gap-4">
+      {children}
+      <ActionCaption>{caption}</ActionCaption>
+    </div>
+  );
+}
+
+/** The retained actions are a utility list with one primary action, not equal buttons. */
 function PromptActions({ prompt, onlineId }: { prompt: string; onlineId: string }) {
   return (
-    <div className="flex w-full flex-col gap-4 sm:w-auto">
-      <div className="flex flex-col gap-1">
-        <CopyButton value={prompt} label="Copy prompt" />
-        <ActionCaption>Copy the full prompt to paste into any AI chat.</ActionCaption>
-      </div>
-      <div className="flex flex-col gap-1">
-        <div className="flex flex-wrap gap-2 sm:flex-col">
+    <fieldset className="min-w-0 border-y border-[var(--playloom-rule-strong)]">
+      <legend className="sr-only">Prompt actions</legend>
+      <ActionRow caption="Copy the full prompt to paste into any AI chat.">
+        <CopyButton
+          value={prompt}
+          label="Copy prompt"
+          className="min-h-11 rounded-none border-primary bg-primary text-primary-foreground before:rounded-none hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:ring-0 sm:min-h-10"
+        />
+      </ActionRow>
+      <ActionRow caption="Opens the chat with your prompt copied. Just paste it in.">
+        <div className="flex flex-wrap gap-x-4">
           <OpenInChatButton
             prompt={prompt}
             label="Open in ChatGPT"
@@ -348,96 +311,212 @@ function PromptActions({ prompt, onlineId }: { prompt: string; onlineId: string 
             site="Claude"
           />
         </div>
-        <ActionCaption>Opens the chat with your prompt copied. Just paste it in.</ActionCaption>
-      </div>
-      <div className="flex flex-col gap-1">
+      </ActionRow>
+      <ActionRow caption="Attach it in ChatGPT or Claude, best for very large prompts, or keep a copy.">
         <Button
-          variant="outline"
+          variant="link"
           onClick={() => savePromptToFile(prompt, onlineId)}
-          className="gap-2"
+          className="h-auto min-h-11 justify-start rounded-none px-0 text-primary shadow-none before:hidden focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:ring-0 sm:min-h-10"
         >
-          <Download /> Download (.md)
+          <Download aria-hidden="true" /> Download (.md)
         </Button>
-        <ActionCaption>
-          Attach it in ChatGPT or Claude, best for very large prompts, or keep a copy.
-        </ActionCaption>
+      </ActionRow>
+    </fieldset>
+  );
+}
+
+/** The generated prompt rendered as a readable, keyboard-scrollable document. */
+/* oxlint-disable jsx-a11y/no-noninteractive-tabindex -- the overflowed prompt document must be keyboard-scrollable */
+function PromptDocument({ prompt, pending }: { prompt: string; pending: boolean }) {
+  return (
+    <article
+      aria-label="Prompt preview"
+      aria-busy={pending || undefined}
+      tabIndex={0}
+      className="max-h-[32rem] overflow-auto border-y border-[var(--playloom-rule)] bg-[var(--playloom-paper-raised)] px-4 py-5 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring sm:px-5"
+    >
+      <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-5 text-foreground/85">
+        {prompt}
+      </pre>
+    </article>
+  );
+}
+/* oxlint-enable jsx-a11y/no-noninteractive-tabindex */
+
+function PromptPreviewHeader({ pending }: { pending: boolean }) {
+  return (
+    <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
+      <div>
+        <p className="font-bold text-[0.6875rem] text-primary uppercase tracking-[0.14em]">
+          Generated document
+        </p>
+        <h3 id="prompt-document-heading" className="mt-1 text-xl font-semibold text-balance">
+          Prompt preview
+        </h3>
+      </div>
+      <output
+        aria-live="polite"
+        className="font-bold text-[0.6875rem] text-muted-foreground uppercase tracking-[0.14em]"
+      >
+        {pending ? "Generating prompt…" : "Prompt ready"}
+      </output>
+    </header>
+  );
+}
+
+function PromptPreview({
+  prompt,
+  onlineId,
+  pending,
+}: {
+  prompt: string;
+  onlineId: string;
+  pending: boolean;
+}) {
+  return (
+    <section
+      aria-labelledby="prompt-document-heading"
+      className="min-w-0 border-t border-[var(--playloom-rule-strong)] py-6 lg:border-t-0 lg:border-l lg:py-8 lg:pl-8"
+    >
+      <PromptPreviewHeader pending={pending} />
+      <p className="mb-5 max-w-[58ch] text-pretty text-sm leading-6 text-muted-foreground">
+        This document is read-only. Copy it into an AI chat, open a supported chat with it copied,
+        or save the Markdown file.
+      </p>
+      <PromptDocument prompt={prompt} pending={pending} />
+      <div className="mt-5">
+        <PromptActions prompt={prompt} onlineId={onlineId} />
+      </div>
+    </section>
+  );
+}
+
+function QuestionCatalogueHeader() {
+  return (
+    <header className="mb-6">
+      <p className="font-bold text-[0.6875rem] text-primary uppercase tracking-[0.14em]">
+        Question catalogue
+      </p>
+      <h3 id="question-catalogue-heading" className="mt-1 text-xl font-semibold text-balance">
+        Choose a question
+      </h3>
+      <p className="mt-3 max-w-[48ch] text-pretty text-sm leading-6 text-muted-foreground">
+        Search the full catalogue, then choose the question that should lead your analysis.
+      </p>
+    </header>
+  );
+}
+
+function QuestionCatalogue({
+  variants,
+  selectedId,
+  menuMode,
+  question,
+  onSelect,
+  onMenuMode,
+}: {
+  variants: readonly PromptVariant[];
+  selectedId: string;
+  menuMode: boolean;
+  question: string;
+  onSelect: (id: string) => void;
+  onMenuMode: () => void;
+}) {
+  return (
+    <section aria-labelledby="question-catalogue-heading" className="min-w-0 py-6 lg:py-8 lg:pr-8">
+      <QuestionCatalogueHeader />
+      <QuestionPicker
+        variants={variants}
+        selectedId={selectedId}
+        menuMode={menuMode}
+        onSelect={onSelect}
+        onMenuMode={onMenuMode}
+      />
+      <div className="mt-5 border-t border-[var(--playloom-rule)] pt-4">
+        <PromptHint menuMode={menuMode} question={question} />
+      </div>
+    </section>
+  );
+}
+
+function PromptWorkspace({
+  variants,
+  selectedId,
+  menuMode,
+  question,
+  onSelect,
+  onMenuMode,
+  prompt,
+  onlineId,
+  pending,
+}: {
+  variants: readonly PromptVariant[];
+  selectedId: string;
+  menuMode: boolean;
+  question: string;
+  onSelect: (id: string) => void;
+  onMenuMode: () => void;
+  prompt: string;
+  onlineId: string;
+  pending: boolean;
+}) {
+  return (
+    <div className="border-y border-[var(--playloom-rule-strong)]">
+      <div className="grid min-w-0 lg:grid-cols-[minmax(17rem,0.85fr)_minmax(0,1.15fr)]">
+        <QuestionCatalogue
+          variants={variants}
+          selectedId={selectedId}
+          menuMode={menuMode}
+          question={question}
+          onSelect={onSelect}
+          onMenuMode={onMenuMode}
+        />
+        <PromptPreview prompt={prompt} onlineId={onlineId} pending={pending} />
       </div>
     </div>
   );
 }
 
-/** The read-only prompt preview beside its copy, download, and open-in-chat actions. */
-function PromptPreview({ prompt, onlineId }: { prompt: string; onlineId: string }) {
-  // Stacks on mobile (textarea over the action groups) so neither is squashed, and
-  // sits side-by-side (textarea beside the button column) from `sm` up.
-  return (
-    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-4">
-      <Textarea
-        readOnly
-        rows={8}
-        value={prompt}
-        aria-label="Prompt preview"
-        className="w-full font-mono text-xs"
-      />
-      <PromptActions prompt={prompt} onlineId={onlineId} />
-    </div>
-  );
-}
-
-/**
- * Lets the user pick a lead analysis question from the full grouped set — or the
- * no-lead "menu" option — and copy one ready-to-paste LLM prompt. The prompt
- * embeds a compact summary of their library once, leads with the chosen question
- * (or asks the AI to present a menu), and lists the rest as paste-able follow-ups.
- * A search box keeps the large question set usable.
- */
-interface PromptCardProps {
+function PromptCard({
+  data,
+  transactions,
+}: {
   data: DashboardData;
   transactions: readonly TransactionRow[] | undefined;
-}
-
-function PromptCard({ data, transactions }: PromptCardProps) {
+}) {
   const [selectedId, setSelectedId] = useState<string>(PROMPT_VARIANTS[0].id);
   const [menuMode, setMenuMode] = useState(false);
-
+  const [isPending, startTransition] = useTransition();
   const variants = availableVariants(hasTransactionHistory(transactions));
-  const variant = variants.find((v) => v.id === selectedId) ?? PROMPT_VARIANTS[0];
+  const variant = variants.find((candidate) => candidate.id === selectedId) ?? PROMPT_VARIANTS[0];
   const prompt = useMemo(
     () => buildPrompt(data, menuMode ? MENU_MODE : variant, transactions),
     [data, menuMode, transactions, variant]
   );
 
   const selectQuestion = (id: string) => {
-    setSelectedId(id);
-    setMenuMode(false);
+    startTransition(() => {
+      setSelectedId(id);
+      setMenuMode(false);
+    });
+  };
+
+  const selectMenuMode = () => {
+    startTransition(() => setMenuMode(true));
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Sparkles className="size-4" /> Ask an AI about your playtime
-        </CardTitle>
-        <CardDescription>
-          Pick a lead question and copy one ready-to-paste prompt for ChatGPT or Claude. It bundles
-          a compact summary of your library once, then lists the other questions as follow-ups you
-          can paste straight into the chat.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <QuestionPicker
-          variants={variants}
-          selectedId={selectedId}
-          menuMode={menuMode}
-          onSelect={selectQuestion}
-          onMenuMode={() => setMenuMode(true)}
-        />
-
-        <PromptHint menuMode={menuMode} question={variant.question} />
-
-        <PromptPreview prompt={prompt} onlineId={data.profile.onlineId} />
-      </CardContent>
-    </Card>
+    <PromptWorkspace
+      variants={variants}
+      selectedId={selectedId}
+      menuMode={menuMode}
+      question={variant.question}
+      onSelect={selectQuestion}
+      onMenuMode={selectMenuMode}
+      prompt={prompt}
+      onlineId={data.profile.onlineId}
+      pending={isPending}
+    />
   );
 }
 

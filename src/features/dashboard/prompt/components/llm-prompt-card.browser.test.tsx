@@ -42,25 +42,24 @@ function seedTransaction() {
   onTestFinished(() => testTransactionStore.clear(demoDashboard.profile.accountId));
 }
 
-/** Expand a collapsed category section by clicking its accordion trigger. */
-async function expandSection(name: RegExp) {
-  await page.getByRole("button", { name }).click();
-}
-
 describe("LlmPromptCard", () => {
   it("renders the searchable question picker and a prompt preview", async () => {
     await render(<LlmPromptCard data={demoDashboard} />);
 
-    await expect.element(page.getByText("Ask an AI about your playtime")).toBeVisible();
+    await expect.element(page.getByRole("region", { name: "Choose a question" })).toBeVisible();
     await expect.element(page.getByRole("searchbox", { name: "Search questions" })).toBeVisible();
     await expect.element(page.getByRole("button", { name: LEAD_QUESTION })).toBeVisible();
-    await expect.element(page.getByRole("textbox", { name: "Prompt preview" })).toBeVisible();
+    await expect.element(page.getByRole("article", { name: "Prompt preview" })).toBeVisible();
+    await expect.element(page.getByText("Prompt ready")).toBeVisible();
+    await expect
+      .element(page.getByRole("textbox", { name: "Prompt preview" }))
+      .not.toBeInTheDocument();
   });
 
   it("renders all four prompt actions alongside the preview without squashing them", async () => {
     await render(<LlmPromptCard data={demoDashboard} />);
 
-    await expect.element(page.getByRole("textbox", { name: "Prompt preview" })).toBeVisible();
+    await expect.element(page.getByRole("article", { name: "Prompt preview" })).toBeVisible();
     await expect.element(page.getByRole("button", { name: "Copy prompt" })).toBeVisible();
     await expect.element(page.getByRole("button", { name: "Download (.md)" })).toBeVisible();
     await expect.element(page.getByRole("button", { name: "Open in ChatGPT" })).toBeVisible();
@@ -80,6 +79,7 @@ describe("LlmPromptCard", () => {
     expect(writeText).toHaveBeenCalledExactlyOnceWith(
       expect.stringContaining("FOLLOW-UP QUESTIONS")
     );
+    await expect.element(page.getByRole("button", { name: "Copied" })).toBeVisible();
   });
 
   it("copies the prompt first, then opens ChatGPT in a new tab", async () => {
@@ -217,7 +217,6 @@ describe("LlmPromptCard", () => {
 
     await render(<LlmPromptCard data={demoDashboard} />);
 
-    await expandSection(/^More/);
     await page.getByRole("button", { name: SIGNATURE_QUESTION }).click();
     await page.getByRole("button", { name: "Copy prompt" }).click();
 
@@ -226,22 +225,16 @@ describe("LlmPromptCard", () => {
     );
   });
 
-  it("keeps a collapsed group's questions out of the document until expanded", async () => {
+  it("keeps every catalogue group discoverable without a collapsible form layout", async () => {
     await render(<LlmPromptCard data={demoDashboard} />);
-
-    await expect
-      .element(page.getByRole("button", { name: SIGNATURE_QUESTION }))
-      .not.toBeInTheDocument();
-
-    await expandSection(/^More/);
 
     await expect.element(page.getByRole("button", { name: SIGNATURE_QUESTION })).toBeVisible();
+    await expect.element(page.getByRole("region", { name: "More" })).toBeVisible();
   });
 
-  it("expanding a section and selecting its question updates the prompt hint", async () => {
+  it("selecting a question updates the prompt hint", async () => {
     await render(<LlmPromptCard data={demoDashboard} />);
 
-    await expandSection(/^More/);
     await page.getByRole("button", { name: SIGNATURE_QUESTION }).click();
 
     await expect.element(page.getByText(`Leads with “${SIGNATURE_QUESTION}”`)).toBeVisible();
@@ -250,26 +243,22 @@ describe("LlmPromptCard", () => {
   it("selecting the pinned menu entry switches the hint to menu mode", async () => {
     await render(<LlmPromptCard data={demoDashboard} />);
 
-    await page.getByRole("button", { name: "Let the AI ask me (no specific question)" }).click();
+    await page.getByRole("button", { name: "Start with a general analysis" }).click();
 
     await expect
       .element(page.getByText("The AI introduces what it can tell you", { exact: false }))
       .toBeVisible();
   });
 
-  it("auto-expands the matching group when searching so results show", async () => {
+  it("shows matching questions when searching", async () => {
     await render(<LlmPromptCard data={demoDashboard} />);
-
-    await expect
-      .element(page.getByRole("button", { name: SIGNATURE_QUESTION }))
-      .not.toBeInTheDocument();
 
     await userEvent.fill(page.getByRole("searchbox", { name: "Search questions" }), "signature");
 
     await expect.element(page.getByRole("button", { name: SIGNATURE_QUESTION })).toBeVisible();
   });
 
-  it("re-collapses the sections when the search is cleared", async () => {
+  it("restores the full catalogue when the search is cleared", async () => {
     await render(<LlmPromptCard data={demoDashboard} />);
 
     const search = page.getByRole("searchbox", { name: "Search questions" });
@@ -280,9 +269,7 @@ describe("LlmPromptCard", () => {
     await userEvent.clear(search);
 
     await expect.element(page.getByRole("button", { name: LEAD_QUESTION })).toBeVisible();
-    await expect
-      .element(page.getByRole("button", { name: SIGNATURE_QUESTION }))
-      .not.toBeInTheDocument();
+    await expect.element(page.getByRole("button", { name: SIGNATURE_QUESTION })).toBeVisible();
   });
 
   it("searching filters the question list", async () => {
@@ -294,7 +281,20 @@ describe("LlmPromptCard", () => {
     await expect.element(page.getByRole("button", { name: LEAD_QUESTION })).not.toBeInTheDocument();
   });
 
-  const MENU_OPTION = "Let the AI ask me (no specific question)";
+  it("shows an explicit empty state when no questions match", async () => {
+    await render(<LlmPromptCard data={demoDashboard} />);
+
+    await userEvent.fill(
+      page.getByRole("searchbox", { name: "Search questions" }),
+      "no-question-matches-this"
+    );
+
+    await expect
+      .element(page.getByText("No questions match “no-question-matches-this”."))
+      .toBeVisible();
+  });
+
+  const MENU_OPTION = "Start with a general analysis";
 
   it("choosing the menu option copies a no-lead menu prompt", async () => {
     const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
@@ -316,7 +316,6 @@ describe("LlmPromptCard", () => {
     await render(<LlmPromptCard data={demoDashboard} />);
 
     await page.getByRole("button", { name: MENU_OPTION }).click();
-    await expandSection(/^More/);
     await page.getByRole("button", { name: SIGNATURE_QUESTION }).click();
     await page.getByRole("button", { name: "Copy prompt" }).click();
 
@@ -339,8 +338,6 @@ describe("LlmPromptCard", () => {
 
     await renderWithAtoms(<LlmPromptCard data={demoDashboard} />);
 
-    await expandSection(/^Spending & value/);
-
     await expect.element(page.getByRole("button", { name: SPEND_QUESTION })).toBeVisible();
   });
 
@@ -350,7 +347,6 @@ describe("LlmPromptCard", () => {
 
     await renderWithAtoms(<LlmPromptCard data={demoDashboard} />);
 
-    await expandSection(/^Spending & value/);
     await page.getByRole("button", { name: SPEND_QUESTION }).click();
     await page.getByRole("button", { name: "Copy prompt" }).click();
 

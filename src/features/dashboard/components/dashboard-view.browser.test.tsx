@@ -11,11 +11,6 @@ import { testDashboardStore, testTransactionStore } from "@/test/atom-registry";
 import { createHarness } from "@/test/harness";
 import { DashboardView } from "./dashboard-view";
 
-function textareaValue(element: Element): string {
-  if (!(element instanceof HTMLTextAreaElement)) throw new Error("Expected a textarea");
-  return element.value;
-}
-
 vi.mock("@/server/api/account.effect", () => ({
   signInWithToken: vi.fn(),
 }));
@@ -381,11 +376,14 @@ describe("DashboardView", () => {
 
     await render(element);
 
-    await expect.element(page.getByRole("textbox", { name: "Prompt preview" })).toBeVisible();
+    const promptDocument = page.getByRole("article", { name: "Prompt preview" });
+
+    await expect.element(promptDocument).toBeVisible();
 
     const countGames = () =>
-      textareaValue(page.getByRole("textbox", { name: "Prompt preview" }).element())
-        .split("\n")
+      promptDocument
+        .element()
+        .textContent.split("\n")
         .filter((line) => /^ {2}\d+\. /.test(line)).length;
 
     const fullCount = countGames();
@@ -842,11 +840,13 @@ describe("DashboardView", () => {
     );
 
     const { container } = await render(element);
-    const prompt = container.querySelector<HTMLTextAreaElement>('[aria-label="Prompt preview"]');
+    const promptDocument = page.getByRole("article", { name: "Prompt preview" });
+
+    await expect.element(promptDocument).toBeVisible();
 
     expect(container.textContent).not.toContain("Seeded private purchase");
     expect(container.textContent).not.toContain("£9,876.54");
-    expect(prompt?.value).not.toContain("Seeded private purchase");
+    expect(promptDocument.element().textContent).not.toContain("Seeded private purchase");
     await expect
       .element(page.getByText("Remove imported transaction data"))
       .not.toBeInTheDocument();
