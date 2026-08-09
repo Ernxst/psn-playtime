@@ -62,6 +62,32 @@ describe(".load", () => {
   });
 });
 
+describe("RAWG enrichment outcomes", () => {
+  it("persists outcomes separately for each imported account", () => {
+    store.saveEnrichment("acc-1", {
+      fetchedAt: accountA.fetchedAt,
+      genres: "partial",
+      franchises: "failed",
+    });
+    store.saveEnrichment("acc-2", {
+      fetchedAt: accountZ.fetchedAt,
+      genres: "complete",
+      franchises: "complete",
+    });
+
+    expect(store.loadEnrichment("acc-1")).toStrictEqual({
+      fetchedAt: accountA.fetchedAt,
+      genres: "partial",
+      franchises: "failed",
+    });
+    expect(store.loadEnrichment("acc-2")).toStrictEqual({
+      fetchedAt: accountZ.fetchedAt,
+      genres: "complete",
+      franchises: "complete",
+    });
+  });
+});
+
 describe(".useActiveDashboard", () => {
   it("falls back to demo data when no account is active", async () => {
     await render(<ActiveOnlineId />, { wrapper: Provider });
@@ -172,6 +198,28 @@ describe(".remove", () => {
 
     expect(store.load("acc-1")).toBeNull();
     expect(store.load("acc-2")).toStrictEqual(accountZ);
+  });
+
+  it("deletes only the removed account's RAWG outcome", () => {
+    store.saveEnrichment("acc-1", {
+      fetchedAt: accountA.fetchedAt,
+      genres: "partial",
+      franchises: "partial",
+    });
+    store.saveEnrichment("acc-2", {
+      fetchedAt: accountZ.fetchedAt,
+      genres: "complete",
+      franchises: "complete",
+    });
+
+    store.remove("acc-1");
+
+    expect(store.loadEnrichment("acc-1")).toBeNull();
+    expect(store.loadEnrichment("acc-2")).toStrictEqual({
+      fetchedAt: accountZ.fetchedAt,
+      genres: "complete",
+      franchises: "complete",
+    });
   });
 
   it("clears the active pointer when the removed account was active", async () => {

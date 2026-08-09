@@ -5,6 +5,10 @@ import { Progress } from "@/components/ui/progress";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { RefreshDashboard } from "@/features/dashboard/components/refresh-dashboard";
 import { RemoveTransactions } from "@/features/dashboard/components/remove-transactions";
+import {
+  type DashboardEnrichmentPresentation,
+  EnrichmentStatusNotice,
+} from "@/features/dashboard/enrichment/status";
 import { ExportButtons } from "@/features/dashboard/export/components/export-buttons";
 import {
   applyFilters,
@@ -53,6 +57,7 @@ interface Props {
   signingOut: boolean;
   safeDemo?: boolean;
   partialData?: boolean;
+  enrichment?: DashboardEnrichmentPresentation;
 }
 
 const TIMEFRAMES: ReadonlyArray<{ value: Timeframe; label: string }> = [
@@ -299,7 +304,13 @@ function Marquee({ data, refreshed }: { data: DashboardData; refreshed: boolean 
   );
 }
 
-function ProfileChapter({ data }: { data: DashboardData }) {
+function ProfileChapter({
+  data,
+  enrichment,
+}: {
+  data: DashboardData;
+  enrichment?: DashboardEnrichmentPresentation;
+}) {
   return (
     <div className="playloom-chapter-profile bg-[#f3efe5] px-[clamp(1.25rem,5vw,4rem)] pt-6 pb-20">
       <ChapterHeading number="01" title="Profile" variant="opening">
@@ -313,9 +324,11 @@ function ProfileChapter({ data }: { data: DashboardData }) {
         <ProfileRanks data={data} mode="games" />
       </Section>
       <Section id="genres" title="Genres">
+        {enrichment && <EnrichmentStatusNotice kind="genres" control={enrichment.genres} />}
         <ProfileRanks data={data} mode="genres" />
       </Section>
       <Section id="franchises" title="Franchises">
+        {enrichment && <EnrichmentStatusNotice kind="franchises" control={enrichment.franchises} />}
         <ProfileRanks data={data} mode="franchises" />
       </Section>
       <Section id="insights" title="Insights">
@@ -492,15 +505,17 @@ function DashboardChapters({
   account,
   partialData,
   onClearFilters,
+  enrichment,
 }: {
   data: DashboardData;
   account: DashboardData;
   partialData: boolean;
   onClearFilters: () => void;
+  enrichment?: DashboardEnrichmentPresentation;
 }) {
   return (
     <>
-      <ProfileChapter data={data} />
+      <ProfileChapter data={data} enrichment={enrichment} />
       <HistoryChapter data={data} />
       {partialData ? (
         <SpendingChapterUnavailable data={account} />
@@ -561,11 +576,13 @@ function DashboardResult({
   scoped,
   onClear,
   partialData,
+  enrichment,
 }: {
   source: DashboardData;
   scoped: DashboardData;
   onClear: () => void;
   partialData: boolean;
+  enrichment?: DashboardEnrichmentPresentation;
 }) {
   if (source.games.length === 0) return <DashboardEmpty />;
   return (
@@ -576,6 +593,7 @@ function DashboardResult({
         account={source}
         partialData={partialData}
         onClearFilters={onClear}
+        enrichment={enrichment}
       />
     </>
   );
@@ -624,6 +642,7 @@ function ReadingSurface({ props, refreshed }: { props: Props; refreshed: boolean
         scoped={scoped}
         onClear={clearFilters}
         partialData={props.partialData === true}
+        enrichment={props.enrichment}
       />
       <footer className="playloom-mobile-footer">
         <a href="https://rawg.io" target="_blank" rel="noreferrer">

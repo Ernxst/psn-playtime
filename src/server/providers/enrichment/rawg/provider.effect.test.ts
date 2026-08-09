@@ -4,7 +4,10 @@ import * as Layer from "effect/Layer";
 import * as ManagedRuntime from "effect/ManagedRuntime";
 import { HttpResponse, http, type ResponseResolver } from "msw";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
-import type { GameMetadata } from "@/server/providers/enrichment/contract.effect";
+import type {
+  FranchiseMatch,
+  GameMetadataMatch,
+} from "@/server/providers/enrichment/contract.effect";
 import { TitleEnrichment } from "@/server/providers/enrichment/contract.effect";
 import {
   prefetchFranchises,
@@ -58,9 +61,8 @@ const franchiseProgram = (title: string) =>
     return yield* provider.franchiseFor(title);
   });
 
-const metadataFor = (title: string): Promise<GameMetadata> => runKeyed(metaProgram(title));
-const franchiseFor = (title: string): Promise<string | undefined> =>
-  runKeyed(franchiseProgram(title));
+const metadataFor = (title: string): Promise<GameMetadataMatch> => runKeyed(metaProgram(title));
+const franchiseFor = (title: string): Promise<FranchiseMatch> => runKeyed(franchiseProgram(title));
 const metadataForError = (title: string) => runKeyed(metaProgram(title).pipe(Effect.flip));
 const franchiseForError = (title: string) => runKeyed(franchiseProgram(title).pipe(Effect.flip));
 
@@ -68,7 +70,10 @@ describe(".metadataFor", () => {
   it("returns absent metadata and skips the network when no key is set", async () => {
     const search = useSearch(() => searchResult({ genres: ["Action"] }));
 
-    await expect(runNoKey(metaProgram("Celeste"))).resolves.toStrictEqual({});
+    await expect(runNoKey(metaProgram("Celeste"))).resolves.toStrictEqual({
+      matched: false,
+      metadata: {},
+    });
 
     expect(search).not.toHaveBeenCalled();
   });
@@ -85,7 +90,10 @@ describe(".metadataFor", () => {
         : HttpResponse.json(rawgSearch());
     });
 
-    await expect(metadataFor("Returnal")).resolves.toMatchObject({ genre: "Action-Adventure" });
+    await expect(metadataFor("Returnal")).resolves.toStrictEqual({
+      matched: true,
+      metadata: { genre: "Action-Adventure" },
+    });
 
     expect(search).toHaveBeenCalledTimes(1);
   });
@@ -94,8 +102,8 @@ describe(".metadataFor", () => {
     const search = useSearch(() => searchResult({ genres: ["Action"], playtime: 25 }));
 
     await expect(metadataFor("Celeste")).resolves.toStrictEqual({
-      genre: "Action-Adventure",
-      typicalPlaytime: 25,
+      matched: true,
+      metadata: { genre: "Action-Adventure", typicalPlaytime: 25 },
     });
 
     expect(search).toHaveBeenCalledTimes(1);
@@ -113,8 +121,8 @@ describe(".metadataFor", () => {
       })
     );
 
-    expect(first.genre).toBe("Racing");
-    expect(second.genre).toBe("Racing");
+    expect(first.metadata.genre).toBe("Racing");
+    expect(second.metadata.genre).toBe("Racing");
     expect(search).toHaveBeenCalledTimes(1);
   });
 
@@ -122,24 +130,24 @@ describe(".metadataFor", () => {
     useSearch(() => searchResult({ genres: ["Simulation"] }));
 
     await expect(metadataFor("Powerwash Simulator")).resolves.toStrictEqual({
-      genre: undefined,
-      typicalPlaytime: undefined,
+      matched: true,
+      metadata: {},
     });
   });
 
   it("treats a playtime of 0 as no data", async () => {
     useSearch(() => searchResult({ playtime: 0 }));
 
-    await expect(metadataFor("Some Game")).resolves.toStrictEqual({
-      genre: undefined,
-      typicalPlaytime: undefined,
-    });
+    await expect(metadataFor("Some Game")).resolves.toStrictEqual({ matched: true, metadata: {} });
   });
 
   it("returns absent metadata for a genuine empty search result", async () => {
     useSearch(() => HttpResponse.json(rawgSearch()));
 
-    await expect(metadataFor("Totally Unknown Title")).resolves.toStrictEqual({});
+    await expect(metadataFor("Totally Unknown Title")).resolves.toStrictEqual({
+      matched: false,
+      metadata: {},
+    });
   });
 
   it("surfaces a non-ok response as an UpstreamUnavailableError on the typed channel", async () => {
@@ -180,19 +188,16 @@ describe(".metadataFor", () => {
     expect(error.message).not.toContain("test-key");
   });
 
-  it("returns absent for a result with no genres array", async () => {
+  it("preserves a matched result with no usable genres as incomplete metadata", async () => {
     useSearch(() => HttpResponse.json(rawgSearch([rawgGame({ name: "Some Game" })])));
 
-    await expect(metadataFor("Some Game")).resolves.toStrictEqual({
-      genre: undefined,
-      typicalPlaytime: undefined,
-    });
+    await expect(metadataFor("Some Game")).resolves.toStrictEqual({ matched: true, metadata: {} });
   });
 
   it("skips the network when the name normalizes to an empty query", async () => {
     const search = useSearch(() => searchResult());
 
-    await expect(metadataFor("™®©")).resolves.toStrictEqual({});
+    await expect(metadataFor("™®©")).resolves.toStrictEqual({ matched: false, metadata: {} });
 
     expect(search).not.toHaveBeenCalled();
   });
@@ -230,7 +235,7 @@ describe(".franchiseFor", () => {
   it("returns undefined and skips the network when no key is set", async () => {
     const search = useSearch(() => searchResult());
 
-    await expect(runNoKey(franchiseProgram("Celeste"))).resolves.toBeUndefined();
+    await expect(runNoKey(franchiseProgram("Celeste"))).resolves.toStrictEqual({ matched: false });
 
     expect(search).not.toHaveBeenCalled();
   });
@@ -251,7 +256,10 @@ describe(".franchiseFor", () => {
       )
     );
 
-    await expect(franchiseFor("Forza Horizon 5")).resolves.toBe("Forza");
+    await expect(franchiseFor("Forza Horizon 5")).resolves.toStrictEqual({
+      matched: true,
+      franchise: "Forza",
+    });
 
     expect(search).toHaveBeenCalledTimes(1);
     expect(series).toHaveBeenCalledTimes(1);
@@ -272,8 +280,8 @@ describe(".franchiseFor", () => {
       })
     );
 
-    expect(first).toBe("God of War");
-    expect(second).toBe("God of War");
+    expect(first).toStrictEqual({ matched: true, franchise: "God of War" });
+    expect(second).toStrictEqual({ matched: true, franchise: "God of War" });
     expect(search).toHaveBeenCalledTimes(1);
     expect(series).toHaveBeenCalledTimes(1);
   });
@@ -282,7 +290,7 @@ describe(".franchiseFor", () => {
     const search = useSearch(() => HttpResponse.json(rawgSearch()));
     const series = useSeries(() => HttpResponse.json(rawgSeries(["unused"])));
 
-    await expect(franchiseFor("Totally Unknown Title")).resolves.toBeUndefined();
+    await expect(franchiseFor("Totally Unknown Title")).resolves.toStrictEqual({ matched: false });
 
     expect(search).toHaveBeenCalledTimes(1);
     expect(series).not.toHaveBeenCalled();
@@ -292,13 +300,15 @@ describe(".franchiseFor", () => {
     useSearch(() => HttpResponse.json(rawgSearch([rawgGame({ id: 7, name: "Stray" })])));
     useSeries(() => HttpResponse.json(rawgSeries()));
 
-    await expect(franchiseFor("Stray")).resolves.toBeUndefined();
+    await expect(franchiseFor("Stray")).resolves.toStrictEqual({ matched: true });
   });
 
-  it("returns undefined when the matched game has no id", async () => {
-    useSearch(() => HttpResponse.json(rawgSearch([rawgGame({ name: "no id here" })])));
+  it("surfaces a matched game with no id as an invalid response", async () => {
+    useSearch(() => HttpResponse.json(rawgSearch([{ name: "no id here", genres: [] }])));
 
-    await expect(franchiseFor("Some Game")).resolves.toBeUndefined();
+    const error = await franchiseForError("Some Game");
+
+    expect(error._tag).toBe("UpstreamUnavailableError");
   });
 
   it("surfaces a non-ok series response as an UpstreamUnavailableError", async () => {
@@ -350,7 +360,7 @@ describe(".franchiseFor", () => {
   it("skips the network when the name normalizes to an empty query", async () => {
     const search = useSearch(() => searchResult());
 
-    await expect(franchiseFor("™®©")).resolves.toBeUndefined();
+    await expect(franchiseFor("™®©")).resolves.toStrictEqual({ matched: false });
 
     expect(search).not.toHaveBeenCalled();
   });
@@ -374,8 +384,11 @@ describe("shared game-info search across genre and franchise", () => {
       })
     );
 
-    expect(metadata).toStrictEqual({ genre: "Shooter", typicalPlaytime: 12 });
-    expect(franchise).toBe("Halo");
+    expect(metadata).toStrictEqual({
+      matched: true,
+      metadata: { genre: "Shooter", typicalPlaytime: 12 },
+    });
+    expect(franchise).toStrictEqual({ matched: true, franchise: "Halo" });
     expect(search).toHaveBeenCalledTimes(1);
     expect(series).toHaveBeenCalledTimes(1);
   });
@@ -396,8 +409,11 @@ describe("concurrent cache-miss dedup", () => {
       })
     );
 
-    expect(metadata).toStrictEqual({ genre: "Shooter", typicalPlaytime: 12 });
-    expect(franchise).toBe("Halo");
+    expect(metadata).toStrictEqual({
+      matched: true,
+      metadata: { genre: "Shooter", typicalPlaytime: 12 },
+    });
+    expect(franchise).toStrictEqual({ matched: true, franchise: "Halo" });
     expect(search).toHaveBeenCalledTimes(1);
   });
 });
@@ -420,7 +436,29 @@ describe("transient failures are not cached", () => {
 
     const metadata = await runtime.runPromise(lookup);
 
-    expect(metadata).toMatchObject({ genre: "Action-Adventure" });
+    expect(metadata).toStrictEqual({ matched: true, metadata: { genre: "Action-Adventure" } });
+    expect(search).toHaveBeenCalledTimes(2);
+  });
+
+  it("re-runs a genuine no-match so a later retry can resolve the title", async () => {
+    const search = useSearch(
+      vi
+        .fn()
+        .mockReturnValueOnce(HttpResponse.json(rawgSearch()))
+        .mockReturnValue(searchResult({ genres: ["Action"] }))
+    );
+    const runtime = ManagedRuntime.make(KEYED);
+    onTestFinished(() => runtime.dispose());
+    const lookup = metaProgram("Hades");
+
+    await expect(runtime.runPromise(lookup)).resolves.toStrictEqual({
+      matched: false,
+      metadata: {},
+    });
+    await expect(runtime.runPromise(lookup)).resolves.toStrictEqual({
+      matched: true,
+      metadata: { genre: "Action-Adventure" },
+    });
     expect(search).toHaveBeenCalledTimes(2);
   });
 });
@@ -435,34 +473,34 @@ describe("process-lived cache across a shared runtime", () => {
     const first = await runtime.runPromise(lookup);
     const second = await runtime.runPromise(lookup);
 
-    expect(first.genre).toBe("Racing");
-    expect(second.genre).toBe("Racing");
+    expect(first.metadata.genre).toBe("Racing");
+    expect(second.metadata.genre).toBe("Racing");
     expect(search).toHaveBeenCalledTimes(1);
   });
 });
 
-describe("prefetch boundary degradation", () => {
-  it("degrades to blank metadata when the provider surfaces an UpstreamUnavailableError", async () => {
+describe("prefetch boundary outcomes", () => {
+  it("preserves an upstream failure as batch evidence", async () => {
     useSearch(() => new HttpResponse("nope", { status: 503 }));
 
-    const metadata = await runKeyed(prefetchGameMetadata(["Some Game"]));
+    const result = await runKeyed(prefetchGameMetadata(["Some Game"]));
 
-    expect(metadata.get("Some Game")).toStrictEqual({});
+    expect(result).toStrictEqual({ availability: "available", values: new Map(), failures: 1 });
   });
 
-  it("degrades to blank metadata when the provider surfaces a RateLimitedError", async () => {
+  it("preserves a rate limit as batch evidence", async () => {
     useSearch(() => new HttpResponse("slow down", { status: 429 }));
 
-    const metadata = await runKeyed(prefetchGameMetadata(["Busy Game"]));
+    const result = await runKeyed(prefetchGameMetadata(["Busy Game"]));
 
-    expect(metadata.get("Busy Game")).toStrictEqual({});
+    expect(result).toStrictEqual({ availability: "available", values: new Map(), failures: 1 });
   });
 
-  it("degrades to a blank franchise when the provider surfaces an UpstreamUnavailableError", async () => {
+  it("preserves a franchise failure as batch evidence", async () => {
     useSearch(() => new HttpResponse("nope", { status: 503 }));
 
-    const franchises = await runKeyed(prefetchFranchises(["Some Game"]));
+    const result = await runKeyed(prefetchFranchises(["Some Game"]));
 
-    expect(franchises.get("Some Game")).toBeUndefined();
+    expect(result).toStrictEqual({ availability: "available", values: new Map(), failures: 1 });
   });
 });

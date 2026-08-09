@@ -1,9 +1,9 @@
 /**
  * RAWG-backed implementation of the `TitleEnrichment` capability.
  *
- * - The `RAWG_API_KEY` gate resolves the layer to a no-op provider (every lookup
- *   is a successful absence) when the key is unset, so callers keep their keyword
- *   fallback and the network is never touched.
+ * - The `RAWG_API_KEY` gate resolves the layer to an explicitly unconfigured
+ *   provider when the key is unset, so callers can disclose the unavailable
+ *   metadata instead of treating blank results as complete.
  * - Absence (`NO_GAME` / `{}`) is reserved for a genuine "no usable RAWG match":
  *   a successful search whose results array is empty. Infrastructure failures are
  *   NOT folded into absence — a transport error, a non-OK response, or a body
@@ -11,24 +11,23 @@
  *   caller can tell "RAWG found nothing" from "RAWG is down".
  * - A genuine HTTP 429 surfaces as `RateLimitedError`; every other non-OK status,
  *   transport `HttpClientError`, and schema decode failure surface as
- *   `UpstreamUnavailableError`. The prefetch builders recover both tags back to
- *   absence per title, so the server-fn boundary still degrades to blank
- *   enrichment rather than throwing.
+ *   `UpstreamUnavailableError`. The prefetch builders preserve those failures as
+ *   batch evidence so the server-fn boundary can return a truthful failed or
+ *   partial outcome without throwing.
  *
  * Networking goes through the fetch-based `HttpClient` (`effect/unstable/http`);
  * `FetchHttpClient.layer` uses `globalThis.fetch`, so it runs on the
  * Nitro/Cloudflare-Workers runtime as well as in Node/tests. The shared
  * `/games?search=` lookup is an Effect `Cache` (`effect/Cache`); the franchise
- * result is a `Ref<Map>`. Both are built once per layer construction;
+ * result is another Effect `Cache`. Both are built once per layer construction;
  * `TitleEnrichmentLayer` is folded into `serverRuntime` (`runtime.effect.ts`),
  * so they live for the worker process and hit across requests. The search
  * `Cache` natively coalesces concurrent misses for the same key into a single
  * in-flight lookup, so the genre and franchise queries the dashboard starts
  * independently share one round-trip rather than racing two. RAWG metadata is
- * effectively static, so successful results (including the genuine no-match
- * absence) are kept for the process lifetime; only infrastructure failures are
- * evicted immediately so a transient outage never poisons a title (see
- * {@link makeRawgProvider}).
+ * effectively static, so usable matches are kept for the process lifetime;
+ * failures and unresolved/no-match results are evicted immediately so retry can
+ * re-check incomplete metadata (see {@link makeRawgProvider}).
  */
 import * as Cache from "effect/Cache";
 import * as Config from "effect/Config";
@@ -38,7 +37,6 @@ import * as Exit from "effect/Exit";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Redacted from "effect/Redacted";
-import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
 import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
 import * as HttpClient from "effect/unstable/http/HttpClient";
@@ -46,8 +44,10 @@ import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest";
 import * as HttpClientResponse from "effect/unstable/http/HttpClientResponse";
 import {
   TitleEnrichment,
+  type FranchiseMatch,
   type TitleEnrichmentShape,
   type GameMetadata,
+  type GameMetadataMatch,
 } from "@/server/providers/enrichment/contract.effect";
 import {
   deriveFranchise,
@@ -83,16 +83,19 @@ const RAWG_LOOKUP_CONCURRENCY = 8;
 const RAWG_SEARCH_CACHE_CAPACITY = 4096;
 
 /**
- * How long a SUCCESSFUL search result (including the genuine `NO_GAME` absence)
- * is retained. RAWG metadata is effectively static, so successes live for the
- * process lifetime. Infrastructure FAILURES get {@link Duration.zero} instead so
- * they're evicted immediately and never poison a title — see the `timeToLive`
- * in {@link makeRawgProvider}.
+ * How long a usable search result is retained. Infrastructure failures and
+ * unresolved results get {@link Duration.zero} so retry can re-check them.
  */
 const RAWG_SEARCH_TTL = Duration.infinity;
 
-/** A successful "no usable data" result — the caller keeps its keyword fallback. */
+/** A title match with no usable genre or playtime fields. */
 const ABSENT_METADATA: GameMetadata = {};
+
+/** RAWG returned no game for the title. */
+const NO_METADATA_MATCH: GameMetadataMatch = { matched: false, metadata: ABSENT_METADATA };
+
+/** RAWG returned no game for the title, so no franchise decision was possible. */
+const NO_FRANCHISE_MATCH: FranchiseMatch = { matched: false };
 
 /**
  * Everything a single `/games?search=` round-trip yields that either lookup
@@ -100,34 +103,33 @@ const ABSENT_METADATA: GameMetadata = {};
  * One decode serves both so genre and franchise enrichment share one search.
  */
 type GameInfo = {
-  readonly id: number | undefined;
-  readonly name: string | undefined;
+  readonly id: number;
+  readonly name: string;
   readonly genres: ReadonlyArray<string>;
   readonly playtime: number | undefined;
 };
 
-/** Typed absences, named so they read as values rather than `Effect.void`. */
+/** Typed search absence, named so it reads as a value rather than `Effect.void`. */
 const NO_GAME: GameInfo | undefined = undefined;
-const NO_FRANCHISE: string | undefined = undefined;
 
 /**
  * The slice of the RAWG `/games` search payload both lookups share. `id`/`name`
- * are optional because the metadata path doesn't require them and a malformed
- * result should degrade to absence rather than fail the whole decode.
+ * are required because a result without stable identity is an invalid/blank
+ * provider response, not evidence that no game matched.
  */
 const RawgGameSearch = Schema.Struct({
   results: Schema.Struct({
-    id: Schema.Finite.pipe(Schema.optional),
-    name: Schema.String.pipe(Schema.optional),
-    genres: Schema.Struct({ name: Schema.String }).pipe(Schema.Array, Schema.optional),
+    id: Schema.Finite,
+    name: Schema.NonEmptyString,
+    genres: Schema.Struct({ name: Schema.NonEmptyString }).pipe(Schema.Array),
     /** RAWG's rough community-average hours to complete; often 0 or absent. */
     playtime: Schema.Finite.pipe(Schema.optional),
-  }).pipe(Schema.Array, Schema.optional),
+  }).pipe(Schema.Array),
 });
 
 /** The slice of a RAWG `/games/{id}/game-series` payload used for franchises. */
 const RawgSeries = Schema.Struct({
-  results: Schema.Struct({ name: Schema.String }).pipe(Schema.Array, Schema.optional),
+  results: Schema.Struct({ name: Schema.NonEmptyString }).pipe(Schema.Array),
 });
 
 /**
@@ -181,14 +183,14 @@ const searchGame = (
       return yield* new UpstreamUnavailableError({ provider: "rawg", reason: "upstream_error" });
     }
     const body = yield* HttpClientResponse.schemaBodyJson(RawgGameSearch)(response);
-    const first = body.results?.[0];
+    const first = body.results[0];
     if (first === undefined) {
       return NO_GAME;
     }
     return {
       id: first.id,
       name: first.name,
-      genres: (first.genres ?? []).map((g) => g.name),
+      genres: first.genres.map((g) => g.name),
       playtime: first.playtime,
     };
   }).pipe(
@@ -214,7 +216,7 @@ const fetchSeriesNames = (
       return yield* new UpstreamUnavailableError({ provider: "rawg", reason: "upstream_error" });
     }
     const body = yield* HttpClientResponse.schemaBodyJson(RawgSeries)(response);
-    return (body.results ?? []).map((g) => g.name);
+    return body.results.map((g) => g.name);
   }).pipe(
     Effect.catchTags({
       HttpClientError: classifyRawgFailure,
@@ -237,17 +239,19 @@ type SearchCache = Cache.Cache<string, GameInfo | undefined, TitleEnrichmentErro
  * misses for a key onto one in-flight lookup (the dedup) and bounds entries by
  * {@link RAWG_SEARCH_CACHE_CAPACITY}.
  *
- * `timeToLive` is the no-cache-of-failures guard: a `Cache` stores the lookup
- * `Exit`, so a naive cache would retain a transient `UpstreamUnavailableError`/
- * `RateLimitedError` and re-fail every later lookup for that title within TTL.
- * SUCCESSFUL results (including the genuine `NO_GAME` absence — a real, stable
- * answer) live for {@link RAWG_SEARCH_TTL}; a FAILED `Exit` gets `Duration.zero`
- * so it's evicted immediately and a transport blip never poisons a title.
+ * `timeToLive` keeps only a match with a recognised genre. Failed, no-match,
+ * and blank/unmapped metadata exits get `Duration.zero`, so an incomplete title
+ * can actually be checked again by the client retry path.
  */
 const makeSearchCache = (client: Client, apiKey: ApiKey): Effect.Effect<SearchCache> =>
   Cache.makeWith((query: string) => searchGame(client, query, apiKey), {
     capacity: RAWG_SEARCH_CACHE_CAPACITY,
-    timeToLive: (exit) => (Exit.isSuccess(exit) ? RAWG_SEARCH_TTL : Duration.zero),
+    timeToLive: (exit) =>
+      Exit.isSuccess(exit) &&
+      exit.value !== undefined &&
+      mapRawgGenres([...exit.value.genres]) !== undefined
+        ? RAWG_SEARCH_TTL
+        : Duration.zero,
   });
 
 /** Reuse the shared game-info for the id, then the separate series request. */
@@ -256,14 +260,29 @@ const resolveFranchise = (
   apiKey: ApiKey,
   cache: SearchCache,
   query: string
-): Effect.Effect<string | undefined, TitleEnrichmentError> =>
+): Effect.Effect<FranchiseMatch, TitleEnrichmentError> =>
   Effect.gen(function* () {
     const game = yield* Cache.get(cache, query);
-    if (game?.id === undefined || game.name === undefined) {
-      return NO_FRANCHISE;
+    if (game === undefined) {
+      return NO_FRANCHISE_MATCH;
     }
     const seriesNames = yield* fetchSeriesNames(client, game.id, apiKey);
-    return deriveFranchise([game.name, ...seriesNames]);
+    const franchise = deriveFranchise([game.name, ...seriesNames]);
+    return franchise === undefined ? { matched: true } : { matched: true, franchise };
+  });
+
+type FranchiseCache = Cache.Cache<string, FranchiseMatch, TitleEnrichmentError>;
+
+/** Cache confirmed matches, but never freeze a no-match or provider failure. */
+const makeFranchiseCache = (
+  client: Client,
+  apiKey: ApiKey,
+  searchCache: SearchCache
+): Effect.Effect<FranchiseCache> =>
+  Cache.makeWith((query: string) => resolveFranchise(client, apiKey, searchCache, query), {
+    capacity: RAWG_SEARCH_CACHE_CAPACITY,
+    timeToLive: (exit) =>
+      Exit.isSuccess(exit) && exit.value.matched ? RAWG_SEARCH_TTL : Duration.zero,
   });
 
 /** Build the real (keyed) provider, closing over the client, key, and caches. */
@@ -273,47 +292,48 @@ const makeRawgProvider = (client: Client, apiKey: ApiKey): Effect.Effect<TitleEn
     // genre and franchise lookups and across requests) and the franchise-result
     // cache, built once per worker process.
     const searchCache = yield* makeSearchCache(client, apiKey);
-    const franchiseCache = yield* Ref.make(new Map<string, string | undefined>());
+    const franchiseCache = yield* makeFranchiseCache(client, apiKey, searchCache);
+
+    const metadataFor = Effect.fn("RawgTitleEnrichment.metadataFor")(function* (title: string) {
+      const query = normalizeForSearch(title);
+      if (query.length === 0) {
+        return NO_METADATA_MATCH;
+      }
+      const game = yield* Cache.get(searchCache, query);
+      if (game === undefined) {
+        return NO_METADATA_MATCH;
+      }
+      const genre = mapRawgGenres([...game.genres]);
+      const typicalPlaytime = normalizePlaytime(game.playtime);
+      return {
+        matched: true,
+        metadata: {
+          ...(genre !== undefined && { genre }),
+          ...(typicalPlaytime !== undefined && { typicalPlaytime }),
+        },
+      } satisfies GameMetadataMatch;
+    });
+
+    const franchiseFor = Effect.fn("RawgTitleEnrichment.franchiseFor")(function* (title: string) {
+      const query = normalizeForSearch(title);
+      if (query.length === 0) {
+        return NO_FRANCHISE_MATCH;
+      }
+      return yield* Cache.get(franchiseCache, query);
+    });
 
     return {
-      metadataFor: (title: string) =>
-        Effect.gen(function* () {
-          const query = normalizeForSearch(title);
-          if (query.length === 0) {
-            return ABSENT_METADATA;
-          }
-          const game = yield* Cache.get(searchCache, query);
-          if (game === undefined) {
-            return ABSENT_METADATA;
-          }
-          return {
-            genre: mapRawgGenres([...game.genres]),
-            typicalPlaytime: normalizePlaytime(game.playtime),
-          };
-        }),
-
-      franchiseFor: (title: string) =>
-        Effect.gen(function* () {
-          const query = normalizeForSearch(title);
-          if (query.length === 0) {
-            return NO_FRANCHISE;
-          }
-          const key = query.toLowerCase();
-          const cache = yield* Ref.get(franchiseCache);
-          if (cache.has(key)) {
-            return cache.get(key);
-          }
-          const franchise = yield* resolveFranchise(client, apiKey, searchCache, query);
-          yield* Ref.update(franchiseCache, (current) => current.set(key, franchise));
-          return franchise;
-        }),
+      availability: "available",
+      metadataFor,
+      franchiseFor,
     } satisfies TitleEnrichmentShape;
   });
 
-/** A provider that does nothing — the gate when `RAWG_API_KEY` is unset. */
+/** An explicitly unavailable provider — the gate when `RAWG_API_KEY` is unset. */
 const noopProvider: TitleEnrichmentShape = {
-  metadataFor: () => Effect.succeed(ABSENT_METADATA),
-  franchiseFor: () => Effect.succeed(NO_FRANCHISE),
+  availability: "unconfigured",
+  metadataFor: () => Effect.succeed(NO_METADATA_MATCH),
+  franchiseFor: () => Effect.succeed(NO_FRANCHISE_MATCH),
 };
 
 const make = Effect.gen(function* () {
@@ -343,11 +363,14 @@ export const TitleEnrichmentLayer: Layer.Layer<TitleEnrichment> = Layer.provide(
   FetchHttpClient.layer
 );
 
-/** Recover both enrichment error tags to the supplied absent value. */
-const recoverAbsent = <A>(absent: A) => ({
-  RateLimitedError: () => Effect.succeed(absent),
-  UpstreamUnavailableError: () => Effect.succeed(absent),
-});
+interface BatchLookupResult<A> {
+  readonly values: Map<string, A>;
+  readonly failures: number;
+}
+
+type LookupAttempt<A> =
+  | { readonly _tag: "Success"; readonly name: string; readonly value: A }
+  | { readonly _tag: "Failure"; readonly name: string };
 
 /**
  * Run `fn` for each name at the shared lookup concurrency and collect the
@@ -356,28 +379,49 @@ const recoverAbsent = <A>(absent: A) => ({
  */
 const batchLookup = <A>(
   names: ReadonlyArray<string>,
-  fn: (name: string) => Effect.Effect<A>
-): Effect.Effect<Map<string, A>> =>
-  Effect.forEach(names, (name) => fn(name).pipe(Effect.map((value) => [name, value] as const)), {
-    concurrency: RAWG_LOOKUP_CONCURRENCY,
-  }).pipe(Effect.map((entries) => new Map(entries)));
+  fn: (name: string) => Effect.Effect<A, TitleEnrichmentError>
+): Effect.Effect<BatchLookupResult<A>> =>
+  Effect.forEach(
+    names,
+    (name) =>
+      fn(name).pipe(
+        Effect.match({
+          onFailure: (): LookupAttempt<A> => ({ _tag: "Failure", name }),
+          onSuccess: (value): LookupAttempt<A> => ({ _tag: "Success", name, value }),
+        })
+      ),
+    { concurrency: RAWG_LOOKUP_CONCURRENCY }
+  ).pipe(
+    Effect.map((attempts) => {
+      const values = new Map<string, A>();
+      let failures = 0;
+      for (const attempt of attempts) {
+        if (attempt._tag === "Success") values.set(attempt.name, attempt.value);
+        else failures += 1;
+      }
+      return { values, failures };
+    })
+  );
+
+export interface EnrichmentPrefetch<A> extends BatchLookupResult<A> {
+  readonly availability: TitleEnrichmentShape["availability"];
+}
 
 /**
  * Look up genre + typical playtime for each (already keyword-filtered) title
- * name, keyed by name. Each lookup independently falls back to absence on a
- * provider failure, so the batch always resolves — the server-fn boundary never
- * throws on enrichment failure.
+ * name, keyed by name. Expected provider failures stay visible in `failures`,
+ * while the effect itself remains non-failing for the server-fn boundary.
  */
 export const prefetchGameMetadata = (
   names: ReadonlyArray<string>
-): Effect.Effect<Map<string, GameMetadata>, never, TitleEnrichment> =>
+): Effect.Effect<EnrichmentPrefetch<GameMetadataMatch>, never, TitleEnrichment> =>
   Effect.gen(function* () {
     const provider = yield* TitleEnrichment;
-    return yield* batchLookup(names, (name) =>
-      provider
-        .metadataFor(name)
-        .pipe(Effect.catchTags(recoverAbsent<GameMetadata>(ABSENT_METADATA)))
-    );
+    if (provider.availability === "unconfigured") {
+      return { availability: provider.availability, values: new Map(), failures: 0 };
+    }
+    const result = yield* batchLookup(names, provider.metadataFor);
+    return { availability: provider.availability, ...result };
   });
 
 /**
@@ -386,12 +430,12 @@ export const prefetchGameMetadata = (
  */
 export const prefetchFranchises = (
   names: ReadonlyArray<string>
-): Effect.Effect<Map<string, string | undefined>, never, TitleEnrichment> =>
+): Effect.Effect<EnrichmentPrefetch<FranchiseMatch>, never, TitleEnrichment> =>
   Effect.gen(function* () {
     const provider = yield* TitleEnrichment;
-    return yield* batchLookup(names, (name) =>
-      provider
-        .franchiseFor(name)
-        .pipe(Effect.catchTags(recoverAbsent<string | undefined>(NO_FRANCHISE)))
-    );
+    if (provider.availability === "unconfigured") {
+      return { availability: provider.availability, values: new Map(), failures: 0 };
+    }
+    const result = yield* batchLookup(names, provider.franchiseFor);
+    return { availability: provider.availability, ...result };
   });

@@ -19,12 +19,29 @@ export interface GameMetadata {
   readonly typicalPlaytime?: number;
 }
 
-export interface TitleEnrichmentShape {
-  /** Genre and typical playtime for a title; absence is a successful empty result. */
-  readonly metadataFor: (title: string) => Effect.Effect<GameMetadata, TitleEnrichmentError>;
+/** Whether RAWG returned a game match for a title lookup. */
+export interface GameMetadataMatch {
+  readonly matched: boolean;
+  readonly metadata: GameMetadata;
+}
 
-  /** The franchise/series label for a title, or `undefined` when it has none. */
-  readonly franchiseFor: (title: string) => Effect.Effect<string | undefined, TitleEnrichmentError>;
+/** Whether RAWG matched a title, plus its series label when it belongs to one. */
+export interface FranchiseMatch {
+  readonly matched: boolean;
+  readonly franchise?: string;
+}
+
+export type TitleEnrichmentAvailability = "available" | "unconfigured";
+
+export interface TitleEnrichmentShape {
+  /** Whether this deployment has the authority required to call RAWG. */
+  readonly availability: TitleEnrichmentAvailability;
+
+  /** Genre and typical playtime, preserving whether RAWG matched the title. */
+  readonly metadataFor: (title: string) => Effect.Effect<GameMetadataMatch, TitleEnrichmentError>;
+
+  /** The franchise/series label, preserving a matched title with no series. */
+  readonly franchiseFor: (title: string) => Effect.Effect<FranchiseMatch, TitleEnrichmentError>;
 }
 
 export class TitleEnrichment extends Context.Service<TitleEnrichment, TitleEnrichmentShape>()(

@@ -26,6 +26,10 @@ import * as Schema from "effect/Schema";
 import * as Atom from "effect/unstable/reactivity/Atom";
 import type * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
 import { prototypeDemoDashboard as demoDashboard } from "@/domain/mock";
+import {
+  type DashboardEnrichmentState,
+  enrichmentStatuses,
+} from "@/features/dashboard/enrichment/state";
 import { kvsRuntime } from "@/runtime/kvs.effect";
 import { DashboardData } from "@/server/providers/account/snapshot";
 
@@ -34,6 +38,9 @@ const DASHBOARDS_STORAGE_KEY = "psn-playtime:dashboards";
 
 /** Pointer to the account the dashboard currently renders. */
 const ACTIVE_STORAGE_KEY = "psn-playtime:dashboard-active";
+
+/** RAWG outcome cache, separately keyed so provider state never alters PSN data. */
+const ENRICHMENT_STORAGE_KEY = "psn-playtime:dashboard-enrichment";
 
 /** Lightweight account identity used to drive the onboarding selector. */
 export interface CachedAccount {
@@ -81,6 +88,22 @@ const activeAccountIdAtom = Atom.kvs({
   mode: "sync",
 });
 
+const EnrichmentStatus = Schema.Literals(enrichmentStatuses);
+const DashboardEnrichmentStateSchema = Schema.Struct({
+  fetchedAt: Schema.String,
+  genres: EnrichmentStatus,
+  franchises: EnrichmentStatus,
+});
+
+/** Persisted complete/partial/unavailable/failed RAWG outcomes, keyed by account. */
+const enrichmentStatesAtom = Atom.kvs({
+  runtime: kvsRuntime,
+  key: ENRICHMENT_STORAGE_KEY,
+  schema: Schema.Record(Schema.String, DashboardEnrichmentStateSchema),
+  defaultValue: (): Record<string, DashboardEnrichmentState> => ({}),
+  mode: "sync",
+});
+
 function toCachedAccount(data: DashboardData): CachedAccount {
   const sourceLabel = data.profile.sourceLabel ?? "Imported from PlayStation";
   const avatarLabel = data.profile.avatarUrl
@@ -116,6 +139,12 @@ const activeDashboardAtom = Atom.make((get): DashboardData => {
   return dashboards[activeId] ?? demoDashboard;
 });
 
+const activeDashboardEnrichmentAtom = Atom.make((get): DashboardEnrichmentState | null => {
+  const activeId = get(activeAccountIdAtom);
+  if (activeId === null) return null;
+  return get(enrichmentStatesAtom)[activeId] ?? null;
+});
+
 /**
  * The accounts with a cached dashboard entry, sorted by online id. Derived with
  * `Atom.map`, which memoises on {@link dashboardsAtom}'s identity, so the array
@@ -147,8 +176,12 @@ const availableAccountsAtom = Atom.map(dashboardsAtom, (dashboards): CachedAccou
 export interface DashboardStore {
   /** Read one account's cached dashboard, or `null` when absent/SSR. */
   load(accountId: string): DashboardData | null;
+  /** Read one account's last settled RAWG outcome, or `null` when absent/SSR. */
+  loadEnrichment(accountId: string): DashboardEnrichmentState | null;
   /** Persist an account's dashboard; notifies hook subscribers. */
   save(data: DashboardData): void;
+  /** Persist one account's settled RAWG outcome without changing its PSN data. */
+  saveEnrichment(accountId: string, state: DashboardEnrichmentState): void;
   /** Mark an account as the one the dashboard should render. */
   setActive(accountId: string): void;
   /** Select the demo account without deleting any cached account. */
@@ -159,6 +192,23 @@ export interface DashboardStore {
    * data rather than a now-missing entry). Other accounts are left intact.
    */
   remove(accountId: string): void;
+}
+
+function loadEnrichment(
+  registry: AtomRegistry.AtomRegistry,
+  accountId: string
+): DashboardEnrichmentState | null {
+  if (typeof window === "undefined") return null;
+  return registry.get(enrichmentStatesAtom)[accountId] ?? null;
+}
+
+function saveEnrichment(
+  registry: AtomRegistry.AtomRegistry,
+  accountId: string,
+  state: DashboardEnrichmentState
+): void {
+  if (typeof window === "undefined") return;
+  registry.set(enrichmentStatesAtom, { ...registry.get(enrichmentStatesAtom), [accountId]: state });
 }
 
 /**
@@ -175,6 +225,7 @@ export function makeDashboardStore(registry: AtomRegistry.AtomRegistry): Dashboa
       if (typeof window === "undefined") return null;
       return registry.get(dashboardsAtom)[accountId] ?? null;
     },
+    loadEnrichment: loadEnrichment.bind(null, registry),
     save: (data) => {
       if (typeof window === "undefined") return;
       registry.set(dashboardsAtom, {
@@ -182,6 +233,7 @@ export function makeDashboardStore(registry: AtomRegistry.AtomRegistry): Dashboa
         [data.profile.accountId]: data,
       });
     },
+    saveEnrichment: saveEnrichment.bind(null, registry),
     setActive: (accountId) => {
       if (typeof window === "undefined") return;
       registry.set(activeAccountIdAtom, accountId);
@@ -194,9 +246,10 @@ export function makeDashboardStore(registry: AtomRegistry.AtomRegistry): Dashboa
       if (typeof window === "undefined") return;
       const { [accountId]: _removed, ...rest } = registry.get(dashboardsAtom);
       registry.set(dashboardsAtom, rest);
-      if (registry.get(activeAccountIdAtom) === accountId) {
-        registry.set(activeAccountIdAtom, null);
-      }
+      const { [accountId]: _removedEnrichment, ...remainingEnrichment } =
+        registry.get(enrichmentStatesAtom);
+      registry.set(enrichmentStatesAtom, remainingEnrichment);
+      if (registry.get(activeAccountIdAtom) === accountId) registry.set(activeAccountIdAtom, null);
     },
   };
 }
@@ -209,6 +262,11 @@ export function makeDashboardStore(registry: AtomRegistry.AtomRegistry): Dashboa
  */
 export function useActiveDashboard(): DashboardData {
   return useAtomValue(activeDashboardAtom);
+}
+
+/** Subscribe to the active account's last settled RAWG outcome. */
+export function useActiveDashboardEnrichment(): DashboardEnrichmentState | null {
+  return useAtomValue(activeDashboardEnrichmentAtom);
 }
 
 /** Subscribe to the accounts with a cached dashboard entry; empty on the server. */

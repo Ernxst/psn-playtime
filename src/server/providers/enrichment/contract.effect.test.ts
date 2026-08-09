@@ -17,14 +17,15 @@ const ENRICHED: GameMetadata = { genre: "RPG", typicalPlaytime: 40 };
  * one title rate-limits, everything else is upstream-unavailable.
  */
 const enrichmentTestLayer = Layer.succeed(TitleEnrichment, {
+  availability: "available" as const,
   metadataFor: (title: string) => {
-    if (title === "Known Game") return Effect.succeed(ENRICHED);
+    if (title === "Known Game") return Effect.succeed({ matched: true, metadata: ENRICHED });
     if (title === "Busy Game") return Effect.fail(new RateLimitedError({ provider: "rawg" }));
     return Effect.fail(
       new UpstreamUnavailableError({ provider: "rawg", reason: "upstream_error" })
     );
   },
-  franchiseFor: () => Effect.succeed(undefined),
+  franchiseFor: () => Effect.succeed({ matched: false }),
 });
 
 describe("TitleEnrichment", () => {
@@ -36,7 +37,7 @@ describe("TitleEnrichment", () => {
 
     const info = await Effect.runPromise(program.pipe(Effect.provide(enrichmentTestLayer)));
 
-    expect(info).toStrictEqual(ENRICHED);
+    expect(info).toStrictEqual({ matched: true, metadata: ENRICHED });
   });
 
   it("recovers both TitleEnrichment error tags on the typed channel", async () => {

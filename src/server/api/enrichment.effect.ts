@@ -14,6 +14,7 @@ import { runServer } from "@/runtime/runtime.effect";
 import { type Genre } from "@/server/providers/account/snapshot";
 import { type TitleEnrichment } from "@/server/providers/enrichment/contract.effect";
 import {
+  type EnrichmentPrefetch,
   prefetchFranchises,
   prefetchGameMetadata,
 } from "@/server/providers/enrichment/rawg/provider.effect";
@@ -31,6 +32,29 @@ const rawgGenreInput = Schema.toStandardSchemaV1(RawgGenreInput);
 
 type RawgInputTitle = Schema.Schema.Type<typeof RawgGenreInput>["titles"][number];
 
+export type RawgEnrichmentOutcome = "complete" | "partial" | "unavailable" | "failed";
+
+export interface RawgGenreItem {
+  readonly titleId: string;
+  readonly genre?: Genre;
+  readonly typicalPlaytime?: number;
+}
+
+export interface RawgFranchiseItem {
+  readonly titleId: string;
+  readonly franchise: string;
+}
+
+export interface RawgGenreResult {
+  readonly outcome: RawgEnrichmentOutcome;
+  readonly items: RawgGenreItem[];
+}
+
+export interface RawgFranchiseResult {
+  readonly outcome: RawgEnrichmentOutcome;
+  readonly items: RawgFranchiseItem[];
+}
+
 /**
  * The unique title names a RAWG lookup should run for. RAWG is the sole
  * enrichment source and apps are already excluded from the snapshot's games, so
@@ -38,6 +62,36 @@ type RawgInputTitle = Schema.Schema.Type<typeof RawgGenreInput>["titles"][number
  */
 function rawgLookupNames(titles: ReadonlyArray<{ name: string }>): string[] {
   return Array.from(new Set(titles.map((title) => title.name)));
+}
+
+/** Turn provider evidence into the persisted/UI outcome for one representation. */
+function enrichmentOutcome<A>(
+  prefetch: EnrichmentPrefetch<A>,
+  resolvedTitles: number,
+  totalTitles: number
+): RawgEnrichmentOutcome {
+  if (prefetch.availability === "unconfigured") return "unavailable";
+  if (resolvedTitles === totalTitles) return "complete";
+  if (prefetch.failures > 0 && prefetch.values.size === 0) return "failed";
+  return "partial";
+}
+
+function genreItemsForTitle(
+  title: RawgInputTitle,
+  match:
+    | { readonly metadata: { readonly genre?: Genre; readonly typicalPlaytime?: number } }
+    | undefined
+): RawgGenreItem[] {
+  const genre = match?.metadata.genre;
+  const typicalPlaytime = match?.metadata.typicalPlaytime;
+  if (genre === undefined && typicalPlaytime === undefined) return [];
+  return [
+    {
+      titleId: title.titleId,
+      ...(genre === undefined ? {} : { genre }),
+      ...(typicalPlaytime === undefined ? {} : { typicalPlaytime }),
+    },
+  ];
 }
 
 /**
@@ -51,27 +105,20 @@ function rawgLookupNames(titles: ReadonlyArray<{ name: string }>): string[] {
  */
 export const rawgGenresEffect = (
   titles: readonly RawgInputTitle[]
-): Effect.Effect<
-  Array<{ titleId: string; genre?: Genre; typicalPlaytime?: number }>,
-  never,
-  TitleEnrichment
-> =>
+): Effect.Effect<RawgGenreResult, never, TitleEnrichment> =>
   prefetchGameMetadata(rawgLookupNames(titles)).pipe(
-    Effect.map((metadata) =>
-      titles.flatMap((title) => {
-        const info = metadata.get(title.name);
-        const genre = info?.genre;
-        const typicalPlaytime = info?.typicalPlaytime;
-        if (genre === undefined && typicalPlaytime === undefined) return [];
-        return [
-          {
-            titleId: title.titleId,
-            ...(genre && { genre }),
-            ...(typicalPlaytime !== undefined && { typicalPlaytime }),
-          },
-        ];
-      })
-    )
+    Effect.map((prefetch) => {
+      let resolvedTitles = 0;
+      const items = titles.flatMap((title): RawgGenreItem[] => {
+        const match = prefetch.values.get(title.name);
+        if (match?.metadata.genre !== undefined) resolvedTitles += 1;
+        return genreItemsForTitle(title, match);
+      });
+      return {
+        outcome: enrichmentOutcome(prefetch, resolvedTitles, titles.length),
+        items,
+      };
+    })
   );
 
 /**
@@ -81,16 +128,23 @@ export const rawgGenresEffect = (
  */
 export const rawgFranchisesEffect = (
   titles: readonly RawgInputTitle[]
-): Effect.Effect<Array<{ titleId: string; franchise: string }>, never, TitleEnrichment> =>
+): Effect.Effect<RawgFranchiseResult, never, TitleEnrichment> =>
   prefetchFranchises(rawgLookupNames(titles)).pipe(
-    Effect.map((rawgFranchises) =>
-      titles.flatMap((title) => {
-        const franchise = rawgFranchises.get(title.name);
+    Effect.map((prefetch) => {
+      let resolvedTitles = 0;
+      const items = titles.flatMap((title): RawgFranchiseItem[] => {
+        const match = prefetch.values.get(title.name);
+        if (match?.matched === true) resolvedTitles += 1;
+        const franchise = match?.franchise;
         return franchise !== undefined && franchise !== ""
           ? [{ titleId: title.titleId, franchise }]
           : [];
-      })
-    )
+      });
+      return {
+        outcome: enrichmentOutcome(prefetch, resolvedTitles, titles.length),
+        items,
+      };
+    })
   );
 
 export const getRawgGenres = createServerFn({ method: "POST" })

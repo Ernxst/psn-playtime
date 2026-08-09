@@ -2,7 +2,12 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { describe, expect, it, vi } from "vitest";
 import { rawgFranchisesEffect, rawgGenresEffect } from "@/server/api/enrichment.effect";
-import { TitleEnrichment, type GameMetadata } from "@/server/providers/enrichment/contract.effect";
+import {
+  type FranchiseMatch,
+  type GameMetadataMatch,
+  TitleEnrichment,
+  type TitleEnrichmentAvailability,
+} from "@/server/providers/enrichment/contract.effect";
 import {
   RateLimitedError,
   type TitleEnrichmentError,
@@ -11,29 +16,25 @@ import {
 
 type RawgTitle = { titleId: string; name: string };
 
-/**
- * A fake `TitleEnrichment` — the production seam both effects read through. The
- * returned spies let a test assert that a duplicated title name is looked up
- * once. Each capability defaults to a successful absence so a test only states
- * the lookup it cares about.
- */
 function fakeEnrichment(
   cfg: {
-    metadataFor?: (title: string) => Effect.Effect<GameMetadata, TitleEnrichmentError>;
-    franchiseFor?: (title: string) => Effect.Effect<string | undefined, TitleEnrichmentError>;
+    availability?: TitleEnrichmentAvailability;
+    metadataFor?: (title: string) => Effect.Effect<GameMetadataMatch, TitleEnrichmentError>;
+    franchiseFor?: (title: string) => Effect.Effect<FranchiseMatch, TitleEnrichmentError>;
   } = {}
 ) {
-  const metadataFor = vi.fn(cfg.metadataFor ?? (() => Effect.succeed({})));
-  const franchiseFor = vi.fn(cfg.franchiseFor ?? (() => Effect.succeed(undefined)));
-  const layer = Layer.succeed(TitleEnrichment, { metadataFor, franchiseFor });
+  const metadataFor = vi.fn(
+    cfg.metadataFor ?? (() => Effect.succeed({ matched: false, metadata: {} }))
+  );
+  const franchiseFor = vi.fn(cfg.franchiseFor ?? (() => Effect.succeed({ matched: false })));
+  const layer = Layer.succeed(TitleEnrichment, {
+    availability: cfg.availability ?? "available",
+    metadataFor,
+    franchiseFor,
+  });
   return { layer, metadataFor, franchiseFor };
 }
 
-/**
- * Provide the fake `TitleEnrichment` layer onto the effect's `R` channel and run
- * it to a Promise — the test-side mirror of production's `runServer` (which
- * provides the real layer). The two-arg `Effect.provide` keeps the seam explicit.
- */
 function runGenres(titles: RawgTitle[], layer: Layer.Layer<TitleEnrichment>) {
   return Effect.runPromise(Effect.provide(rawgGenresEffect(titles), layer));
 }
@@ -42,148 +43,168 @@ function runFranchises(titles: RawgTitle[], layer: Layer.Layer<TitleEnrichment>)
   return Effect.runPromise(Effect.provide(rawgFranchisesEffect(titles), layer));
 }
 
-const rateLimited: Effect.Effect<never, TitleEnrichmentError> = Effect.fail(
-  new RateLimitedError({ provider: "rawg" })
-);
 const unavailable: Effect.Effect<never, TitleEnrichmentError> = Effect.fail(
   new UpstreamUnavailableError({ provider: "rawg", reason: "upstream_error" })
 );
+const rateLimited: Effect.Effect<never, TitleEnrichmentError> = Effect.fail(
+  new RateLimitedError({ provider: "rawg" })
+);
 
 describe(".rawgGenresEffect", () => {
-  it("returns the genre and typical playtime for titles RAWG matched", async () => {
-    const matched: Record<string, GameMetadata> = {
-      Halo: { genre: "Shooter", typicalPlaytime: 12 },
-    };
+  it("returns complete metadata for every known RAWG match", async () => {
     const { layer } = fakeEnrichment({
-      metadataFor: (title) => Effect.succeed(matched[title] ?? {}),
+      metadataFor: () =>
+        Effect.succeed({ matched: true, metadata: { genre: "Shooter", typicalPlaytime: 12 } }),
     });
 
-    const result = await runGenres(
-      [
-        { titleId: "halo", name: "Halo" },
-        { titleId: "mystery", name: "Mystery Game" },
-      ],
-      layer
-    );
+    await expect(runGenres([{ titleId: "halo", name: "Halo" }], layer)).resolves.toStrictEqual({
+      outcome: "complete",
+      items: [{ titleId: "halo", genre: "Shooter", typicalPlaytime: 12 }],
+    });
+  });
 
-    expect(result).toStrictEqual([{ titleId: "halo", genre: "Shooter", typicalPlaytime: 12 }]);
+  it("keeps a genuine no-match partial rather than completing blank metadata", async () => {
+    const { layer } = fakeEnrichment();
+
+    await expect(
+      runGenres([{ titleId: "unknown", name: "Unknown" }], layer)
+    ).resolves.toStrictEqual({
+      outcome: "partial",
+      items: [],
+    });
+  });
+
+  it("keeps available metadata when another title remains unresolved", async () => {
+    const { layer } = fakeEnrichment({
+      metadataFor: (title) =>
+        Effect.succeed(
+          title === "Halo"
+            ? { matched: true, metadata: { genre: "Shooter" } }
+            : { matched: false, metadata: {} }
+        ),
+    });
+
+    await expect(
+      runGenres(
+        [
+          { titleId: "halo", name: "Halo" },
+          { titleId: "unknown", name: "Unknown" },
+        ],
+        layer
+      )
+    ).resolves.toStrictEqual({
+      outcome: "partial",
+      items: [{ titleId: "halo", genre: "Shooter" }],
+    });
   });
 
   it.each([
-    { label: "a genre with no typical playtime", metadata: { genre: "RPG" } as GameMetadata },
-    {
-      label: "a typical playtime with no genre",
-      metadata: { typicalPlaytime: 20 } as GameMetadata,
-    },
-    {
-      label: "both a genre and a typical playtime",
-      metadata: { genre: "RPG", typicalPlaytime: 20 } as GameMetadata,
-    },
-  ])("includes $label", async ({ metadata }) => {
-    const { layer } = fakeEnrichment({ metadataFor: () => Effect.succeed(metadata) });
-
-    const result = await runGenres([{ titleId: "t1", name: "Game" }], layer);
-
-    expect(result).toStrictEqual([{ titleId: "t1", ...metadata }]);
-  });
-
-  it("drops a title whose genre and typical playtime are both absent", async () => {
-    const { layer } = fakeEnrichment({ metadataFor: () => Effect.succeed({}) });
-
-    const result = await runGenres([{ titleId: "t1", name: "Unknown" }], layer);
-
-    expect(result).toStrictEqual([]);
-  });
-
-  it("looks a duplicated title name up once and applies it to every title that shares it", async () => {
-    const { layer, metadataFor } = fakeEnrichment({
-      metadataFor: () => Effect.succeed({ genre: "Racing" }),
-    });
-
-    const result = await runGenres(
-      [
-        { titleId: "gt-ps4", name: "Gran Turismo" },
-        { titleId: "gt-ps5", name: "Gran Turismo" },
-      ],
-      layer
-    );
-
-    expect(metadataFor).toHaveBeenCalledExactlyOnceWith("Gran Turismo");
-    expect(result).toStrictEqual([
-      { titleId: "gt-ps4", genre: "Racing" },
-      { titleId: "gt-ps5", genre: "Racing" },
-    ]);
-  });
-
-  it.each([
-    { label: "rate-limits", failure: rateLimited },
-    { label: "is unavailable", failure: unavailable },
-  ])("degrades to blank enrichment when the provider $label", async ({ failure }) => {
+    { label: "an upstream failure", failure: unavailable },
+    { label: "a rate limit", failure: rateLimited },
+  ])("returns failed metadata after $label", async ({ failure }) => {
     const { layer } = fakeEnrichment({ metadataFor: () => failure });
 
-    const result = await runGenres([{ titleId: "t1", name: "Game" }], layer);
+    await expect(runGenres([{ titleId: "game", name: "Game" }], layer)).resolves.toStrictEqual({
+      outcome: "failed",
+      items: [],
+    });
+  });
 
-    expect(result).toStrictEqual([]);
+  it("returns unavailable without calling RAWG when no key is configured", async () => {
+    const { layer, metadataFor } = fakeEnrichment({ availability: "unconfigured" });
+
+    await expect(runGenres([{ titleId: "game", name: "Game" }], layer)).resolves.toStrictEqual({
+      outcome: "unavailable",
+      items: [],
+    });
+    expect(metadataFor).not.toHaveBeenCalled();
+  });
+
+  it("looks up a duplicated title once and applies its match to both source titles", async () => {
+    const { layer, metadataFor } = fakeEnrichment({
+      metadataFor: () => Effect.succeed({ matched: true, metadata: { genre: "Racing" } }),
+    });
+
+    await expect(
+      runGenres(
+        [
+          { titleId: "gt-ps4", name: "Gran Turismo" },
+          { titleId: "gt-ps5", name: "Gran Turismo" },
+        ],
+        layer
+      )
+    ).resolves.toStrictEqual({
+      outcome: "complete",
+      items: [
+        { titleId: "gt-ps4", genre: "Racing" },
+        { titleId: "gt-ps5", genre: "Racing" },
+      ],
+    });
+    expect(metadataFor).toHaveBeenCalledExactlyOnceWith("Gran Turismo");
   });
 });
 
 describe(".rawgFranchisesEffect", () => {
-  it("returns the franchise for titles RAWG matched", async () => {
-    const matched: Record<string, string | undefined> = { Halo: "Halo" };
+  it("retains a matched title with no series as complete rather than a no-match", async () => {
     const { layer } = fakeEnrichment({
-      franchiseFor: (title) => Effect.succeed(matched[title]),
+      franchiseFor: () => Effect.succeed({ matched: true }),
     });
 
-    const result = await runFranchises(
-      [
-        { titleId: "halo", name: "Halo" },
-        { titleId: "mystery", name: "Mystery Game" },
-      ],
-      layer
-    );
-
-    expect(result).toStrictEqual([{ titleId: "halo", franchise: "Halo" }]);
+    await expect(
+      runFranchises([{ titleId: "stray", name: "Stray" }], layer)
+    ).resolves.toStrictEqual({
+      outcome: "complete",
+      items: [],
+    });
   });
 
-  it.each([
-    { label: "no franchise", value: undefined },
-    { label: "an empty-string franchise", value: "" },
-  ])("drops a title with $label", async ({ value }) => {
-    const { layer } = fakeEnrichment({ franchiseFor: () => Effect.succeed(value) });
+  it("keeps a no-match partial and a failure failed", async () => {
+    const noMatch = fakeEnrichment();
+    const failed = fakeEnrichment({ franchiseFor: () => unavailable });
 
-    const result = await runFranchises([{ titleId: "t1", name: "Game" }], layer);
-
-    expect(result).toStrictEqual([]);
+    await expect(
+      runFranchises([{ titleId: "unknown", name: "Unknown" }], noMatch.layer)
+    ).resolves.toStrictEqual({
+      outcome: "partial",
+      items: [],
+    });
+    await expect(
+      runFranchises([{ titleId: "busy", name: "Busy" }], failed.layer)
+    ).resolves.toStrictEqual({
+      outcome: "failed",
+      items: [],
+    });
   });
 
-  it("looks a duplicated title name up once and applies it to every title that shares it", async () => {
-    const { layer, franchiseFor } = fakeEnrichment({
-      franchiseFor: () => Effect.succeed("Gran Turismo"),
+  it("keeps available franchise metadata when another title remains unresolved", async () => {
+    const { layer } = fakeEnrichment({
+      franchiseFor: (title) =>
+        Effect.succeed(
+          title === "Halo" ? { matched: true, franchise: "Halo" } : { matched: false }
+        ),
     });
 
-    const result = await runFranchises(
-      [
-        { titleId: "gt-ps4", name: "Gran Turismo" },
-        { titleId: "gt-ps5", name: "Gran Turismo" },
-      ],
-      layer
-    );
-
-    expect(franchiseFor).toHaveBeenCalledExactlyOnceWith("Gran Turismo");
-    expect(result).toStrictEqual([
-      { titleId: "gt-ps4", franchise: "Gran Turismo" },
-      { titleId: "gt-ps5", franchise: "Gran Turismo" },
-    ]);
+    await expect(
+      runFranchises(
+        [
+          { titleId: "halo", name: "Halo" },
+          { titleId: "unknown", name: "Unknown" },
+        ],
+        layer
+      )
+    ).resolves.toStrictEqual({
+      outcome: "partial",
+      items: [{ titleId: "halo", franchise: "Halo" }],
+    });
   });
 
-  it.each([
-    { label: "rate-limits", failure: rateLimited },
-    { label: "is unavailable", failure: unavailable },
-  ])("degrades to blank enrichment when the provider $label", async ({ failure }) => {
-    const { layer } = fakeEnrichment({ franchiseFor: () => failure });
+  it("returns unavailable without calling RAWG when no key is configured", async () => {
+    const { layer, franchiseFor } = fakeEnrichment({ availability: "unconfigured" });
 
-    const result = await runFranchises([{ titleId: "t1", name: "Game" }], layer);
-
-    expect(result).toStrictEqual([]);
+    await expect(runFranchises([{ titleId: "game", name: "Game" }], layer)).resolves.toStrictEqual({
+      outcome: "unavailable",
+      items: [],
+    });
+    expect(franchiseFor).not.toHaveBeenCalled();
   });
 });

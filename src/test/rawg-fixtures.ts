@@ -8,8 +8,10 @@ export interface RawgGameFixture {
 export const rawgGame = (
   overrides: Omit<RawgGameFixture, "genres"> & { genres?: ReadonlyArray<string> } = {}
 ): RawgGameFixture => ({
+  id: 1,
+  name: "RAWG test game",
   ...overrides,
-  genres: overrides.genres?.map((name) => ({ name })),
+  genres: overrides.genres?.map((name) => ({ name })) ?? [],
 });
 
 export const rawgSearch = (results: ReadonlyArray<RawgGameFixture> = []) => ({ results });

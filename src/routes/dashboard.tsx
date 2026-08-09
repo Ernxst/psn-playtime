@@ -6,14 +6,25 @@ import { signedInPreviewDashboard } from "@/domain/mock";
 import { DashboardView } from "@/features/dashboard/components/dashboard-view";
 import { DashboardError, DashboardSkeleton } from "@/features/dashboard/components/states";
 import {
+  enrichmentForSnapshot,
+  enrichmentViewState,
   rawgFranchisesQueryOptions,
   rawgGenresQueryOptions,
-  shouldPersistEnrichment,
+  settledEnrichmentState,
 } from "@/features/dashboard/enrichment/query";
+import {
+  enrichmentComplete,
+  mergeRawgEnrichment,
+  sameEnrichmentState,
+} from "@/features/dashboard/enrichment/state";
 import { activateSignedInPreview, prototypeDashboard } from "@/features/prototype/prototype-data";
 import { signInWithToken } from "@/server/api/account.effect";
-import type { DashboardData, GamePlay, Genre } from "@/server/providers/account/snapshot";
-import { type DashboardStore, useActiveDashboard } from "@/stores/dashboard-store";
+import type { DashboardData } from "@/server/providers/account/snapshot";
+import {
+  type DashboardStore,
+  useActiveDashboard,
+  useActiveDashboardEnrichment,
+} from "@/stores/dashboard-store";
 
 type PrototypeState = "loading" | "error" | "empty" | "partial" | "signed-in";
 interface DashboardSearch {
@@ -31,44 +42,6 @@ const prototypeStates: readonly PrototypeState[] = [
 function prototypeState(value: unknown): PrototypeState | undefined {
   if (typeof value !== "string") return undefined;
   return prototypeStates.find((state) => state === value);
-}
-
-/** Apply a title's deferred RAWG enrichment, leaving unknown fields untouched. */
-function enrichGame(
-  game: GamePlay,
-  genre: Genre | undefined,
-  typicalPlaytime: number | undefined,
-  franchise: string | undefined
-): GamePlay {
-  return {
-    ...game,
-    ...(genre ? { genre } : {}),
-    ...(typicalPlaytime !== undefined ? { typicalPlaytime } : {}),
-    ...(franchise ? { franchise } : {}),
-  };
-}
-
-/** Merge the deferred RAWG genre/playtime/franchise lookups into the games. */
-function mergeRawgEnrichment(
-  data: DashboardData,
-  rawgGenres: Array<{ titleId: string; genre?: Genre; typicalPlaytime?: number }>,
-  rawgFranchises: Array<{ titleId: string; franchise: string }>
-): DashboardData {
-  if (rawgGenres.length === 0 && rawgFranchises.length === 0) return data;
-  const genreByTitleId = new Map(rawgGenres.map((item) => [item.titleId, item.genre]));
-  const playtimeByTitleId = new Map(rawgGenres.map((item) => [item.titleId, item.typicalPlaytime]));
-  const franchiseByTitleId = new Map(rawgFranchises.map((item) => [item.titleId, item.franchise]));
-  return {
-    ...data,
-    games: data.games.map((game) =>
-      enrichGame(
-        game,
-        genreByTitleId.get(game.titleId),
-        playtimeByTitleId.get(game.titleId),
-        franchiseByTitleId.get(game.titleId)
-      )
-    ),
-  };
 }
 
 export const Route = createFileRoute("/dashboard")({
@@ -192,45 +165,64 @@ function accountActions(data: DashboardData, safeDemo: boolean, store: Dashboard
   };
 }
 
+function useRawgEnrichment(
+  data: DashboardData,
+  partialData: boolean,
+  persisted: ReturnType<typeof useActiveDashboardEnrichment>
+) {
+  const genres = useQuery(rawgGenresQueryOptions(data, persisted));
+  const franchises = useQuery(rawgFranchisesQueryOptions(data, persisted));
+  const state = enrichmentViewState(data, persisted, {
+    genres: { status: genres.status, outcome: genres.data?.outcome },
+    franchises: { status: franchises.status, outcome: franchises.data?.outcome },
+  });
+  const enrichedData = useMemo(
+    () =>
+      partialData
+        ? data
+        : mergeRawgEnrichment(data, genres.data?.items ?? [], franchises.data?.items ?? []),
+    [data, franchises.data?.items, genres.data?.items, partialData]
+  );
+  return {
+    data: enrichedData,
+    settled: settledEnrichmentState(data.fetchedAt, state),
+    presentation: {
+      genres: {
+        status: state.genres,
+        retrying: genres.fetchStatus === "fetching",
+        onRetry: () => void genres.refetch(),
+      },
+      franchises: {
+        status: state.franchises,
+        retrying: franchises.fetchStatus === "fetching",
+        onRetry: () => void franchises.refetch(),
+      },
+    },
+  };
+}
+
 function DashboardCachedView({ data, safeDemo = false, partialData = false }: CachedViewProps) {
   const { dashboardStore } = Route.useRouteContext();
-  const { data: rawgGenres = [], status: genresStatus } = useQuery(rawgGenresQueryOptions(data));
-  const { data: rawgFranchises = [], status: franchisesStatus } = useQuery(
-    rawgFranchisesQueryOptions(data)
-  );
-  const enrichedData = useMemo(
-    () => (partialData ? data : mergeRawgEnrichment(data, rawgGenres, rawgFranchises)),
-    [data, partialData, rawgGenres, rawgFranchises]
-  );
+  const storedEnrichment = useActiveDashboardEnrichment();
+  const persisted = enrichmentForSnapshot(data, storedEnrichment);
+  const enrichment = useRawgEnrichment(data, partialData, persisted);
 
-  // Fire-and-forget: write the enriched snapshot to localStorage (via the
-  // dashboard store) once the RAWG lookups have actually SUCCEEDED, so revisits
-  // render fully enriched without re-hitting RAWG. `shouldPersistEnrichment`
-  // gates on the query `status` (not `fetchStatus`), so a failed lookup leaves
-  // the data un-enriched and a later visit retries (#136).
-  //
-  // This stays a `useEffect` per docs/rules/effects.md: it pushes to localStorage
-  // and nothing here is read back during this render (the store re-publishes via
-  // its own atom hook, so not this render); no user interaction triggers it — it
-  // fires on async query settlement, not an event (so not an event handler); and
-  // writing to localStorage during render would be an impure side effect (so not
-  // render-time derivation). Moving the write into the query layer was attempted
-  // but is not viable: the `@/server/api/enrichment.effect` server functions
-  // require the TanStack Start server runtime and cannot be driven at the query
-  // layer in tests without mocking our own wrapper, which docs/rules/testing.md
-  // forbids.
+  // Synchronise settled query results to the Atom-backed localStorage cache;
+  // async settlement is not a user event, and render-time writes would be impure.
   useEffect(() => {
-    if (safeDemo || partialData) return;
-    if (!shouldPersistEnrichment(data, genresStatus, franchisesStatus)) return;
-    dashboardStore.save({ ...enrichedData, enriched: true });
-  }, [dashboardStore, data, enrichedData, franchisesStatus, genresStatus, partialData, safeDemo]);
+    if (safeDemo || partialData || enrichment.settled === null) return;
+    if (sameEnrichmentState(persisted, enrichment.settled) && enrichment.data === data) return;
+    dashboardStore.saveEnrichment(data.profile.accountId, enrichment.settled);
+    dashboardStore.save({ ...enrichment.data, enriched: enrichmentComplete(enrichment.settled) });
+  }, [dashboardStore, data, enrichment, partialData, persisted, safeDemo]);
 
   return (
     <DashboardView
-      data={enrichedData}
+      data={enrichment.data}
       safeDemo={safeDemo}
       partialData={partialData}
       signingOut={false}
+      enrichment={enrichment.presentation}
       {...accountActions(data, safeDemo, dashboardStore)}
     />
   );

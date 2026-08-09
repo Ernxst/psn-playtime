@@ -26,6 +26,18 @@ describe(".save", () => {
   });
 });
 
+describe(".saveEnrichment", () => {
+  it("does nothing during server render when there is no window", () => {
+    expect(() =>
+      makeStore().saveEnrichment("demo", {
+        fetchedAt: demoDashboard.fetchedAt,
+        genres: "partial",
+        franchises: "failed",
+      })
+    ).not.toThrow();
+  });
+});
+
 describe(".setActive", () => {
   it("does nothing during server render when there is no window", () => {
     expect(() => makeStore().setActive("demo")).not.toThrow();

@@ -50,6 +50,41 @@ function baseFor(titleId: string, amountMinor: number): TransactionRow {
 }
 
 describe("DashboardView", () => {
+  it("discloses partial RAWG metadata beside Genres and lets the reader retry", async () => {
+    const onRetry = vi.fn();
+    const imported = {
+      ...demoDashboard,
+      isDemo: false,
+      profile: { ...demoDashboard.profile, accountId: "imported" },
+    };
+    const { element } = createHarness(
+      <DashboardView
+        data={imported}
+        onRefresh={vi.fn()}
+        onSignOut={vi.fn()}
+        signingOut={false}
+        enrichment={{
+          genres: { status: "partial", retrying: false, onRetry },
+          franchises: { status: "complete", retrying: false },
+        }}
+      />
+    );
+
+    await render(element);
+
+    await expect
+      .element(
+        page.getByText(
+          "Some genre metadata is still missing. Showing only the RAWG matches available for this account."
+        )
+      )
+      .toBeVisible();
+
+    await page.getByRole("button", { name: "Retry genre metadata" }).click();
+
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
   it("composes the header, KPIs, chart sections and games table from the data", async () => {
     const data = prototypeDashboard(demoDashboard);
     const { element } = createHarness(
