@@ -1,13 +1,4 @@
-import {
-  Banknote,
-  ChevronDown,
-  Coins,
-  ExternalLink,
-  Gift,
-  Info,
-  Trophy,
-  Wallet,
-} from "lucide-react";
+import { ExternalLink, Info } from "lucide-react";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,21 +6,22 @@ import {
   Popover,
   PopoverContent,
   PopoverDescription,
+  PopoverTitle,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Separator } from "@/components/ui/separator";
 import { bookmarkletHref } from "@/domain/transaction-bookmarklet";
 import type { TransactionRow } from "@/domain/transactions";
 import { useCopied } from "@/features/dashboard/components/copy-button";
-import { ExportButtons } from "@/features/dashboard/export/components/export-buttons";
-import { fmtHours } from "@/features/dashboard/format";
+import { fmtHours, fmtNumber } from "@/features/dashboard/format";
 import {
   type AddOnSummary,
   type SpendSummary,
+  isAddOnPurchase,
   summariseAddOns,
   summariseSpend,
   type TitleSpend,
 } from "@/features/dashboard/spend/spend";
+import { GamePoster } from "@/features/prototype/poster";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import type { DashboardData } from "@/server/providers/account/snapshot";
 import { useTransactionImport } from "@/stores/transactions-store";
@@ -251,29 +243,49 @@ function WhyImportInfo() {
           />
         }
       >
-        <Info className="size-4" />
+        <Info className="size-4" aria-hidden="true" />
       </PopoverTrigger>
       <PopoverContent align="start" className="w-80 max-w-[calc(100vw-2rem)]">
+        <PopoverTitle>Why an import step is needed</PopoverTitle>
         <PopoverDescription>{whyImportNeeded}</PopoverDescription>
       </PopoverContent>
     </Popover>
   );
 }
 
-/** Prompt shown until the user imports their transaction history. */
-function ImportSpendCard({ data }: { data: DashboardData }) {
+function PurchaseImportHeader({
+  data,
+  transactionCount,
+}: {
+  data: DashboardData;
+  transactionCount: number;
+}) {
+  const transactionLabel = transactionCount === 1 ? "transaction" : "transactions";
+  const status =
+    transactionCount === 0
+      ? `No imported transactions for ${data.profile.onlineId} yet.`
+      : `${fmtNumber(transactionCount)} imported ${transactionLabel} for ${data.profile.onlineId}. Run the bookmarklet again whenever you want to update them.`;
+  return (
+    <CardHeader>
+      <CardTitle className="flex items-center gap-2 text-base">
+        Import PlayStation purchases
+        <WhyImportInfo />
+      </CardTitle>
+      <CardDescription>{status}</CardDescription>
+    </CardHeader>
+  );
+}
+
+function PurchaseImport({
+  data,
+  transactionCount,
+}: {
+  data: DashboardData;
+  transactionCount: number;
+}) {
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Coins className="size-4" /> Add your spend
-          <WhyImportInfo />
-        </CardTitle>
-        <CardDescription>
-          See £-per-hour value by importing your PlayStation transaction history. No file export,
-          one click.
-        </CardDescription>
-      </CardHeader>
+      <PurchaseImportHeader data={data} transactionCount={transactionCount} />
       <CardContent>
         <ImportInstructions accountId={data.profile.accountId} onlineId={data.profile.onlineId} />
       </CardContent>
@@ -281,88 +293,91 @@ function ImportSpendCard({ data }: { data: DashboardData }) {
   );
 }
 
-/**
- * Collapsed re-import affordance shown alongside the spend summary, so an
- * already-imported user can run the bookmarklet again to update their data.
- */
-function ReimportCard({ data }: { data: DashboardData }) {
+function SpendMetric({
+  label,
+  value,
+  detail,
+  divided = false,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+  divided?: boolean;
+}) {
   return (
-    <Card className="lg:col-span-3">
-      <CardContent>
-        <details className="group">
-          <summary className="-m-1 flex cursor-pointer list-none items-center gap-2 rounded-md p-1 text-sm font-medium transition-colors hover:bg-muted [&::-webkit-details-marker]:hidden">
-            <Coins className="size-4 shrink-0" /> Re-import or update your data
-            <ChevronDown
-              className="ml-auto size-4 shrink-0 transition-transform group-open:rotate-180"
-              aria-hidden="true"
-            />
-          </summary>
-          <div className="mt-4">
-            <ImportInstructions
-              accountId={data.profile.accountId}
-              onlineId={data.profile.onlineId}
-            />
-          </div>
-        </details>
-      </CardContent>
-    </Card>
+    <div
+      className={`playloom-metric flex min-w-0 flex-col gap-[5px] py-[22px] pr-[18px] max-sm:py-[18px] max-sm:pr-3 ${divided ? "border-l border-[var(--playloom-rule)] pl-[18px] max-sm:pl-3" : "pl-0"}`}
+    >
+      <span className="text-[9px] font-bold tracking-[0.08em] text-[#666a70] uppercase">
+        {label}
+      </span>
+      <strong className="overflow-hidden font-[Fraunces_Variable] text-[clamp(22px,3vw,36px)] font-semibold tracking-[-0.035em] text-ellipsis tabular-nums">
+        {value}
+      </strong>
+      <small className="overflow-hidden text-ellipsis whitespace-nowrap text-[9px] text-[#707379]">
+        {detail}
+      </small>
+    </div>
   );
 }
 
-function TotalsCard({ summary }: { summary: SpendSummary }) {
-  const stats = [
-    { label: "Total spend", value: money(summary.currency, summary.totalSpend) },
-    { label: "Paid games", value: String(summary.paidGames) },
-    { label: "Free / included", value: String(summary.freeGames) },
-  ];
+function SpendMetrics({ summary, discounts }: { summary: SpendSummary; discounts: number }) {
+  const average =
+    summary.purchaseCount === 0
+      ? "—"
+      : money(summary.currency, summary.totalSpend / summary.purchaseCount);
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Wallet className="size-4" /> What you've spent
-        </CardTitle>
-        <CardDescription>
-          {summary.purchaseCount} purchases joined to your library by title.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="grid grid-cols-3 divide-x divide-border">
-        {stats.map((s) => (
-          <div key={s.label} className="px-2 text-center first:pl-0 last:pr-0">
-            <div className="text-2xl font-bold tabular-nums">{s.value}</div>
-            <div className="text-xs text-muted-foreground">{s.label}</div>
-          </div>
-        ))}
-      </CardContent>
-    </Card>
+    <div className="playloom-metric-strip playloom-spend-strip">
+      <SpendMetric
+        label="Total spend"
+        value={money(summary.currency, summary.totalSpend)}
+        detail={`${summary.purchaseCount} purchases`}
+      />
+      <SpendMetric
+        divided
+        label="Matched spend"
+        value={money(summary.currency, summary.totalSpend - summary.unmatchedSpend)}
+        detail={`${summary.paidGames} paid · ${summary.freeGames} free / included`}
+      />
+      <SpendMetric
+        divided
+        label="Unmatched"
+        value={money(summary.currency, summary.unmatchedSpend)}
+        detail="Subscriptions and unknowns"
+      />
+      <SpendMetric divided label="Average paid" value={average} detail="Per purchase line" />
+      <SpendMetric
+        divided
+        label="Discounts"
+        value={money(summary.currency, discounts)}
+        detail="Saved from original prices"
+      />
+    </div>
   );
 }
 
-function ByYearCard({ summary }: { summary: SpendSummary }) {
-  if (summary.byYear.length === 0) return null;
+function SpendYears({ summary }: { summary: SpendSummary }) {
   const max = Math.max(...summary.byYear.map((y) => y.spend), 1);
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Spend by year</CardTitle>
-        <CardDescription>Purchases bucketed by transaction date.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-2 text-sm">
-        {summary.byYear.map((y) => (
-          <div key={y.year} className="space-y-1">
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground tabular-nums">{y.year}</span>
-              <span className="tabular-nums">{money(summary.currency, y.spend)}</span>
+    <div className="playloom-spend-years">
+      <h4>Spend by year</h4>
+      {summary.byYear.length === 0 ? (
+        <p className="border-y border-[var(--playloom-rule)] py-4 text-sm text-muted-foreground">
+          No dated purchase spend is available yet.
+        </p>
+      ) : (
+        summary.byYear.map((year) => (
+          <div key={year.year}>
+            <span>{year.year}</span>
+            <div className="playloom-bar" aria-hidden="true">
+              <i style={{ width: `${(year.spend / max) * 100}%` }} />
             </div>
-            <div className="h-2 overflow-hidden rounded-full bg-muted">
-              <div
-                className="h-full bg-[var(--chart-1)]"
-                style={{ width: `${(y.spend / max) * 100}%` }}
-              />
-            </div>
+            <strong>{money(summary.currency, year.spend)}</strong>
+            <small>{year.purchases} purchases</small>
           </div>
-        ))}
-      </CardContent>
-    </Card>
+        ))
+      )}
+    </div>
   );
 }
 
@@ -374,7 +389,7 @@ function LeaderRow({
   leader: SpendSummary["leaderboard"][number];
 }) {
   return (
-    <div className="flex items-center justify-between gap-3">
+    <div className="flex items-center justify-between gap-3 border-t border-[var(--playloom-rule)] py-3 last:border-b">
       <div className="min-w-0">
         <div className="truncate">{leader.name}</div>
         <div className="text-xs text-muted-foreground">
@@ -391,37 +406,30 @@ function LeaderRow({
 function UnmatchedFooter({ currency, spend }: { currency: string; spend: number }) {
   if (spend <= 0) return null;
   return (
-    <>
-      <Separator />
-      <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span>Spend not matched to a played title</span>
-        <span className="tabular-nums">{money(currency, spend)}</span>
-      </div>
-    </>
+    <div className="mt-3 flex items-center justify-between border-l-2 border-[var(--playloom-rule-strong)] pl-3 text-xs text-muted-foreground">
+      <span>Spend not matched to a played title</span>
+      <span className="tabular-nums">{money(currency, spend)}</span>
+    </div>
   );
 }
 
-/** The value leaderboard — best £-per-hour first. */
-function LeaderboardCard({ summary }: { summary: SpendSummary }) {
+function ValueRanking({ summary }: { summary: SpendSummary }) {
   const top = summary.leaderboard.slice(0, 10);
-  if (top.length === 0) return null;
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Trophy className="size-4" /> Best value per hour
-        </CardTitle>
-        <CardDescription>
-          What each game cost you per hour played. Lowest is best value.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-2 text-sm">
-        {top.map((g) => (
-          <LeaderRow key={g.titleId} currency={summary.currency} leader={g} />
-        ))}
-        <UnmatchedFooter currency={summary.currency} spend={summary.unmatchedSpend} />
-      </CardContent>
-    </Card>
+    <div>
+      <h4 className="playloom-subheading">Best value per hour</h4>
+      <p className="mb-4 max-w-[68ch] text-sm text-muted-foreground">
+        What each paid game cost per hour played. Lowest is best value.
+      </p>
+      {top.length === 0 ? (
+        <p className="border-y border-[var(--playloom-rule)] py-4 text-sm text-muted-foreground">
+          No matched purchases with playtime are available yet.
+        </p>
+      ) : (
+        top.map((g) => <LeaderRow key={g.titleId} currency={summary.currency} leader={g} />)
+      )}
+      <UnmatchedFooter currency={summary.currency} spend={summary.unmatchedSpend} />
+    </div>
   );
 }
 
@@ -430,50 +438,108 @@ interface TransactionSectionProps {
   transactions?: TransactionRow[];
 }
 
+interface SpendingSummaryProps extends TransactionSectionProps {
+  unavailableMessage?: string;
+}
+
 function useSectionTransactions(data: DashboardData, transactions?: TransactionRow[]) {
   const imported = useTransactionImport(data.profile.accountId);
   if (transactions) return transactions;
   return imported?.transactions ?? [];
 }
 
-/**
- * Dashboard spend section. Shows the import prompt until transactions are
- * imported, then the spend-vs-playtime cards.
- */
+/** Account-scoped purchase import procedure, kept separate from spend insights and data tools. */
 export function SpendSection({ data, transactions }: TransactionSectionProps) {
   const rows = useSectionTransactions(data, transactions);
-  if (rows.length === 0) {
-    return <ImportSpendCard data={data} />;
-  }
+  return <PurchaseImport data={data} transactionCount={rows.length} />;
+}
 
+export function SpendingSummary({
+  data,
+  transactions,
+  unavailableMessage = "No imported purchase history is available for this account. Purchase destinations remain available below.",
+}: SpendingSummaryProps) {
+  const rows = useSectionTransactions(data, transactions);
+  if (rows.length === 0) {
+    return (
+      <EmptySpendState title="Purchase transactions unavailable">
+        {unavailableMessage}
+      </EmptySpendState>
+    );
+  }
   const summary = summariseSpend(data, rows);
+  const discounts = rows.reduce((total, row) => total + (row.discountMinor ?? 0) / 100, 0);
   return (
-    <div className="grid gap-4 lg:grid-cols-3">
-      <TotalsCard summary={summary} />
-      <ByYearCard summary={summary} />
-      <LeaderboardCard summary={summary} />
-      <ExportButtons data={data} transactions={rows} />
-      <ReimportCard data={data} />
+    <div className="space-y-10">
+      <SpendMetrics summary={summary} discounts={discounts} />
+      <p className="playloom-spend-topups">
+        Wallet top-ups: <strong>{money(summary.currency, summary.topUpTotal)}</strong> · shown
+        separately from spend
+      </p>
+      <SpendYears summary={summary} />
+      <ValueRanking summary={summary} />
+      <p className="playloom-caveat">
+        Transactions are matched to played titles by stable SKU where available, then validated
+        title matching. Unmatched spend stays visible rather than being guessed.
+      </p>
     </div>
   );
 }
 
-function EmptySpendCard({ title, children }: { title: string; children: string }) {
+function EmptySpendState({ title, children }: { title: string; children: string }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">{title}</CardTitle>
-        <CardDescription>{children}</CardDescription>
-      </CardHeader>
-    </Card>
+    <div className="border-y border-[var(--playloom-rule)] py-6 text-sm">
+      <strong>{title}</strong>
+      <p className="mt-2 text-muted-foreground">{children}</p>
+    </div>
   );
 }
 
-function TitleSpendRow({ currency, title }: { currency: string; title: TitleSpend }) {
+function titlePresentation(data: DashboardData, transactions: TransactionRow[], title: TitleSpend) {
+  const game = data.games.find((candidate) => candidate.titleId === title.titleId);
+  const rows = game
+    ? transactions.filter(
+        (row) =>
+          row.skuId?.includes(game.titleId) ||
+          row.productName.toLowerCase().includes(game.name.toLowerCase())
+      )
+    : [];
+  const addOns = rows
+    .filter((row) => isAddOnPurchase(row, game))
+    .reduce((total, row) => total + row.amountMinor / 100, 0);
+  return { game, addOns, base: title.spend - addOns };
+}
+
+function MostSpentRow({
+  data,
+  transactions,
+  title,
+  rank,
+  max,
+  currency,
+}: {
+  data: DashboardData;
+  transactions: TransactionRow[];
+  title: TitleSpend;
+  rank: number;
+  max: number;
+  currency: string;
+}) {
+  const detail = titlePresentation(data, transactions, title);
   return (
-    <div className="flex items-center justify-between gap-3">
-      <div className="min-w-0 truncate">{title.name}</div>
-      <span className="shrink-0 font-semibold tabular-nums">{money(currency, title.spend)}</span>
+    <div className={`playloom-ranked-game ${rank === 0 ? "is-featured" : ""}`}>
+      <span className="playloom-rank">{String(rank + 1).padStart(2, "0")}</span>
+      {detail.game ? <GamePoster game={detail.game} featured={rank === 0} /> : <span />}
+      <span className="playloom-ranked-copy">
+        <strong>{title.name}</strong>
+        <span>
+          Base {money(currency, detail.base)} · Add-ons {money(currency, detail.addOns)}
+        </span>
+        <span className="playloom-bar" aria-hidden="true">
+          <i style={{ width: `${(title.spend / max) * 100}%` }} />
+        </span>
+      </span>
+      <b>{money(currency, title.spend)}</b>
     </div>
   );
 }
@@ -489,44 +555,55 @@ export function SpentMostSection({ data, transactions }: TransactionSectionProps
   const rows = useSectionTransactions(data, transactions);
   if (rows.length === 0) {
     return (
-      <EmptySpendCard title="No most-spent ranking yet">
+      <EmptySpendState title="No most-spent ranking yet">
         Import purchase transactions to see which games received the most spending.
-      </EmptySpendCard>
+      </EmptySpendState>
     );
   }
 
   const summary = summariseSpend(data, rows);
   if (summary.byTitle.length === 0) {
     return (
-      <EmptySpendCard title="No matched game spending">
+      <EmptySpendState title="No matched game spending">
         Imported purchases could not be matched to games in this archive.
-      </EmptySpendCard>
+      </EmptySpendState>
     );
   }
 
+  const max = Math.max(...summary.byTitle.map((title) => title.spend), 1);
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Banknote className="size-4" /> Spent the most on
-        </CardTitle>
-        <CardDescription>Games ranked by total spend: base game plus any add-ons.</CardDescription>
-      </CardHeader>
-      <CardContent className="max-h-96 space-y-2 overflow-y-auto text-sm">
-        {summary.byTitle.map((t) => (
-          <TitleSpendRow key={t.titleId} currency={summary.currency} title={t} />
+    <div>
+      <p className="mb-5 max-w-[68ch] text-sm text-muted-foreground">
+        Games ranked by total account spend, with base purchases and add-ons kept visible.
+      </p>
+      <div className="playloom-ranked-list">
+        {summary.byTitle.map((title, rank) => (
+          <MostSpentRow
+            key={title.titleId}
+            data={data}
+            transactions={rows}
+            title={title}
+            rank={rank}
+            max={max}
+            currency={summary.currency}
+          />
         ))}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
-function AddOnRow({ summary }: { summary: AddOnSummary }) {
+function AddOnRow({ data, summary }: { data: DashboardData; summary: AddOnSummary }) {
+  const game = data.games.find((candidate) => candidate.titleId === summary.titleId);
+  const label = summary.addOnCount === 1 ? "add-on purchase" : "add-on purchases";
   return (
-    <div className="flex items-center justify-between gap-3">
-      <div className="min-w-0 truncate">{summary.name}</div>
-      <span className="shrink-0 font-semibold tabular-nums">
-        {summary.addOnCount} {summary.addOnCount === 1 ? "add-on" : "add-ons"}
+    <div className="playloom-addon">
+      {game ? <GamePoster game={game} /> : <span />}
+      <span>
+        <strong>{summary.name}</strong>
+        <small>
+          {summary.addOnCount} {label}
+        </small>
       </span>
     </div>
   );
@@ -542,9 +619,9 @@ export function AddOnsSection({ data, transactions }: TransactionSectionProps) {
   const rows = useSectionTransactions(data, transactions);
   if (rows.length === 0) {
     return (
-      <EmptySpendCard title="No add-on purchases yet">
+      <EmptySpendState title="No add-on purchases yet">
         Import purchase transactions to see add-ons matched to games in this archive.
-      </EmptySpendCard>
+      </EmptySpendState>
     );
   }
 
@@ -553,27 +630,22 @@ export function AddOnsSection({ data, transactions }: TransactionSectionProps) {
     .sort((a, b) => b.addOnCount - a.addOnCount || a.name.localeCompare(b.name));
   if (ranked.length === 0) {
     return (
-      <EmptySpendCard title="No matched add-ons">
+      <EmptySpendState title="No matched add-ons">
         The imported purchase history has no add-ons matched to games in this archive.
-      </EmptySpendCard>
+      </EmptySpendState>
     );
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Gift className="size-4" /> Spent extra on
-        </CardTitle>
-        <CardDescription>
-          Games you bought add-ons, DLC or in-game items for, ranked by number of add-on purchases.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="max-h-96 space-y-2 overflow-y-auto text-sm">
-        {ranked.map((g) => (
-          <AddOnRow key={g.titleId} summary={g} />
+    <div>
+      <p className="mb-5 max-w-[68ch] text-sm text-muted-foreground">
+        Cover-led list of games with DLC, expansions or in-game items, ranked by purchase count.
+      </p>
+      <div>
+        {ranked.map((summary) => (
+          <AddOnRow key={summary.titleId} data={data} summary={summary} />
         ))}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

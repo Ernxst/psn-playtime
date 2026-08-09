@@ -634,7 +634,7 @@ describe("DashboardView", () => {
     await expect.element(page.getByRole("checkbox", { name: "Sports" })).not.toBeChecked();
   });
 
-  it("filters the purchase ledger by date and sorts every retained column", async () => {
+  it("filters the direct purchase history by date and keeps every sortable column", async () => {
     const { element } = createHarness(
       <DashboardView
         data={demoDashboard}
@@ -643,34 +643,35 @@ describe("DashboardView", () => {
         signingOut={false}
       />
     );
-    const { container } = await render(element);
+    await render(element);
 
-    const ledgerText = () => container.querySelector(".playloom-ledger")?.textContent ?? "";
+    const history = document.getElementById("purchase-history");
+    const historyText = () => history?.textContent ?? "";
 
-    expect(ledgerText()).toContain("Grand Theft Auto V");
+    expect(historyText()).toContain("Grand Theft Auto V");
 
     await page.getByLabelText("Purchase date from").fill("2025-01-01");
 
-    expect(ledgerText()).not.toContain("Grand Theft Auto V");
+    expect(historyText()).not.toContain("Grand Theft Auto V");
 
     const sortButtons = Array.from(
-      container.querySelectorAll<HTMLButtonElement>(".playloom-ledger th button")
+      history?.querySelectorAll<HTMLButtonElement>("thead button") ?? []
     );
 
-    expect(sortButtons.map((button) => button.textContent.trim())).toStrictEqual([
-      "Date ↓",
-      "Product ↕",
-      "Type ↕",
-      "Match ↕",
-      "Original ↕",
-      "Discount ↕",
-      "Paid ↕",
+    expect(sortButtons.map((button) => button.getAttribute("aria-label"))).toStrictEqual([
+      "Sort by Date",
+      "Sort by Product",
+      "Sort by Amount paid",
+      "Sort by Original",
+      "Sort by Discount",
+      "Sort by Type",
+      "Sort by Match",
     ]);
 
-    await page.getByRole("button", { name: "Product ↕" }).click();
-    const firstProduct = container.querySelector(".playloom-ledger tbody tr td:nth-child(2)");
+    await page.getByRole("button", { name: "Sort by Product" }).click();
+    const firstProduct = history?.querySelector("tbody tr td:nth-child(2)");
 
-    expect(firstProduct?.textContent).toContain("Cyberpunk");
+    expect(firstProduct?.textContent).toContain("Satisfactory");
   });
 
   it("keeps account-wide spend totals when a filter narrows the library", async () => {
@@ -693,11 +694,7 @@ describe("DashboardView", () => {
 
     await render(element);
 
-    // The "Spent the most on" section is account-wide; scope spend reads to it.
-    const spentMost = () =>
-      // The section has no accessible name; the contract here is its structural scope.
-      // oxlint-disable-next-line test-contract/no-dom-selector
-      page.getByText("Spent the most on").element().closest("section")?.textContent ?? "";
+    const spentMost = () => document.getElementById("spent-most")?.textContent ?? "";
 
     await expect.element(page.getByText(/98 titles in total/)).toBeVisible();
 
@@ -819,7 +816,7 @@ describe("DashboardView", () => {
       "Add-on purchase insights are unavailable"
     );
     expect(document.getElementById("purchase-data")?.textContent).toContain(
-      "Purchase totals and import controls are unavailable"
+      "Purchase import controls are unavailable"
     );
     await expect
       .element(page.getByText("Purchase history rows are unavailable in this evaluation state."))
@@ -831,11 +828,7 @@ describe("DashboardView", () => {
       .element(page.getByText("Add-on purchase insights are unavailable in this evaluation state."))
       .toBeVisible();
     await expect
-      .element(
-        page.getByText(
-          "Purchase totals and import controls are unavailable in this evaluation state."
-        )
-      )
+      .element(page.getByText("Purchase import controls are unavailable in this evaluation state."))
       .toBeVisible();
     await expect
       .element(page.getByText("Transaction data is unavailable in this evaluation state."))
@@ -882,11 +875,13 @@ describe("DashboardView", () => {
       "No most-spent ranking yet"
     );
     expect(document.getElementById("add-ons")?.textContent).toContain("No add-on purchases yet");
-    expect(document.getElementById("purchase-data")?.textContent).toContain("Add your spend");
+    expect(document.getElementById("purchase-data")?.textContent).toContain(
+      "Import PlayStation purchases"
+    );
     await expect.element(page.getByText("No purchase history yet")).toBeVisible();
     await expect.element(page.getByText("No most-spent ranking yet")).toBeVisible();
     await expect.element(page.getByText("No add-on purchases yet")).toBeVisible();
-    await expect.element(page.getByText("Add your spend")).toBeVisible();
+    await expect.element(page.getByText("Import PlayStation purchases")).toBeVisible();
   });
 
   it("keeps the search input responsive while the deferred filter settles", async () => {

@@ -8,10 +8,11 @@ import {
   type Table as TableInstance,
   useReactTable,
 } from "@tanstack/react-table";
-import { ArrowDown, ArrowUp } from "lucide-react";
+import { ArrowDown, ArrowUp, Search } from "lucide-react";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Table,
@@ -39,6 +40,119 @@ const TYPE_LABEL: Record<TransactionRow["kind"], string> = {
   purchase: "Purchase",
   "top-up": "Top-up",
 };
+
+type MatchFilter = "all" | "matched" | "unmatched";
+type KindFilter = "all" | TransactionRow["kind"];
+
+function matchesGame(transaction: TransactionRow, data: DashboardData): boolean {
+  const product = transaction.productName.toLowerCase();
+  return data.games.some(
+    (game) => product.includes(game.name.toLowerCase()) || transaction.skuId?.includes(game.titleId)
+  );
+}
+
+function PurchaseSearch({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  return (
+    <div className="playloom-purchase-search">
+      <Search />
+      <Input
+        aria-label="Search products"
+        value={value}
+        onChange={(event) => onChange(event.currentTarget.value)}
+        placeholder="Search products"
+      />
+    </div>
+  );
+}
+
+function kindFilter(value: string): KindFilter {
+  if (value === "purchase" || value === "top-up") return value;
+  return "all";
+}
+
+function matchFilter(value: string): MatchFilter {
+  if (value === "matched" || value === "unmatched") return value;
+  return "all";
+}
+
+function KindSelect({
+  value,
+  onChange,
+}: {
+  value: KindFilter;
+  onChange: (value: KindFilter) => void;
+}) {
+  return (
+    <label>
+      Type
+      <select value={value} onChange={(event) => onChange(kindFilter(event.currentTarget.value))}>
+        <option value="all">All</option>
+        <option value="purchase">Purchases</option>
+        <option value="top-up">Top-ups</option>
+      </select>
+    </label>
+  );
+}
+
+function MatchSelect({
+  value,
+  onChange,
+}: {
+  value: MatchFilter;
+  onChange: (value: MatchFilter) => void;
+}) {
+  return (
+    <label>
+      Match
+      <select value={value} onChange={(event) => onChange(matchFilter(event.currentTarget.value))}>
+        <option value="all">All</option>
+        <option value="matched">Matched</option>
+        <option value="unmatched">Unmatched</option>
+      </select>
+    </label>
+  );
+}
+
+function TransactionFilters({
+  query,
+  onQuery,
+  purchasedAfter,
+  onPurchasedAfter,
+  kind,
+  onKind,
+  match,
+  onMatch,
+}: {
+  query: string;
+  onQuery: (value: string) => void;
+  purchasedAfter: string;
+  onPurchasedAfter: (value: string) => void;
+  kind: KindFilter;
+  onKind: (value: KindFilter) => void;
+  match: MatchFilter;
+  onMatch: (value: MatchFilter) => void;
+}) {
+  return (
+    <div className="playloom-transaction-filters">
+      <div>
+        <strong>Purchase filters</strong>
+        <span>Applies only to Spending</span>
+      </div>
+      <PurchaseSearch value={query} onChange={onQuery} />
+      <label>
+        Purchased from
+        <input
+          type="date"
+          aria-label="Purchase date from"
+          value={purchasedAfter}
+          onChange={(event) => onPurchasedAfter(event.currentTarget.value)}
+        />
+      </label>
+      <KindSelect value={kind} onChange={onKind} />
+      <MatchSelect value={match} onChange={onMatch} />
+    </div>
+  );
+}
 
 const columns: Array<ColumnDef<TransactionRow>> = [
   {
@@ -100,6 +214,16 @@ const columns: Array<ColumnDef<TransactionRow>> = [
     meta: { label: "Type" },
   },
 ];
+
+function matchColumn(data: DashboardData): ColumnDef<TransactionRow> {
+  return {
+    id: "match",
+    accessorFn: (row) => matchesGame(row, data),
+    header: "Match",
+    cell: ({ row }) => (matchesGame(row.original, data) ? "Matched" : "Unmatched"),
+    meta: { label: "Match" },
+  };
+}
 
 function SortIcon({ direction }: { direction: false | "asc" | "desc" }) {
   if (!direction) return null;
@@ -165,12 +289,18 @@ function PurchaseHistoryContent({ table }: { table: TableInstance<TransactionRow
 }
 
 // oxlint-disable-next-line react/react-compiler -- TanStack Table returns functions the compiler cannot safely memoise
-function PurchaseHistoryTable({ transactions }: { transactions: TransactionRow[] }) {
+function PurchaseHistoryTable({
+  data,
+  transactions,
+}: {
+  data: DashboardData;
+  transactions: TransactionRow[];
+}) {
   const [sorting, setSorting] = useState<SortingState>([{ id: "date", desc: true }]);
 
   const table = useReactTable({
     data: transactions,
-    columns,
+    columns: [...columns, matchColumn(data)],
     state: { sorting },
     onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
@@ -195,6 +325,61 @@ function PurchaseHistoryTable({ transactions }: { transactions: TransactionRow[]
         </ScrollArea>
       </CardContent>
     </Card>
+  );
+}
+
+interface TransactionFilterValues {
+  query: string;
+  purchasedAfter: string;
+  kind: KindFilter;
+  match: MatchFilter;
+}
+
+function transactionRows(
+  data: DashboardData,
+  transactions: TransactionRow[],
+  filters: TransactionFilterValues
+) {
+  return transactions.filter((row) => {
+    const matched = matchesGame(row, data);
+    return (
+      row.productName.toLowerCase().includes(filters.query.toLowerCase()) &&
+      (filters.purchasedAfter === "" || row.date.slice(0, 10) >= filters.purchasedAfter) &&
+      (filters.kind === "all" || row.kind === filters.kind) &&
+      (filters.match === "all" || (filters.match === "matched") === matched)
+    );
+  });
+}
+
+function FilteredPurchaseHistory({
+  data,
+  transactions,
+}: {
+  data: DashboardData;
+  transactions: TransactionRow[];
+}) {
+  const [query, setQuery] = useState("");
+  const [purchasedAfter, setPurchasedAfter] = useState("");
+  const [kind, setKind] = useState<KindFilter>("all");
+  const [match, setMatch] = useState<MatchFilter>("all");
+  const filters = { query, purchasedAfter, kind, match };
+  return (
+    <div>
+      <TransactionFilters
+        query={query}
+        onQuery={setQuery}
+        purchasedAfter={purchasedAfter}
+        onPurchasedAfter={setPurchasedAfter}
+        kind={kind}
+        onKind={setKind}
+        match={match}
+        onMatch={setMatch}
+      />
+      <PurchaseHistoryTable
+        data={data}
+        transactions={transactionRows(data, transactions, filters)}
+      />
+    </div>
   );
 }
 
@@ -225,5 +410,5 @@ export function PurchaseHistorySection({
     );
   }
 
-  return <PurchaseHistoryTable transactions={rows} />;
+  return <FilteredPurchaseHistory data={data} transactions={rows} />;
 }

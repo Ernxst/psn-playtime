@@ -362,36 +362,32 @@ function SpendingChapterUnavailable({ data }: { data: DashboardData }) {
       <ChapterHeading number="03" title="Spending">
         What the library cost, kept separate from when those games were last played.
       </ChapterHeading>
-      <Section id="spending" title="Spending and purchase history">
+      <Section id="spending" title="Summary">
         <PrototypeSpending
           data={data}
           transactions={[]}
           unavailableMessage="Transaction data is unavailable in this evaluation state."
         />
       </Section>
+      <Section id="purchase-history" title="Purchase history">
+        <TransactionUnavailable>
+          Purchase history rows are unavailable in this evaluation state.
+        </TransactionUnavailable>
+      </Section>
+      <Section id="spent-most" title="Most spent">
+        <TransactionUnavailable>
+          Most-spent rankings are unavailable in this evaluation state.
+        </TransactionUnavailable>
+      </Section>
+      <Section id="add-ons" title="Add-ons">
+        <TransactionUnavailable>
+          Add-on purchase insights are unavailable in this evaluation state.
+        </TransactionUnavailable>
+      </Section>
       <Section id="purchase-data" title="Purchase import">
-        <div className="space-y-6">
-          <div id="spend" className="scroll-mt-20" tabIndex={-1}>
-            <TransactionUnavailable>
-              Purchase totals and import controls are unavailable in this evaluation state.
-            </TransactionUnavailable>
-          </div>
-          <div id="purchase-history" className="scroll-mt-20" tabIndex={-1}>
-            <TransactionUnavailable>
-              Purchase history rows are unavailable in this evaluation state.
-            </TransactionUnavailable>
-          </div>
-          <div id="spent-most" className="scroll-mt-20" tabIndex={-1}>
-            <TransactionUnavailable>
-              Most-spent rankings are unavailable in this evaluation state.
-            </TransactionUnavailable>
-          </div>
-          <div id="add-ons" className="scroll-mt-20" tabIndex={-1}>
-            <TransactionUnavailable>
-              Add-on purchase insights are unavailable in this evaluation state.
-            </TransactionUnavailable>
-          </div>
-        </div>
+        <TransactionUnavailable>
+          Purchase import controls are unavailable in this evaluation state.
+        </TransactionUnavailable>
       </Section>
     </div>
   );
@@ -404,24 +400,20 @@ function SpendingChapter({ data }: { data: DashboardData }) {
       <ChapterHeading number="03" title="Spending">
         What the library cost, kept separate from when those games were last played.
       </ChapterHeading>
-      <Section id="spending" title="Spending and purchase history">
+      <Section id="spending" title="Summary">
         <PrototypeSpending data={data} transactions={transactions} />
       </Section>
+      <Section id="purchase-history" title="Purchase history">
+        <PurchaseHistorySection data={data} transactions={transactions} />
+      </Section>
+      <Section id="spent-most" title="Most spent">
+        <SpentMostSection data={data} transactions={transactions} />
+      </Section>
+      <Section id="add-ons" title="Add-ons">
+        <AddOnsSection data={data} transactions={transactions} />
+      </Section>
       <Section id="purchase-data" title="Purchase import">
-        <div className="space-y-6">
-          <div id="spend" className="scroll-mt-20" tabIndex={-1}>
-            <SpendSection data={data} transactions={transactions} />
-          </div>
-          <div id="purchase-history" className="scroll-mt-20" tabIndex={-1}>
-            <PurchaseHistorySection data={data} transactions={transactions} />
-          </div>
-          <div id="spent-most" className="scroll-mt-20" tabIndex={-1}>
-            <SpentMostSection data={data} transactions={transactions} />
-          </div>
-          <div id="add-ons" className="scroll-mt-20" tabIndex={-1}>
-            <AddOnsSection data={data} transactions={transactions} />
-          </div>
-        </div>
+        <SpendSection data={data} transactions={transactions} />
       </Section>
     </div>
   );

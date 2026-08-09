@@ -7,7 +7,7 @@ import { bookmarkletHref } from "@/domain/transaction-bookmarklet";
 import type { TransactionRow } from "@/domain/transactions";
 import type { GamePlay } from "@/server/providers/account/snapshot";
 import { TestAtomProvider, testTransactionStore } from "@/test/atom-registry";
-import { AddOnsSection, SpendSection, SpentMostSection } from "./spend";
+import { AddOnsSection, SpendingSummary, SpendSection, SpentMostSection } from "./spend";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -112,7 +112,7 @@ describe("SpendSection", () => {
 
     await renderWithAtoms(<SpendSection data={demoDashboard} />);
 
-    await expect.element(page.getByText("Add your spend")).toBeVisible();
+    await expect.element(page.getByText("Import PlayStation purchases")).toBeVisible();
     // Scope to the affordance link: the fine-pointer drag step also names the
     // button in a `<strong>`, so a bare text match resolves to two elements.
     await expect
@@ -264,14 +264,17 @@ describe("SpendSection", () => {
       },
     ]);
 
-    await renderWithAtoms(<SpendSection data={realDashboard} />);
+    await renderWithAtoms(<SpendingSummary data={realDashboard} />);
 
     await expect.element(page.getByText("Best value per hour")).toBeVisible();
-    await expect.element(page.getByText("What you've spent")).toBeVisible();
+    await expect.element(page.getByText("Total spend")).toBeVisible();
     await expect.element(page.getByText("Satisfactory")).toBeVisible();
+    await expect
+      .element(page.getByRole("textbox", { name: "Search products" }))
+      .not.toBeInTheDocument();
   });
 
-  it("offers a re-import affordance with the install instructions once imported", async () => {
+  it("keeps account-scoped update instructions visible once transactions are imported", async () => {
     seed([
       {
         transactionId: "t1",
@@ -289,17 +292,16 @@ describe("SpendSection", () => {
 
     await renderWithAtoms(<SpendSection data={realDashboard} />);
 
-    const summary = page.getByText("Re-import or update your data");
-    // A chevron affordance signals the section is expandable and is wired to rotate when open.
-    // The contract is the icon's rotation class, not a user-addressable element.
-    // oxlint-disable-next-line test-contract/no-dom-selector
-    const chevron = summary.element().querySelector("svg.lucide-chevron-down");
-
-    expect(chevron).toHaveClass("group-open:rotate-180");
-
-    await summary.click();
-
+    await expect.element(page.getByText("Import PlayStation purchases")).toBeVisible();
+    await expect
+      .element(
+        page.getByText(`1 imported transaction for ${realDashboard.profile.onlineId}.`, {
+          exact: false,
+        })
+      )
+      .toBeVisible();
     await expect.element(page.getByRole("button", { name: "Copy bookmarklet" })).toBeVisible();
+    await expect.element(page.getByText("Total spend")).not.toBeInTheDocument();
   });
 
   it("prompts a non-demo account to import when no transactions are present", async () => {
@@ -307,8 +309,7 @@ describe("SpendSection", () => {
 
     await renderWithAtoms(<SpendSection data={realDashboard} />);
 
-    await expect.element(page.getByText("Add your spend")).toBeVisible();
-    await expect.element(page.getByText("What you've spent")).not.toBeInTheDocument();
+    await expect.element(page.getByText("Import PlayStation purchases")).toBeVisible();
   });
 
   it("surfaces spend that matched no played title in the leaderboard footer", async () => {
@@ -339,11 +340,11 @@ describe("SpendSection", () => {
       },
     ]);
 
-    await renderWithAtoms(<SpendSection data={realDashboard} />);
+    await renderWithAtoms(<SpendingSummary data={realDashboard} />);
 
     await expect.element(page.getByText("Best value per hour")).toBeVisible();
     await expect.element(page.getByText("Spend not matched to a played title")).toBeVisible();
-    await expect.element(page.getByText("£5.00")).toBeVisible();
+    await expect.element(page.getByText("£5.00").last()).toBeVisible();
   });
 
   it("renders an imported transaction dataset selected for the demo profile", async () => {
@@ -362,10 +363,43 @@ describe("SpendSection", () => {
       },
     ]);
 
-    await renderWithAtoms(<SpendSection data={demoDashboard} />);
+    await renderWithAtoms(<SpendingSummary data={demoDashboard} />);
 
     await expect.element(page.getByText("Best value per hour")).toBeVisible();
-    await expect.element(page.getByText("Add your spend")).not.toBeInTheDocument();
+    await expect.element(page.getByText("Import PlayStation purchases")).not.toBeInTheDocument();
+  });
+
+  it("keeps wallet top-ups distinct when no purchase lines were imported", async () => {
+    const topUp = {
+      ...baseFor("wallet", 2500),
+      kind: "top-up" as const,
+      transactionType: "WALLET_TOPUP",
+      productName: "Wallet funding",
+      currency: "£",
+    };
+
+    await renderWithAtoms(<SpendingSummary data={realDashboard} transactions={[topUp]} />);
+
+    await expect.element(page.getByText("Wallet top-ups:", { exact: false })).toBeVisible();
+    await expect.element(page.getByText("No dated purchase spend is available yet.")).toBeVisible();
+    await expect
+      .element(page.getByText("No matched purchases with playtime are available yet."))
+      .toBeVisible();
+  });
+
+  it("explains an unavailable summary without hiding the other destinations", async () => {
+    await renderWithAtoms(
+      <SpendingSummary
+        data={realDashboard}
+        transactions={[]}
+        unavailableMessage="Transactions are unavailable in this test state."
+      />
+    );
+
+    await expect.element(page.getByText("Purchase transactions unavailable")).toBeVisible();
+    await expect
+      .element(page.getByText("Transactions are unavailable in this test state."))
+      .toBeVisible();
   });
 });
 
@@ -375,9 +409,9 @@ describe("AddOnsSection", () => {
 
     await renderWithAtoms(<AddOnsSection data={realDashboard} />);
 
-    await expect.element(page.getByText("Spent extra on")).toBeVisible();
-    await expect.element(page.getByText("FIFA 18")).toBeVisible();
-    await expect.element(page.getByText("2 add-ons")).toBeVisible();
+    await expect.element(page.getByText("Cover-led list of games", { exact: false })).toBeVisible();
+    await expect.element(page.getByRole("figure", { name: /FIFA 18 artwork/ })).toBeVisible();
+    await expect.element(page.getByText("2 add-on purchases")).toBeVisible();
   });
 
   it("renders add-ons selected for the demo profile", async () => {
@@ -385,15 +419,15 @@ describe("AddOnsSection", () => {
 
     await renderWithAtoms(<AddOnsSection data={demoDashboard} />);
 
-    await expect.element(page.getByText("Spent extra on")).toBeVisible();
+    await expect.element(page.getByText("Cover-led list of games", { exact: false })).toBeVisible();
   });
 
-  it("hides the add-ons section when no transactions are imported", async () => {
+  it("explains the add-ons destination when no transactions are imported", async () => {
     onTestFinished(() => testTransactionStore.clear(demoDashboard.profile.accountId));
 
     await renderWithAtoms(<AddOnsSection data={realDashboard} />);
 
-    await expect.element(page.getByText("Spent extra on")).not.toBeInTheDocument();
+    await expect.element(page.getByText("No add-on purchases yet")).toBeVisible();
   });
 
   it("shows every game with add-ons, beyond the former cap of ten", async () => {
@@ -406,9 +440,9 @@ describe("AddOnsSection", () => {
 
     await renderWithAtoms(<AddOnsSection data={{ ...realDashboard, games }} />);
 
-    await expect.element(page.getByText("Spent extra on")).toBeVisible();
-    await expect.element(page.getByText("Game 11")).toBeVisible();
-    await expect.element(page.getByText("Game 12")).toBeVisible();
+    await expect.element(page.getByText("Cover-led list of games", { exact: false })).toBeVisible();
+    await expect.element(page.getByRole("figure", { name: /Game 11 artwork/ })).toBeVisible();
+    await expect.element(page.getByRole("figure", { name: /Game 12 artwork/ })).toBeVisible();
   });
 });
 
@@ -422,8 +456,13 @@ describe("SpentMostSection", () => {
 
     await renderWithAtoms(<SpentMostSection data={{ ...realDashboard, games: [cyberpunk] }} />);
 
-    await expect.element(page.getByText("Spent the most on")).toBeVisible();
-    await expect.element(page.getByText("Cyberpunk 2077")).toBeVisible();
+    await expect
+      .element(page.getByText("Games ranked by total account spend", { exact: false }))
+      .toBeVisible();
+    await expect
+      .element(page.getByRole("figure", { name: /Cyberpunk 2077 artwork/ }))
+      .toBeVisible();
+    await expect.element(page.getByText("Base £19.99 · Add-ons £9.99")).toBeVisible();
     await expect.element(page.getByText("£29.98")).toBeVisible();
   });
 
@@ -432,14 +471,16 @@ describe("SpentMostSection", () => {
 
     await renderWithAtoms(<SpentMostSection data={demoDashboard} />);
 
-    await expect.element(page.getByText("Spent the most on")).toBeVisible();
+    await expect
+      .element(page.getByText("Games ranked by total account spend", { exact: false }))
+      .toBeVisible();
   });
 
-  it("hides the spent-most section when no transactions are imported", async () => {
+  it("explains the most-spent destination when no transactions are imported", async () => {
     onTestFinished(() => testTransactionStore.clear(demoDashboard.profile.accountId));
 
     await renderWithAtoms(<SpentMostSection data={realDashboard} />);
 
-    await expect.element(page.getByText("Spent the most on")).not.toBeInTheDocument();
+    await expect.element(page.getByText("No most-spent ranking yet")).toBeVisible();
   });
 });

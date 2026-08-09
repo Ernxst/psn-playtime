@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { describe, expect, it, onTestFinished } from "vitest";
 import { render } from "vitest-browser-react";
-import { page } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 import { demoDashboard } from "@/domain/mock";
 import type { TransactionRow } from "@/domain/transactions";
 import { TestAtomProvider, testTransactionStore } from "@/test/atom-registry";
@@ -49,6 +49,49 @@ describe("PurchaseHistorySection", () => {
     await expect.element(page.getByText("Hollow Knight")).toBeVisible();
     await expect.element(page.getByText("£10.99")).toBeVisible();
     await expect.element(page.getByText("Purchase", { exact: true })).toBeVisible();
+  });
+
+  it("moves product search and purchase-date filtering into the direct history", async () => {
+    seed([
+      row({ key: "matched", productName: "Satisfactory", date: "2022-05-12" }),
+      row({ key: "newer", productName: "Unknown subscription", date: "2025-02-01" }),
+    ]);
+
+    await renderWithAtoms(<PurchaseHistorySection data={realDashboard} />);
+    const search = page.getByRole("textbox", { name: "Search products" });
+
+    await search.fill("satis");
+
+    await expect.element(page.getByText("Satisfactory")).toBeVisible();
+    await expect.element(page.getByText("Unknown subscription")).not.toBeInTheDocument();
+
+    await search.fill("");
+    await page.getByLabelText("Purchase date from").fill("2024-01-01");
+
+    await expect.element(page.getByText("Satisfactory")).not.toBeInTheDocument();
+    await expect.element(page.getByText("Unknown subscription")).toBeVisible();
+  });
+
+  it("moves purchase type and library-match filtering without changing their semantics", async () => {
+    seed([
+      row({ key: "matched", productName: "Satisfactory", kind: "purchase" }),
+      row({ key: "unmatched", productName: "Wallet funding", kind: "top-up" }),
+    ]);
+
+    await renderWithAtoms(<PurchaseHistorySection data={realDashboard} />);
+    const type = page.getByRole("combobox", { name: "Type" });
+    const match = page.getByRole("combobox", { name: "Match" });
+
+    await userEvent.selectOptions(type, "top-up");
+
+    await expect.element(page.getByText("Wallet funding")).toBeVisible();
+    await expect.element(page.getByText("Satisfactory")).not.toBeInTheDocument();
+
+    await userEvent.selectOptions(type, "all");
+    await userEvent.selectOptions(match, "matched");
+
+    await expect.element(page.getByText("Satisfactory")).toBeVisible();
+    await expect.element(page.getByText("Wallet funding")).not.toBeInTheDocument();
   });
 
   it("shows the original price and discount in their own columns when present", async () => {
