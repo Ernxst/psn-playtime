@@ -321,15 +321,17 @@ describe("DashboardView", () => {
 
     await render(element);
 
-    // The games-table caption echoes the scoped title count — a stable recompute signal.
-    await expect.element(page.getByText(/98 titles in total/)).toBeVisible();
+    await expect
+      .element(page.getByRole("region", { name: "98 games in the Library" }))
+      .toBeVisible();
 
     await expect.element(page.getByRole("radio", { name: "This year" })).toBeInTheDocument();
 
     await page.getByText("This year", { exact: true }).click();
 
-    await expect.element(page.getByText(/98 titles in total/)).not.toBeInTheDocument();
-    await expect.element(page.getByText(/titles in total/)).toBeVisible();
+    await expect
+      .element(page.getByRole("region", { name: /15 matching games.*98 titles/ }))
+      .toBeVisible();
   });
 
   it("keeps Ask AI account-wide when game filters narrow the library", async () => {
@@ -355,7 +357,9 @@ describe("DashboardView", () => {
 
     await page.getByRole("searchbox", { name: "Search games by name" }).fill("Forza");
 
-    await expect.element(page.getByText(/98 titles in total/)).not.toBeInTheDocument();
+    await expect
+      .element(page.getByRole("region", { name: /1 matching game.*98 titles/ }))
+      .toBeVisible();
 
     expect(fullCount).toBe(demoDashboard.games.length);
     expect(countGames()).toBe(fullCount);
@@ -474,7 +478,9 @@ describe("DashboardView", () => {
       const search = page.getByRole("searchbox", { name: "Search games by name" });
       await search.fill("Forza");
 
-      await expect.element(page.getByText(/98 titles in total/)).not.toBeInTheDocument();
+      await expect
+        .element(page.getByRole("region", { name: /1 matching game.*98 titles/ }))
+        .toBeVisible();
 
       await page
         .getByRole("button", { name: /Switch account, current account FirstAccount/ })
@@ -696,7 +702,9 @@ describe("DashboardView", () => {
 
     const spentMost = () => document.getElementById("spent-most")?.textContent ?? "";
 
-    await expect.element(page.getByText(/98 titles in total/)).toBeVisible();
+    await expect
+      .element(page.getByRole("region", { name: "98 games in the Library" }))
+      .toBeVisible();
 
     // Satisfactory's £20 spend (DEMO-6) shows alongside the full library.
     expect(spentMost()).toContain("Satisfactory");
@@ -705,7 +713,9 @@ describe("DashboardView", () => {
     // Filtering to Cyberpunk (DEMO-8) narrows the game-centric views off Satisfactory.
     await page.getByRole("searchbox", { name: "Search games by name" }).fill("Cyberpunk");
 
-    await expect.element(page.getByText(/98 titles in total/)).not.toBeInTheDocument();
+    await expect
+      .element(page.getByRole("region", { name: /1 matching game.*98 titles/ }))
+      .toBeVisible();
 
     // …but spend stays account-wide: Satisfactory's £20 is still reported.
     expect(spentMost()).toContain("Satisfactory");
@@ -750,7 +760,9 @@ describe("DashboardView", () => {
 
     await page.getByRole("button", { name: "Clear all filters" }).click();
 
-    await expect.element(page.getByText(/98 titles in total/)).toBeVisible();
+    await expect
+      .element(page.getByRole("region", { name: "98 games in the Library" }))
+      .toBeVisible();
   });
 
   it("disables timeframe radios with the other filters for an empty archive", async () => {
@@ -903,8 +915,9 @@ describe("DashboardView", () => {
     await expect.element(searchbox).toHaveValue("Forza");
 
     // …and the deferred re-filter eventually settles the scoped library to the matches.
-    await expect.element(page.getByText(/98 titles in total/)).not.toBeInTheDocument();
-    await expect.element(page.getByText(/titles in total/)).toBeVisible();
+    await expect
+      .element(page.getByRole("region", { name: /1 matching game.*98 titles/ }))
+      .toBeVisible();
   });
 
   it("searching by name narrows the scoped library", async () => {
@@ -919,12 +932,15 @@ describe("DashboardView", () => {
 
     await render(element);
 
-    await expect.element(page.getByText(/98 titles in total/)).toBeVisible();
+    await expect
+      .element(page.getByRole("region", { name: "98 games in the Library" }))
+      .toBeVisible();
 
     await page.getByRole("searchbox", { name: "Search games by name" }).fill("Forza");
 
-    // Recompute drops the total to just the Forza matches.
-    await expect.element(page.getByText(/98 titles in total/)).not.toBeInTheDocument();
-    await expect.element(page.getByText(/titles in total/)).toBeVisible();
+    // Recompute narrows the result count while preserving the archive total.
+    await expect
+      .element(page.getByRole("region", { name: /1 matching game.*98 titles/ }))
+      .toBeVisible();
   });
 });

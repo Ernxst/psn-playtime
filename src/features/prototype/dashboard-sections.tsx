@@ -1,5 +1,3 @@
-import { ArrowDown, ArrowUp } from "lucide-react";
-import { useState } from "react";
 import type { TransactionRow } from "@/domain/transactions";
 import {
   bingeVsDipIn,
@@ -9,7 +7,7 @@ import {
   topFranchises,
   topGamesByHours,
 } from "@/features/dashboard/filters/analytics";
-import { fmtDate, fmtHours, fmtNumber } from "@/features/dashboard/format";
+import { fmtHours, fmtNumber } from "@/features/dashboard/format";
 import { SpendingSummary } from "@/features/dashboard/spend/components/spend";
 import type { DashboardData, GamePlay } from "@/server/providers/account/snapshot";
 import { GamePoster } from "./poster";
@@ -315,147 +313,5 @@ export function PrototypeSpending({
       transactions={transactions}
       unavailableMessage={unavailableMessage}
     />
-  );
-}
-
-type LibrarySort = "name" | "hours" | "playCount" | "firstPlayed" | "lastPlayed" | "trophies";
-
-const libraryColumns: ReadonlyArray<{ key: LibrarySort; label: string }> = [
-  { key: "name", label: "Game" },
-  { key: "hours", label: "Lifetime hours" },
-  { key: "playCount", label: "Sessions" },
-  { key: "firstPlayed", label: "First played" },
-  { key: "lastPlayed", label: "Last played" },
-  { key: "trophies", label: "Trophies" },
-];
-
-function trophyProgress(game: GamePlay): number | undefined {
-  return game.trophy?.progress;
-}
-
-type LibraryValue = string | number | undefined;
-const libraryValue: Record<LibrarySort, (game: GamePlay) => LibraryValue> = {
-  name: (game) => game.name,
-  hours: (game) => game.hours,
-  playCount: (game) => game.playCount,
-  firstPlayed: (game) => game.firstPlayed,
-  lastPlayed: (game) => game.lastPlayed,
-  trophies: trophyProgress,
-};
-
-function compareLibraryValues(left: LibraryValue, right: LibraryValue): number {
-  if (left === undefined) return 1;
-  if (right === undefined) return -1;
-  if (typeof left === "number" && typeof right === "number") return left - right;
-  return String(left).localeCompare(String(right));
-}
-
-function sortGames(games: readonly GamePlay[], sort: LibrarySort, descending: boolean) {
-  return games.toSorted((left, right) => {
-    const comparison = compareLibraryValues(libraryValue[sort](left), libraryValue[sort](right));
-    return descending ? -comparison : comparison;
-  });
-}
-
-function LibraryHead({
-  sort,
-  descending,
-  onSort,
-}: {
-  sort: LibrarySort;
-  descending: boolean;
-  onSort: (sort: LibrarySort) => void;
-}) {
-  return (
-    <thead>
-      <tr>
-        {libraryColumns.map((column) => (
-          <th key={column.key}>
-            <button type="button" onClick={() => onSort(column.key)}>
-              {column.label}
-              {sort === column.key && (descending ? <ArrowDown /> : <ArrowUp />)}
-            </button>
-          </th>
-        ))}
-      </tr>
-    </thead>
-  );
-}
-
-function LibraryRow({ game }: { game: GamePlay }) {
-  const trophies = trophyProgress(game);
-  const trophyLabel = trophies === undefined ? "—" : `${trophies}%`;
-  return (
-    <tr>
-      <td data-label="Game">
-        <GamePoster game={game} />
-        <span>
-          <strong title={game.name}>{game.name}</strong>
-          <small>{game.platform}</small>
-        </span>
-      </td>
-      <td data-label="Lifetime hours">{fmtHours(game.hours)}</td>
-      <td data-label="Sessions">{fmtNumber(game.playCount)}</td>
-      <td data-label="First played">{fmtDate(game.firstPlayed)}</td>
-      <td data-label="Last played">{fmtDate(game.lastPlayed)}</td>
-      <td data-label="Trophies">{trophyLabel}</td>
-    </tr>
-  );
-}
-
-function LibraryTable({
-  games,
-  sort,
-  descending,
-  onSort,
-}: {
-  games: readonly GamePlay[];
-  sort: LibrarySort;
-  descending: boolean;
-  onSort: (sort: LibrarySort) => void;
-}) {
-  return (
-    <div className="playloom-library-scroll">
-      <table>
-        <LibraryHead sort={sort} descending={descending} onSort={onSort} />
-        <tbody>
-          {games.map((game) => (
-            <LibraryRow key={game.titleId} game={game} />
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-export function PrototypeLibrary({ data }: { data: DashboardData }) {
-  const [sort, setSort] = useState<LibrarySort>("hours");
-  const [descending, setDescending] = useState(true);
-
-  function changeSort(next: LibrarySort) {
-    if (next === sort) {
-      setDescending((value) => !value);
-      return;
-    }
-    setSort(next);
-    setDescending(next !== "name");
-  }
-
-  return (
-    <section className="playloom-library" aria-label="Every game you've played">
-      <header>
-        <strong>Every game you've played</strong>
-        <span>
-          {fmtNumber(data.meta.totalGames)} titles in total · tap a column to sort · lifetime PSN
-          hours may under-report real play time
-        </span>
-      </header>
-      <LibraryTable
-        games={sortGames(data.games, sort, descending)}
-        sort={sort}
-        descending={descending}
-        onSort={changeSort}
-      />
-    </section>
   );
 }

@@ -23,6 +23,7 @@ import {
   ValueCard,
 } from "@/features/dashboard/filters/components/insights";
 import { fmtNumber } from "@/features/dashboard/format";
+import { GamesTable } from "@/features/dashboard/library/components/games-table";
 import { LlmPromptCard } from "@/features/dashboard/prompt/components/llm-prompt-card";
 import { PurchaseHistorySection } from "@/features/dashboard/spend/components/purchase-history";
 import {
@@ -36,7 +37,6 @@ import {
   PlatinumShelf,
   ProfileOverview,
   ProfileRanks,
-  PrototypeLibrary,
   PrototypeSpending,
 } from "@/features/prototype/dashboard-sections";
 import type { DashboardData } from "@/server/providers/account/snapshot";
@@ -419,7 +419,15 @@ function SpendingChapter({ data }: { data: DashboardData }) {
   );
 }
 
-function LibraryChapter({ data }: { data: DashboardData }) {
+function LibraryChapter({
+  data,
+  unfilteredTotal,
+  onClearFilters,
+}: {
+  data: DashboardData;
+  unfilteredTotal: number;
+  onClearFilters: () => void;
+}) {
   return (
     <div className="playloom-chapter playloom-chapter-library">
       <ChapterHeading number="04" title="Library">
@@ -427,7 +435,7 @@ function LibraryChapter({ data }: { data: DashboardData }) {
         mobile.
       </ChapterHeading>
       <Section id="library" title="All games">
-        <PrototypeLibrary data={data} />
+        <GamesTable data={data} unfilteredTotal={unfilteredTotal} onClearFilters={onClearFilters} />
       </Section>
     </div>
   );
@@ -483,10 +491,12 @@ function DashboardChapters({
   data,
   account,
   partialData,
+  onClearFilters,
 }: {
   data: DashboardData;
   account: DashboardData;
   partialData: boolean;
+  onClearFilters: () => void;
 }) {
   return (
     <>
@@ -497,7 +507,11 @@ function DashboardChapters({
       ) : (
         <SpendingChapter data={account} />
       )}
-      <LibraryChapter data={data} />
+      <LibraryChapter
+        data={data}
+        unfilteredTotal={account.meta.totalGames}
+        onClearFilters={onClearFilters}
+      />
       {partialData ? (
         <ToolsChapterUnavailable data={account} />
       ) : (
@@ -557,7 +571,12 @@ function DashboardResult({
   return (
     <>
       {scoped.games.length === 0 && <DashboardNoMatches onClear={onClear} />}
-      <DashboardChapters data={scoped} account={source} partialData={partialData} />
+      <DashboardChapters
+        data={scoped}
+        account={source}
+        partialData={partialData}
+        onClearFilters={onClear}
+      />
     </>
   );
 }
