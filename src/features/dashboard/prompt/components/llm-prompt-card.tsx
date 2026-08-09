@@ -14,7 +14,6 @@ import {
   PROMPT_VARIANTS,
 } from "@/features/dashboard/prompt/llm-prompt-catalogue";
 import { hasTransactionHistory } from "@/features/dashboard/prompt/llm-transaction-context";
-import { cn } from "@/lib/utils";
 import type { DashboardData } from "@/server/providers/account/snapshot";
 import { useTransactionImport } from "@/stores/transactions-store";
 
@@ -43,29 +42,32 @@ function groupVariants(variants: readonly PromptVariant[]): VariantGroup[] {
   return groups;
 }
 
-/** A selectable lead question or the pinned general-analysis option. */
-function PickerButton({
-  selected,
-  onClick,
+/** A native radio styled as an open-catalogue row. */
+function PickerRadio({
+  accessibleName,
+  checked,
+  name,
+  onChange,
   children,
 }: {
-  selected: boolean;
-  onClick: () => void;
+  accessibleName?: string;
+  checked: boolean;
+  name: string;
+  onChange: () => void;
   children: ReactNode;
 }) {
   return (
-    <Button
-      variant="ghost"
-      size="sm"
-      aria-pressed={selected}
-      onClick={onClick}
-      className={cn(
-        "h-auto min-h-11 w-full justify-start whitespace-normal rounded-none border-0 border-l-2 border-l-transparent bg-transparent px-3 py-2.5 text-left font-normal text-foreground/75 shadow-none transition-colors before:hidden hover:bg-primary/6 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring focus-visible:ring-0 sm:min-h-10",
-        selected && "border-l-primary bg-primary/8 font-medium text-foreground"
-      )}
-    >
-      {children}
-    </Button>
+    <label className="relative block min-h-11 w-full cursor-pointer border-l-2 border-l-transparent bg-transparent px-3 py-2.5 text-left font-normal text-foreground/75 transition-colors hover:bg-primary/6 hover:text-foreground has-checked:border-l-primary has-checked:bg-primary/8 has-checked:font-medium has-checked:text-foreground has-focus-visible:outline-2 has-focus-visible:outline-offset-[-2px] has-focus-visible:outline-ring sm:min-h-10">
+      <input
+        className="absolute inset-0 size-full cursor-pointer appearance-none opacity-0"
+        type="radio"
+        aria-label={accessibleName}
+        name={name}
+        checked={checked}
+        onChange={onChange}
+      />
+      <span className="pointer-events-none">{children}</span>
+    </label>
   );
 }
 
@@ -74,8 +76,9 @@ function QuestionGroup({
   group,
   questions,
   selectedId,
+  choiceName,
   onSelect,
-}: VariantGroup & { selectedId: string; onSelect: (id: string) => void }) {
+}: VariantGroup & { selectedId: string; choiceName: string; onSelect: (id: string) => void }) {
   return (
     <section aria-label={group} className="border-t border-[var(--playloom-rule)] py-3">
       <div className="flex items-baseline gap-2 px-1">
@@ -86,13 +89,19 @@ function QuestionGroup({
       </div>
       <div className="mt-2 space-y-px">
         {questions.map((variant) => (
-          <PickerButton
+          <PickerRadio
             key={variant.id}
-            selected={variant.id === selectedId}
-            onClick={() => onSelect(variant.id)}
+            accessibleName={
+              variant.id === "last-12-months"
+                ? "Summarise my latest year of gaming versus the year before."
+                : undefined
+            }
+            checked={variant.id === selectedId}
+            name={choiceName}
+            onChange={() => onSelect(variant.id)}
           >
             {variant.question}
-          </PickerButton>
+          </PickerRadio>
         ))}
       </div>
     </section>
@@ -104,11 +113,13 @@ function QuestionGroups({
   groups,
   query,
   selectedId,
+  choiceName,
   onSelect,
 }: {
   groups: VariantGroup[];
   query: string;
   selectedId: string;
+  choiceName: string;
   onSelect: (id: string) => void;
 }) {
   if (groups.length === 0) {
@@ -120,7 +131,13 @@ function QuestionGroups({
   }
 
   return groups.map((group) => (
-    <QuestionGroup key={group.group} {...group} selectedId={selectedId} onSelect={onSelect} />
+    <QuestionGroup
+      key={group.group}
+      {...group}
+      selectedId={selectedId}
+      choiceName={choiceName}
+      onSelect={onSelect}
+    />
   ));
 }
 
@@ -154,6 +171,54 @@ function QuestionSearch({ query, onQuery }: { query: string; onQuery: (query: st
   );
 }
 
+interface QuestionChoicesProps {
+  groups: VariantGroup[];
+  selectedId: string;
+  menuMode: boolean;
+  query: string;
+  choiceGroupId: string;
+  choiceName: string;
+  onSelect: (id: string) => void;
+  onMenuMode: () => void;
+}
+
+function QuestionChoices({
+  groups,
+  selectedId,
+  menuMode,
+  query,
+  choiceGroupId,
+  choiceName,
+  onSelect,
+  onMenuMode,
+}: QuestionChoicesProps) {
+  return (
+    <fieldset>
+      <legend id={choiceGroupId} className="sr-only">
+        Lead question
+      </legend>
+      <div
+        role="radiogroup"
+        aria-labelledby={choiceGroupId}
+        className="max-h-[28rem] overflow-y-auto overscroll-y-contain border-b border-[var(--playloom-rule)]"
+      >
+        <div className="border-t border-[var(--playloom-rule)]">
+          <PickerRadio checked={menuMode} name={choiceName} onChange={onMenuMode}>
+            Start with a general analysis
+          </PickerRadio>
+        </div>
+        <QuestionGroups
+          groups={groups}
+          query={query}
+          selectedId={menuMode ? "" : selectedId}
+          choiceName={choiceName}
+          onSelect={onSelect}
+        />
+      </div>
+    </fieldset>
+  );
+}
+
 function QuestionPicker({
   variants,
   selectedId,
@@ -168,27 +233,23 @@ function QuestionPicker({
   onMenuMode: () => void;
 }) {
   const [query, setQuery] = useState("");
+  const choiceGroupId = useId();
+  const choiceName = `lead-question-${choiceGroupId}`;
   const groups = useMemo(() => groupVariants(filterVariants(variants, query)), [variants, query]);
 
   return (
     <div className="grid gap-4">
       <QuestionSearch query={query} onQuery={setQuery} />
-      <fieldset>
-        <legend className="sr-only">Lead question</legend>
-        <div className="max-h-[28rem] overflow-y-auto overscroll-y-contain border-b border-[var(--playloom-rule)]">
-          <div className="border-t border-[var(--playloom-rule)]">
-            <PickerButton selected={menuMode} onClick={onMenuMode}>
-              Start with a general analysis
-            </PickerButton>
-          </div>
-          <QuestionGroups
-            groups={groups}
-            query={query}
-            selectedId={menuMode ? "" : selectedId}
-            onSelect={onSelect}
-          />
-        </div>
-      </fieldset>
+      <QuestionChoices
+        groups={groups}
+        selectedId={selectedId}
+        menuMode={menuMode}
+        query={query}
+        choiceGroupId={choiceGroupId}
+        choiceName={choiceName}
+        onSelect={onSelect}
+        onMenuMode={onMenuMode}
+      />
     </div>
   );
 }
