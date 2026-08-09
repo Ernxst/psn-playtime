@@ -41,11 +41,15 @@ describe("FilterBar", () => {
 
     await expect.element(page.getByRole("dialog", { name: "Filter games" })).toBeVisible();
     await expect.element(page.getByText("Applies to Profile, History and Library")).toBeVisible();
+    await expect
+      .element(page.getByRole("status"))
+      .toHaveTextContent(`${demoDashboard.games.length} games shown · No filters active`);
     await expect.element(page.getByRole("button", { name: "Clear" })).toBeVisible();
     await expect.element(page.getByRole("button", { name: "Done filtering" })).toBeVisible();
+    expect(document.querySelectorAll('[aria-live="polite"]')).toHaveLength(1);
   });
 
-  it("preserves document scroll and restores trigger focus when the sheet closes", async () => {
+  it("preserves document geometry and scroll while filters change and the sheet closes", async () => {
     onTestFinished(() => window.scrollTo(0, 0));
     await render(
       <div style={{ minHeight: 1800, paddingTop: 400 }}>
@@ -57,15 +61,58 @@ describe("FilterBar", () => {
     expect(window.scrollY).toBe(320);
 
     const trigger = page.getByRole("button", { name: "Filter games" });
+    const triggerElement = trigger.element();
+    const before = triggerElement.getBoundingClientRect();
+    const viewportWidth = document.documentElement.clientWidth;
 
     await trigger.click();
 
     await expect.element(page.getByRole("dialog", { name: "Filter games" })).toBeVisible();
 
+    await page.getByRole("checkbox", { name: "Shooter" }).click();
+
+    await expect.element(page.getByRole("status")).toHaveTextContent("1 filter active");
+    expect(window.scrollY).toBe(320);
+    expect(document.documentElement.clientWidth).toBe(viewportWidth);
+    expect(triggerElement.getBoundingClientRect().width).toBe(before.width);
+
     await userEvent.keyboard("{Escape}");
 
     await expect.element(trigger).toHaveFocus();
     expect(window.scrollY).toBe(320);
+    expect(document.documentElement.clientWidth).toBe(viewportWidth);
+    expect(triggerElement.getBoundingClientRect().x).toBe(before.x);
+    expect(triggerElement.getBoundingClientRect().y).toBe(before.y);
+    expect(triggerElement.getBoundingClientRect().width).toBe(before.width);
+  });
+
+  it.each([
+    [1440, 900],
+    [768, 900],
+    [390, 844],
+  ])("aligns search and filter controls without overlap at %i by %i", async (width, height) => {
+    await page.viewport(width, height);
+    onTestFinished(() => page.viewport(1280, 800));
+    await render(<ControlledFilterBar />);
+
+    const search = page.getByRole("searchbox", { name: "Search games by name" }).element();
+    const searchControl = search.closest<HTMLElement>('[data-slot="input-control"]');
+    const trigger = page.getByRole("button", { name: "Filter games" }).element();
+    const searchRect = searchControl?.getBoundingClientRect();
+    const triggerRect = trigger.getBoundingClientRect();
+
+    expect(searchControl).not.toBeNull();
+    expect(
+      Math.abs(
+        (searchRect?.y ?? 0) +
+          (searchRect?.height ?? 0) / 2 -
+          triggerRect.y -
+          triggerRect.height / 2
+      )
+    ).toBeLessThanOrEqual(1);
+    expect(searchRect?.right).toBeLessThanOrEqual(triggerRect.left);
+    expect(triggerRect.right).toBeLessThanOrEqual(document.documentElement.clientWidth);
+    expect(document.documentElement.scrollWidth).toBe(document.documentElement.clientWidth);
   });
 
   it("reports search and checkbox changes through the controlled filter model", async () => {
@@ -95,19 +142,20 @@ describe("FilterBar", () => {
     });
   });
 
-  it("uses radio semantics for the exclusive activity filter", async () => {
-    const onChange = vi.fn();
-    await render(<FilterBar data={demoDashboard} filters={defaultFilters} onChange={onChange} />);
+  it("uses radio semantics and arrow-key selection for the exclusive activity filter", async () => {
+    await render(<ControlledFilterBar />);
 
     await page.getByRole("button", { name: "Filter games" }).click();
-    const dormant = page.getByRole("radio", { name: "Dormant" });
+    const all = page.getByRole("radio", { name: "All" });
+    const active = page.getByRole("radio", { name: "Active" });
 
-    await expect.element(dormant).toBeInTheDocument();
+    await expect.element(all).toBeChecked();
+    await expect.element(active).not.toBeChecked();
 
-    dormant.element().focus();
-    await userEvent.keyboard(" ");
+    all.element().focus();
+    await userEvent.keyboard("{ArrowRight}");
 
-    expect(onChange).toHaveBeenCalledExactlyOnceWith({ ...defaultFilters, activity: "dormant" });
+    await expect.element(active).toBeChecked();
   });
 
   it("searches the long franchise facet without changing selected filters", async () => {
@@ -182,10 +230,30 @@ describe("FilterBar", () => {
 
     expect(names).toStrictEqual(expected);
     expect(Math.min(...heights)).toBeGreaterThanOrEqual(44);
+
+    const firstRow = page
+      .getByRole("checkbox", { name: "Action-Adventure" })
+      .element()
+      .closest("label")
+      ?.getBoundingClientRect();
+    const secondRow = page
+      .getByRole("checkbox", { name: "Open World" })
+      .element()
+      .closest("label")
+      ?.getBoundingClientRect();
+
+    expect(secondRow?.top).toBe(firstRow?.bottom);
+
     await expect.element(page.getByRole("checkbox", { name: "Open World" })).toBeVisible();
     await expect.element(page.getByRole("checkbox", { name: "Call of Duty" })).toBeVisible();
     await expect.element(page.getByRole("checkbox", { name: "Grand Theft Auto" })).toBeVisible();
     await expect.element(page.getByRole("checkbox", { name: "No Man's Sky" })).toBeVisible();
+
+    const openWorld = page.getByRole("checkbox", { name: "Open World" });
+    openWorld.element().focus();
+    await userEvent.keyboard(" ");
+
+    await expect.element(openWorld).toBeChecked();
   });
 
   it("retains checkbox facets and reports their selected counts", async () => {
@@ -201,7 +269,26 @@ describe("FilterBar", () => {
 
     await expect.element(page.getByRole("group", { name: "Genre (1)" })).toBeVisible();
     await expect.element(page.getByRole("group", { name: "Platform (1)" })).toBeVisible();
+    await expect.element(page.getByRole("status")).toHaveTextContent("3 filters active");
+
+    await page.getByRole("button", { name: "Done filtering" }).click();
+
     await expect.element(page.getByRole("button", { name: "Clear all" })).toBeVisible();
+  });
+
+  it("clears the sheet without closing the filtering task or losing focus", async () => {
+    await render(<ControlledFilterBar />);
+
+    await page.getByRole("button", { name: "Filter games" }).click();
+    await page.getByRole("checkbox", { name: "Shooter" }).click();
+    const clear = page.getByRole("button", { name: "Clear", exact: true });
+
+    await clear.click();
+
+    await expect.element(page.getByRole("dialog", { name: "Filter games" })).toBeVisible();
+    await expect.element(clear).toHaveFocus();
+    await expect.element(page.getByRole("checkbox", { name: "Shooter" })).not.toBeChecked();
+    await expect.element(page.getByRole("status")).toHaveTextContent("No filters active");
   });
 
   it("announces the live result count and no-results outcome", async () => {
@@ -214,7 +301,9 @@ describe("FilterBar", () => {
       />
     );
 
-    await expect.element(page.getByRole("status")).toHaveTextContent("12 games shown");
+    await expect
+      .element(page.getByRole("status"))
+      .toHaveTextContent("12 games shown · No filters active");
     expect(document.querySelectorAll('[aria-live="polite"]')).toHaveLength(1);
 
     await rerender(
@@ -226,7 +315,9 @@ describe("FilterBar", () => {
       />
     );
 
-    await expect.element(page.getByRole("status")).toHaveTextContent("No games match");
+    await expect
+      .element(page.getByRole("status"))
+      .toHaveTextContent("0 games shown · No filters active");
   });
 
   it("clears active filters and restores focus to search", async () => {

@@ -71,6 +71,40 @@ function countActiveFilters(filters: DashboardFilters): number {
   ].filter(Boolean).length;
 }
 
+function resultSummary(count: number): string {
+  return `${count} ${count === 1 ? "game" : "games"} shown`;
+}
+
+function activeFilterSummary(count: number): string {
+  if (count === 0) return "No filters active";
+  return `${count} ${count === 1 ? "filter" : "filters"} active`;
+}
+
+function FilterStatus({
+  count,
+  activeCount,
+  live,
+  className,
+}: {
+  count: number;
+  activeCount: number;
+  live: boolean;
+  className: string;
+}) {
+  const content = (
+    <>
+      <span className="font-bold text-foreground">{resultSummary(count)}</span>
+      <span> · {activeFilterSummary(activeCount)}</span>
+    </>
+  );
+  if (!live) return <p className={`text-muted-foreground tabular-nums ${className}`}>{content}</p>;
+  return (
+    <output className={`text-muted-foreground tabular-nums ${className}`} aria-live="polite">
+      {content}
+    </output>
+  );
+}
+
 function toggle<T>(list: T[], value: T): T[] {
   return list.includes(value) ? list.filter((item) => item !== value) : [...list, value];
 }
@@ -96,7 +130,7 @@ function CheckboxFacet<T extends string>({
       <legend className="pr-3 text-sm font-bold">
         {legend} <span className="font-normal text-muted-foreground">({selected.length})</span>
       </legend>
-      <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
+      <div className="grid grid-cols-2 gap-x-4">
         {options.map((option) => (
           <Label
             key={option}
@@ -160,7 +194,7 @@ function FranchiseFacet({ options, filters, set }: FilterControlProps) {
         onChange={(event) => setQuery(event.target.value)}
         className="rounded-none border-[var(--playloom-rule-strong)] bg-transparent"
       />
-      <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
+      <div className="grid grid-cols-2 gap-x-4">
         {franchises.map((franchise) => (
           <FranchiseOption key={franchise} franchise={franchise} filters={filters} set={set} />
         ))}
@@ -344,7 +378,12 @@ function FilterTrigger({ count, ...props }: { count: number } & ButtonProps) {
     >
       <SlidersHorizontal className="size-4" />
       Filter games
-      {count > 0 && <Badge className="ml-1 rounded-none">{count}</Badge>}
+      <Badge
+        aria-hidden="true"
+        className={`ml-1 w-6 justify-center rounded-none ${count === 0 ? "invisible" : ""}`}
+      >
+        {count}
+      </Badge>
     </Button>
   );
 }
@@ -357,19 +396,26 @@ interface Props {
   disabled?: boolean;
 }
 
-interface FilterSheetProps extends Props {
+function clearFilters(onChange: Props["onChange"], searchRef: RefObject<HTMLInputElement | null>) {
+  onChange(defaultFilters);
+  searchRef.current?.focus();
+}
+
+interface FilterSheetProps extends Omit<Props, "onChange"> {
   options: FacetOptions;
   activeCount: number;
   set: Setter;
+  onOpenStateChange: (open: boolean) => void;
 }
 
 function FilterSheetPopup({
   count,
+  activeCount,
   options,
   filters,
   set,
   onClear,
-}: FilterControlProps & { count: number; onClear: () => void }) {
+}: FilterControlProps & { count: number; activeCount: number; onClear: () => void }) {
   return (
     <SheetPopup
       side="right"
@@ -380,9 +426,7 @@ function FilterSheetPopup({
         <SheetDescription>
           Applies to Profile, History and Library. Results update immediately.
         </SheetDescription>
-        <p className="text-sm font-bold tabular-nums">
-          {count === 0 ? "No games match" : `${count} games shown`}
-        </p>
+        <FilterStatus count={count} activeCount={activeCount} live className="text-sm" />
       </SheetHeader>
       <SheetPanel className="px-5 py-4">
         <FilterControls options={options} filters={filters} set={set} />
@@ -404,42 +448,67 @@ function FilterSheetPopup({
 function FilterSheet({
   data,
   filters,
-  onChange,
   resultCount,
   disabled,
   options,
   activeCount,
   set,
+  onOpenStateChange,
 }: FilterSheetProps) {
-  const scroll = useRef(0);
-  const [open, setOpen] = useState(false);
-  const restoreScroll = () => window.scrollTo(0, scroll.current);
-  const preserveScroll = (next: boolean) => {
-    setOpen(next);
-    restoreScroll();
-    window.requestAnimationFrame(restoreScroll);
-  };
-  const capture = () => (scroll.current = window.scrollY);
+  const stable = useStableFilterSheet(set, onOpenStateChange);
   const count = resultCount ?? data.games.length;
   return (
     <Sheet
       modal="trap-focus"
-      open={open}
-      onOpenChange={preserveScroll}
-      onOpenChangeComplete={restoreScroll}
+      open={stable.open}
+      onOpenChange={stable.onOpenChange}
+      onOpenChangeComplete={stable.restoreScroll}
     >
-      <span onPointerDownCapture={capture} onKeyDownCapture={capture} onClickCapture={capture}>
-        <SheetTrigger render={<FilterTrigger count={activeCount} disabled={disabled} />} />
-      </span>
+      <SheetTrigger
+        render={<FilterTrigger count={activeCount} disabled={disabled} />}
+        onPointerDownCapture={stable.captureScroll}
+        onKeyDownCapture={stable.captureScroll}
+        onClickCapture={stable.captureScroll}
+      />
       <FilterSheetPopup
         count={count}
+        activeCount={activeCount}
         options={options}
         filters={filters}
-        set={set}
-        onClear={() => onChange(defaultFilters)}
+        set={stable.setPreservingScroll}
+        onClear={() => stable.setPreservingScroll(defaultFilters)}
       />
     </Sheet>
   );
+}
+
+function useStableFilterSheet(set: Setter, onOpenStateChange: (open: boolean) => void) {
+  const scroll = useRef(0);
+  const [open, setOpen] = useState(false);
+  const restoreScroll = () => window.scrollTo(0, scroll.current);
+  const restoreScrollAfterUpdate = () => {
+    restoreScroll();
+    window.requestAnimationFrame(restoreScroll);
+  };
+  const preserveScroll = (next: boolean) => {
+    setOpen(next);
+    onOpenStateChange(next);
+    restoreScrollAfterUpdate();
+  };
+  const capture = () => {
+    scroll.current = window.scrollY;
+  };
+  const setPreservingScroll: Setter = (patch) => {
+    set(patch);
+    restoreScrollAfterUpdate();
+  };
+  return {
+    open,
+    onOpenChange: preserveScroll,
+    captureScroll: capture,
+    restoreScroll,
+    setPreservingScroll,
+  };
 }
 
 function GameSearch({
@@ -462,7 +531,7 @@ function GameSearch({
       value={filters.search}
       disabled={disabled}
       onChange={(event) => set({ search: event.target.value })}
-      className="min-h-11 w-full rounded-none border-[var(--playloom-rule-strong)] bg-transparent sm:max-w-xs"
+      className="min-h-11 w-full rounded-none border-[var(--playloom-rule-strong)] bg-transparent"
     />
   );
 }
@@ -470,35 +539,40 @@ function GameSearch({
 export function FilterBar({ data, filters, onChange, resultCount, disabled = false }: Props) {
   const options = useMemo(() => facetOptions(data), [data]);
   const searchRef = useRef<HTMLInputElement>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
   const activeCount = countActiveFilters(filters);
   const set: Setter = (patch) => onChange({ ...filters, ...patch });
-  const clear = () => {
-    onChange(defaultFilters);
-    searchRef.current?.focus();
-  };
+  const clear = () => clearFilters(onChange, searchRef);
   const result = resultCount ?? data.games.length;
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1 xl:w-[28rem]">
       <GameSearch searchRef={searchRef} filters={filters} disabled={disabled} set={set} />
       <FilterSheet
         data={data}
         filters={filters}
-        onChange={onChange}
         resultCount={resultCount}
         disabled={disabled}
         options={options}
         activeCount={activeCount}
         set={set}
+        onOpenStateChange={setSheetOpen}
       />
-      {activeCount > 0 && (
-        <Button variant="ghost" className="min-h-11 rounded-none" onClick={clear}>
-          <X className="size-4" />
-          Clear all
-        </Button>
-      )}
-      <output className="sr-only" aria-live="polite">
-        {result === 0 ? "No games match" : `${result} games shown`}
-      </output>
+      <FilterStatus
+        count={result}
+        activeCount={activeCount}
+        live={!sheetOpen}
+        className="min-w-0 truncate text-xs text-muted-foreground"
+      />
+      <Button
+        variant="ghost"
+        size="sm"
+        className={`min-h-8 justify-self-end rounded-none px-2 ${activeCount === 0 ? "invisible" : ""}`}
+        disabled={activeCount === 0}
+        onClick={clear}
+      >
+        <X className="size-4" />
+        Clear all
+      </Button>
     </div>
   );
 }
