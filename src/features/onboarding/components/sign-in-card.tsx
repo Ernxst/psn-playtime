@@ -399,7 +399,7 @@ function AccountButton({ account }: { account: CachedAccount }) {
  */
 function ConfirmRemove({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
   return (
-    <div className="flex shrink-0 items-center gap-1">
+    <div className="flex shrink-0 flex-col items-stretch gap-1">
       <Button variant="destructive" size="sm" className="rounded-sm" onClick={onConfirm}>
         Remove
       </Button>
@@ -424,6 +424,7 @@ function ConfirmRemove({ onConfirm, onCancel }: { onConfirm: () => void; onCance
  */
 function RemoveAccountButton({ account }: { account: CachedAccount }) {
   const [confirming, setConfirming] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const { dashboardStore, transactionStore } = useRouteContext({ from: "__root__" });
 
   if (!confirming) {
@@ -431,6 +432,7 @@ function RemoveAccountButton({ account }: { account: CachedAccount }) {
       <Button
         variant="ghost"
         size="icon-sm"
+        ref={triggerRef}
         aria-label={`Remove ${account.onlineId}`}
         className="rounded-sm text-[#bdb8ad] hover:bg-white/10 hover:text-white"
         onClick={() => setConfirming(true)}
@@ -447,7 +449,10 @@ function RemoveAccountButton({ account }: { account: CachedAccount }) {
         transactionStore.clear(account.accountId);
         setConfirming(false);
       }}
-      onCancel={() => setConfirming(false)}
+      onCancel={() => {
+        setConfirming(false);
+        window.requestAnimationFrame(() => triggerRef.current?.focus());
+      }}
     />
   );
 }

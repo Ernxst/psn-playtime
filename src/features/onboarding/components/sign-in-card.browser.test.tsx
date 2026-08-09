@@ -290,14 +290,54 @@ describe("SignInCard", () => {
     await page.getByRole("button", { name: "Cancel" }).click();
 
     await expect.element(page.getByRole("button", { name: /Continue as Ernxst_/ })).toBeVisible();
+    await expect.element(page.getByRole("button", { name: "Remove Ernxst_" })).toHaveFocus();
     expect(testDashboardStore.load("acc-1")).toStrictEqual(cachedAccount);
   });
 
-  it("confirming removal wipes the account's cached games and its imported transactions", async () => {
+  it.each([
+    [1024, 768],
+    [768, 768],
+  ])(
+    "keeps account-removal confirmation inside the saved-account rail at %i by %i",
+    async (width, height) => {
+      await page.viewport(width, height);
+      onTestFinished(() => page.viewport(1280, 800));
+      onTestFinished(() => localStorage.clear());
+      testTransactionStore.clear(cachedAccount.profile.accountId);
+      testDashboardStore.save(cachedAccount);
+      const { element } = createHarness(<SignInCard />);
+
+      await render(element);
+
+      await page.getByRole("button", { name: "Remove Ernxst_" }).click();
+
+      const region = page.getByRole("region", { name: "Continue with a saved account" }).element();
+      const regionBounds = region.getBoundingClientRect();
+      const removeBounds = page
+        .getByRole("button", { name: "Remove", exact: true })
+        .element()
+        .getBoundingClientRect();
+      const cancelBounds = page
+        .getByRole("button", { name: "Cancel" })
+        .element()
+        .getBoundingClientRect();
+
+      expect(region.scrollWidth).toBe(region.clientWidth);
+      expect(removeBounds.left).toBeGreaterThanOrEqual(regionBounds.left);
+      expect(removeBounds.right).toBeLessThanOrEqual(regionBounds.right);
+      expect(cancelBounds.left).toBeGreaterThanOrEqual(regionBounds.left);
+      expect(cancelBounds.right).toBeLessThanOrEqual(regionBounds.right);
+    }
+  );
+
+  it("confirming removal wipes only the selected account's cached games and imported transactions", async () => {
     onTestFinished(() => localStorage.clear());
     testTransactionStore.clear(cachedAccount.profile.accountId);
+    testTransactionStore.clear(secondAccount.profile.accountId);
     testDashboardStore.save(cachedAccount);
+    testDashboardStore.save(secondAccount);
     testTransactionStore.save(cachedAccount.profile.accountId, importedTransactions);
+    testTransactionStore.save(secondAccount.profile.accountId, importedTransactions);
     localStorage.setItem(TRANSACTIONS_KEY, legacyRaw);
     const { element } = createHarness(<SignInCard />);
 
@@ -311,6 +351,10 @@ describe("SignInCard", () => {
       .not.toBeInTheDocument();
     await expect.poll(() => testDashboardStore.load("acc-1")).toBeNull();
     await expect.poll(() => testTransactionStore.load(cachedAccount.profile.accountId)).toBeNull();
+    expect(testDashboardStore.load(secondAccount.profile.accountId)).toStrictEqual(secondAccount);
+    expect(testTransactionStore.load(secondAccount.profile.accountId)).toStrictEqual(
+      importedTransactions
+    );
     expect(localStorage.getItem(TRANSACTIONS_KEY)).toBe(legacyRaw);
   });
 
