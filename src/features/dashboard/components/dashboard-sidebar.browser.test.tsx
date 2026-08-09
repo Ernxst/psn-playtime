@@ -110,8 +110,9 @@ describe("DashboardSidebar", () => {
       .toBeInViewport();
   });
 
-  it("keeps the scroll-follow destination visible inside the chapter navigation", async () => {
+  it("keeps breathing room around the scroll-follow destination at both edges", async () => {
     await page.viewport(1280, 500);
+    window.history.replaceState(null, "", "#data-controls");
     onTestFinished(() => {
       window.history.replaceState(null, "", window.location.pathname);
       window.scrollTo(0, 0);
@@ -125,24 +126,27 @@ describe("DashboardSidebar", () => {
     );
 
     await render(element);
+    alignHashDestination();
 
-    const target = page.getByRole("region", { name: "purchase-data destination" });
-    target.element().scrollIntoView();
-    window.scrollBy(0, -74);
+    const lastLink = page.getByRole("link", { name: "Data controls" });
 
-    const link = page.getByRole("link", { name: "Purchase import" });
-
-    await expect.element(link).toHaveAttribute("aria-current", "location");
+    await expect.element(lastLink).toHaveAttribute("aria-current", "location");
 
     const navigation = document.querySelector<HTMLElement>('[data-slot="sidebar-content"]')!;
 
     await expect
-      .poll(() => link.element().getBoundingClientRect().top)
-      .toBeGreaterThanOrEqual(navigation.getBoundingClientRect().top);
+      .poll(() => lastLink.element().getBoundingClientRect().bottom)
+      .toBeLessThanOrEqual(navigation.getBoundingClientRect().bottom - 24);
+
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => window.scrollTo(0, 0)));
+
+    const firstLink = page.getByRole("link", { name: "Overview" });
+
+    await expect.element(firstLink).toHaveAttribute("aria-current", "location");
 
     await expect
-      .poll(() => link.element().getBoundingClientRect().bottom)
-      .toBeLessThanOrEqual(navigation.getBoundingClientRect().bottom);
+      .poll(() => firstLink.element().getBoundingClientRect().top)
+      .toBeGreaterThanOrEqual(navigation.getBoundingClientRect().top + 24);
   });
 
   it("updates the URL hash when a section anchor is chosen", async () => {

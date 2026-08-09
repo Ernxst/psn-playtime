@@ -1,6 +1,7 @@
 import { useState, useSyncExternalStore } from "react";
 import { Sidebar, SidebarContent, useSidebar } from "@/components/ui/sidebar";
 
+const NAVIGATION_EDGE = 24;
 const READING_LINE = 96;
 
 const chapters = [
@@ -55,13 +56,16 @@ function hashSection(): string | undefined {
 export function alignHashDestination(): void {
   const id = hashSection();
   if (!id) return;
-  const align = () => document.getElementById(id)?.scrollIntoView();
+  const align = () => {
+    if (hashSection() === id) document.getElementById(id)?.scrollIntoView();
+  };
   align();
   window.requestAnimationFrame(() => window.requestAnimationFrame(align));
 }
 
 type ActiveSectionState = {
   active: string;
+  observed?: string;
   requested?: string;
   notify?: () => void;
 };
@@ -72,16 +76,30 @@ function keepSectionLinkVisible(id: string): void {
   if (!link || !navigation) return;
   const linkRect = link.getBoundingClientRect();
   const navigationRect = navigation.getBoundingClientRect();
-  if (linkRect.top < navigationRect.top) navigation.scrollTop -= navigationRect.top - linkRect.top;
-  if (linkRect.bottom > navigationRect.bottom) {
-    navigation.scrollTop += linkRect.bottom - navigationRect.bottom;
-  }
+  const top = navigationRect.top + NAVIGATION_EDGE;
+  const bottom = navigationRect.bottom - NAVIGATION_EDGE;
+  if (linkRect.top < top) navigation.scrollTop -= Math.ceil(top - linkRect.top);
+  if (linkRect.bottom > bottom) navigation.scrollTop += Math.ceil(linkRect.bottom - bottom);
+}
+
+function settleRequestedSection(state: ActiveSectionState): void {
+  const requested = state.requested;
+  window.requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => {
+      if (state.requested !== requested) return;
+      state.requested = undefined;
+      const observed = state.observed;
+      state.observed = undefined;
+      if (observed) activateSection(state, observed, false);
+    });
+  });
 }
 
 function activateSection(state: ActiveSectionState, id: string, requested: boolean): void {
   const changed = state.active !== id;
   state.active = id;
   state.requested = requested ? id : undefined;
+  if (requested) settleRequestedSection(state);
   if (changed) state.notify?.();
   keepSectionLinkVisible(id);
 }
@@ -97,6 +115,10 @@ function holdRequestedSection(
   return true;
 }
 
+function followDocumentEdge(state: ActiveSectionState): void {
+  if (window.scrollY === 0 && !state.requested) activateSection(state, "overview", false);
+}
+
 function firstVisibleSection(entries: IntersectionObserverEntry[]): string | undefined {
   return entries
     .filter((entry) => entry.isIntersecting)
@@ -108,8 +130,12 @@ function firstVisibleSection(entries: IntersectionObserverEntry[]): string | und
 }
 
 function observeSections(state: ActiveSectionState, entries: IntersectionObserverEntry[]): void {
-  if (holdRequestedSection(state, entries)) return;
   const id = firstVisibleSection(entries);
+  if (holdRequestedSection(state, entries)) {
+    state.observed = id;
+    return;
+  }
+  state.observed = undefined;
   if (id) activateSection(state, id, false);
 }
 
@@ -121,6 +147,7 @@ function subscribeToSections(state: ActiveSectionState, onStoreChange: () => voi
     activateSection(state, id, true);
     alignHashDestination();
   };
+  const followEdge = followDocumentEdge.bind(null, state);
   const observer = new IntersectionObserver((entries) => observeSections(state, entries), {
     threshold: 0,
   });
@@ -129,11 +156,14 @@ function subscribeToSections(state: ActiveSectionState, onStoreChange: () => voi
     if (section) observer.observe(section);
   }
   window.addEventListener("hashchange", followHash);
+  window.addEventListener("scroll", followEdge, { passive: true });
+  settleRequestedSection(state);
   keepSectionLinkVisible(state.active);
   return () => {
     state.notify = undefined;
     observer.disconnect();
     window.removeEventListener("hashchange", followHash);
+    window.removeEventListener("scroll", followEdge);
   };
 }
 
