@@ -387,6 +387,15 @@ describe("SpendSection", () => {
       .toBeVisible();
   });
 
+  it("distinguishes an account with no imported transactions from unavailable data", async () => {
+    await renderWithAtoms(<SpendingSummary data={realDashboard} transactions={[]} />);
+
+    await expect.element(page.getByText("No spending summary yet")).toBeVisible();
+    await expect
+      .element(page.getByText("Purchase transactions unavailable"))
+      .not.toBeInTheDocument();
+  });
+
   it("explains an unavailable summary without hiding the other destinations", async () => {
     await renderWithAtoms(
       <SpendingSummary

@@ -49,6 +49,9 @@ describe("PurchaseHistorySection", () => {
     await expect.element(page.getByText("Hollow Knight")).toBeVisible();
     await expect.element(page.getByText("£10.99")).toBeVisible();
     await expect.element(page.getByText("Purchase", { exact: true })).toBeVisible();
+    await expect
+      .element(page.getByText("1 imported transaction, newest first.", { exact: false }))
+      .toBeVisible();
   });
 
   it("moves product search and purchase-date filtering into the direct history", async () => {
@@ -64,6 +67,9 @@ describe("PurchaseHistorySection", () => {
 
     await expect.element(page.getByText("Satisfactory")).toBeVisible();
     await expect.element(page.getByText("Unknown subscription")).not.toBeInTheDocument();
+    await expect
+      .element(page.getByText("2 imported transactions, newest first.", { exact: false }))
+      .toBeVisible();
 
     await search.fill("");
     await page.getByLabelText("Purchase date from").fill("2024-01-01");
@@ -113,7 +119,7 @@ describe("PurchaseHistorySection", () => {
     await expect.element(page.getByText("−£10.00")).toBeVisible();
   });
 
-  it("clicking the Original header re-sorts the rows and sinks rows without an original price", async () => {
+  it("keeps missing Original values first ascending and last descending", async () => {
     seed([
       row({ key: "plain", productName: "Plain Game", date: "2022-06-01" }),
       row({
@@ -140,14 +146,14 @@ describe("PurchaseHistorySection", () => {
     await expect.poll(firstRowText).toContain("High Original");
     await expect.poll(lastRowText).toContain("Plain Game");
 
-    // Ascending: the lowest leads, the row without data still sinks last.
+    // Ascending: the row without original-price data leads and the highest sinks last.
     await page.getByRole("button", { name: "Sort by Original" }).click();
 
-    await expect.poll(firstRowText).toContain("Low Original");
-    await expect.poll(lastRowText).toContain("Plain Game");
+    await expect.poll(firstRowText).toContain("Plain Game");
+    await expect.poll(lastRowText).toContain("High Original");
   });
 
-  it("clicking the Discount header re-sorts the rows and sinks rows without a discount", async () => {
+  it("keeps missing Discount values first ascending and last descending", async () => {
     seed([
       row({ key: "plain", productName: "Plain Game", date: "2022-06-01" }),
       row({
@@ -174,11 +180,11 @@ describe("PurchaseHistorySection", () => {
     await expect.poll(firstRowText).toContain("Big Discount");
     await expect.poll(lastRowText).toContain("Plain Game");
 
-    // Ascending: the smallest leads, the row without data still sinks last.
+    // Ascending: the row without discount data leads and the largest sinks last.
     await page.getByRole("button", { name: "Sort by Discount" }).click();
 
-    await expect.poll(firstRowText).toContain("Small Discount");
-    await expect.poll(lastRowText).toContain("Plain Game");
+    await expect.poll(firstRowText).toContain("Plain Game");
+    await expect.poll(lastRowText).toContain("Big Discount");
   });
 
   it("renders purchase history selected for the demo profile", async () => {

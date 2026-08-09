@@ -164,6 +164,7 @@ const columns: Array<ColumnDef<TransactionRow>> = [
   {
     accessorKey: "productName",
     header: "Product",
+    sortDescFirst: false,
     cell: ({ row }) => (
       <span className="truncate" title={row.original.productName}>
         {row.original.productName}
@@ -179,10 +180,8 @@ const columns: Array<ColumnDef<TransactionRow>> = [
   },
   {
     id: "original",
-    accessorFn: (row) => row.originalPriceMinor,
+    accessorFn: (row) => row.originalPriceMinor ?? -1,
     header: "Original",
-    // Lines with no original-price data sink to the bottom in both sort directions.
-    sortUndefined: "last",
     cell: ({ row }) => {
       const { currency, originalPriceMinor } = row.original;
       if (originalPriceMinor === undefined) return "—";
@@ -192,10 +191,8 @@ const columns: Array<ColumnDef<TransactionRow>> = [
   },
   {
     id: "discount",
-    accessorFn: (row) => row.discountMinor,
+    accessorFn: (row) => row.discountMinor ?? 0,
     header: "Discount",
-    // Lines with no discount data sink to the bottom in both sort directions.
-    sortUndefined: "last",
     cell: ({ row }) => {
       const { currency, discountMinor } = row.original;
       if (!discountMinor) return "—";
@@ -291,9 +288,11 @@ function PurchaseHistoryContent({ table }: { table: TableInstance<TransactionRow
 // oxlint-disable-next-line react/react-compiler -- TanStack Table returns functions the compiler cannot safely memoise
 function PurchaseHistoryTable({
   data,
+  importedCount,
   transactions,
 }: {
   data: DashboardData;
+  importedCount: number;
   transactions: TransactionRow[];
 }) {
   const [sorting, setSorting] = useState<SortingState>([{ id: "date", desc: true }]);
@@ -310,12 +309,14 @@ function PurchaseHistoryTable({
     getRowId: (row) => row.key,
   });
 
+  const transactionLabel = importedCount === 1 ? "transaction" : "transactions";
+
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-base">Your purchase history</CardTitle>
         <CardDescription>
-          Tap a column to sort. {fmtNumber(transactions.length)} imported transactions, newest
+          Tap a column to sort. {fmtNumber(importedCount)} imported {transactionLabel}, newest
           first.
         </CardDescription>
       </CardHeader>
@@ -377,6 +378,7 @@ function FilteredPurchaseHistory({
       />
       <PurchaseHistoryTable
         data={data}
+        importedCount={transactions.length}
         transactions={transactionRows(data, transactions, filters)}
       />
     </div>

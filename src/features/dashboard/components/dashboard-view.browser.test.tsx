@@ -671,7 +671,7 @@ describe("DashboardView", () => {
     await page.getByRole("button", { name: "Sort by Product" }).click();
     const firstProduct = history?.querySelector("tbody tr td:nth-child(2)");
 
-    expect(firstProduct?.textContent).toContain("Satisfactory");
+    expect(firstProduct?.textContent).toContain("Cyberpunk");
   });
 
   it("keeps account-wide spend totals when a filter narrows the library", async () => {

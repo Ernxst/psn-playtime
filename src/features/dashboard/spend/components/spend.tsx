@@ -454,18 +454,17 @@ export function SpendSection({ data, transactions }: TransactionSectionProps) {
   return <PurchaseImport data={data} transactionCount={rows.length} />;
 }
 
-export function SpendingSummary({
-  data,
-  transactions,
-  unavailableMessage = "No imported purchase history is available for this account. Purchase destinations remain available below.",
-}: SpendingSummaryProps) {
+export function SpendingSummary({ data, transactions, unavailableMessage }: SpendingSummaryProps) {
   const rows = useSectionTransactions(data, transactions);
   if (rows.length === 0) {
-    return (
-      <EmptySpendState title="Purchase transactions unavailable">
-        {unavailableMessage}
-      </EmptySpendState>
-    );
+    const title =
+      unavailableMessage === undefined
+        ? "No spending summary yet"
+        : "Purchase transactions unavailable";
+    const message =
+      unavailableMessage ??
+      "No imported purchase history is available for this account. Purchase destinations remain available below.";
+    return <EmptySpendState title={title}>{message}</EmptySpendState>;
   }
   const summary = summariseSpend(data, rows);
   const discounts = rows.reduce((total, row) => total + (row.discountMinor ?? 0) / 100, 0);
