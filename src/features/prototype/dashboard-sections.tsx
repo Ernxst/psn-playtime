@@ -269,8 +269,19 @@ function YearView({ data }: { data: DashboardData }) {
 function SessionView({ data }: { data: DashboardData }) {
   const rows = bingeVsDipIn(data, 10);
   const max = rows[0]?.hoursPerSession ?? 1;
+  const label = `Average session length per game: ${rows
+    .map(
+      (row) =>
+        `${row.name} ${row.hoursPerSession} hours per session across ${row.playCount} sessions`
+    )
+    .join(", ")}.`;
   return (
-    <div className="playloom-session-view">
+    <div
+      className="playloom-session-view"
+      // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role
+      role="img"
+      aria-label={label}
+    >
       {rows.map((row) => (
         <div key={row.name}>
           <strong>{row.name}</strong>
