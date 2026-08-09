@@ -106,19 +106,25 @@ export function TopGamesChart({ data }: { data: DashboardData }) {
     rows.map((r) => `${r.name} ${r.hours.toLocaleString()} hours`)
   );
   return (
-    <HorizontalBarChart
-      label={label}
-      className="aspect-auto h-[320px] w-full"
-      data={rows}
-      margin={{ left: 8, right: 32 }}
-      valueKey="hours"
-      categoryKey="name"
-      yAxisWidth={150}
-      categoryTickFormatter={truncateCategory}
-      fill="var(--color-hours)"
-      tooltip={topGamesTooltip}
-      labelFormatter={(v) => `${Math.round(Number(v)).toLocaleString()}h`}
-    />
+    <div className="space-y-2">
+      <HorizontalBarChart
+        label={label}
+        className="aspect-auto h-[320px] w-full"
+        data={rows}
+        margin={{ left: 8, right: 32 }}
+        valueKey="hours"
+        categoryKey="name"
+        yAxisWidth={150}
+        categoryTickFormatter={truncateCategory}
+        fill="var(--color-hours)"
+        tooltip={topGamesTooltip}
+        labelFormatter={(v) => `${Math.round(Number(v)).toLocaleString()}h`}
+      />
+      <p className="text-xs leading-relaxed text-muted-foreground">
+        These are lifetime hours. A last-played timeframe changes which games appear, not the hours
+        counted for each game.
+      </p>
+    </div>
   );
 }
 

@@ -12,11 +12,9 @@ import {
 import { ExportButtons } from "@/features/dashboard/export/components/export-buttons";
 import {
   applyFilters,
-  currentYear,
   type DashboardFilters,
   defaultFilters,
   retainValidFilters,
-  type Timeframe,
 } from "@/features/dashboard/filters/analytics";
 import { FilterBar } from "@/features/dashboard/filters/components/filter-bar";
 import {
@@ -59,13 +57,6 @@ interface Props {
   partialData?: boolean;
   enrichment?: DashboardEnrichmentPresentation;
 }
-
-const TIMEFRAMES: ReadonlyArray<{ value: Timeframe; label: string }> = [
-  { value: "all", label: "All time" },
-  { value: "last-12-months", label: "12 months" },
-  { value: "last-2-years", label: "2 years" },
-  { value: "this-year", label: "This year" },
-];
 
 type ChapterVariant = "opening" | "chapter";
 
@@ -147,67 +138,6 @@ function Section({
       </h3>
       {children}
     </section>
-  );
-}
-
-function TimeframeOption({
-  timeframe,
-  value,
-  disabled,
-  onChange,
-}: {
-  timeframe: (typeof TIMEFRAMES)[number];
-  value: Timeframe;
-  disabled: boolean;
-  onChange: (value: Timeframe) => void;
-}) {
-  return (
-    <label className="relative grid min-h-11 cursor-pointer place-items-center border-r border-[var(--playloom-rule-strong)] px-3 text-xs font-bold last:border-r-0 has-checked:bg-primary has-checked:text-primary-foreground">
-      <input
-        className="sr-only"
-        type="radio"
-        name="last-played-timeframe"
-        checked={value === timeframe.value}
-        disabled={disabled}
-        onChange={() => onChange(timeframe.value)}
-      />
-      {timeframe.label}
-    </label>
-  );
-}
-
-function TimeframeControl({
-  value,
-  onChange,
-  disabled,
-}: {
-  value: Timeframe;
-  onChange: (value: Timeframe) => void;
-  disabled: boolean;
-}) {
-  return (
-    <div className="flex flex-1 flex-wrap items-end justify-between gap-4">
-      <div className="flex flex-col">
-        <strong className="text-xs">Game filter scope</strong>
-        <span className="text-[0.6875rem] text-muted-foreground">
-          Applies to Profile, History and Library
-        </span>
-      </div>
-      <fieldset>
-        <legend className="sr-only">Last-played timeframe; current year {currentYear()}</legend>
-        <div className="grid grid-cols-4 border border-[var(--playloom-rule-strong)]">
-          {TIMEFRAMES.map((timeframe) => (
-            <TimeframeOption
-              key={timeframe.value}
-              timeframe={timeframe}
-              value={value}
-              disabled={disabled}
-              onChange={onChange}
-            />
-          ))}
-        </div>
-      </fieldset>
-    </div>
   );
 }
 
@@ -549,12 +479,7 @@ function FilterScope({
 }) {
   const disabled = data.games.length === 0;
   return (
-    <div className="flex flex-col flex-wrap items-stretch gap-4 border-y border-[var(--playloom-rule)] bg-[var(--playloom-paper-raised)] px-[clamp(1.25rem,5vw,4rem)] py-4 xl:flex-row xl:items-end xl:justify-between">
-      <TimeframeControl
-        disabled={disabled}
-        value={filters.timeframe}
-        onChange={(timeframe) => onChange({ ...filters, timeframe })}
-      />
+    <div className="flex flex-col items-stretch border-y border-[var(--playloom-rule)] bg-[var(--playloom-paper-raised)] px-[clamp(1.25rem,5vw,4rem)] py-4">
       <FilterBar
         data={data}
         filters={filters}

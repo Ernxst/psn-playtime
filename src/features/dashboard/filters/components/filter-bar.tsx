@@ -19,7 +19,9 @@ import {
 import {
   type Activity,
   type DashboardFilters,
+  currentYear,
   defaultFilters,
+  type Timeframe,
 } from "@/features/dashboard/filters/analytics";
 import type { DashboardData, GamePlay, Genre, Platform } from "@/server/providers/account/snapshot";
 
@@ -51,6 +53,13 @@ const ACTIVITIES: ReadonlyArray<{ value: Activity; label: string }> = [
   { value: "all", label: "All" },
   { value: "active", label: "Active" },
   { value: "dormant", label: "Dormant" },
+];
+
+const TIMEFRAMES: ReadonlyArray<{ value: Timeframe; label: string }> = [
+  { value: "all", label: "All time" },
+  { value: "last-12-months", label: "12 months" },
+  { value: "last-2-years", label: "2 years" },
+  { value: "this-year", label: "This year" },
 ];
 
 function countActiveFilters(filters: DashboardFilters): number {
@@ -209,31 +218,93 @@ interface FilterControlProps {
   set: Setter;
 }
 
+type DateValidation = "valid" | "format" | "calendar";
+
+const DATE_FEEDBACK: Partial<Record<DateValidation, string>> = {
+  format: "Use YYYY-MM-DD.",
+  calendar: "Enter a real calendar date in YYYY-MM-DD.",
+};
+
+function isCalendarDate(value: string): boolean {
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return Number.isFinite(date.valueOf()) && date.toISOString().startsWith(value);
+}
+
+function validateDate(value: string): DateValidation {
+  if (value === "") return "valid";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return "format";
+  return isCalendarDate(value) ? "valid" : "calendar";
+}
+
+function DateFeedback({ feedback, id }: { feedback: string | undefined; id: string }) {
+  if (feedback === undefined) return null;
+  return (
+    <output id={id} className="text-xs leading-relaxed text-destructive" aria-live="polite">
+      {feedback}
+    </output>
+  );
+}
+
+function DateInput({
+  label,
+  appliedValue,
+  onApply,
+}: {
+  label: "From" | "To";
+  appliedValue: string;
+  onApply: (value: string | undefined) => void;
+}) {
+  const [validation, setValidation] = useState<DateValidation>("valid");
+  const feedback = DATE_FEEDBACK[validation];
+  const name = `Last played ${label.toLocaleLowerCase()}`;
+  const feedbackId = `last-played-${label.toLocaleLowerCase()}-feedback`;
+
+  return (
+    <Label className="grid gap-1.5 text-xs">
+      {label}
+      <Input
+        type="text"
+        aria-label={name}
+        aria-invalid={feedback !== undefined}
+        aria-describedby={feedback === undefined ? undefined : feedbackId}
+        inputMode="numeric"
+        placeholder="YYYY-MM-DD"
+        pattern="\\d{4}-\\d{2}-\\d{2}"
+        defaultValue={appliedValue}
+        onChange={(event) => {
+          const next = event.target.value;
+          const nextValidation = validateDate(next);
+          setValidation(nextValidation);
+          if (nextValidation === "valid") onApply(next || undefined);
+        }}
+        className="rounded-none border-[var(--playloom-rule-strong)] bg-transparent"
+      />
+      <DateFeedback feedback={feedback} id={feedbackId} />
+    </Label>
+  );
+}
+
 function DateFacet({ filters, set }: FilterControlProps) {
   return (
     <fieldset className="space-y-3 border-t border-[var(--playloom-rule)] pt-5">
-      <legend className="pr-3 text-sm font-bold">Last played</legend>
+      <legend className="pr-3 text-sm font-bold">Last-played range</legend>
+      <p className="max-w-[48ch] text-xs leading-relaxed text-muted-foreground">
+        Dates select games by when you last played them. Hours shown elsewhere remain lifetime
+        totals.
+      </p>
       <div className="grid grid-cols-2 gap-3">
-        <Label className="grid gap-1.5 text-xs">
-          From
-          <Input
-            type="date"
-            aria-label="Last played from"
-            value={filters.lastPlayedFrom ?? ""}
-            onChange={(event) => set({ lastPlayedFrom: event.target.value || undefined })}
-            className="rounded-none border-[var(--playloom-rule-strong)] bg-transparent"
-          />
-        </Label>
-        <Label className="grid gap-1.5 text-xs">
-          To
-          <Input
-            type="date"
-            aria-label="Last played to"
-            value={filters.lastPlayedTo ?? ""}
-            onChange={(event) => set({ lastPlayedTo: event.target.value || undefined })}
-            className="rounded-none border-[var(--playloom-rule-strong)] bg-transparent"
-          />
-        </Label>
+        <DateInput
+          key={`from-${filters.lastPlayedFrom ?? ""}`}
+          label="From"
+          appliedValue={filters.lastPlayedFrom ?? ""}
+          onApply={(lastPlayedFrom) => set({ lastPlayedFrom })}
+        />
+        <DateInput
+          key={`to-${filters.lastPlayedTo ?? ""}`}
+          label="To"
+          appliedValue={filters.lastPlayedTo ?? ""}
+          onApply={(lastPlayedTo) => set({ lastPlayedTo })}
+        />
       </div>
     </fieldset>
   );
@@ -317,25 +388,95 @@ function TrophyFacet({ options, filters, set }: FilterControlProps) {
   );
 }
 
-function ActivityFacet({ filters, set }: FilterControlProps) {
+function TimeframeOption({
+  timeframe,
+  filters,
+  disabled,
+  set,
+}: {
+  timeframe: (typeof TIMEFRAMES)[number];
+  filters: DashboardFilters;
+  disabled: boolean;
+  set: Setter;
+}) {
   return (
-    <fieldset className="space-y-3 border-t border-[var(--playloom-rule)] pt-5">
-      <legend className="pr-3 text-sm font-bold">Activity</legend>
+    <Label className="relative grid min-h-11 cursor-pointer place-items-center border-b border-r border-[var(--playloom-rule-strong)] px-2 text-center text-xs font-bold outline-none last:border-r-0 has-checked:bg-primary has-checked:text-primary-foreground has-focus-visible:outline-2 has-focus-visible:outline-offset-[-2px] has-focus-visible:outline-ring sm:border-b-0">
+      <input
+        className="absolute inset-0 size-full cursor-pointer appearance-none opacity-0 disabled:cursor-not-allowed"
+        type="radio"
+        name="last-played-timeframe"
+        value={timeframe.value}
+        checked={filters.timeframe === timeframe.value}
+        disabled={disabled}
+        onChange={() => set({ timeframe: timeframe.value })}
+      />
+      <span className="pointer-events-none">{timeframe.label}</span>
+    </Label>
+  );
+}
+
+function TimeframeControl({
+  filters,
+  disabled,
+  set,
+}: {
+  filters: DashboardFilters;
+  disabled: boolean;
+  set: Setter;
+}) {
+  return (
+    <fieldset className="min-w-0" aria-describedby="timeframe-semantics">
+      <legend className="mb-1 text-xs font-bold">Last played</legend>
+      <div className="grid grid-cols-2 border border-[var(--playloom-rule-strong)] sm:grid-cols-4">
+        {TIMEFRAMES.map((timeframe) => (
+          <TimeframeOption
+            key={timeframe.value}
+            timeframe={timeframe}
+            filters={filters}
+            disabled={disabled}
+            set={set}
+          />
+        ))}
+      </div>
+      <p
+        id="timeframe-semantics"
+        className="mt-1.5 max-w-[48ch] text-xs leading-relaxed text-muted-foreground"
+      >
+        Selects games by last played. Displayed hours remain lifetime totals. Current year:{" "}
+        {currentYear()}.
+      </p>
+    </fieldset>
+  );
+}
+
+function ActivityControl({
+  filters,
+  disabled,
+  set,
+}: {
+  filters: DashboardFilters;
+  disabled: boolean;
+  set: Setter;
+}) {
+  return (
+    <fieldset className="min-w-0">
+      <legend className="mb-1 text-xs font-bold">Activity</legend>
       <div className="grid grid-cols-3 border border-[var(--playloom-rule-strong)]">
         {ACTIVITIES.map((activity) => (
           <Label
             key={activity.value}
-            className="relative grid min-h-11 cursor-pointer place-items-center border-r border-[var(--playloom-rule-strong)] text-xs font-bold last:border-r-0 has-checked:bg-primary has-checked:text-primary-foreground"
+            className="relative grid min-h-11 cursor-pointer place-items-center border-r border-[var(--playloom-rule-strong)] px-2 text-xs font-bold outline-none last:border-r-0 has-checked:bg-primary has-checked:text-primary-foreground has-focus-visible:outline-2 has-focus-visible:outline-offset-[-2px] has-focus-visible:outline-ring"
           >
             <input
-              className="sr-only"
+              className="absolute inset-0 size-full cursor-pointer appearance-none opacity-0 disabled:cursor-not-allowed"
               type="radio"
               name="game-activity"
               value={activity.value}
               checked={filters.activity === activity.value}
+              disabled={disabled}
               onChange={() => set({ activity: activity.value })}
             />
-            {activity.label}
+            <span className="pointer-events-none">{activity.label}</span>
           </Label>
         ))}
       </div>
@@ -364,7 +505,6 @@ function FilterControls(props: FilterControlProps) {
       <HoursFacet {...props} />
       <SessionsFacet {...props} />
       <TrophyFacet {...props} />
-      <ActivityFacet {...props} />
     </div>
   );
 }
@@ -399,6 +539,15 @@ interface Props {
 function clearFilters(onChange: Props["onChange"], searchRef: RefObject<HTMLInputElement | null>) {
   onChange(defaultFilters);
   searchRef.current?.focus();
+}
+
+function useStableFilterChanges(onChange: Props["onChange"]) {
+  const scroll = useRef(0);
+  return (next: DashboardFilters) => {
+    scroll.current = window.scrollY;
+    onChange(next);
+    window.requestAnimationFrame(() => window.scrollTo(0, scroll.current));
+  };
 }
 
 interface FilterSheetProps extends Omit<Props, "onChange"> {
@@ -536,43 +685,87 @@ function GameSearch({
   );
 }
 
-export function FilterBar({ data, filters, onChange, resultCount, disabled = false }: Props) {
-  const options = useMemo(() => facetOptions(data), [data]);
-  const searchRef = useRef<HTMLInputElement>(null);
-  const [sheetOpen, setSheetOpen] = useState(false);
-  const activeCount = countActiveFilters(filters);
-  const set: Setter = (patch) => onChange({ ...filters, ...patch });
-  const clear = () => clearFilters(onChange, searchRef);
-  const result = resultCount ?? data.games.length;
+function NoResultsRecovery({ onClear }: { onClear: () => void }) {
   return (
-    <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1 xl:w-[28rem]">
-      <GameSearch searchRef={searchRef} filters={filters} disabled={disabled} set={set} />
-      <FilterSheet
-        data={data}
-        filters={filters}
-        resultCount={resultCount}
-        disabled={disabled}
-        options={options}
-        activeCount={activeCount}
-        set={set}
-        onOpenStateChange={setSheetOpen}
-      />
+    <div className="flex min-h-11 flex-wrap items-center justify-between gap-3 border-t border-[var(--playloom-rule)] pt-3">
+      <p className="text-sm text-muted-foreground">
+        No games match these filters. Clear them to see your full library again.
+      </p>
+      <Button variant="outline" className="min-h-11 rounded-none" onClick={onClear}>
+        Clear filters
+      </Button>
+    </div>
+  );
+}
+
+function FilterTaskSummary({
+  result,
+  activeCount,
+  sheetOpen,
+  clear,
+}: {
+  result: number;
+  activeCount: number;
+  sheetOpen: boolean;
+  clear: () => void;
+}) {
+  return (
+    <div className="grid min-h-11 gap-x-3 gap-y-1 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
       <FilterStatus
         count={result}
         activeCount={activeCount}
         live={!sheetOpen}
-        className="min-w-0 truncate text-xs text-muted-foreground"
+        className="min-w-0 text-xs text-muted-foreground"
       />
       <Button
         variant="ghost"
         size="sm"
-        className={`min-h-8 justify-self-end rounded-none px-2 ${activeCount === 0 ? "invisible" : ""}`}
+        className={`min-h-8 justify-self-start rounded-none px-2 sm:justify-self-end ${activeCount === 0 ? "invisible" : ""}`}
         disabled={activeCount === 0}
         onClick={clear}
       >
         <X className="size-4" />
         Clear all
       </Button>
+    </div>
+  );
+}
+
+export function FilterBar({ data, filters, onChange, resultCount, disabled = false }: Props) {
+  const options = useMemo(() => facetOptions(data), [data]);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const activeCount = countActiveFilters(filters);
+  const setFilters = useStableFilterChanges(onChange);
+  const set: Setter = (patch) => setFilters({ ...filters, ...patch });
+  const clear = () => clearFilters(setFilters, searchRef);
+  const result = resultCount ?? data.games.length;
+  return (
+    <div className="grid w-full gap-3" data-filter-task="">
+      <div className="grid gap-3 lg:grid-cols-[minmax(14rem,1fr)_minmax(26rem,auto)] lg:items-start">
+        <GameSearch searchRef={searchRef} filters={filters} disabled={disabled} set={set} />
+        <TimeframeControl filters={filters} disabled={disabled} set={set} />
+      </div>
+      <div className="grid gap-3 sm:grid-cols-[minmax(14rem,1fr)_auto] sm:items-end">
+        <ActivityControl filters={filters} disabled={disabled} set={set} />
+        <FilterSheet
+          data={data}
+          filters={filters}
+          resultCount={resultCount}
+          disabled={disabled}
+          options={options}
+          activeCount={activeCount}
+          set={set}
+          onOpenStateChange={setSheetOpen}
+        />
+      </div>
+      <FilterTaskSummary
+        result={result}
+        activeCount={activeCount}
+        sheetOpen={sheetOpen}
+        clear={clear}
+      />
+      {result === 0 && activeCount > 0 && <NoResultsRecovery onClear={clear} />}
     </div>
   );
 }

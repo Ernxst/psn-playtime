@@ -179,7 +179,7 @@ describe("DashboardView", () => {
     expect(allTimeRect?.right).toBeLessThanOrEqual(twelveMonthsRect?.left ?? 0);
     expect(twelveMonthsRect?.right).toBeLessThanOrEqual(twoYearsRect?.left ?? 0);
     expect(twoYearsRect?.right).toBeLessThanOrEqual(thisYearRect?.left ?? 0);
-    expect(search.getBoundingClientRect().top).toBeGreaterThan(thisYearRect?.bottom ?? 900);
+    expect(search.getBoundingClientRect().bottom).toBeLessThanOrEqual(allTimeRect?.top ?? 0);
   });
 
   it("keeps disabled timeframe labels legible above their message at 1440 by 900", async () => {
@@ -357,7 +357,7 @@ describe("DashboardView", () => {
 
     await expect.element(page.getByRole("radio", { name: "This year" })).toBeInTheDocument();
 
-    await page.getByText("This year", { exact: true }).click();
+    await page.getByRole("radio", { name: "This year" }).click();
 
     await expect
       .element(page.getByRole("region", { name: /15 matching games.*98 titles/ }))

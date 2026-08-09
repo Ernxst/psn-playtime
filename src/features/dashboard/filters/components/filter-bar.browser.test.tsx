@@ -86,11 +86,28 @@ describe("FilterBar", () => {
     expect(triggerElement.getBoundingClientRect().width).toBe(before.width);
   });
 
+  it("preserves document scroll while the visible timeframe and activity choices change", async () => {
+    onTestFinished(() => window.scrollTo(0, 0));
+    await render(
+      <div style={{ minHeight: 1800, paddingTop: 400 }}>
+        <ControlledFilterBar />
+      </div>
+    );
+    window.scrollTo(0, 320);
+
+    await page.getByRole("radio", { name: "12 months" }).click();
+    await page.getByRole("radio", { name: "Active" }).click();
+
+    await expect.poll(() => window.scrollY).toBe(320);
+  });
+
   it.each([
     [1440, 900],
+    [1024, 900],
     [768, 900],
+    [767, 900],
     [390, 844],
-  ])("aligns search and filter controls without overlap at %i by %i", async (width, height) => {
+  ])("aligns the filtering task without overlap at %i by %i", async (width, height) => {
     await page.viewport(width, height);
     onTestFinished(() => page.viewport(1280, 800));
     await render(<ControlledFilterBar />);
@@ -98,20 +115,34 @@ describe("FilterBar", () => {
     const search = page.getByRole("searchbox", { name: "Search games by name" }).element();
     const searchControl = search.closest<HTMLElement>('[data-slot="input-control"]');
     const trigger = page.getByRole("button", { name: "Filter games" }).element();
+    const timeframe = page.getByRole("radio", { name: "All time" }).element().closest("fieldset");
+    const activity = page
+      .getByRole("radio", { name: "All", exact: true })
+      .element()
+      .closest("fieldset");
+    const status = page.getByRole("status").element();
     const searchRect = searchControl?.getBoundingClientRect();
     const triggerRect = trigger.getBoundingClientRect();
+    const task = document.querySelector<HTMLElement>("[data-filter-task]");
+    const controls = [searchControl, timeframe, activity, trigger, status].filter(
+      (control): control is HTMLElement => control !== null
+    );
 
     expect(searchControl).not.toBeNull();
-    expect(
-      Math.abs(
-        (searchRect?.y ?? 0) +
-          (searchRect?.height ?? 0) / 2 -
-          triggerRect.y -
-          triggerRect.height / 2
-      )
-    ).toBeLessThanOrEqual(1);
-    expect(searchRect?.right).toBeLessThanOrEqual(triggerRect.left);
-    expect(triggerRect.right).toBeLessThanOrEqual(document.documentElement.clientWidth);
+    expect(timeframe).not.toBeNull();
+    expect(activity).not.toBeNull();
+    expect(task).not.toBeNull();
+    expect(searchRect?.height).toBeGreaterThanOrEqual(44);
+    expect(triggerRect.height).toBeGreaterThanOrEqual(44);
+    expect(controls).toHaveLength(5);
+
+    for (const control of controls) {
+      const rect = control.getBoundingClientRect();
+
+      expect(rect.left).toBeGreaterThanOrEqual(0);
+      expect(rect.right).toBeLessThanOrEqual(document.documentElement.clientWidth);
+    }
+
     expect(document.documentElement.scrollWidth).toBe(document.documentElement.clientWidth);
   });
 
@@ -124,12 +155,13 @@ describe("FilterBar", () => {
     expect(onChange).toHaveBeenCalledExactlyOnceWith({ ...defaultFilters, search: "halo" });
   });
 
-  it("keeps native dates and exact numeric threshold controls", async () => {
+  it("keeps exact date and numeric threshold controls without a native date picker", async () => {
     const onChange = vi.fn();
     await render(<FilterBar data={withTrophies} filters={defaultFilters} onChange={onChange} />);
 
     await page.getByRole("button", { name: "Filter games" }).click();
-    await page.getByLabelText("Last played from").fill("2024-01-01");
+    const from = page.getByLabelText("Last played from");
+    await from.fill("2024-01-01");
     await page.getByRole("spinbutton", { name: "Minimum hours" }).fill("12");
     await page.getByRole("spinbutton", { name: "Maximum hours" }).fill("300");
     await page.getByRole("spinbutton", { name: "Minimum sessions" }).fill("4");
@@ -140,13 +172,74 @@ describe("FilterBar", () => {
       ...defaultFilters,
       minTrophyProgress: 75,
     });
+    expect(from.element().getAttribute("type")).toBe("text");
+    await expect
+      .element(page.getByText("Dates select games by when you last played them."))
+      .toBeVisible();
+  });
+
+  it("keeps a partial last-played date as a draft instead of applying it", async () => {
+    const onChange = vi.fn();
+    await render(<FilterBar data={demoDashboard} filters={defaultFilters} onChange={onChange} />);
+
+    await page.getByRole("button", { name: "Filter games" }).click();
+    const from = page.getByLabelText("Last played from");
+    await from.fill("2024-01");
+
+    expect(onChange).not.toHaveBeenCalled();
+    expect(from.element().getAttribute("aria-invalid")).toBe("true");
+    await expect.element(page.getByText("Use YYYY-MM-DD.")).toBeVisible();
+  });
+
+  it("keeps an impossible last-played date as a draft instead of applying it", async () => {
+    const onChange = vi.fn();
+    await render(<FilterBar data={demoDashboard} filters={defaultFilters} onChange={onChange} />);
+
+    await page.getByRole("button", { name: "Filter games" }).click();
+    const from = page.getByLabelText("Last played from");
+    await from.fill("2024-02-30");
+
+    expect(onChange).not.toHaveBeenCalled();
+    expect(from.element().getAttribute("aria-invalid")).toBe("true");
+    await expect.element(page.getByText("Enter a real calendar date in YYYY-MM-DD.")).toBeVisible();
+  });
+
+  it("applies a complete valid last-played date", async () => {
+    const onChange = vi.fn();
+    await render(<FilterBar data={demoDashboard} filters={defaultFilters} onChange={onChange} />);
+
+    await page.getByRole("button", { name: "Filter games" }).click();
+    await page.getByLabelText("Last played from").fill("2024-02-29");
+
+    expect(onChange).toHaveBeenCalledExactlyOnceWith({
+      ...defaultFilters,
+      lastPlayedFrom: "2024-02-29",
+    });
+  });
+
+  it("clears an applied last-played date", async () => {
+    const onChange = vi.fn();
+    await render(
+      <FilterBar
+        data={demoDashboard}
+        filters={{ ...defaultFilters, lastPlayedFrom: "2024-01-01" }}
+        onChange={onChange}
+      />
+    );
+
+    await page.getByRole("button", { name: "Filter games" }).click();
+    await page.getByLabelText("Last played from").fill("");
+
+    expect(onChange).toHaveBeenCalledExactlyOnceWith({
+      ...defaultFilters,
+      lastPlayedFrom: undefined,
+    });
   });
 
   it("uses radio semantics and arrow-key selection for the exclusive activity filter", async () => {
     await render(<ControlledFilterBar />);
 
-    await page.getByRole("button", { name: "Filter games" }).click();
-    const all = page.getByRole("radio", { name: "All" });
+    const all = page.getByRole("radio", { name: "All", exact: true });
     const active = page.getByRole("radio", { name: "Active" });
 
     await expect.element(all).toBeChecked();
@@ -156,6 +249,23 @@ describe("FilterBar", () => {
     await userEvent.keyboard("{ArrowRight}");
 
     await expect.element(active).toBeChecked();
+  });
+
+  it("reports timeframe changes through the controlled filter model and explains their lifetime-hour scope", async () => {
+    const onChange = vi.fn();
+    await render(<FilterBar data={demoDashboard} filters={defaultFilters} onChange={onChange} />);
+
+    await page.getByRole("radio", { name: "12 months" }).click();
+
+    expect(onChange).toHaveBeenCalledExactlyOnceWith({
+      ...defaultFilters,
+      timeframe: "last-12-months",
+    });
+    await expect
+      .element(
+        page.getByText(/Selects games by last played\. Displayed hours remain lifetime totals/)
+      )
+      .toBeVisible();
   });
 
   it("searches the long franchise facet without changing selected filters", async () => {
@@ -318,6 +428,24 @@ describe("FilterBar", () => {
     await expect
       .element(page.getByRole("status"))
       .toHaveTextContent("0 games shown · No filters active");
+  });
+
+  it("offers a direct recovery action when active filters produce no results", async () => {
+    const active = { ...defaultFilters, search: "missing" };
+    const onChange = vi.fn();
+    await render(
+      <FilterBar data={demoDashboard} filters={active} onChange={onChange} resultCount={0} />
+    );
+
+    await expect
+      .element(
+        page.getByText("No games match these filters. Clear them to see your full library again.")
+      )
+      .toBeVisible();
+
+    await page.getByRole("button", { name: "Clear filters" }).click();
+
+    expect(onChange).toHaveBeenCalledExactlyOnceWith(defaultFilters);
   });
 
   it("clears active filters and restores focus to search", async () => {

@@ -17,6 +17,13 @@ describe("TopGamesChart", () => {
     const { container } = await render(<TopGamesChart data={demoDashboard} />);
 
     await expect.element(page.getByText("1,254h")).toBeInTheDocument();
+    await expect
+      .element(
+        page.getByText(
+          "These are lifetime hours. A last-played timeframe changes which games appear, not the hours counted for each game."
+        )
+      )
+      .toBeVisible();
     // Recharts exposes no semantic locator for its generated bar primitives.
     // oxlint-disable-next-line test-contract/no-dom-selector
     await expect.poll(() => container.querySelectorAll(".recharts-bar-rectangle").length).toBe(10);
