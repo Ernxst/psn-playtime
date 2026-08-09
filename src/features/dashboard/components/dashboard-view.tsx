@@ -40,6 +40,7 @@ import {
   ProfileOverview,
   ProfileRanks,
   PrototypeSpending,
+  type TopGamesFilterState,
 } from "@/features/prototype/dashboard-sections";
 import type { DashboardData } from "@/server/providers/account/snapshot";
 import { useDashboardTransactionImport } from "@/stores/transactions-store";
@@ -234,13 +235,13 @@ function Marquee({ data, refreshed }: { data: DashboardData; refreshed: boolean 
   );
 }
 
-function ProfileChapter({
-  data,
-  enrichment,
-}: {
+interface ProfileChapterProps {
   data: DashboardData;
+  topGamesFilterState: TopGamesFilterState;
   enrichment?: DashboardEnrichmentPresentation;
-}) {
+}
+
+function ProfileChapter({ data, topGamesFilterState, enrichment }: ProfileChapterProps) {
   return (
     <div className="playloom-chapter-profile bg-[#f3efe5] px-[clamp(1.25rem,5vw,4rem)] pt-6 pb-20">
       <ChapterHeading number="01" title="Profile" variant="opening">
@@ -251,7 +252,7 @@ function ProfileChapter({
         <ProfileOverview data={data} />
       </Section>
       <Section id="top-games" title="Top games">
-        <ProfileRanks data={data} mode="games" />
+        <ProfileRanks data={data} mode="games" topGamesFilterState={topGamesFilterState} />
       </Section>
       <Section id="genres" title="Genres">
         {enrichment && <EnrichmentStatusNotice kind="genres" control={enrichment.genres} />}
@@ -430,22 +431,30 @@ function ToolsChapterUnavailable({ data }: { data: DashboardData }) {
   );
 }
 
-function DashboardChapters({
-  data,
-  account,
-  partialData,
-  onClearFilters,
-  enrichment,
-}: {
+interface DashboardChaptersProps {
   data: DashboardData;
   account: DashboardData;
+  topGamesFilterState: TopGamesFilterState;
   partialData: boolean;
   onClearFilters: () => void;
   enrichment?: DashboardEnrichmentPresentation;
-}) {
+}
+
+function DashboardChapters({
+  data,
+  account,
+  topGamesFilterState,
+  partialData,
+  onClearFilters,
+  enrichment,
+}: DashboardChaptersProps) {
   return (
     <>
-      <ProfileChapter data={data} enrichment={enrichment} />
+      <ProfileChapter
+        data={data}
+        topGamesFilterState={topGamesFilterState}
+        enrichment={enrichment}
+      />
       <HistoryChapter data={data} />
       {partialData ? (
         <SpendingChapterUnavailable data={account} />
@@ -499,12 +508,14 @@ function FilterScope({
 function DashboardResult({
   source,
   scoped,
+  topGamesFilterState,
   onClear,
   partialData,
   enrichment,
 }: {
   source: DashboardData;
   scoped: DashboardData;
+  topGamesFilterState: TopGamesFilterState;
   onClear: () => void;
   partialData: boolean;
   enrichment?: DashboardEnrichmentPresentation;
@@ -516,6 +527,7 @@ function DashboardResult({
       <DashboardChapters
         data={scoped}
         account={source}
+        topGamesFilterState={topGamesFilterState}
         partialData={partialData}
         onClearFilters={onClear}
         enrichment={enrichment}
@@ -541,10 +553,24 @@ function useAccountFilters(data: DashboardData) {
   };
 }
 
+function topGamesFilterState(
+  source: DashboardData,
+  scoped: DashboardData,
+  filters: DashboardFilters
+): TopGamesFilterState {
+  if (scoped === source) return "all";
+  const hasLastPlayedFilter =
+    filters.timeframe !== "all" ||
+    filters.lastPlayedFrom !== undefined ||
+    filters.lastPlayedTo !== undefined;
+  return hasLastPlayedFilter ? "last-played" : "filtered";
+}
+
 function ReadingSurface({ props, refreshed }: { props: Props; refreshed: boolean }) {
   const { filters, setFilters } = useAccountFilters(props.data);
   const deferredSearch = useDeferredValue(filters.search);
   const scoped = applyFilters(props.data, { ...filters, search: deferredSearch });
+  const rankingFilterState = topGamesFilterState(props.data, scoped, filters);
   const clearFilters = () => {
     setFilters(defaultFilters);
     document.querySelector<HTMLInputElement>('[aria-label="Search games by name"]')?.focus();
@@ -565,6 +591,7 @@ function ReadingSurface({ props, refreshed }: { props: Props; refreshed: boolean
       <DashboardResult
         source={props.data}
         scoped={scoped}
+        topGamesFilterState={rankingFilterState}
         onClear={clearFilters}
         partialData={props.partialData === true}
         enrichment={props.enrichment}

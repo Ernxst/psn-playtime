@@ -160,10 +160,25 @@ function RankedGame({
   );
 }
 
-function TopGames({ data }: { data: DashboardData }) {
+export type TopGamesFilterState = "all" | "filtered" | "last-played";
+
+function TopGames({
+  data,
+  filterState,
+}: {
+  data: DashboardData;
+  filterState: TopGamesFilterState;
+}) {
+  const summary =
+    filterState === "all"
+      ? "Ranked by each game's lifetime hours."
+      : filterState === "last-played"
+        ? "Filters decide which games appear. Last-played filters use each game's last-played date. Every displayed total is that game's lifetime hours, not hours played in the selected timeframe or range."
+        : "Filters decide which games appear. Every displayed total is that game's lifetime hours.";
   return (
     <>
       <h4 className="playloom-subheading">Top games by hours</h4>
+      <p className="mt-2 max-w-[75ch] text-xs leading-relaxed text-muted-foreground">{summary}</p>
       <div className="playloom-ranked-list">
         {topGamesByHours(data, 10).map((row, index) => (
           <RankedGame key={row.name} data={data} {...row} rank={index + 1} featured={index === 0} />
@@ -221,11 +236,13 @@ function Franchises({ data }: { data: DashboardData }) {
 export function ProfileRanks({
   data,
   mode,
+  topGamesFilterState = "all",
 }: {
   data: DashboardData;
   mode: "games" | "genres" | "franchises";
+  topGamesFilterState?: TopGamesFilterState;
 }) {
-  if (mode === "games") return <TopGames data={data} />;
+  if (mode === "games") return <TopGames data={data} filterState={topGamesFilterState} />;
   if (mode === "genres") return <Genres data={data} />;
   return <Franchises data={data} />;
 }

@@ -364,6 +364,81 @@ describe("DashboardView", () => {
       .toBeVisible();
   });
 
+  it("labels unfiltered Top Games as each game's lifetime hours", async () => {
+    const { element } = createHarness(
+      <DashboardView
+        data={demoDashboard}
+        onRefresh={vi.fn()}
+        onSignOut={vi.fn()}
+        signingOut={false}
+      />
+    );
+
+    await render(element);
+
+    const ranking = document.getElementById("top-games");
+
+    await expect.element(page.getByText("Ranked by each game's lifetime hours.")).toBeVisible();
+    expect(ranking?.textContent).toContain("Call of Duty®: Modern Warfare®");
+    expect(ranking?.textContent).toContain("1,254 h");
+  });
+
+  it("keeps Top Games lifetime totals distinct from game filter eligibility", async () => {
+    const { element } = createHarness(
+      <DashboardView
+        data={demoDashboard}
+        onRefresh={vi.fn()}
+        onSignOut={vi.fn()}
+        signingOut={false}
+      />
+    );
+
+    await render(element);
+
+    await page.getByRole("searchbox", { name: "Search games by name" }).fill("Forza");
+
+    const ranking = document.getElementById("top-games");
+
+    await expect
+      .element(
+        page.getByText(
+          "Filters decide which games appear. Every displayed total is that game's lifetime hours."
+        )
+      )
+      .toBeVisible();
+    expect(ranking?.textContent).toContain("Forza Horizon 5");
+    expect(ranking?.textContent).toContain("76 h");
+    expect(ranking?.textContent).not.toContain("Call of Duty®: Modern Warfare®");
+  });
+
+  it("keeps Top Games lifetime totals distinct from last-played timeframe eligibility", async () => {
+    const { element } = createHarness(
+      <DashboardView
+        data={demoDashboard}
+        onRefresh={vi.fn()}
+        onSignOut={vi.fn()}
+        signingOut={false}
+      />
+    );
+
+    await render(element);
+
+    await page.getByRole("radio", { name: "This year" }).click();
+
+    const ranking = document.getElementById("top-games");
+
+    await expect
+      .element(
+        page.getByText(
+          "Filters decide which games appear. Last-played filters use each game's last-played date. Every displayed total is that game's lifetime hours, not hours played in the selected timeframe or range."
+        )
+      )
+      .toBeVisible();
+    expect(ranking?.textContent).toContain("Tom Clancy's The Division® 2");
+    expect(ranking?.textContent).toContain("460 h");
+    expect(ranking?.textContent).not.toContain("Call of Duty®: Modern Warfare®");
+  });
+
   it("keeps Ask AI account-wide when game filters narrow the library", async () => {
     const { element } = createHarness(
       <DashboardView
