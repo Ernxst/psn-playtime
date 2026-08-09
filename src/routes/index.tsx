@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowRight, ChevronDown, LockKeyhole } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { demoDashboard } from "@/domain/mock";
 import { headlineTotals } from "@/features/dashboard/filters/analytics";
@@ -53,7 +53,7 @@ function DemoProof() {
           </strong>
         </div>
         <Button size="lg" render={<Link to="/dashboard" />}>
-          Explore the demo <ArrowRight />
+          Explore the demo profile <ArrowRight />
         </Button>
       </div>
       <div className="playloom-proof-posters" aria-label="Demo profile game artwork">
@@ -67,38 +67,12 @@ function DemoProof() {
   );
 }
 
-function Trust() {
-  return (
-    <section className="playloom-onboarding-trust" aria-labelledby="trust-title">
-      <LockKeyhole />
-      <div>
-        <h2 id="trust-title">Your token is a key. We treat it like one.</h2>
-        <p>
-          An NPSSO token is password-equivalent. It is sent once through the server to PlayStation,
-          never stored, and the dashboard data returned stays in your browser.
-        </p>
-      </div>
-      <details>
-        <summary>
-          Read the connection details <ChevronDown />
-        </summary>
-        <p>
-          PlayStation is the only supported import source today. Playloom reads your profile, played
-          titles and trophies; platform accounts remain connected sources beneath one personal
-          profile.
-        </p>
-      </details>
-    </section>
-  );
-}
-
 function Home() {
   return (
     <main className="playloom-onboarding">
       <OnboardingHeader />
       <OnboardingHero />
       <DemoProof />
-      <Trust />
       <Connect />
       <Restore />
       <OnboardingFooter />
@@ -130,8 +104,8 @@ function Restore() {
   return (
     <section className="playloom-restore" aria-labelledby="restore-title">
       <div>
-        <span>Already exported?</span>
-        <h2 id="restore-title">Restore your archive once.</h2>
+        <span>Restore</span>
+        <h2 id="restore-title">Restore an exported archive.</h2>
       </div>
       <RestoreDashboardCard />
     </section>
@@ -144,7 +118,7 @@ function OnboardingHeader() {
       <Link to="/" aria-label="Playloom home">
         Playloom
       </Link>
-      <span>Prototype · Issue #327</span>
+      <span>PlayStation archive</span>
     </header>
   );
 }
@@ -154,7 +128,7 @@ function OnboardingFooter() {
     <footer className="playloom-onboarding-footer">
       <strong>Playloom</strong>
       <span>Your gaming life, woven together.</span>
-      <small>Temporary text wordmark · final square brandmark deferred</small>
+      <small>PlayStation is the supported import source.</small>
     </footer>
   );
 }

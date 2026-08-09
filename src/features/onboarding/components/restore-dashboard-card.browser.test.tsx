@@ -1,7 +1,6 @@
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import { page } from "vitest/browser";
-import { Toaster } from "@/components/ui/sonner";
 import { buildAccountCsv, buildGamesCsv } from "@/features/dashboard/export/csv";
 import type { GamePlay, ProfileSummary } from "@/server/providers/account/snapshot";
 import { testDashboardStore, testTransactionStore } from "@/test/atom-registry";
@@ -51,22 +50,42 @@ const legacyRaw = JSON.stringify({
 });
 
 describe("RestoreDashboardCard", () => {
-  it("renders the restore card with both file pickers", async () => {
+  it("renders the restore task with both file pickers and an intrinsic secondary action", async () => {
     await render(createHarness(<RestoreDashboardCard />).element);
 
-    await expect.element(page.getByText("Restore from CSV")).toBeVisible();
+    await expect.element(page.getByText("Choose your export files")).toBeVisible();
     await expect.element(page.getByLabelText("Games CSV")).toBeVisible();
     await expect.element(page.getByLabelText("Account CSV")).toBeVisible();
+    expect(
+      page.getByRole("button", { name: "Restore archive" }).element().getBoundingClientRect().width
+    ).toBeLessThan(page.getByLabelText("Games CSV").element().getBoundingClientRect().width);
   });
 
-  it("keeps the restore action disabled until both CSVs are picked", async () => {
+  it("validates both missing files inline and focuses the first incomplete picker", async () => {
     await render(createHarness(<RestoreDashboardCard />).element);
 
-    await expect.element(page.getByRole("button", { name: /restore dashboard/i })).toBeDisabled();
+    const gamesInput = page.getByLabelText("Games CSV");
+    const accountInput = page.getByLabelText("Account CSV");
+    const restore = page.getByRole("button", { name: "Restore archive" });
 
-    await page.getByLabelText("Games CSV").upload(gamesFile());
+    await expect.element(restore).toBeEnabled();
 
-    await expect.element(page.getByRole("button", { name: /restore dashboard/i })).toBeDisabled();
+    await restore.click();
+
+    await expect
+      .element(page.getByText("Choose the Games CSV from your Playloom export."))
+      .toBeVisible();
+    await expect
+      .element(page.getByText("Choose the Account CSV from your Playloom export."))
+      .toBeVisible();
+    await expect.element(gamesInput).toHaveAttribute("aria-invalid", "true");
+    await expect.element(accountInput).toHaveAttribute("aria-invalid", "true");
+    await expect.element(gamesInput).toHaveFocus();
+
+    await gamesInput.upload(gamesFile());
+    await restore.click();
+
+    await expect.element(accountInput).toHaveFocus();
   });
 
   it("reconstructs and caches the dashboard from the picked CSVs", async () => {
@@ -76,7 +95,7 @@ describe("RestoreDashboardCard", () => {
 
     await page.getByLabelText("Games CSV").upload(gamesFile());
     await page.getByLabelText("Account CSV").upload(accountFile());
-    await page.getByRole("button", { name: /restore dashboard/i }).click();
+    await page.getByRole("button", { name: "Restore archive" }).click();
 
     await expect.poll(() => testDashboardStore.load("acc-42")?.profile.accountId).toBe("acc-42");
     expect(testDashboardStore.load("acc-42")?.games.map((game) => game.name)).toStrictEqual([
@@ -98,28 +117,57 @@ describe("RestoreDashboardCard", () => {
 
     await page.getByLabelText("Games CSV").upload(gamesFile());
     await page.getByLabelText("Account CSV").upload(accountFile());
-    await page.getByRole("button", { name: /restore dashboard/i }).click();
+    await page.getByRole("button", { name: "Restore archive" }).click();
 
     await expect.poll(() => testDashboardStore.load(profile.accountId)).not.toBeNull();
     expect(testTransactionStore.load(profile.accountId)).toBeNull();
     expect(localStorage.getItem(transactionsKey)).toBe(legacyRaw);
   });
 
-  it("surfaces an error and does not cache when a CSV is malformed", async () => {
+  it("associates a malformed games CSV with its picker and retains the valid account CSV", async () => {
     const save = vi.spyOn(testDashboardStore, "save");
 
-    await render(
-      <>
-        {createHarness(<RestoreDashboardCard />).element}
-        <Toaster />
-      </>
-    );
+    await render(createHarness(<RestoreDashboardCard />).element);
 
     await page.getByLabelText("Games CSV").upload(csvFile("bad.csv", "not,a,valid\ngames,csv,row"));
     await page.getByLabelText("Account CSV").upload(accountFile());
-    await page.getByRole("button", { name: /restore dashboard/i }).click();
+    await page.getByRole("button", { name: "Restore archive" }).click();
 
-    await expect.element(page.getByText(/expected|missing|invalid/i)).toBeVisible();
+    await expect
+      .element(
+        page.getByText(
+          "bad.csv is not a valid Games CSV. Choose the Games CSV from the same Playloom export."
+        )
+      )
+      .toBeVisible();
+    await expect.element(page.getByLabelText("Games CSV")).toHaveFocus();
+    await expect.element(page.getByLabelText("Games CSV")).toHaveAttribute("aria-invalid", "true");
+    await expect.element(page.getByText("psn-account.csv is a valid Account CSV.")).toBeVisible();
+    expect(save).not.toHaveBeenCalled();
+
+    save.mockRestore();
+  });
+
+  it("associates a malformed account CSV with its picker and retains the selected games CSV", async () => {
+    const save = vi.spyOn(testDashboardStore, "save");
+
+    await render(createHarness(<RestoreDashboardCard />).element);
+
+    await page.getByLabelText("Games CSV").upload(gamesFile());
+    await page
+      .getByLabelText("Account CSV")
+      .upload(csvFile("bad-account.csv", "online_id,account_id\nErnxst_,"));
+    await page.getByRole("button", { name: "Restore archive" }).click();
+
+    await expect
+      .element(
+        page.getByText(
+          "bad-account.csv is not a valid Account CSV. Choose the Account CSV from a Playloom export."
+        )
+      )
+      .toBeVisible();
+    await expect.element(page.getByLabelText("Account CSV")).toHaveFocus();
+    await expect.element(page.getByText("psn-games.csv selected.")).toBeVisible();
     expect(save).not.toHaveBeenCalled();
 
     save.mockRestore();

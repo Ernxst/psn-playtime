@@ -17,6 +17,7 @@ vi.mock("@/server/api/account.effect", () => ({
 
 const ACTIVE_KEY = "psn-playtime:dashboard-active";
 const TRANSACTIONS_KEY = "psn-playtime:transactions";
+const token = "a".repeat(64);
 
 const cachedAccount = dashboardData({
   isDemo: false,
@@ -58,87 +59,41 @@ function readActiveId(): string | null {
 }
 
 describe("SignInCard", () => {
-  it("renders the connect-account card with the manual steps", async () => {
+  it("leads with the connection task and keeps the manual token steps behind help", async () => {
     const { element } = createHarness(<SignInCard />);
 
     await render(element);
 
-    await expect.element(page.getByText("Connect your account")).toBeVisible();
+    await expect
+      .element(page.getByRole("region", { name: "Use a PlayStation token" }))
+      .toBeVisible();
+    await expect
+      .element(page.getByRole("link", { name: /open the ssocookie page/i }))
+      .not.toBeInTheDocument();
+
+    await page.getByText("Get an NPSSO token").click();
+
     await expect
       .element(page.getByRole("link", { name: /open the ssocookie page/i }))
       .toBeVisible();
     await expect.element(page.getByRole("link", { name: /explore the demo/i })).toBeVisible();
   });
 
-  it("styles the external links with a persistent underline so they read as links, not body text", async () => {
+  it("keeps one input-adjacent security warning and reveals neutral implementation details", async () => {
     const { element } = createHarness(<SignInCard />);
 
     await render(element);
 
-    const link = page.getByRole("link", { name: /open the ssocookie page/i });
+    const tokenInput = page.getByLabelText("NPSSO token");
+    const warning = page.getByText(/like your password/i);
 
-    await expect.element(link).toHaveClass(/underline/);
-  });
+    await expect.element(warning).toBeVisible();
+    expect(tokenInput.element().getAttribute("aria-describedby")).toContain(warning.element().id);
 
-  it("gives the risk disclosure a chevron affordance wired to rotate when the details open", async () => {
-    const { element } = createHarness(<SignInCard />);
+    await page.getByText("Connection details").click();
 
-    await render(element);
-
-    const summary = page.getByText("Learn about the risk");
-    // The contract is the icon's rotation class, not a user-addressable element.
-    // oxlint-disable-next-line test-contract/no-dom-selector
-    const chevron = summary.element().querySelector("svg.lucide-chevron-down");
-
-    expect(chevron).toHaveClass("group-open:rotate-180");
-  });
-
-  it("opens the risk disclosure when its summary is activated", async () => {
-    const { element } = createHarness(<SignInCard />);
-
-    await render(element);
-
-    const summary = page.getByText("Learn about the risk");
-    // The contract is the native summary/details relationship.
-    // oxlint-disable-next-line test-contract/no-dom-selector
-    const details = summary.element().closest("details");
-
-    expect(details).not.toHaveAttribute("open");
-
-    await summary.click();
-
-    expect(details).toHaveAttribute("open");
-  });
-
-  it("keeps the risk details, including the password-grade warning, hidden until the learn-more action is opened", async () => {
-    const { element } = createHarness(<SignInCard />);
-
-    await render(element);
-
-    await expect.element(page.getByText("Learn about the risk")).toBeVisible();
-    await expect
-      .element(page.getByText(/full access to your PlayStation account/i))
-      .not.toBeVisible();
-    await expect.element(page.getByText(/It is read-only/i)).not.toBeVisible();
-    await expect.element(page.getByText(/never logged or stored/i)).not.toBeVisible();
-  });
-
-  it("opening the learn-more action reveals the password-grade warning, read-only, storage, open-source and self-host detail", async () => {
-    const { element } = createHarness(<SignInCard />);
-
-    await render(element);
-
-    await page.getByText("Learn about the risk").click();
-
-    await expect.element(page.getByText(/full access to your PlayStation account/i)).toBeVisible();
-    await expect.element(page.getByText(/Never share it/i)).toBeVisible();
-    await expect.element(page.getByText(/do not enter your token/i)).toBeVisible();
-    await expect.element(page.getByText(/It is read-only/i)).toBeVisible();
-    await expect
-      .element(page.getByText(/sent to the server only to load your data once, then discarded/i))
-      .toBeVisible();
-    await expect.element(page.getByText(/self-host your own instance/i)).toBeVisible();
-    await expect.element(page.getByText(/expires after about 2 months/i)).toBeVisible();
+    await expect.element(page.getByText(/it reads your profile and playtime/i)).toBeVisible();
+    await expect.element(page.getByText(/self-hosted/i)).toBeVisible();
 
     const repoLink = page.getByRole("link", { name: /open source/i });
 
@@ -147,47 +102,92 @@ describe("SignInCard", () => {
       .toHaveAttribute("href", "https://github.com/Ernxst/psn-playtime");
   });
 
-  it("disables sign-in until the risk is acknowledged", async () => {
+  it("masks the token by default and lets the user show or hide it", async () => {
     const { element } = createHarness(<SignInCard />);
 
     await render(element);
 
-    await expect.element(page.getByRole("button", { name: "Sign in" })).toBeDisabled();
+    const token = page.getByLabelText("NPSSO token");
 
-    await page.getByText(/sign in to my PlayStation account/i).click();
+    await expect.element(token).toHaveAttribute("type", "password");
 
-    await expect.element(page.getByRole("button", { name: "Sign in" })).toBeEnabled();
+    await page.getByRole("button", { name: "Show token" }).click();
+
+    await expect.element(token).toHaveAttribute("type", "text");
+    await expect.element(page.getByRole("button", { name: "Hide token" })).toBeVisible();
   });
 
-  it("does not request sign-in while the risk is unacknowledged", async () => {
+  it("keeps the connection action available for submit-time validation", async () => {
     const { element } = createHarness(<SignInCard />);
 
     await render(element);
 
-    await page.getByLabelText("npsso token").fill("a-valid-looking-token");
-
-    await expect.element(page.getByRole("button", { name: "Sign in" })).toBeDisabled();
-    expect(signInWithToken).not.toHaveBeenCalled();
+    await expect.element(page.getByRole("button", { name: "Connect PlayStation" })).toBeEnabled();
   });
 
-  it("submitting an empty token after acknowledging shows a validation toast and skips the request", async () => {
-    const { element } = createHarness(
-      <>
-        <SignInCard />
-        <Toaster />
-      </>
+  it("orders token entry, its visibility control and the primary action for keyboard users", async () => {
+    const { element } = createHarness(<SignInCard />);
+
+    await render(element);
+
+    page.getByLabelText("NPSSO token").element().focus();
+
+    await userEvent.keyboard("{Tab}");
+
+    await expect.element(page.getByRole("button", { name: "Show token" })).toHaveFocus();
+
+    await userEvent.keyboard("{Tab}");
+
+    await expect.element(page.getByRole("button", { name: "Connect PlayStation" })).toHaveFocus();
+  });
+
+  it("validates an empty token inline and focuses the field", async () => {
+    const { element } = createHarness(<SignInCard />);
+
+    await render(element);
+
+    const tokenInput = page.getByLabelText("NPSSO token");
+    const submit = page.getByRole("button", { name: "Connect PlayStation" });
+
+    await submit.click();
+
+    const tokenError = page.getByText("Paste your NPSSO token.");
+
+    await expect.element(tokenError).toBeVisible();
+    await expect.element(tokenInput).toHaveAttribute("aria-invalid", "true");
+    await expect.element(tokenInput).toHaveFocus();
+    expect(tokenInput.element().getAttribute("aria-describedby")).toContain(
+      tokenError.element().id
     );
 
+    await tokenInput.fill(token);
+    await submit.click();
+
+    expect(signInWithToken).toHaveBeenCalledExactlyOnceWith({
+      data: { npsso: token },
+    });
+  });
+
+  it("keeps a malformed nonempty token inline and focuses it", async () => {
+    const { element } = createHarness(<SignInCard />);
+
     await render(element);
 
-    await page.getByText(/sign in to my PlayStation account/i).click();
-    await page.getByRole("button", { name: "Sign in" }).click();
+    const tokenInput = page.getByLabelText("NPSSO token");
 
-    await expect.element(page.getByText("Paste your npsso token first.")).toBeVisible();
+    await tokenInput.fill("short-token");
+    await page.getByRole("button", { name: "Connect PlayStation" }).click();
+
+    const error = page.getByText("Paste the 64-character NPSSO token from PlayStation.");
+
+    await expect.element(error).toBeVisible();
+    await expect.element(tokenInput).toHaveAttribute("aria-invalid", "true");
+    await expect.element(tokenInput).toHaveFocus();
+    expect(tokenInput.element().getAttribute("aria-describedby")).toContain(error.element().id);
     expect(signInWithToken).not.toHaveBeenCalled();
   });
 
-  it("submitting a token after acknowledging caches the fetched account and makes it active", async () => {
+  it("submitting a token caches the fetched account and makes it active", async () => {
     onTestFinished(() => localStorage.clear());
     const account = dashboardData({
       isDemo: false,
@@ -198,12 +198,11 @@ describe("SignInCard", () => {
 
     await render(element);
 
-    await page.getByLabelText("npsso token").fill("a-valid-looking-token");
-    await page.getByText(/sign in to my PlayStation account/i).click();
-    await page.getByRole("button", { name: "Sign in" }).click();
+    await page.getByLabelText("NPSSO token").fill(token);
+    await page.getByRole("button", { name: "Connect PlayStation" }).click();
 
     expect(signInWithToken).toHaveBeenCalledExactlyOnceWith({
-      data: { npsso: "a-valid-looking-token" },
+      data: { npsso: token },
     });
     await expect.poll(() => testDashboardStore.load("acc-1")).toEqual(account);
     await expect.poll(readActiveId).toBe("acc-1");
@@ -217,9 +216,8 @@ describe("SignInCard", () => {
     await render(element);
     localStorage.setItem(TRANSACTIONS_KEY, legacyRaw);
 
-    await page.getByLabelText("npsso token").fill("a-valid-looking-token");
-    await page.getByText(/sign in to my PlayStation account/i).click();
-    await page.getByRole("button", { name: "Sign in" }).click();
+    await page.getByLabelText("NPSSO token").fill(token);
+    await page.getByRole("button", { name: "Connect PlayStation" }).click();
 
     await expect.poll(() => testDashboardStore.load("acc-1")).toEqual(cachedAccount);
     expect(testTransactionStore.load("acc-1")).toBeNull();
@@ -242,6 +240,27 @@ describe("SignInCard", () => {
 
     await expect.poll(readActiveId).toBe("acc-1");
     expect(signInWithToken).not.toHaveBeenCalled();
+  });
+
+  it("keeps the returning-account region stable when a browser-backed account appears", async () => {
+    const stableAccount = dashboardData({
+      isDemo: false,
+      profile: { accountId: "acc-stable", onlineId: "StableAccount" },
+    });
+    onTestFinished(() => testDashboardStore.remove(stableAccount.profile.accountId));
+    const { element } = createHarness(<SignInCard />);
+
+    await render(element);
+
+    const region = page.getByRole("region", { name: "Continue with a saved account" });
+    const before = region.element().getBoundingClientRect();
+
+    testDashboardStore.save(stableAccount);
+
+    await expect
+      .element(page.getByRole("button", { name: "Continue as StableAccount" }))
+      .toBeVisible();
+    expect(region.element().getBoundingClientRect().height).toBe(before.height);
   });
 
   it("offers a remove control for a cached account", async () => {
@@ -324,9 +343,8 @@ describe("SignInCard", () => {
 
     await render(element);
 
-    await page.getByLabelText("npsso token").fill("stale-token");
-    await page.getByText(/sign in to my PlayStation account/i).click();
-    await page.getByRole("button", { name: "Sign in" }).click();
+    await page.getByLabelText("NPSSO token").fill(token);
+    await page.getByRole("button", { name: "Connect PlayStation" }).click();
 
     await expect.element(page.getByText("That token didn't work")).toBeVisible();
   });
@@ -354,12 +372,11 @@ describe("SignInCard", () => {
 
     await render(element);
 
-    await page.getByLabelText("npsso token").fill("stale-token");
-    await page.getByText(/sign in to my PlayStation account/i).click();
-    await page.getByRole("button", { name: "Sign in" }).click();
+    await page.getByLabelText("NPSSO token").fill(token);
+    await page.getByRole("button", { name: "Connect PlayStation" }).click();
 
     await expect.element(page.getByText(message)).toBeVisible();
-    expect(signInWithToken).toHaveBeenCalledExactlyOnceWith({ data: { npsso: "stale-token" } });
+    expect(signInWithToken).toHaveBeenCalledExactlyOnceWith({ data: { npsso: token } });
   });
 
   it("falls back to a generic message when the rejection is not an Error", async () => {
@@ -373,11 +390,12 @@ describe("SignInCard", () => {
 
     await render(element);
 
-    await page.getByLabelText("npsso token").fill("stale-token");
-    await page.getByText(/sign in to my PlayStation account/i).click();
-    await page.getByRole("button", { name: "Sign in" }).click();
+    await page.getByLabelText("NPSSO token").fill(token);
+    await page.getByRole("button", { name: "Connect PlayStation" }).click();
 
-    await expect.element(page.getByText("Sign in failed. Check your token.")).toBeVisible();
+    await expect
+      .element(page.getByText("Unable to connect PlayStation. Check your token and try again."))
+      .toBeVisible();
   });
 
   it("offers a restore-transactions-from-CSV affordance", async () => {
@@ -471,7 +489,7 @@ describe("SignInCard", () => {
     expect(testTransactionStore.load(cachedAccount.profile.accountId)).toBeNull();
   });
 
-  it("shows a signing-in spinner and locks the token input while the request is in flight", async () => {
+  it("shows connection progress and locks the token input while the request is in flight", async () => {
     onTestFinished(() => localStorage.clear());
     let resolveSignIn: (value: DashboardData) => void = () => {};
     vi.mocked(signInWithToken).mockReturnValue(
@@ -483,12 +501,11 @@ describe("SignInCard", () => {
 
     await render(element);
 
-    await page.getByLabelText("npsso token").fill("a-valid-looking-token");
-    await page.getByText(/sign in to my PlayStation account/i).click();
-    await page.getByRole("button", { name: "Sign in" }).click();
+    await page.getByLabelText("NPSSO token").fill(token);
+    await page.getByRole("button", { name: "Connect PlayStation" }).click();
 
-    await expect.element(page.getByRole("button", { name: /signing in/i })).toBeDisabled();
-    await expect.element(page.getByLabelText("npsso token")).toBeDisabled();
+    await expect.element(page.getByRole("button", { name: "Connect PlayStation" })).toBeDisabled();
+    await expect.element(page.getByLabelText("NPSSO token")).toBeDisabled();
 
     resolveSignIn(dashboardData());
   });

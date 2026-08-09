@@ -2,16 +2,13 @@ import { useMutation } from "@tanstack/react-query";
 import { Link, useNavigate, useRouteContext } from "@tanstack/react-router";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
-import { ArrowRight, ChevronDown, ExternalLink, ShieldAlert, Trash2, Upload } from "lucide-react";
-import { useId, useRef, useState } from "react";
+import { ArrowRight, ChevronDown, ExternalLink, Eye, EyeOff, Trash2, Upload } from "lucide-react";
+import { useId, useReducer, useRef, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Field, FieldControl, FieldLabel } from "@/components/ui/field";
+import { Field, FieldControl, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { normalizeNpsso } from "@/domain/npsso";
 import { importTransactionsCsv } from "@/features/dashboard/export/import-transactions";
@@ -42,15 +39,15 @@ const STEPS: Array<{
   {
     text: "Copy the 64-character npsso token from that page and paste it below.",
     example: (
-      <div className="space-y-1 rounded-md border bg-muted/50 p-2 font-mono text-xs break-all">
+      <div className="space-y-1 rounded-sm border border-white/15 bg-white/5 p-3 font-mono text-xs break-all">
         <p>
-          <span className="text-muted-foreground">{'{"npsso":"'}</span>
-          <span className="font-semibold text-foreground">abcd…(64 characters)…wxyz</span>
-          <span className="text-muted-foreground">{'"}'}</span>
+          <span className="text-[#aaa69d]">{'{"npsso":"'}</span>
+          <span className="font-semibold text-[#f3efe5]">abcd…(64 characters)…wxyz</span>
+          <span className="text-[#aaa69d]">{'"}'}</span>
         </p>
-        <p className="font-sans text-muted-foreground">
-          Copy <span className="font-semibold text-foreground">only</span> the highlighted token,
-          not the quotes, braces, or <code className="font-mono">npsso:</code>.
+        <p className="font-sans text-[#c9c4b9]">
+          Copy <span className="font-semibold text-[#f3efe5]">only</span> the highlighted token, not
+          the quotes, braces, or <code className="font-mono">npsso:</code>.
         </p>
       </div>
     ),
@@ -59,6 +56,29 @@ const STEPS: Array<{
 
 const PSN_API_URL = "https://github.com/achievements-app/psn-api";
 const REPO_URL = "https://github.com/Ernxst/psn-playtime";
+const TRANSACTION_RESTORE_ERROR =
+  "We couldn't read that file as a transactions CSV. Export it again and try again.";
+
+function subscribeToHydration() {
+  return () => undefined;
+}
+
+function getClientHydrationSnapshot() {
+  return true;
+}
+
+function getServerHydrationSnapshot() {
+  return false;
+}
+
+/** Keep the server and first client render identical before browser-backed accounts are shown. */
+function useHydrated(): boolean {
+  return useSyncExternalStore(
+    subscribeToHydration,
+    getClientHydrationSnapshot,
+    getServerHydrationSnapshot
+  );
+}
 
 function ExternalAnchor({ href, children }: { href: string; children: React.ReactNode }) {
   return (
@@ -66,7 +86,7 @@ function ExternalAnchor({ href, children }: { href: string; children: React.Reac
       href={href}
       target="_blank"
       rel="noreferrer"
-      className="inline-flex items-center gap-1 font-medium text-primary underline decoration-primary/40 underline-offset-4 hover:decoration-primary"
+      className="inline-flex items-center gap-1 font-medium text-[#d7e1ff] underline decoration-[#d7e1ff]/50 underline-offset-4 hover:text-white hover:decoration-white"
     >
       {children}
       <ExternalLink className="size-3" />
@@ -74,79 +94,27 @@ function ExternalAnchor({ href, children }: { href: string; children: React.Reac
   );
 }
 
-function RiskWarningPoints() {
+function ConnectionDetails() {
   return (
-    <>
-      <li>
-        The token grants{" "}
-        <strong className="font-semibold text-foreground">
-          full access to your PlayStation account
-        </strong>
-        . Treat it exactly like a password.
-      </li>
-      <li>
-        <strong className="font-semibold text-foreground">Never share it</strong> with anyone, and
-        never post a screenshot of it.
-      </li>
-    </>
-  );
-}
-
-function RiskDetailsList() {
-  return (
-    <ul className="mt-2 list-disc space-y-1.5 pr-1 pl-5 text-muted-foreground">
-      <RiskWarningPoints />
-      <li>
-        It uses your PSN session cookie with Sony's internal endpoints. There is no public PSN API,
-        so this is technically a Terms of Service violation.
-      </li>
-      <li>
-        It is read-only. It only reads your own profile and playtime, and never changes anything on
-        your account.
-      </li>
-      <li>
-        Your token is sent to the server only to load your data once, then discarded. It is never
-        logged or stored. Only the resulting stats are cached in your browser.
-      </li>
-      <li>
-        The token expires after about 2 months, and you can revoke it any time by signing out of
-        PSN.
-      </li>
-      <li>
-        This app is <ExternalAnchor href={REPO_URL}>open source</ExternalAnchor>, so you can read
-        the code yourself or self-host your own instance if you'd rather not trust this one.
-      </li>
-      <li>
-        Curious how it works? It is built on{" "}
-        <ExternalAnchor href={PSN_API_URL}>psn-api</ExternalAnchor>.
-      </li>
-      <li>
-        If you{" "}
-        <strong className="font-semibold text-foreground">
-          do not trust this app, do not enter your token
-        </strong>
-        . The demo is always available.
-      </li>
-    </ul>
-  );
-}
-
-/**
- * On-demand "learn about the risk" action. Collapsed by default, so the detail
- * only appears when the user opens it, never as an always-on wall of text.
- */
-function RiskDetails() {
-  return (
-    <details className="group rounded-md border border-destructive/50 bg-destructive/5 p-3 text-xs">
-      <summary className="-m-1 flex cursor-pointer list-none items-center gap-2 rounded-md p-1 font-medium text-destructive transition-colors hover:bg-destructive/10 focus-visible:ring-2 focus-visible:ring-destructive/50 focus-visible:outline-none [&::-webkit-details-marker]:hidden">
-        <ShieldAlert className="size-4 shrink-0" aria-hidden="true" />
-        Learn about the risk
+    <details className="group border-t border-white/15 px-5 text-xs">
+      <summary className="-mx-1 flex min-h-12 cursor-pointer list-none items-center gap-2 rounded-sm px-1 font-medium text-[#d7e1ff] focus-visible:ring-2 focus-visible:ring-[#9eb7ff] focus-visible:outline-none [&::-webkit-details-marker]:hidden">
+        Connection details
         <ChevronDown
           className="ml-auto size-4 shrink-0 transition-transform group-open:rotate-180"
           aria-hidden="true"
         />
       </summary>
-      <RiskDetailsList />
+      <ul className="mb-4 list-disc space-y-2 pr-1 pl-5 leading-5 text-[#cbc7bd]">
+        <li>It reads your profile and playtime; it does not change your PlayStation account.</li>
+        <li>Only the resulting archive is cached in this browser.</li>
+        <li>
+          This app is <ExternalAnchor href={REPO_URL}>open source</ExternalAnchor>, and can be
+          self-hosted.
+        </li>
+        <li>
+          It is built on <ExternalAnchor href={PSN_API_URL}>psn-api</ExternalAnchor>.
+        </li>
+      </ul>
     </details>
   );
 }
@@ -159,8 +127,8 @@ function Step({
   example,
 }: (typeof STEPS)[number] & { index: number }) {
   return (
-    <li className="flex gap-3">
-      <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+    <li className="grid grid-cols-[1.75rem_minmax(0,1fr)] gap-3">
+      <span className="flex size-7 shrink-0 items-center justify-center border border-white/20 font-mono text-[11px] font-semibold text-[#d7e1ff]">
         {index + 1}
       </span>
       <div className="space-y-1">
@@ -169,6 +137,30 @@ function Step({
         {example}
       </div>
     </li>
+  );
+}
+
+function TokenInstructions() {
+  return (
+    <details className="group border-t border-white/15">
+      <summary className="flex min-h-18 cursor-pointer list-none items-center gap-3 px-5 py-4 text-left focus-visible:ring-2 focus-visible:ring-[#9eb7ff] focus-visible:ring-inset focus-visible:outline-none [&::-webkit-details-marker]:hidden">
+        <span>
+          <strong className="block text-sm font-semibold text-[#f3efe5]">Get an NPSSO token</strong>
+          <span className="mt-1 block text-xs leading-5 text-[#bdb8ad]">
+            Follow the three steps when you are ready to connect.
+          </span>
+        </span>
+        <ChevronDown
+          className="ml-auto size-4 shrink-0 text-[#d7e1ff] transition-transform group-open:rotate-180"
+          aria-hidden="true"
+        />
+      </summary>
+      <ol className="space-y-4 border-t border-white/15 p-5 text-sm leading-6 text-[#ddd8cc]">
+        {STEPS.map((step, index) => (
+          <Step key={step.text} index={index} {...step} />
+        ))}
+      </ol>
+    </details>
   );
 }
 
@@ -185,89 +177,195 @@ function useSignIn() {
       void navigate({ to: "/dashboard" });
     },
     onError: (err) => {
-      toast.error(err instanceof Error ? err.message : "Sign in failed. Check your token.");
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : "Unable to connect PlayStation. Check your token and try again."
+      );
     },
   });
 }
 
-function SubmitButton({ pending, disabled }: { pending: boolean; disabled: boolean }) {
+function SubmitButton({ pending }: { pending: boolean }) {
+  const className =
+    "self-start rounded-sm border-[var(--playloom-cobalt)] bg-[var(--playloom-cobalt)] px-5 text-white shadow-none hover:bg-[#2c5bc7] focus-visible:ring-[#9eb7ff] focus-visible:ring-offset-[var(--playloom-ink)]";
   if (pending) {
     return (
-      <Button type="submit" disabled>
-        <Spinner className="size-4" /> Signing in…
+      <Button type="submit" className={className} disabled>
+        <Spinner className="size-4" /> Connect PlayStation
       </Button>
     );
   }
   return (
-    <Button type="submit" disabled={disabled}>
-      Sign in <ArrowRight className="size-4" />
+    <Button type="submit" className={className}>
+      Connect PlayStation <ArrowRight className="size-4" aria-hidden="true" />
     </Button>
   );
 }
 
-function ConsentCheckbox({
-  checked,
-  onCheckedChange,
-}: {
-  checked: boolean;
-  onCheckedChange: (checked: boolean) => void;
-}) {
-  const consentId = useId();
+interface TokenFormState {
+  npsso: string;
+  showToken: boolean;
+  tokenError: string | null;
+}
+
+const INITIAL_TOKEN_FORM_STATE: TokenFormState = {
+  npsso: "",
+  showToken: false,
+  tokenError: null,
+};
+
+function mergeTokenFormState(
+  state: TokenFormState,
+  change: Partial<TokenFormState>
+): TokenFormState {
+  return { ...state, ...change };
+}
+
+function tokenValidation(token: string) {
+  return {
+    tokenError:
+      token.length === 0
+        ? "Paste your NPSSO token."
+        : token.length === 64
+          ? null
+          : "Paste the 64-character NPSSO token from PlayStation.",
+  };
+}
+
+function focusAfterRender(ref: React.RefObject<HTMLInputElement | null>) {
+  window.requestAnimationFrame(() => ref.current?.focus());
+}
+
+function useTokenFormModel(tokenRef: React.RefObject<HTMLInputElement | null>) {
+  const [state, update] = useReducer(mergeTokenFormState, INITIAL_TOKEN_FORM_STATE);
+  const tokenId = useId();
+  const tokenGuidanceId = useId();
+  const tokenErrorId = useId();
+  const signIn = useSignIn();
+
+  function submit(event: React.FormEvent) {
+    event.preventDefault();
+    const token = normalizeNpsso(state.npsso);
+    const validation = tokenValidation(token);
+    update(validation);
+    if (validation.tokenError) return focusAfterRender(tokenRef);
+    signIn.mutate(token);
+  }
+
+  return {
+    state,
+    update,
+    submit,
+    pending: signIn.isPending,
+    ids: { tokenId, tokenGuidanceId, tokenErrorId },
+  };
+}
+
+type TokenFormModel = ReturnType<typeof useTokenFormModel>;
+
+function TokenErrorMessage({ id, error }: { id: string; error: string | null }) {
+  if (!error) return null;
   return (
-    <div className="flex items-start gap-2">
-      <Checkbox
-        id={consentId}
-        checked={checked}
-        onCheckedChange={(value) => onCheckedChange(value === true)}
-        className="mt-0.5"
-      />
-      <Label htmlFor={consentId} className="text-xs font-normal text-muted-foreground">
-        I understand this token can sign in to my PlayStation account, like handing over my
-        PlayStation password, including whoever runs this app.
-      </Label>
-    </div>
+    <p id={id} className="text-xs text-[#ffb8b1]">
+      {error}
+    </p>
+  );
+}
+
+function TokenVisibilityButton({ model }: { model: TokenFormModel }) {
+  const Icon = model.state.showToken ? EyeOff : Eye;
+  const label = model.state.showToken ? "Hide token" : "Show token";
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      onClick={() => model.update({ showToken: !model.state.showToken })}
+      aria-controls={model.ids.tokenId}
+      aria-pressed={model.state.showToken}
+      disabled={model.pending}
+      className="rounded-sm border-white/20 bg-white/5 text-[#f3efe5] shadow-none hover:bg-white/10 hover:text-white focus-visible:ring-[#9eb7ff] focus-visible:ring-offset-[var(--playloom-ink)]"
+    >
+      <Icon className="size-4" aria-hidden="true" />
+      {label}
+    </Button>
+  );
+}
+
+function TokenGuidance({ id }: { id: string }) {
+  return (
+    <FieldDescription id={id} className="leading-5 text-[#bdb8ad]">
+      This token can access your PlayStation account like your password. It is sent once, then
+      discarded and never stored.
+    </FieldDescription>
+  );
+}
+
+function TokenInput({
+  model,
+  inputRef,
+  describedBy,
+}: {
+  model: TokenFormModel;
+  inputRef: React.RefObject<HTMLInputElement | null>;
+  describedBy: string;
+}) {
+  const { state, ids } = model;
+  return (
+    <Input
+      id={ids.tokenId}
+      ref={inputRef}
+      type={state.showToken ? "text" : "password"}
+      value={state.npsso}
+      onChange={(event) => model.update({ npsso: event.target.value, tokenError: null })}
+      placeholder="Paste your 64-character npsso value"
+      autoComplete="off"
+      spellCheck={false}
+      disabled={model.pending}
+      aria-invalid={state.tokenError ? true : undefined}
+      aria-describedby={describedBy}
+      size="lg"
+      className="rounded-sm border-white/25 bg-[var(--playloom-paper-raised)] text-[var(--playloom-ink)] shadow-none has-focus-visible:border-[#9eb7ff] has-focus-visible:ring-[#9eb7ff]/30"
+    />
+  );
+}
+
+function TokenCredentialField({
+  model,
+  inputRef,
+}: {
+  model: TokenFormModel;
+  inputRef: React.RefObject<HTMLInputElement | null>;
+}) {
+  const { state, ids } = model;
+  const describedBy = state.tokenError
+    ? `${ids.tokenGuidanceId} ${ids.tokenErrorId}`
+    : ids.tokenGuidanceId;
+  return (
+    <Field className="gap-2" data-invalid={state.tokenError ? "true" : undefined}>
+      <FieldLabel htmlFor={ids.tokenId} className="text-[#f3efe5]">
+        NPSSO token
+      </FieldLabel>
+      <div className="flex w-full min-w-0 items-stretch gap-2">
+        <FieldControl
+          render={<TokenInput model={model} inputRef={inputRef} describedBy={describedBy} />}
+        />
+        <TokenVisibilityButton model={model} />
+      </div>
+      <TokenGuidance id={ids.tokenGuidanceId} />
+      <TokenErrorMessage id={ids.tokenErrorId} error={state.tokenError} />
+    </Field>
   );
 }
 
 function TokenForm() {
-  const [npsso, setNpsso] = useState("");
-  const [acknowledged, setAcknowledged] = useState(false);
-  const signIn = useSignIn();
-
-  function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!acknowledged) {
-      return;
-    }
-    const token = normalizeNpsso(npsso);
-    if (token) {
-      signIn.mutate(token);
-    } else {
-      toast.error("Paste your npsso token first.");
-    }
-  }
+  const tokenRef = useRef<HTMLInputElement>(null);
+  const model = useTokenFormModel(tokenRef);
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-2">
-      <Field className="gap-2">
-        <FieldLabel>npsso token</FieldLabel>
-        <div className="flex w-full flex-col gap-2 sm:flex-row">
-          <FieldControl
-            render={
-              <Input
-                value={npsso}
-                onChange={(e) => setNpsso(e.target.value)}
-                placeholder="Paste your 64-character npsso value"
-                autoComplete="off"
-                spellCheck={false}
-                disabled={signIn.isPending}
-              />
-            }
-          />
-          <SubmitButton pending={signIn.isPending} disabled={!acknowledged} />
-        </div>
-      </Field>
-      <ConsentCheckbox checked={acknowledged} onCheckedChange={setAcknowledged} />
+    <form onSubmit={model.submit} className="flex flex-col gap-5" noValidate>
+      <TokenCredentialField model={model} inputRef={tokenRef} />
+      <SubmitButton pending={model.pending} />
     </form>
   );
 }
@@ -277,14 +375,14 @@ function AccountButton({ account }: { account: CachedAccount }) {
   const { dashboardStore } = useRouteContext({ from: "__root__" });
   return (
     <Button
-      variant="outline"
-      className="h-auto sm:h-auto w-full justify-start gap-3 py-3"
+      variant="ghost"
+      className="h-auto sm:h-auto w-full justify-start gap-3 rounded-sm border border-white/15 bg-white/5 py-3 text-[#f3efe5] shadow-none hover:bg-white/10 hover:text-white focus-visible:ring-[#9eb7ff] focus-visible:ring-offset-[var(--playloom-ink)]"
       onClick={() => {
         dashboardStore.setActive(account.accountId);
         void navigate({ to: "/dashboard" });
       }}
     >
-      <Avatar className="size-8">
+      <Avatar className="size-8 border border-white/20">
         <AvatarImage src={account.avatarUrl} alt={account.onlineId} />
         <AvatarFallback>{account.onlineId.slice(0, 2).toUpperCase()}</AvatarFallback>
       </Avatar>
@@ -302,10 +400,15 @@ function AccountButton({ account }: { account: CachedAccount }) {
 function ConfirmRemove({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
   return (
     <div className="flex shrink-0 items-center gap-1">
-      <Button variant="destructive" size="sm" onClick={onConfirm}>
+      <Button variant="destructive" size="sm" className="rounded-sm" onClick={onConfirm}>
         Remove
       </Button>
-      <Button variant="ghost" size="sm" onClick={onCancel}>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="rounded-sm text-[#f3efe5] hover:bg-white/10 hover:text-white"
+        onClick={onCancel}
+      >
         Cancel
       </Button>
     </div>
@@ -329,6 +432,7 @@ function RemoveAccountButton({ account }: { account: CachedAccount }) {
         variant="ghost"
         size="icon-sm"
         aria-label={`Remove ${account.onlineId}`}
+        className="rounded-sm text-[#bdb8ad] hover:bg-white/10 hover:text-white"
         onClick={() => setConfirming(true)}
       >
         <Trash2 className="size-4" />
@@ -349,23 +453,37 @@ function RemoveAccountButton({ account }: { account: CachedAccount }) {
 }
 
 /** Lists accounts already cached in localStorage so a revisit needs no token. */
-function AccountSelector() {
-  const accounts = useCachedAccounts();
-  if (accounts.length === 0) return null;
+function AccountSelector({ accounts, hydrated }: { accounts: CachedAccount[]; hydrated: boolean }) {
+  const titleId = useId();
   return (
-    <div className="space-y-3">
-      <p className="text-sm font-medium text-muted-foreground">Pick up where you left off:</p>
-      <div className="space-y-2">
-        {accounts.map((account) => (
-          <div key={account.accountId} className="flex items-center gap-2">
-            <div className="min-w-0 flex-1">
-              <AccountButton account={account} />
+    <section
+      className="h-40 overflow-y-auto border-b border-white/15 px-6 py-5 sm:px-8"
+      aria-labelledby={titleId}
+      aria-busy={hydrated ? undefined : true}
+    >
+      <p id={titleId} className="text-sm font-semibold text-[#f3efe5]">
+        Continue with a saved account
+      </p>
+      {!hydrated ? (
+        <p className="mt-2 text-xs text-[#bdb8ad]">Checking this browser…</p>
+      ) : accounts.length === 0 ? (
+        <p className="mt-2 text-xs text-[#bdb8ad]">No saved PlayStation account in this browser.</p>
+      ) : (
+        <div className="mt-3 space-y-3">
+          {accounts.map((account) => (
+            <div key={account.accountId} className="space-y-1">
+              <div className="flex items-center gap-2">
+                <div className="min-w-0 flex-1">
+                  <AccountButton account={account} />
+                </div>
+                <RemoveAccountButton account={account} />
+              </div>
+              <RestoreTransactionsButton account={account} />
             </div>
-            <RemoveAccountButton account={account} />
-          </div>
-        ))}
-      </div>
-    </div>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -389,7 +507,6 @@ function RestoreTransactionsButton({ account }: { account: CachedAccount }) {
   async function onChange(event: React.ChangeEvent<HTMLInputElement>) {
     const input = event.currentTarget;
     const file = input.files?.[0];
-    // Reset so re-selecting the same file fires `onChange` again.
     input.value = "";
     if (!file) return;
 
@@ -400,9 +517,7 @@ function RestoreTransactionsButton({ account }: { account: CachedAccount }) {
     if (Exit.isSuccess(exit)) {
       toast.success(restoreMessage(exit.value));
     } else {
-      toast.error(
-        "We couldn't read that file as a transactions CSV. Export it again and try again."
-      );
+      toast.error(TRANSACTION_RESTORE_ERROR);
     }
   }
 
@@ -416,59 +531,81 @@ function RestoreTransactionsButton({ account }: { account: CachedAccount }) {
         className="sr-only"
         onChange={(event) => void onChange(event)}
       />
-      <Button variant="ghost" size="sm" onClick={() => inputRef.current?.click()}>
-        <Upload className="size-4" /> Restore for {account.onlineId}
+      <Button
+        variant="ghost"
+        size="sm"
+        className="rounded-sm px-1 text-xs text-[#bdb8ad] hover:bg-transparent hover:text-white"
+        onClick={() => inputRef.current?.click()}
+      >
+        <Upload className="size-4" /> Restore transactions
       </Button>
     </div>
   );
 }
 
-/** Assign an owner explicitly when restoring an account-less transaction CSV. */
-function RestoreTransactions() {
-  const accounts = useCachedAccounts();
-  if (accounts.length === 0) return null;
+function ConnectionWorkspace({
+  titleId,
+  accounts,
+  hydrated,
+}: {
+  titleId: string;
+  accounts: CachedAccount[];
+  hydrated: boolean;
+}) {
   return (
-    <div className="flex flex-col items-center gap-1 pt-1">
-      <p className="text-xs text-muted-foreground">Restore transactions from CSV:</p>
-      <div className="flex flex-wrap justify-center gap-1">
-        {accounts.map((account) => (
-          <RestoreTransactionsButton key={account.accountId} account={account} />
-        ))}
+    <div className="grid md:grid-cols-[minmax(0,1fr)_15rem]">
+      <div className="px-6 py-7 sm:p-8">
+        <h3 id={titleId} className="text-xl font-semibold tracking-tight text-[#f3efe5]">
+          Use a PlayStation token
+        </h3>
+        <p className="mt-2 max-w-[52ch] text-sm leading-6 text-[#bdb8ad]">
+          Paste the token to load your PlayStation history. PlayStation is the only supported
+          connection.
+        </p>
+        <div className="mt-6">
+          <TokenForm />
+        </div>
       </div>
+      <aside
+        className="border-t border-white/15 bg-white/[0.035] md:border-t-0 md:border-l"
+        aria-label="Connection help"
+      >
+        <AccountSelector accounts={accounts} hydrated={hydrated} />
+        <div className="p-5">
+          <p className="text-sm font-semibold text-[#f3efe5]">Before you connect</p>
+          <p className="mt-2 text-xs leading-5 text-[#bdb8ad]">
+            Get the token from PlayStation in the same browser you are using now.
+          </p>
+        </div>
+        <ConnectionDetails />
+        <TokenInstructions />
+      </aside>
     </div>
   );
 }
 
 export function SignInCard({ showDemoLink = true }: { showDemoLink?: boolean }) {
+  const accounts = useCachedAccounts();
+  const hydrated = useHydrated();
+  const titleId = useId();
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Connect your account</CardTitle>
-        <CardDescription>
-          Your one-time NPSSO token is sent through the server to PlayStation and is never stored.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-5">
-        <AccountSelector />
-        <div className="space-y-3">
-          <p className="text-sm font-medium text-muted-foreground">How to get your token:</p>
-          <ol className="space-y-3 text-sm">
-            {STEPS.map((step, i) => (
-              <Step key={step.text} index={i} {...step} />
-            ))}
-          </ol>
+    <section
+      aria-labelledby={titleId}
+      className="overflow-hidden border-y border-white/20 bg-[var(--playloom-ink)] text-[#f3efe5]"
+    >
+      <ConnectionWorkspace titleId={titleId} accounts={accounts} hydrated={hydrated} />
+      {showDemoLink ? (
+        <div className="border-t border-white/15 px-6 py-3 sm:px-8">
+          <Button
+            render={<Link to="/dashboard" />}
+            variant="ghost"
+            size="sm"
+            className="rounded-sm px-0 text-[#d7e1ff] hover:bg-transparent hover:text-white"
+          >
+            Or explore the demo instead
+          </Button>
         </div>
-        <RiskDetails />
-        <TokenForm />
-        {showDemoLink ? (
-          <div className="flex items-center justify-center pt-1">
-            <Button render={<Link to="/dashboard" />} variant="ghost" size="sm">
-              Or explore the demo instead
-            </Button>
-          </div>
-        ) : null}
-        <RestoreTransactions />
-      </CardContent>
-    </Card>
+      ) : null}
+    </section>
   );
 }
