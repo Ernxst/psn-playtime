@@ -190,6 +190,91 @@ describe(".bingeVsDipIn", () => {
       { name: "C", hours: 50, playCount: 25, hoursPerSession: 2 },
     ]);
   });
+
+  it("selects candidates by total hours before ordering them by average session length", () => {
+    const data: DashboardData = {
+      ...sample,
+      games: [
+        { ...sample.games[0]!, titleId: "SHORT", name: "Short", hours: 120, playCount: 60 },
+        { ...sample.games[1]!, titleId: "LONG", name: "Long", hours: 100, playCount: 10 },
+        {
+          ...sample.games[2]!,
+          titleId: "CURIOSITY",
+          name: "Curiosity",
+          hours: 90,
+          playCount: 1,
+        },
+      ],
+    };
+
+    expect(bingeVsDipIn(data, 2)).toStrictEqual([
+      { name: "Long", hours: 100, playCount: 10, hoursPerSession: 10 },
+      { name: "Short", hours: 120, playCount: 60, hoursPerSession: 2 },
+    ]);
+  });
+
+  it("breaks equal averages by higher play count then stable game name", () => {
+    const data: DashboardData = {
+      ...sample,
+      games: [
+        { ...sample.games[0]!, titleId: "GAMMA", name: "Gamma", hours: 80, playCount: 8 },
+        { ...sample.games[1]!, titleId: "ALPHA", name: "Alpha", hours: 80, playCount: 8 },
+        { ...sample.games[2]!, titleId: "MOST", name: "Most", hours: 100, playCount: 10 },
+      ],
+    };
+
+    expect(bingeVsDipIn(data)).toStrictEqual([
+      { name: "Most", hours: 100, playCount: 10, hoursPerSession: 10 },
+      { name: "Alpha", hours: 80, playCount: 8, hoursPerSession: 10 },
+      { name: "Gamma", hours: 80, playCount: 8, hoursPerSession: 10 },
+    ]);
+  });
+
+  it("reselects and reorders candidates from filtered games", () => {
+    const data: DashboardData = {
+      ...sample,
+      games: [
+        {
+          ...sample.games[0]!,
+          titleId: "SHORT",
+          name: "Short",
+          hours: 120,
+          playCount: 60,
+          genre: "Shooter",
+        },
+        {
+          ...sample.games[1]!,
+          titleId: "LONG",
+          name: "Long",
+          hours: 100,
+          playCount: 10,
+          genre: "Shooter",
+        },
+        {
+          ...sample.games[2]!,
+          titleId: "CURIOSITY",
+          name: "Curiosity",
+          hours: 90,
+          playCount: 1,
+          genre: "RPG",
+        },
+        {
+          ...sample.games[3]!,
+          titleId: "STEADY",
+          name: "Steady",
+          hours: 80,
+          playCount: 20,
+          genre: "RPG",
+        },
+      ],
+    };
+
+    expect(bingeVsDipIn(data, 2).map((row) => row.name)).toStrictEqual(["Long", "Short"]);
+
+    const filtered = applyFilters(data, { ...defaultFilters, genres: ["RPG"] });
+
+    expect(bingeVsDipIn(filtered, 2).map((row) => row.name)).toStrictEqual(["Curiosity", "Steady"]);
+  });
 });
 
 describe(".lifespans", () => {

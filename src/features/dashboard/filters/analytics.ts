@@ -466,7 +466,13 @@ export function bingeVsDipIn(data: DashboardData, n = 20): SessionPoint[] {
       hours: round(g.hours),
       playCount: g.playCount,
       hoursPerSession: round(g.hours / g.playCount, 2),
-    }));
+    }))
+    .sort(
+      (a, b) =>
+        b.hoursPerSession - a.hoursPerSession ||
+        b.playCount - a.playCount ||
+        a.name.localeCompare(b.name)
+    );
 }
 
 export interface Lifespan {
