@@ -17,6 +17,11 @@ describe("Connect", () => {
     await expect
       .element(page.getByRole("heading", { name: /bring in your playstation/i }))
       .toBeVisible();
+    await expect
+      .element(
+        page.getByText("Bring another PlayStation account into this browser.", { exact: true })
+      )
+      .toBeVisible();
     await expect.element(page.getByLabelText("NPSSO token")).not.toBeVisible();
 
     await page.getByText("Show connection", { exact: true }).click();

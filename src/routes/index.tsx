@@ -6,8 +6,13 @@ import { headlineTotals } from "@/features/dashboard/filters/analytics";
 import { fmtHours, fmtNumber } from "@/features/dashboard/format";
 import { Connect } from "@/features/onboarding/components/connect";
 import { RestoreDashboardCard } from "@/features/onboarding/components/restore-dashboard-card";
+import {
+  SavedAccountContinuations,
+  useOnboardingHydrated,
+} from "@/features/onboarding/components/sign-in-card";
 import { GamePoster } from "@/features/prototype/poster";
 import { SITE_URL } from "@/lib/seo";
+import { type CachedAccount, useCachedAccounts } from "@/stores/dashboard-store";
 
 const TITLE = "Playloom — Your gaming life, woven together";
 const DESCRIPTION = "A personal gaming archive that makes your PlayStation history visible.";
@@ -68,15 +73,57 @@ function DemoProof() {
 }
 
 function Home() {
+  const accounts = useCachedAccounts();
+  const hydrated = useOnboardingHydrated();
   return (
     <main className="playloom-onboarding">
       <OnboardingHeader />
+      <OnboardingContent accounts={accounts} hydrated={hydrated} />
+      <OnboardingFooter />
+    </main>
+  );
+}
+
+export function OnboardingContent({
+  accounts,
+  hydrated,
+}: {
+  accounts: CachedAccount[];
+  hydrated: boolean;
+}) {
+  if (!hydrated) return <OnboardingLoading />;
+  if (accounts.length > 0) return <ReturningHome accounts={accounts} />;
+  return <FirstUseHome />;
+}
+
+function FirstUseHome() {
+  return (
+    <>
       <OnboardingHero />
       <DemoProof />
       <Connect />
       <Restore />
-      <OnboardingFooter />
-    </main>
+    </>
+  );
+}
+
+function ReturningHome({ accounts }: { accounts: CachedAccount[] }) {
+  return (
+    <>
+      <section className="playloom-onboarding-returning">
+        <SavedAccountContinuations accounts={accounts} />
+      </section>
+      <Connect showSavedAccounts={false} />
+      <Restore />
+    </>
+  );
+}
+
+function OnboardingLoading() {
+  return (
+    <section className="playloom-onboarding-loading" aria-live="polite" aria-busy="true">
+      <p>Checking this browser for your archive.</p>
+    </section>
   );
 }
 

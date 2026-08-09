@@ -65,13 +65,13 @@ describe("SignInCard", () => {
     await render(element);
 
     await expect
-      .element(page.getByRole("region", { name: "Use a PlayStation token" }))
+      .element(page.getByRole("region", { name: "Import PlayStation history" }))
       .toBeVisible();
     await expect
       .element(page.getByRole("link", { name: /open the ssocookie page/i }))
       .not.toBeInTheDocument();
 
-    await page.getByText("Get an NPSSO token").click();
+    await page.getByText("Prepare your connection").click();
 
     await expect
       .element(page.getByRole("link", { name: /open the ssocookie page/i }))

@@ -72,7 +72,7 @@ function getServerHydrationSnapshot() {
 }
 
 /** Keep the server and first client render identical before browser-backed accounts are shown. */
-function useHydrated(): boolean {
+export function useOnboardingHydrated(): boolean {
   return useSyncExternalStore(
     subscribeToHydration,
     getClientHydrationSnapshot,
@@ -145,7 +145,9 @@ function TokenInstructions() {
     <details className="group border-t border-white/15">
       <summary className="flex min-h-18 cursor-pointer list-none items-center gap-3 px-5 py-4 text-left focus-visible:ring-2 focus-visible:ring-[#9eb7ff] focus-visible:ring-inset focus-visible:outline-none [&::-webkit-details-marker]:hidden">
         <span>
-          <strong className="block text-sm font-semibold text-[#f3efe5]">Get an NPSSO token</strong>
+          <strong className="block text-sm font-semibold text-[#f3efe5]">
+            Prepare your connection
+          </strong>
           <span className="mt-1 block text-xs leading-5 text-[#bdb8ad]">
             Follow the three steps when you are ready to connect.
           </span>
@@ -370,24 +372,51 @@ function TokenForm() {
   );
 }
 
-function AccountButton({ account }: { account: CachedAccount }) {
+function HomepageAccountButtonContents() {
+  return (
+    <>
+      <span>Continue to dashboard</span>
+      <ArrowRight className="size-4 shrink-0" aria-hidden="true" />
+    </>
+  );
+}
+
+function AccountButton({
+  account,
+  appearance = "rail",
+}: {
+  account: CachedAccount;
+  appearance?: "rail" | "homepage";
+}) {
   const navigate = useNavigate();
   const { dashboardStore } = useRouteContext({ from: "__root__" });
+  const homepage = appearance === "homepage";
   return (
     <Button
       variant="ghost"
-      className="h-auto sm:h-auto w-full justify-start gap-3 rounded-sm border border-white/15 bg-white/5 py-3 text-[#f3efe5] shadow-none hover:bg-white/10 hover:text-white focus-visible:ring-[#9eb7ff] focus-visible:ring-offset-[var(--playloom-ink)]"
+      aria-label={homepage ? `Continue to dashboard as ${account.onlineId}` : undefined}
+      className={
+        homepage
+          ? "h-auto w-full justify-between rounded-sm border border-white/20 bg-white px-5 py-4 text-[var(--playloom-ink)] shadow-none hover:bg-[#f3efe5] hover:text-[var(--playloom-ink)] focus-visible:ring-[#9eb7ff] focus-visible:ring-offset-[var(--playloom-ink)]"
+          : "h-auto sm:h-auto w-full justify-start gap-3 rounded-sm border border-white/15 bg-white/5 py-3 text-[#f3efe5] shadow-none hover:bg-white/10 hover:text-white focus-visible:ring-[#9eb7ff] focus-visible:ring-offset-[var(--playloom-ink)]"
+      }
       onClick={() => {
         dashboardStore.setActive(account.accountId);
         void navigate({ to: "/dashboard" });
       }}
     >
-      <Avatar className="size-8 border border-white/20">
-        <AvatarImage src={account.avatarUrl} alt={account.onlineId} />
-        <AvatarFallback>{account.onlineId.slice(0, 2).toUpperCase()}</AvatarFallback>
-      </Avatar>
-      <span className="truncate">Continue as {account.onlineId}</span>
-      <ArrowRight className="ml-auto size-4 shrink-0" />
+      {homepage ? (
+        <HomepageAccountButtonContents />
+      ) : (
+        <>
+          <Avatar className="size-8 border border-white/20">
+            <AvatarImage src={account.avatarUrl} alt={account.onlineId} />
+            <AvatarFallback>{account.onlineId.slice(0, 2).toUpperCase()}</AvatarFallback>
+          </Avatar>
+          <span className="truncate">Continue as {account.onlineId}</span>
+          <ArrowRight className="ml-auto size-4 shrink-0" />
+        </>
+      )}
     </Button>
   );
 }
@@ -454,6 +483,48 @@ function RemoveAccountButton({ account }: { account: CachedAccount }) {
         window.requestAnimationFrame(() => triggerRef.current?.focus());
       }}
     />
+  );
+}
+
+/** Direct return targets keep recognised browser accounts out of the connection flow. */
+export function SavedAccountContinuations({ accounts }: { accounts: CachedAccount[] }) {
+  const titleId = useId();
+  const multipleAccounts = accounts.length > 1;
+  return (
+    <section className="playloom-onboarding-returning-accounts" aria-labelledby={titleId}>
+      <div>
+        <span>{multipleAccounts ? "Saved accounts" : "Saved account"}</span>
+        <h1 id={titleId}>
+          {multipleAccounts ? "Choose where to continue." : "Continue where you left off."}
+        </h1>
+        <p>
+          {multipleAccounts
+            ? "Each saved archive opens directly in its dashboard."
+            : "Your archive is ready in this browser."}
+        </p>
+      </div>
+      <div className="playloom-onboarding-returning-list">
+        {accounts.map((account) => (
+          <article key={account.accountId}>
+            <div className="playloom-onboarding-returning-identity">
+              <Avatar className="size-11 border border-white/20">
+                <AvatarImage src={account.avatarUrl} alt={account.onlineId} />
+                <AvatarFallback>{account.onlineId.slice(0, 2).toUpperCase()}</AvatarFallback>
+              </Avatar>
+              <div>
+                <strong>{account.onlineId}</strong>
+                <span>{account.sourceLabel}</span>
+              </div>
+            </div>
+            <div className="playloom-onboarding-returning-actions">
+              <AccountButton account={account} appearance="homepage" />
+              <RemoveAccountButton account={account} />
+            </div>
+            <RestoreTransactionsButton account={account} />
+          </article>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -548,57 +619,87 @@ function RestoreTransactionsButton({ account }: { account: CachedAccount }) {
   );
 }
 
+function ConnectionHelp({
+  accounts,
+  hydrated,
+  showSavedAccounts,
+}: {
+  accounts: CachedAccount[];
+  hydrated: boolean;
+  showSavedAccounts: boolean;
+}) {
+  return (
+    <aside
+      className="border-t border-white/15 bg-white/[0.035] md:border-t-0 md:border-l"
+      aria-label="Connection help"
+    >
+      {showSavedAccounts ? <AccountSelector accounts={accounts} hydrated={hydrated} /> : null}
+      <div className="p-5">
+        <p className="text-sm font-semibold text-[#f3efe5]">Before you import</p>
+        <p className="mt-2 text-xs leading-5 text-[#bdb8ad]">
+          Get the token from PlayStation in the same browser you are using now.
+        </p>
+      </div>
+      <ConnectionDetails />
+      <TokenInstructions />
+    </aside>
+  );
+}
+
 function ConnectionWorkspace({
   titleId,
   accounts,
   hydrated,
+  showSavedAccounts,
 }: {
   titleId: string;
   accounts: CachedAccount[];
   hydrated: boolean;
+  showSavedAccounts: boolean;
 }) {
   return (
     <div className="grid md:grid-cols-[minmax(0,1fr)_15rem]">
       <div className="px-6 py-7 sm:p-8">
         <h3 id={titleId} className="text-xl font-semibold tracking-tight text-[#f3efe5]">
-          Use a PlayStation token
+          Import PlayStation history
         </h3>
         <p className="mt-2 max-w-[52ch] text-sm leading-6 text-[#bdb8ad]">
-          Paste the token to load your PlayStation history. PlayStation is the only supported
-          connection.
+          Connect another PlayStation account to add its history in this browser.
         </p>
         <div className="mt-6">
           <TokenForm />
         </div>
       </div>
-      <aside
-        className="border-t border-white/15 bg-white/[0.035] md:border-t-0 md:border-l"
-        aria-label="Connection help"
-      >
-        <AccountSelector accounts={accounts} hydrated={hydrated} />
-        <div className="p-5">
-          <p className="text-sm font-semibold text-[#f3efe5]">Before you connect</p>
-          <p className="mt-2 text-xs leading-5 text-[#bdb8ad]">
-            Get the token from PlayStation in the same browser you are using now.
-          </p>
-        </div>
-        <ConnectionDetails />
-        <TokenInstructions />
-      </aside>
+      <ConnectionHelp
+        accounts={accounts}
+        hydrated={hydrated}
+        showSavedAccounts={showSavedAccounts}
+      />
     </div>
   );
 }
 
-export function SignInCard({ showDemoLink = true }: { showDemoLink?: boolean }) {
+export function SignInCard({
+  showDemoLink = true,
+  showSavedAccounts = true,
+}: {
+  showDemoLink?: boolean;
+  showSavedAccounts?: boolean;
+}) {
   const accounts = useCachedAccounts();
-  const hydrated = useHydrated();
+  const hydrated = useOnboardingHydrated();
   const titleId = useId();
   return (
     <section
       aria-labelledby={titleId}
       className="overflow-hidden border-y border-white/20 bg-[var(--playloom-ink)] text-[#f3efe5]"
     >
-      <ConnectionWorkspace titleId={titleId} accounts={accounts} hydrated={hydrated} />
+      <ConnectionWorkspace
+        titleId={titleId}
+        accounts={accounts}
+        hydrated={hydrated}
+        showSavedAccounts={showSavedAccounts}
+      />
       {showDemoLink ? (
         <div className="border-t border-white/15 px-6 py-3 sm:px-8">
           <Button

@@ -642,6 +642,92 @@ body::before {
   color: rgb(245 239 226 / 62%);
   line-height: 1.65;
 }
+.playloom-onboarding-loading,
+.playloom-onboarding-returning {
+  display: grid;
+  min-height: calc(100dvh - 69px);
+  place-items: center;
+  padding: 72px clamp(24px, 7vw, 110px);
+}
+.playloom-onboarding-loading {
+  color: rgb(245 239 226 / 62%);
+}
+.playloom-onboarding-returning-accounts {
+  display: grid;
+  width: min(100%, 920px);
+  gap: 42px;
+}
+.playloom-onboarding-returning-accounts > div > span {
+  color: #8eacf4;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.playloom-onboarding-returning-accounts h1 {
+  max-width: 11ch;
+  margin-top: 14px;
+  font-family: "Fraunces Variable", serif;
+  font-size: clamp(48px, 7vw, 86px);
+  font-weight: 520;
+  letter-spacing: -0.06em;
+  line-height: 0.9;
+  text-wrap: balance;
+}
+.playloom-onboarding-returning-accounts > div > p {
+  max-width: 48ch;
+  margin-top: 20px;
+  color: rgb(245 239 226 / 62%);
+  line-height: 1.65;
+}
+.playloom-onboarding-returning-list {
+  display: grid;
+  gap: 16px;
+}
+.playloom-onboarding-returning-list article {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 0.7fr);
+  gap: 14px 28px;
+  align-items: center;
+  border-top: 1px solid rgb(255 255 255 / 18%);
+  padding-top: 18px;
+}
+.playloom-onboarding-returning-identity {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+}
+.playloom-onboarding-returning-identity > div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+.playloom-onboarding-returning-identity strong {
+  overflow: hidden;
+  font-size: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.playloom-onboarding-returning-identity span,
+.playloom-onboarding-returning-list > article > div:last-child {
+  color: rgb(245 239 226 / 58%);
+  font-size: 12px;
+}
+.playloom-onboarding-returning-actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+}
+.playloom-onboarding-returning-actions > button:first-child {
+  width: auto;
+  min-width: 0;
+  flex: 1;
+}
+.playloom-onboarding-returning-list > article > div:last-child {
+  grid-column: 1 / -1;
+}
 .playloom-onboarding-proof {
   display: grid;
   grid-template-columns: minmax(0, 0.8fr) minmax(440px, 1.2fr);
@@ -833,6 +919,7 @@ body::before {
     grid-template-columns: 1fr;
   }
   .playloom-onboarding-proof,
+  .playloom-onboarding-returning-list article,
   .playloom-connect,
   .playloom-restore {
     grid-template-columns: 1fr;
@@ -1021,6 +1108,8 @@ body::before {
     font-size: 60px;
   }
   .playloom-onboarding-proof,
+  .playloom-onboarding-loading,
+  .playloom-onboarding-returning,
   .playloom-onboarding-trust,
   .playloom-connect,
   .playloom-restore {
@@ -1046,6 +1135,12 @@ body::before {
   .playloom-onboarding-footer {
     grid-template-columns: 1fr;
     padding: 40px 20px;
+  }
+  .playloom-onboarding-returning-list article {
+    grid-template-columns: 1fr;
+  }
+  .playloom-onboarding-returning-actions {
+    width: 100%;
   }
 }
 
