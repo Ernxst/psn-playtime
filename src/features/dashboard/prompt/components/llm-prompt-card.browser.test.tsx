@@ -12,6 +12,10 @@ const NEXT_QUESTION = "Which genres keep me engaged the longest?";
 const SIGNATURE_QUESTION =
   "What's my signature genre, and how dominant is it versus everything else?";
 const SPEND_QUESTION = "How has my spending on games changed over time?";
+const ENGAGEMENT_GROUP = "Engagement & enjoyment";
+const MORE_GROUP = "More";
+const TASTE_GROUP = "Taste & preferences";
+const SPENDING_GROUP = "Spending & value";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -43,17 +47,21 @@ function seedTransaction() {
   onTestFinished(() => testTransactionStore.clear(demoDashboard.profile.accountId));
 }
 
+async function openQuestionGroup(groupName: string) {
+  await page.getByText(groupName, { exact: true }).click();
+}
+
 describe("LlmPromptCard", () => {
-  it("renders the searchable question picker as one named radio group and a prompt preview", async () => {
+  it("defaults to general analysis with a ready prompt workspace", async () => {
     await render(<LlmPromptCard data={demoDashboard} />);
 
     await expect.element(page.getByRole("region", { name: "Choose a question" })).toBeVisible();
     await expect.element(page.getByRole("searchbox", { name: "Search questions" })).toBeVisible();
     await expect.element(page.getByRole("radiogroup", { name: "Lead question" })).toBeVisible();
-    await expect.element(page.getByRole("radio", { name: LEAD_QUESTION })).toBeChecked();
     await expect
       .element(page.getByRole("radio", { name: "Start with a general analysis" }))
-      .not.toBeChecked();
+      .toBeChecked();
+    await expect.element(page.getByRole("radio", { name: LEAD_QUESTION })).not.toBeInTheDocument();
     await expect.element(page.getByRole("article", { name: "Prompt preview" })).toBeVisible();
     await expect.element(page.getByText("Prompt ready")).toBeVisible();
     await expect
@@ -71,7 +79,7 @@ describe("LlmPromptCard", () => {
     await expect.element(page.getByRole("button", { name: "Open in Claude" })).toBeVisible();
   });
 
-  it("copies the prompt leading with the default question plus follow-ups", async () => {
+  it("copies the default general-analysis prompt without a lead task", async () => {
     const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
 
     await render(<LlmPromptCard data={demoDashboard} />);
@@ -79,11 +87,9 @@ describe("LlmPromptCard", () => {
     await page.getByRole("button", { name: "Copy prompt" }).click();
 
     expect(writeText).toHaveBeenCalledExactlyOnceWith(
-      expect.stringContaining("TASK: Work out which games gave me the most enjoyment")
+      expect.stringContaining("Don't analyse anything yet.")
     );
-    expect(writeText).toHaveBeenCalledExactlyOnceWith(
-      expect.stringContaining("FOLLOW-UP QUESTIONS")
-    );
+    expect(writeText).toHaveBeenCalledExactlyOnceWith(expect.not.stringContaining("TASK:"));
     await expect.element(page.getByRole("button", { name: "Copied" })).toBeVisible();
   });
 
@@ -96,7 +102,7 @@ describe("LlmPromptCard", () => {
     await page.getByRole("button", { name: "Open in ChatGPT" }).click();
 
     expect(writeText).toHaveBeenCalledExactlyOnceWith(
-      expect.stringContaining("FOLLOW-UP QUESTIONS")
+      expect.stringContaining("Don't analyse anything yet.")
     );
     expect(open).toHaveBeenCalledExactlyOnceWith(
       "https://chatgpt.com/",
@@ -114,7 +120,7 @@ describe("LlmPromptCard", () => {
     await page.getByRole("button", { name: "Open in Claude" }).click();
 
     expect(writeText).toHaveBeenCalledExactlyOnceWith(
-      expect.stringContaining("FOLLOW-UP QUESTIONS")
+      expect.stringContaining("Don't analyse anything yet.")
     );
     expect(open).toHaveBeenCalledExactlyOnceWith(
       "https://claude.ai/new",
@@ -189,9 +195,12 @@ describe("LlmPromptCard", () => {
 
     await page.getByRole("button", { name: "Download (.md)" }).click();
 
-    expect(blob).toHaveBeenCalledExactlyOnceWith([expect.stringContaining("FOLLOW-UP QUESTIONS")], {
-      type: "text/markdown",
-    });
+    expect(blob).toHaveBeenCalledExactlyOnceWith(
+      [expect.stringContaining("Don't analyse anything yet.")],
+      {
+        type: "text/markdown",
+      }
+    );
     expect(createObjectURL).toHaveBeenCalledTimes(1);
     expect(anchor).toHaveAttribute(
       "download",
@@ -222,11 +231,11 @@ describe("LlmPromptCard", () => {
 
     await render(<LlmPromptCard data={demoDashboard} />);
 
+    await openQuestionGroup(MORE_GROUP);
+
     await page.getByRole("radio", { name: SIGNATURE_QUESTION }).click();
 
     await expect.element(page.getByRole("radio", { name: SIGNATURE_QUESTION })).toBeChecked();
-
-    await expect.element(page.getByRole("radio", { name: LEAD_QUESTION })).not.toBeChecked();
 
     await page.getByRole("button", { name: "Copy prompt" }).click();
 
@@ -238,9 +247,11 @@ describe("LlmPromptCard", () => {
   it("uses arrow keys to move and select within the lead-question radio group", async () => {
     await render(<LlmPromptCard data={demoDashboard} />);
 
+    await openQuestionGroup(ENGAGEMENT_GROUP);
+
     const leadQuestion = page.getByRole("radio", { name: LEAD_QUESTION });
     const nextQuestion = page.getByRole("radio", { name: NEXT_QUESTION });
-    leadQuestion.element().focus();
+    await leadQuestion.click();
     await userEvent.keyboard("{ArrowDown}");
 
     await expect.element(nextQuestion).toBeChecked();
@@ -248,15 +259,68 @@ describe("LlmPromptCard", () => {
     await expect.element(leadQuestion).not.toBeChecked();
   });
 
-  it("keeps every catalogue group discoverable without a collapsible form layout", async () => {
+  it("discloses a catalogue section by pointer and keyboard", async () => {
     await render(<LlmPromptCard data={demoDashboard} />);
 
-    await expect.element(page.getByRole("radio", { name: SIGNATURE_QUESTION })).toBeVisible();
-    await expect.element(page.getByRole("region", { name: "More" })).toBeVisible();
+    const disclosure = page.getByText(ENGAGEMENT_GROUP, { exact: true });
+    const leadQuestion = page.getByRole("radio", { name: LEAD_QUESTION });
+
+    await disclosure.click();
+
+    await expect.element(leadQuestion).toBeVisible();
+
+    await userEvent.keyboard("{Enter}");
+
+    await expect.element(leadQuestion).not.toBeInTheDocument();
+
+    await userEvent.keyboard("{Enter}");
+
+    await expect.element(leadQuestion).toBeVisible();
+  });
+
+  it("retains the selected question and prompt while its section is collapsed", async () => {
+    const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+
+    await render(<LlmPromptCard data={demoDashboard} />);
+
+    const group = page.getByText(MORE_GROUP, { exact: true });
+    await openQuestionGroup(MORE_GROUP);
+    await page.getByRole("radio", { name: SIGNATURE_QUESTION }).click();
+    await group.click();
+
+    await expect
+      .element(page.getByRole("radio", { name: SIGNATURE_QUESTION }))
+      .not.toBeInTheDocument();
+
+    await expect.element(page.getByText(`Leads with “${SIGNATURE_QUESTION}”`)).toBeVisible();
+
+    await page.getByRole("button", { name: "Copy prompt" }).click();
+
+    expect(writeText).toHaveBeenCalledExactlyOnceWith(
+      expect.stringContaining("TASK: Tell me my signature genre")
+    );
+
+    await group.click();
+
+    await expect.element(page.getByRole("radio", { name: SIGNATURE_QUESTION })).toBeChecked();
+  });
+
+  it("keeps all prompt actions available in the mobile layout", async () => {
+    await page.viewport(390, 844);
+    onTestFinished(() => page.viewport(1280, 800));
+
+    await render(<LlmPromptCard data={demoDashboard} />);
+
+    await expect.element(page.getByRole("button", { name: "Copy prompt" })).toBeVisible();
+    await expect.element(page.getByRole("button", { name: "Open in ChatGPT" })).toBeVisible();
+    await expect.element(page.getByRole("button", { name: "Open in Claude" })).toBeVisible();
+    await expect.element(page.getByRole("button", { name: "Download (.md)" })).toBeVisible();
   });
 
   it("selecting a question updates the prompt hint", async () => {
     await render(<LlmPromptCard data={demoDashboard} />);
+
+    await openQuestionGroup(MORE_GROUP);
 
     await page.getByRole("radio", { name: SIGNATURE_QUESTION }).click();
 
@@ -273,7 +337,7 @@ describe("LlmPromptCard", () => {
       .toBeVisible();
   });
 
-  it("shows matching questions when searching", async () => {
+  it("reveals matching questions while searching", async () => {
     await render(<LlmPromptCard data={demoDashboard} />);
 
     await userEvent.fill(page.getByRole("searchbox", { name: "Search questions" }), "signature");
@@ -281,7 +345,7 @@ describe("LlmPromptCard", () => {
     await expect.element(page.getByRole("radio", { name: SIGNATURE_QUESTION })).toBeVisible();
   });
 
-  it("restores the full catalogue when the search is cleared", async () => {
+  it("restores the collapsed catalogue when the search is cleared", async () => {
     await render(<LlmPromptCard data={demoDashboard} />);
 
     const search = page.getByRole("searchbox", { name: "Search questions" });
@@ -291,8 +355,12 @@ describe("LlmPromptCard", () => {
 
     await userEvent.clear(search);
 
-    await expect.element(page.getByRole("radio", { name: LEAD_QUESTION })).toBeVisible();
-    await expect.element(page.getByRole("radio", { name: SIGNATURE_QUESTION })).toBeVisible();
+    await expect.element(page.getByText(ENGAGEMENT_GROUP, { exact: true })).toBeVisible();
+    await expect.element(page.getByText(TASTE_GROUP, { exact: true })).toBeVisible();
+    await expect.element(page.getByRole("radio", { name: LEAD_QUESTION })).not.toBeInTheDocument();
+    await expect
+      .element(page.getByRole("radio", { name: SIGNATURE_QUESTION }))
+      .not.toBeInTheDocument();
   });
 
   it("searching filters the question list", async () => {
@@ -344,6 +412,8 @@ describe("LlmPromptCard", () => {
 
     await expect.element(menuOption).toBeChecked();
 
+    await openQuestionGroup(MORE_GROUP);
+
     await signatureQuestion.click();
 
     await expect.element(signatureQuestion).toBeChecked();
@@ -360,6 +430,8 @@ describe("LlmPromptCard", () => {
   it("hides the spend questions from the picker when no transactions are imported", async () => {
     await renderWithAtoms(<LlmPromptCard data={demoDashboard} />);
 
+    await openQuestionGroup(ENGAGEMENT_GROUP);
+
     await expect.element(page.getByRole("radio", { name: LEAD_QUESTION })).toBeVisible();
     await expect.element(page.getByRole("radio", { name: SPEND_QUESTION })).not.toBeInTheDocument();
   });
@@ -369,6 +441,8 @@ describe("LlmPromptCard", () => {
 
     await renderWithAtoms(<LlmPromptCard data={demoDashboard} />);
 
+    await openQuestionGroup(SPENDING_GROUP);
+
     await expect.element(page.getByRole("radio", { name: SPEND_QUESTION })).toBeVisible();
   });
 
@@ -377,6 +451,8 @@ describe("LlmPromptCard", () => {
     seedTransaction();
 
     await renderWithAtoms(<LlmPromptCard data={demoDashboard} />);
+
+    await openQuestionGroup(SPENDING_GROUP);
 
     await page.getByRole("radio", { name: SPEND_QUESTION }).click();
     await page.getByRole("button", { name: "Copy prompt" }).click();

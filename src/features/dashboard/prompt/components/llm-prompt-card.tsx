@@ -1,4 +1,4 @@
-import { Download, Search, SquareArrowOutUpRight } from "lucide-react";
+import { ChevronDown, Download, Search, SquareArrowOutUpRight } from "lucide-react";
 import type { ReactNode } from "react";
 import { useId, useMemo, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
@@ -71,23 +71,81 @@ function PickerRadio({
   );
 }
 
-/** One visible group in the catalogue. The open list keeps discovery direct rather than concealed. */
+interface QuestionGroupProps extends VariantGroup {
+  selectedId: string;
+  choiceName: string;
+  query: string;
+  open: boolean;
+  onOpenChange: (group: PromptGroup, open: boolean) => void;
+  onSelect: (id: string) => void;
+}
+
+interface QuestionGroupSummaryProps {
+  group: PromptGroup;
+  questionCount: number;
+  hasSelectedQuestion: boolean;
+  query: string;
+  open: boolean;
+  onOpenChange: (group: PromptGroup, open: boolean) => void;
+}
+
+function QuestionGroupSummary({
+  group,
+  questionCount,
+  hasSelectedQuestion,
+  query,
+  open,
+  onOpenChange,
+}: QuestionGroupSummaryProps) {
+  return (
+    <summary
+      className="flex min-h-12 cursor-pointer list-none items-center gap-2 px-1 text-left focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring [&::-webkit-details-marker]:hidden"
+      onClick={(event) => {
+        event.preventDefault();
+        if (query === "") onOpenChange(group, !open);
+      }}
+    >
+      <span className="font-bold text-[0.6875rem] text-muted-foreground uppercase tracking-[0.14em]">
+        {group}
+      </span>
+      <span className="text-muted-foreground text-xs tabular-nums">{questionCount}</span>
+      {hasSelectedQuestion ? <span className="text-primary text-xs">Selected</span> : null}
+      <span className="ml-auto shrink-0 text-primary text-xs font-medium group-open:hidden">
+        Show questions
+      </span>
+      <span className="ml-auto hidden shrink-0 text-primary text-xs font-medium group-open:block">
+        Hide questions
+      </span>
+      <ChevronDown
+        className="size-4 shrink-0 text-muted-foreground group-open:rotate-180"
+        aria-hidden="true"
+      />
+    </summary>
+  );
+}
+
+/** A native disclosure section with its active question still visible in the catalogue outline. */
 function QuestionGroup({
   group,
   questions,
   selectedId,
   choiceName,
+  query,
+  open,
+  onOpenChange,
   onSelect,
-}: VariantGroup & { selectedId: string; choiceName: string; onSelect: (id: string) => void }) {
+}: QuestionGroupProps) {
   return (
-    <section aria-label={group} className="border-t border-[var(--playloom-rule)] py-3">
-      <div className="flex items-baseline gap-2 px-1">
-        <h4 className="font-bold text-[0.6875rem] text-muted-foreground uppercase tracking-[0.14em]">
-          {group}
-        </h4>
-        <span className="text-muted-foreground text-xs tabular-nums">{questions.length}</span>
-      </div>
-      <div className="mt-2 space-y-px">
+    <details className="group border-t border-[var(--playloom-rule)]" open={open}>
+      <QuestionGroupSummary
+        group={group}
+        questionCount={questions.length}
+        hasSelectedQuestion={questions.some((question) => question.id === selectedId)}
+        query={query}
+        open={open}
+        onOpenChange={onOpenChange}
+      />
+      <div className="pb-3 pt-1">
         {questions.map((variant) => (
           <PickerRadio
             key={variant.id}
@@ -104,8 +162,23 @@ function QuestionGroup({
           </PickerRadio>
         ))}
       </div>
-    </section>
+    </details>
   );
+}
+
+function useOpenQuestionGroups() {
+  const [openGroups, setOpenGroups] = useState(() => new Set<PromptGroup>());
+
+  const setGroupOpen = (group: PromptGroup, open: boolean) => {
+    setOpenGroups((current) => {
+      const next = new Set(current);
+      if (open) next.add(group);
+      else next.delete(group);
+      return next;
+    });
+  };
+
+  return { openGroups, setGroupOpen };
 }
 
 /** The explicit no-result state or the full, grouped question catalogue. */
@@ -122,6 +195,8 @@ function QuestionGroups({
   choiceName: string;
   onSelect: (id: string) => void;
 }) {
+  const { openGroups, setGroupOpen } = useOpenQuestionGroups();
+
   if (groups.length === 0) {
     return (
       <output className="block w-full border-t border-[var(--playloom-rule)] px-1 py-8 text-pretty text-sm text-muted-foreground">
@@ -136,6 +211,9 @@ function QuestionGroups({
       {...group}
       selectedId={selectedId}
       choiceName={choiceName}
+      query={query}
+      open={query !== "" || openGroups.has(group.group)}
+      onOpenChange={setGroupOpen}
       onSelect={onSelect}
     />
   ));
@@ -546,7 +624,7 @@ function PromptCard({
   transactions: readonly TransactionRow[] | undefined;
 }) {
   const [selectedId, setSelectedId] = useState<string>(PROMPT_VARIANTS[0].id);
-  const [menuMode, setMenuMode] = useState(false);
+  const [menuMode, setMenuMode] = useState(true);
   const [isPending, startTransition] = useTransition();
   const variants = availableVariants(hasTransactionHistory(transactions));
   const variant = variants.find((candidate) => candidate.id === selectedId) ?? PROMPT_VARIANTS[0];
